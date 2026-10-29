@@ -1485,7 +1485,6 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 
 .agents-panel-heading { min-height: var(--chrome-head); display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line-soft); padding: 0 22px; }
 .agents-panel-heading h2 { margin: 0; color: var(--ink-soft); font-size: var(--text-heading); font-weight: 580; }
-.agents-panel-heading p { margin: 4px 0 0; color: var(--quiet); font-size: var(--text-meta); }
 .agents-panel-heading > span { color: var(--info-soft); font-size: var(--text-meta); }
 .agents-panel-heading > span[data-state="paused"] { color: var(--muted); }
 .agents-panel-list { min-height: 0; overflow: auto; margin: 0; padding: 14px; display: block; }
@@ -1779,7 +1778,6 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .branch-menu:has(.picker-search:focus) [role="listbox"] > .picker-option:first-of-type { background: var(--surface-menu-hover); color: var(--ink-soft); }
 /** Titled the way the command menu is, since both are a list a keyboard walks. */
 .branch-menu-title { display: flex; align-items: center; gap: 8px; padding: 4px 8px 8px; color: var(--quiet-strong); font-size: var(--text-meta); font-weight: 600; letter-spacing: 0.02em; }
-.branch-menu-title kbd { margin-left: auto; color: var(--quiet); font: 11px/1 var(--mono); }
 /** Groups say what a name is, so `origin/main` is never mistaken for a branch the checkout holds. */
 .branch-menu-group { padding: 8px 8px 3px; color: var(--muted); font-size: var(--text-badge); letter-spacing: 0.06em; text-transform: uppercase; }
 .branch-menu-group:first-child { padding-top: 3px; }

@@ -139,16 +139,15 @@ export function ThreadSettings({ settings: given, live, locked, onNewWith, onClo
   onEffort: (engine: AgentEngine, effort: AgentEffort) => void;
 }) {
   const [settings, choose, refused] = usePending(given, live);
-  const fastNote = useId();
   const efforts = (settings.coordinating ? coordinatorEffortsOf : effortsOf)[settings.model];
   return (
     <Sheet title="Settings" label="Thread settings" onClose={onClose}>
       <Group heading="Mode" choices={MODES} value={settings.policy} refused={refused.has("policy")} onChange={(policy) => { choose({ policy }); onPolicy(policy); }} />
       <ModelGroup engine={settings.engine} model={settings.model} locked={locked} refused={refused.has("model") || refused.has("engine")} onNewWith={onNewWith} onModel={(engine, model) => { choose({ engine, model }); onModel(engine, model); }} />
       {efforts.length > 0 && <Group heading="Effort" choices={efforts} value={effortForModel(settings.model, settings.effort, settings.coordinating ? "coordinator" : undefined)} refused={refused.has("effort")} onChange={(effort) => { choose({ effort }); onEffort(settings.engine, effort); }} />}
-      {capabilitiesFor(settings.engine).fastMode && <button type="button" className="sheet-option fast-mode-switch" role="switch" aria-label="Fast mode" aria-describedby={fastNote} aria-checked={settings.fastMode ?? false} onClick={() => { const fastMode = !settings.fastMode; choose({ fastMode }); onFastMode(fastMode); }}>
+      {capabilitiesFor(settings.engine).fastMode && <button type="button" className="sheet-option fast-mode-switch" role="switch" aria-label="Fast mode" aria-checked={settings.fastMode ?? false} onClick={() => { const fastMode = !settings.fastMode; choose({ fastMode }); onFastMode(fastMode); }}>
         <Zap size={20} aria-hidden="true" />
-        <span><strong>Fast mode</strong><small id={fastNote}>Faster responses · uses more of your plan</small></span>
+        <span><strong>Fast mode</strong></span>
         <span className="switch-track" aria-hidden="true" />
       </button>}
       {capabilitiesFor(settings.engine).fastMode && <Refused shown={refused.has("fastMode")} />}

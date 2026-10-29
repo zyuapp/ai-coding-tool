@@ -83,7 +83,7 @@ function CodeEntry({ pairing, onPair, onCancel }: { pairing: ComputerPairing; on
       }}
     >
       <label>
-        <span>Code shown by {pairing.name}{typed > 0 && typed < PAIRING_CODE_LENGTH && ` · ${PAIRING_CODE_LENGTH - typed} more`}</span>
+        <span>Code shown by {pairing.name}</span>
         <input
           autoFocus
           autoComplete="off"

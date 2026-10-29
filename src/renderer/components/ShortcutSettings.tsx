@@ -23,10 +23,7 @@ export function ShortcutSettings({ shortcuts, capturingShortcut, desktopShortcut
   return (
     <main className="settings-main">
       <div className="settings-page-heading with-action">
-        <div>
-          <h2>Shortcuts</h2>
-          <p>The rest of the keyboard is fixed, so only the keystrokes worth choosing yourself are here.</p>
-        </div>
+        <h2>Shortcuts</h2>
         <div className="settings-group-action">
           <ConfirmAction disabled={changed === 0} confirm="Restore all" onConfirm={onResetShortcuts}>Restore defaults</ConfirmAction>
         </div>

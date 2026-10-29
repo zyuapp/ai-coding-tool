@@ -157,7 +157,7 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
       className={`branch-menu ${anchor ? "anchored" : ""} ${includeRemotes ? "grouped" : ""}`.trimEnd()}
       style={anchored ?? undefined}
     >
-      {title && <div className="branch-menu-title"><span>{title}</span><kbd>↑↓</kbd></div>}
+      {title && <div className="branch-menu-title">{title}</div>}
       <PickerSearch label="Search branches" value={query} onChange={setQuery} onSubmit={submit} />
       <div role="listbox" aria-label="Branches">
         {naming && (

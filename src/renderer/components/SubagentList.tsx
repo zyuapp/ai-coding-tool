@@ -124,7 +124,7 @@ export function AgentsPanel({ subagents, groups, finding = false, onSelect, onSe
     return (
       <section className="agents-panel" aria-label="Agents">
         <header className="agents-panel-heading">
-          <div><h2>Subagents</h2><p>Work delegated from this task</p></div>
+          <h2>Subagents</h2>
         </header>
         <div className="agents-panel-empty">
           <span className="agent-orb" aria-hidden="true"><Bot size={18} /></span>
@@ -137,7 +137,7 @@ export function AgentsPanel({ subagents, groups, finding = false, onSelect, onSe
   return (
     <section className="agents-panel" aria-label="Agents">
       <header className="agents-panel-heading">
-        <div><h2>Subagents</h2><p>Work delegated from this task</p></div>
+        <h2>Subagents</h2>
         <span>{subagents.length}</span>
       </header>
       <div className="agents-filters">
