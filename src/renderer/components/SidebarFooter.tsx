@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { LuArrowDown as ArrowDown, LuRotateCw as Restart, LuSettings as Settings } from "react-icons/lu";
 import type { AppUpdate } from "../../domain/app-update";
 import { shortcutTip } from "./TooltipLayer";
@@ -70,7 +71,9 @@ function SidebarUpdate({ update, onDownload, onInstall }: {
   }
 }
 
-export function SidebarFooter({ settingsOpen, onOpenSettings, update, onDownloadUpdate, onInstallUpdate }: {
+/** The sidebar's view controls, then the update offer and Settings at the far end. */
+export function SidebarFooter({ settingsOpen, onOpenSettings, update, onDownloadUpdate, onInstallUpdate, children }: {
+  children?: ReactNode;
   settingsOpen: boolean;
   onOpenSettings: () => void;
   update: AppUpdate;
@@ -79,11 +82,11 @@ export function SidebarFooter({ settingsOpen, onOpenSettings, update, onDownload
 }) {
   return (
     <div className="sidebar-footer">
-      <button className={`sidebar-settings ${settingsOpen ? "active" : ""}`} type="button" aria-pressed={settingsOpen} data-tip={SETTINGS_TIP} onClick={onOpenSettings}>
-        <Settings size={18} aria-hidden="true" />
-        <span>Settings</span>
-      </button>
+      {children}
       <SidebarUpdate update={update} onDownload={onDownloadUpdate} onInstall={onInstallUpdate} />
+      <button className={`sidebar-settings ${settingsOpen ? "active" : ""}`} type="button" aria-label="Settings" aria-pressed={settingsOpen} data-tip={SETTINGS_TIP} onClick={onOpenSettings}>
+        <Settings size={16} aria-hidden="true" />
+      </button>
     </div>
   );
 }

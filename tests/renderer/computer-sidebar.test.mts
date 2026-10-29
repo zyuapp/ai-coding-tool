@@ -199,7 +199,7 @@ test("the header's computer button names every computer and narrows the lists to
   }
   const view = await mount(createElement(Sidebar));
   try {
-    const trigger = query<HTMLButtonElement>(view.container, ".traffic-space .sidebar-modes .computer-switch-trigger");
+    const trigger = query<HTMLButtonElement>(view.container, ".sidebar-footer .sidebar-modes .computer-switch-trigger");
     const choicesInMenu = () => [...view.container.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')];
     const press = async (target: HTMLElement, key: string) => {
       await act(async () => { target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true })); });
@@ -307,9 +307,8 @@ test("the Priority view narrows to one project from its own list, naming the com
   });
   const view = await mount(props(null));
   try {
-    const trigger = () => query<HTMLButtonElement>(view.container, ".sidebar-scroll .activity-filter-trigger");
-    assert.equal(view.container.querySelector(".traffic-space .activity-filter-trigger"), null, "the header stays the same in both views");
-    assert.equal(query(view.container, ".activity-filter").nextElementSibling?.querySelector(".section-toggle")?.textContent, "Priority", "it heads the Priority list");
+    const trigger = () => query<HTMLButtonElement>(view.container, ".sidebar-footer .activity-filter-trigger");
+    assert.equal(query(view.container, ".activity-filter").previousElementSibling?.getAttribute("aria-label"), "Sidebar view", "it sits beside the view switch");
     assert.deepEqual([trigger().textContent, trigger().classList.contains("narrowed")], ["All projects", false]);
     await view.render(props(null, "activity:project"));
     const choices = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')];

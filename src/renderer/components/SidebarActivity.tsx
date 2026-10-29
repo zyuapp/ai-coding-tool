@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type RefObject } from "react";
-import { LuCheckCheck as CheckCheck, LuChevronDown as ChevronDown, LuFolder as Folder, LuX as X } from "react-icons/lu";
+import { LuCheckCheck as CheckCheck, LuChevronDown as ChevronDown, LuX as X } from "react-icons/lu";
 import { rankedMatches } from "../../domain/match-rank";
 import { projectName, type Project } from "../../domain/project";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
@@ -44,10 +44,11 @@ function ProjectMenu({ projects, projectHosts, selected, onSetProject, onClose, 
 }
 
 /**
- * Which project's threads the lists below rank: every one, or one. A project on a paired computer
- * names the computer that holds it, the way its rows do.
+ * Which project's threads the lists above rank: every one, or one. A project on a paired computer
+ * names the computer that holds it, the way its rows do. One project has nothing to narrow to,
+ * unless the lists are narrowed to it already.
  */
-function ProjectFilter({ projects, projectHosts, project, onSetProject, openMenu, onSetOpenMenu }: ProjectFilterProps) {
+export function ProjectFilter({ projects, projectHosts, project, onSetProject, openMenu, onSetOpenMenu }: ProjectFilterProps) {
   const open = openMenu === PROJECT_MENU;
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -60,6 +61,7 @@ function ProjectFilter({ projects, projectHosts, project, onSetProject, openMenu
   }, []);
   useDismissibleLayer(open, [root, menu], () => onSetOpenMenu(null), trigger);
   const selected = projects.find((item) => item.id === project);
+  if (projects.length < 2 && project === null) return null;
   return (
     <div ref={root} className="activity-filter" data-popover-menu onBlur={(event) => {
       if (open && !event.currentTarget.contains(event.relatedTarget) && !menu.current?.contains(event.relatedTarget)) onSetOpenMenu(null);
@@ -69,6 +71,7 @@ function ProjectFilter({ projects, projectHosts, project, onSetProject, openMenu
         type="button"
         className={`activity-filter-trigger${selected ? " narrowed" : ""}`}
         aria-label={`Project: ${selected ? projectName(selected) : "All projects"}`}
+        data-tip={selected ? projectName(selected) : undefined}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => onSetOpenMenu(open ? null : PROJECT_MENU)}
@@ -78,7 +81,6 @@ function ProjectFilter({ projects, projectHosts, project, onSetProject, openMenu
           onSetOpenMenu(PROJECT_MENU);
         }}
       >
-        <Folder size={14} aria-hidden="true" />
         <span>{selected ? projectName(selected) : "All projects"}</span>
         {selected && projectHosts.get(selected.id) && <span className="activity-filter-host">{projectHosts.get(selected.id)!.name}</span>}
         <ChevronDown size={14} aria-hidden="true" />
@@ -114,19 +116,15 @@ export type SidebarActivityProps = {
   onSetSectionOpen: (section: SidebarSection, open: boolean) => void;
   onDismissAll: () => void;
   renderRow: ActivityRowRenderer;
-  /** The projects the lists can be narrowed to, and the one they are. */
-  projectFilter: ProjectFilterProps;
 };
 
 function dismissAllLabel(count: number) {
   return count === 1 ? "Dismiss 1 thread" : `Dismiss all ${count} threads`;
 }
 
-export function SidebarActivity({ activityThreads, sections, blockedThreadIds, threadsByCoordinator, onSetSectionOpen, onDismissAll, renderRow, projectFilter }: SidebarActivityProps) {
+export function SidebarActivity({ activityThreads, sections, blockedThreadIds, threadsByCoordinator, onSetSectionOpen, onDismissAll, renderRow }: SidebarActivityProps) {
   return (
     <>
-      {/** One project has nothing to narrow to, unless the lists are narrowed to it already. */}
-      {(projectFilter.projects.length > 1 || projectFilter.project !== null) && <ProjectFilter {...projectFilter} />}
       {ACTIVITY_SECTIONS.map(({ key, label }) => {
         const threads = activityThreads[key];
         /** Snoozed only shows while something is in it, so a user who never snoozes never meets it. */

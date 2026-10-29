@@ -372,11 +372,11 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   gap: 12px;
   /** The window's traffic lights own the left of this strip, so everything here stays clear of them, packed to the right. */
   padding-left: max(0px, calc(var(--window-controls-inset) - 10px));
-  container: sidebar-strip / inline-size;
   -webkit-app-region: drag;
 }
 .thread-nav, .sidebar-modes { display: flex; align-items: center; gap: 1px; -webkit-app-region: no-drag; }
-.sidebar-modes { min-width: 0; margin-left: auto; gap: 6px; }
+.thread-nav { margin-left: auto; }
+.sidebar-modes { flex: 1 1 auto; min-width: 0; gap: 4px; }
 .thread-nav, .sidebar-mode-switch { flex: none; }
 .thread-nav-button {
   width: 28px;
@@ -510,15 +510,16 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .projects-heading { margin-top: 8px; }
 .recents-heading { margin-top: 12px; }
 /** Narrows activity mode to one project. Quiet at rest, and filled while it narrows the lists. */
-.activity-filter { position: relative; margin: 6px var(--row-inset) 4px 4px; }
+.activity-filter { position: relative; min-width: 0; display: flex; align-items: center; gap: 2px; }
 .activity-filter-trigger {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   max-width: 100%;
   height: 28px;
-  padding: 0 8px 0 6px;
-  border: 1px solid var(--line-strong);
+  padding: 0 6px 0 8px;
+  border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
   color: var(--muted);
@@ -531,13 +532,12 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .activity-filter-trigger:hover, .activity-filter-trigger[aria-expanded="true"] { background: var(--wash); color: var(--muted-strong); }
 .activity-filter-trigger.narrowed { border-color: var(--accent-line); background: var(--surface-active); color: var(--ink-dim); }
 .activity-filter-host { color: var(--quiet); }
-.activity-filter:has(.activity-filter-clear) { display: flex; align-items: center; gap: 2px; }
-.activity-filter:has(.activity-filter-clear) > .activity-filter-trigger { min-width: 0; }
 .activity-filter-clear { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 7px; padding: 0; background: transparent; color: var(--muted); cursor: pointer; }
 .activity-filter-clear:hover { background: var(--wash); color: var(--ink-dim); }
 .activity-filter-menu { min-width: 220px; max-height: min(420px, var(--menu-room, 420px)); overflow-y: auto; }
 /** Activity mode's three headings share one shape: label, fold, and at most one action. */
 .activity-heading { grid-template-columns: minmax(0, 1fr) var(--row-slot); }
+.activity-group:first-of-type .activity-heading { margin-top: 8px; }
 .activity-group + .activity-group .activity-heading { margin-top: 12px; }
 /** A folded list's count, as a chip beside its label. */
 .section-count {
@@ -998,14 +998,14 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 }
 .sidebar-empty { margin: 4px 11px; color: var(--quiet); font-size: var(--text-control); line-height: 1.5; }
 .sidebar-settings {
-  width: 100%;
+  width: 30px;
+  height: 30px;
   flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: grid;
+  place-items: center;
   border: 0;
-  border-radius: 9px;
-  padding: 7px 11px;
+  border-radius: 8px;
+  padding: 0;
   background: transparent;
   color: var(--muted);
   font-size: var(--text-control);
@@ -1015,13 +1015,16 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .sidebar-settings:hover { background: var(--wash); color: var(--ink-faint); }
 .sidebar-settings.active { background: var(--row-selected); color: var(--ink); }
 
+/** Spans the sidebar's padding so its rule meets both edges. */
 .sidebar-footer {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 6px;
+  margin: 0 -10px -4px;
+  padding: 6px 10px 0;
+  border-top: 1px solid var(--line);
 }
-.sidebar-footer .sidebar-settings { flex: 1 1 auto; min-width: 0; }
 .sidebar-update {
   flex: 0 0 auto;
   display: grid;
@@ -5368,21 +5371,19 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 
 /* ── Computers ───────────────────────────────────────────────────────────── */
 
-/** A narrow sidebar shortens the computer's name before the header runs into the traffic lights. */
-.computer-switch { position: relative; min-width: 0; display: flex; }
+/** Squeezed by a long project name, a narrowed switch gives up its name before its icon. */
+.computer-switch { position: relative; min-width: 28px; display: flex; }
 /** Narrowed, the switch names the computer the lists are drawn from. */
 .computer-switch-trigger.active { width: auto; min-width: 0; max-width: 120px; display: flex; gap: 5px; padding: 0 8px 0 6px; }
 .computer-switch-trigger > svg { flex: none; }
 .computer-switch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-meta); font-weight: 500; }
-/** Too narrow to show a useful part of the name, the pressed switch stands alone and its tip names the computer. */
-@container sidebar-strip (max-width: 214px) { .computer-switch-name { display: none; } }
 .computer-switch-trigger[aria-expanded="true"] { background: var(--wash); color: var(--muted-strong); }
 .computer-switch-trigger.offline > svg { color: var(--warning); }
 /** A computer out of reach while every computer is listed: a warning dot on the switch's corner. */
 .computer-switch-trigger.some-away { position: relative; }
 .computer-switch-trigger.some-away::after { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 1.5px var(--sidebar); }
-/** Opened rightward, as the button sits near the window's left edge and a long computer name would push a right-anchored menu off it. */
-.computer-switch-menu { top: calc(100% + 4px); left: 0; right: auto; max-width: min(320px, calc(100vw - 28px)); -webkit-app-region: no-drag; }
+/** Opened upward from the footer, and rightward, as a long computer name would push a right-anchored menu off the window's left edge. */
+.computer-switch-menu { top: auto; bottom: calc(100% + 4px); left: 0; right: auto; max-width: min(320px, calc(100vw - 28px)); -webkit-app-region: no-drag; }
 .computer-switch-menu button.offline { color: var(--quiet); }
 .computer-switch-menu .offline .menu-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: middle; }
 .task-row.offline, .project-task-row.offline { color: var(--quiet); cursor: default; }

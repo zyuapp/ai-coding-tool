@@ -9,8 +9,8 @@ import type { SidebarMode, SidebarSection, SidebarSections } from "../../domain/
 import type { ActivitySections } from "../../application/thread-order";
 import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
-import { SidebarActivity } from "./SidebarActivity";
-import { SidebarHeader, SidebarResizer } from "./SidebarChrome";
+import { ProjectFilter, SidebarActivity } from "./SidebarActivity";
+import { SidebarHeader, SidebarResizer, SidebarViewControls } from "./SidebarChrome";
 import type { ThreadHost } from "../../application/computers";
 import { offlineMessage, type ComputerFilter, type ComputerLink } from "../../domain/computers";
 import { PROJECT_DRAG, RECENTS_DROPPABLE, SidebarProjects, useShownThreads } from "./SidebarProjects";
@@ -292,7 +292,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       inert={inactive || !open}
       style={{ "--row-slots": railSlots } as React.CSSProperties}
     >
-      <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
+      <SidebarHeader canGoBack={canGoBack} canGoForward={canGoForward} onGoBack={onGoBack} onGoForward={onGoForward} />
       <NewThreadBar onNewThread={onNewThread} />
 
       <div className="sidebar-scroll">
@@ -309,7 +309,6 @@ export const ProjectSidebar = memo(function ProjectSidebar({
           onSetSectionOpen={onSetSectionOpen}
           onDismissAll={() => onDismissAll(activityProject)}
           renderRow={activityRow}
-          projectFilter={{ projects, projectHosts, project: activityProject, onSetProject: onSetActivityProject, openMenu, onSetOpenMenu }}
         />}
 
         {mode === "projects" && <SidebarProjects
@@ -336,7 +335,11 @@ export const ProjectSidebar = memo(function ProjectSidebar({
           onRemoveProject={onRemoveProject}
         />}
       </div>
-      <SidebarFooter settingsOpen={settingsOpen} onOpenSettings={onOpenSettings} update={appUpdate} onDownloadUpdate={onDownloadUpdate} onInstallUpdate={onInstallUpdate} />
+      <SidebarFooter settingsOpen={settingsOpen} onOpenSettings={onOpenSettings} update={appUpdate} onDownloadUpdate={onDownloadUpdate} onInstallUpdate={onInstallUpdate}>
+        <SidebarViewControls mode={mode} onSetMode={onSetMode} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu}>
+          {mode === "activity" && <ProjectFilter projects={projects} projectHosts={projectHosts} project={activityProject} onSetProject={onSetActivityProject} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
+        </SidebarViewControls>
+      </SidebarFooter>
       <SidebarResizer />
     </aside>
     </DragDropContext>
