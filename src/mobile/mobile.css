@@ -2139,7 +2139,8 @@ button.thread-start-project:active {
 .thread-start-toggle {
   position: relative;
   flex: none;
-  border: 1px solid var(--line-control);
+  border: 0;
+  background: var(--surface-raised);
   color: var(--ink-dim);
 }
 
@@ -2162,11 +2163,9 @@ button.thread-start-project:active {
 
 .thread-start-toggle:disabled {
   color: var(--quiet);
-  border-color: var(--line);
 }
 
 .thread-start-where[data-chosen] {
-  border-color: var(--accent-line-strong);
   background: var(--accent-chip);
   color: var(--ink);
 }

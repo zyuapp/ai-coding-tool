@@ -15,11 +15,11 @@ test("labelled pills and buttons on the phone wear a raised fill, not an edge", 
   for (const selector of [".composer-pill", ".changes-retry", ".work-more", "button.thread-start-project"]) {
     assert.match(rule(selector), /border: 0;[^}]*background: var\(--surface-raised\)/, selector);
   }
+  assert.match(mobileCss, /\n\.thread-start-toggle \{\n  position: relative;[^}]*border: 0;[^}]*background: var\(--surface-raised\)/, ".thread-start-toggle");
 });
 
-test("the steer and thread-start toggles keep the quiet control edge", () => {
+test("the steer toggle keeps the quiet control edge", () => {
   assert.match(rule(".queued-steer"), /border: 1px solid var\(--line-control\)/);
-  assert.match(mobileCss, /\n\.thread-start-toggle \{\n  position: relative;[^}]*border: 1px solid var\(--line-control\)/, ".thread-start-toggle");
 });
 
 test("a copy says what happened in words, not only by colour", () => {

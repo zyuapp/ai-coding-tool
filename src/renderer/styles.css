@@ -1670,18 +1670,18 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 /** A picker shows its value at reading strength; its chevron marks it as a control. */
 .thread-start .thread-start-field > button:not(.error) { color: var(--ink-soft); }
 .thread-start .thread-start-field > button:not(.error) > svg:last-child { color: var(--muted); }
-/** A switch is outlined while off and filled while on, so it reads as a switch before it is pressed and on and off differ in more than colour. */
-.thread-start .thread-start-toggle { box-shadow: inset 0 0 0 1px var(--line-input); }
+/** A switch sits on a quiet fill while off and takes a tinted fill and coloured icon while on. */
+.thread-start .thread-start-toggle { background: var(--control); }
+.thread-start .thread-start-toggle:hover:not(:disabled, [aria-disabled="true"]) { background: var(--control-hover); }
 .thread-start .thread-start-toggle[aria-pressed="true"],
 .thread-start .thread-start-toggle[aria-pressed="true"]:hover {
   background: var(--accent-chip);
-  box-shadow: inset 0 0 0 1px var(--accent-text);
   color: var(--ink);
 }
 .thread-start-toggle > svg { flex: none; color: inherit; }
 .thread-start .thread-start-toggle[aria-pressed="true"] > svg { color: var(--accent-text); }
 .thread-start .thread-start-coordinator[aria-pressed="true"],
-.thread-start .thread-start-coordinator[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--role-coordinator) 16%, transparent); box-shadow: inset 0 0 0 1px var(--role-coordinator); }
+.thread-start .thread-start-coordinator[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--role-coordinator) 16%, transparent); }
 .thread-start .thread-start-coordinator[aria-pressed="true"] > svg { color: var(--role-coordinator); }
 .thread-start-field > button > span {
   min-width: 0;
