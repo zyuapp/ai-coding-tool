@@ -11,10 +11,14 @@ function rule(selector: string): string {
   return found[1];
 }
 
-test("labelled pills and buttons on the phone wear the quiet control edge", () => {
-  for (const selector of [".composer-pill", ".queued-steer", ".changes-retry", ".work-more", "button.thread-start-project"]) {
-    assert.match(rule(selector), /border: 1px solid var\(--line-control\)/, selector);
+test("labelled pills and buttons on the phone wear a raised fill, not an edge", () => {
+  for (const selector of [".composer-pill", ".changes-retry", ".work-more", "button.thread-start-project"]) {
+    assert.match(rule(selector), /border: 0;[^}]*background: var\(--surface-raised\)/, selector);
   }
+});
+
+test("the steer and thread-start toggles keep the quiet control edge", () => {
+  assert.match(rule(".queued-steer"), /border: 1px solid var\(--line-control\)/);
   assert.match(mobileCss, /\n\.thread-start-toggle \{\n  position: relative;[^}]*border: 1px solid var\(--line-control\)/, ".thread-start-toggle");
 });
 

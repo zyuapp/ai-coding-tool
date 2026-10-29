@@ -212,7 +212,7 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
   cursor: pointer;
 }
 /** Resolving is what a reviewed or finished thread waits on, so its check is framed. */
-.coordination-item:is(.review, .done) > .coordination-row-action { box-shadow: inset 0 0 0 1px var(--line-control); color: var(--ink-dim); }
+.coordination-item:is(.review, .done) > .coordination-row-action { background: var(--control); color: var(--ink-dim); }
 .coordination-row-action:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
 .coordination-row-action[data-action="resolve"]:hover:not(:disabled) { background: var(--success-surface); color: var(--success); }
 /** A resolved thread's check is ticked, and turns into an undo while pointed at. */
@@ -405,9 +405,9 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   font-weight: 550;
   cursor: pointer;
 }
-.coordination-note-actions > button:not(.coordination-note-forget) { padding: 0 8px; border: 1px solid var(--line-control); color: var(--ink-dim); }
-.coordination-note-actions > button.danger { border-color: var(--danger-line); color: var(--danger); }
-.coordination-note-actions > button:not(.coordination-note-forget):hover { background: var(--surface-hover); }
+.coordination-note-actions > button:not(.coordination-note-forget) { padding: 0 8px; background: var(--control); color: var(--ink-dim); }
+.coordination-note-actions > button.danger { color: var(--danger); }
+.coordination-note-actions > button:not(.coordination-note-forget):hover { background: var(--control-hover); }
 .coordination-note-actions > button.danger:hover { background: var(--danger-chip); }
 .coordination-note:has(.editing) .coordination-note-actions { display: none; }
 .coordination-note-forget:hover:not(:disabled) { background: var(--danger-chip); color: var(--danger); }
@@ -438,18 +438,18 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .coordination-stop > button {
   flex: none;
   min-height: 24px;
-  border: 1px solid var(--line-control);
+  border: 0;
   border-radius: 7px;
   padding: 0 9px;
-  background: transparent;
+  background: var(--control);
   color: var(--quiet-strong);
   font: inherit;
   font-size: var(--text-meta);
   font-weight: 550;
   cursor: pointer;
 }
-.coordination-stop > button:hover:not(:disabled, [aria-disabled="true"]) { background: var(--wash); color: var(--ink-soft); }
-.coordination-stop > button.danger { border-color: var(--danger-line); color: var(--danger); }
+.coordination-stop > button:hover:not(:disabled, [aria-disabled="true"]) { background: var(--control-hover); color: var(--ink-soft); }
+.coordination-stop > button.danger { color: var(--danger); }
 .coordination-stop > button.danger:hover:not([aria-disabled="true"]) { background: var(--danger-chip); color: var(--danger); }
 .coordination-stop > button:is(:disabled, [aria-disabled="true"]) { opacity: 0.45; cursor: default; }
 .coordination-group-head > svg { color: var(--quiet-strong); transition: transform 140ms ease; }

@@ -307,7 +307,7 @@ button, select { color: inherit; }
   opacity: 1;
   border-color: transparent;
   background: var(--surface-inverse-off);
-  box-shadow: inset 0 0 0 1px var(--line-control);
+  box-shadow: none;
   color: var(--muted);
 }
 /** A command its computer cannot run loses its fill and colour, keeps a readable quiet label and takes a dashed edge. */
@@ -1214,11 +1214,11 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   align-items: center;
   gap: 7px;
   margin: 6px 0 0;
-  border: 1px solid var(--line-strong);
+  border: 0;
   border-radius: 8px;
   padding: 0 11px 0 9px;
   overflow: hidden;
-  background: var(--surface);
+  background: var(--control);
   color: var(--ink-soft);
   font: inherit;
   font-size: var(--text-control);
@@ -1229,7 +1229,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   -webkit-app-region: no-drag;
 }
 .heading-choose-folder > svg { flex: none; color: var(--muted); }
-.heading-choose-folder:hover { border-color: var(--line-bright); background: var(--surface-hover); color: var(--ink); }
+.heading-choose-folder:hover { background: var(--control-hover); color: var(--ink); }
 .work-area { position: relative; min-height: 0; display: flex; grid-column: 1; grid-row: 2; }
 .workspace.dock-open { grid-template-columns: minmax(0, 1fr) var(--dock-width); }
 .workspace.summary-open .composer-wrap { margin-right: 282px; }
@@ -1428,20 +1428,20 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .browser-empty { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; padding: 24px 24px 10vh; text-align: center; }
 .browser-empty h2 { margin: 15px 0 7px; color: var(--ink-dim); font-size: var(--text-heading); font-weight: 560; }
 .browser-empty p { max-width: 300px; margin: 0; color: var(--quiet-strong); font-size: var(--text-control); line-height: 1.5; }
-.browser-empty button { margin-top: 14px; min-height: 30px; border: 1px solid var(--line-control); border-radius: 8px; padding: 0 12px; background: var(--control); color: var(--ink-dim); font-size: var(--text-control); cursor: pointer; }
-.browser-empty button:hover { background: var(--surface-hover); color: var(--ink); }
+.browser-empty button { margin-top: 14px; min-height: 30px; border: 0; border-radius: 8px; padding: 0 12px; background: var(--control); color: var(--ink-dim); font-size: var(--text-control); cursor: pointer; }
+.browser-empty button:hover { background: var(--control-hover); color: var(--ink); }
 .browser-error { position: absolute; inset: auto 12px 12px; display: flex; align-items: center; gap: 10px; margin: 0; border: 1px solid var(--danger-line); border-radius: 9px; padding: 7px 7px 7px 11px; background: var(--danger-surface); color: var(--danger); font-size: var(--text-meta); }
 .browser-error > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.browser-error > button { flex: none; min-height: 24px; border: 1px solid var(--danger-line); border-radius: 6px; padding: 2px 9px; background: var(--surface); color: var(--ink-dim); font: inherit; cursor: pointer; }
-.browser-error > button:hover { background: var(--surface-hover); color: var(--ink); }
+.browser-error > button { flex: none; min-height: 24px; border: 0; border-radius: 6px; padding: 2px 9px; background: var(--control); color: var(--ink-dim); font: inherit; cursor: pointer; }
+.browser-error > button:hover { background: var(--control-hover); color: var(--ink); }
 .terminal-status { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line-soft); margin: 0; padding: 5px 8px 5px 11px; color: var(--muted); font: var(--text-meta)/1.3 var(--mono); }
 .terminal-status span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .terminal-status em { flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--danger-line); border-radius: 6px; padding: 2px 7px; background: var(--danger-surface); color: var(--danger); font: 550 var(--text-meta)/1.3 var(--ui-font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .terminal-status em > svg { flex: none; }
 .terminal-status em.clean { border-color: var(--line-control); background: var(--wash); color: var(--ink-dim); }
-.terminal-new-shell { flex: none; display: inline-flex; align-items: center; gap: 5px; min-height: 26px; margin-left: auto; border: 1px solid var(--line-control); border-radius: 7px; padding: 0 9px; background: var(--control); color: var(--ink-dim); font: 550 var(--text-meta)/1 var(--ui-font); cursor: pointer; }
-.terminal-new-shell:hover { background: var(--surface-hover); color: var(--ink); }
-.terminal-new-shell.primary { border-color: var(--accent-line); background: var(--accent); color: var(--accent-ink); }
+.terminal-new-shell { flex: none; display: inline-flex; align-items: center; gap: 5px; min-height: 26px; margin-left: auto; border: 0; border-radius: 7px; padding: 0 9px; background: var(--control); color: var(--ink-dim); font: 550 var(--text-meta)/1 var(--ui-font); cursor: pointer; }
+.terminal-new-shell:hover { background: var(--control-hover); color: var(--ink); }
+.terminal-new-shell.primary { background: var(--accent); color: var(--accent-ink); }
 .terminal-new-shell.primary:hover { background: var(--accent-hover); color: var(--accent-ink); }
 
 .terminal-viewport { position: relative; min-height: 0; flex: 1; padding: 8px 4px 8px 10px; background: var(--code-surface); }
@@ -1500,8 +1500,8 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .agents-panel-list .agent-row { padding: 11px 10px; }
 .agents-panel-none { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 18px 22px; }
 .agents-panel-none .session-empty { margin: 0; color: var(--muted); font-size: var(--text-control); }
-.agents-panel-none button, .agents-panel-empty button { min-height: 28px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 4px 12px; background: transparent; color: var(--ink-dim); font-size: var(--text-control); font-weight: 560; cursor: pointer; }
-.agents-panel-none button:hover, .agents-panel-empty button:hover { background: var(--surface-hover); color: var(--ink); }
+.agents-panel-none button, .agents-panel-empty button { min-height: 28px; border: 0; border-radius: 8px; padding: 4px 12px; background: var(--control); color: var(--ink-dim); font-size: var(--text-control); font-weight: 560; cursor: pointer; }
+.agents-panel-none button:hover, .agents-panel-empty button:hover { background: var(--control-hover); color: var(--ink); }
 .agents-filters { display: grid; gap: 9px; border-bottom: 1px solid var(--line-soft); padding: 12px 14px; }
 .agent-status-strip { display: flex; flex-wrap: wrap; gap: 6px; }
 .agent-status-strip button {
@@ -1887,8 +1887,8 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .decision-card .decision-head > strong { color: var(--accent-text); font-size: var(--text-menu); font-weight: 650; }
 .decision-head .decision-pager { gap: 4px; color: var(--muted-strong); }
 .decision-head .decision-pager .decision-count { margin: 0; border-radius: 6px; padding: 1px 7px; background: var(--accent-chip); color: var(--accent-soft); font-weight: 650; }
-.decision-head .decision-pager button { border: 1px solid var(--line-control); color: var(--ink-dim); }
-.decision-head .decision-pager button:hover { background: var(--surface-hover); color: var(--ink); }
+.decision-head .decision-pager button { background: var(--control); color: var(--ink-dim); }
+.decision-head .decision-pager button:hover { background: var(--control-hover); color: var(--ink); }
 .decision-card .elsewhere-place { color: var(--ink-dim); font-size: var(--text-menu); }
 .decision-foot:has(.decision-own) { align-items: flex-end; }
 .decision-own { flex: 1; min-width: 0; display: grid; gap: 3px; color: var(--muted); font-size: var(--text-meta); }
@@ -1902,9 +1902,10 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .elsewhere-place .elsewhere-worktree { min-height: 28px; border-radius: 7px; padding: 0 8px; }
 .elsewhere-place .elsewhere-worktree:hover { background: var(--surface-hover); color: var(--ink); }
 .suggestion-dismiss-slot, .process-stop-slot { flex: none; display: inline-flex; align-items: center; gap: 4px; }
-:is(.suggestion-dismiss-slot, .process-stop-slot) > button:not(.suggestion-dismiss, .process-stop) { min-height: 26px; border: 1px solid var(--line-control); border-radius: 7px; padding: 0 9px; background: transparent; color: var(--ink-dim); font: inherit; font-size: var(--text-meta); cursor: pointer; }
-:is(.suggestion-dismiss-slot, .process-stop-slot) > button:not(.suggestion-dismiss, .process-stop):hover { background: var(--surface-hover); color: var(--ink); }
-:is(.suggestion-dismiss-slot, .process-stop-slot) > button.danger, .decision-foot button.danger.armed { border-color: var(--danger-line); background: transparent; color: var(--danger); }
+:is(.suggestion-dismiss-slot, .process-stop-slot) > button:not(.suggestion-dismiss, .process-stop) { min-height: 26px; border: 0; border-radius: 7px; padding: 0 9px; background: var(--control); color: var(--ink-dim); font: inherit; font-size: var(--text-meta); cursor: pointer; }
+:is(.suggestion-dismiss-slot, .process-stop-slot) > button:not(.suggestion-dismiss, .process-stop):hover { background: var(--control-hover); color: var(--ink); }
+:is(.suggestion-dismiss-slot, .process-stop-slot) > button.danger { color: var(--danger); }
+.decision-foot button.danger.armed { border-color: var(--danger-line); background: transparent; color: var(--danger); }
 :is(.suggestion-dismiss-slot, .process-stop-slot) > button.danger:hover, .decision-foot button.danger.armed:hover { background: var(--danger-chip); color: var(--danger); }
 .decision-foot .armed + button { border-color: var(--line-control); background: transparent; color: var(--ink-dim); font-weight: 500; }
 .suggestion-row:has(.armed) .suggestion-start, .decision-foot:has(.armed) :is(.suggestion-start-all, .decision-allow) { display: none; }
@@ -2078,7 +2079,7 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 .work-lead { color: var(--muted-soft); }
 /* A settled turn's fold and the earlier updates' fold are framed controls the width of what they say,
    so neither reads as a caption. */
-:is(.settled-fold, .updates-fold) > summary { width: fit-content; max-width: 100%; border: 1px solid var(--line-control); padding: 0 8px 0 11px; }
+:is(.settled-fold, .updates-fold) > summary { width: fit-content; max-width: 100%; background: var(--control); padding: 0 8px 0 11px; }
 :is(.settled-fold, .updates-fold) > summary > .work-lead { color: var(--muted); }
 .settled-fold[open] > summary { margin-bottom: 10px; }
 .updates-fold-entries { display: flex; flex-direction: column; gap: 26px; padding: 16px 0 4px; }
@@ -2594,7 +2595,7 @@ pre {
 }
 .font-select-list button:hover { background: var(--wash); color: var(--ink); }
 .font-select-list button.chosen { background: var(--surface-active); color: var(--ink); }
-.font-select-list button.next { background: var(--wash); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.font-select-list button.next { background: var(--control); color: var(--ink); }
 .font-select-list button svg { flex: none; color: var(--accent); }
 .font-select-heading { margin-top: 6px; border-top: 1px solid var(--line); padding: 9px 9px 3px; color: var(--quiet-strong); font-size: var(--text-meta); font-weight: 600; }
 .font-select-note { margin: 0; padding: 0 9px 2px; color: var(--quiet-strong); font-size: var(--text-meta); }
@@ -2745,8 +2746,8 @@ pre {
 :is(.settings-group-action, .setting-row-action, .browser-import-actions) button:disabled:not([aria-busy="true"], .setting-switch) { opacity: 1; background: transparent; color: var(--quiet); }
 .settings-group-action button > svg { flex: 0 0 auto; }
 .phone-check { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 13px; border-top: 1px solid var(--line); padding: 13px 0; }
-.phone-check-link { border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 11px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; text-decoration: none; }
-.phone-check-link:hover { border-color: var(--line-bright); background: var(--control-hover); }
+.phone-check-link { border: 0; border-radius: 8px; padding: 7px 11px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; text-decoration: none; }
+.phone-check-link:hover { background: var(--control-hover); }
 .phone-check strong { color: var(--ink-dim); font-size: var(--text-control); font-weight: 570; }
 .phone-check p { margin: 3px 0 0; color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.45; }
 .phone-check.waiting strong { color: var(--quiet-strong); font-weight: 500; }
@@ -2851,9 +2852,9 @@ pre {
 .goal-objective.open > svg { transform: rotate(180deg); }
 .goal-detail { color: var(--muted); font-size: var(--text-meta); white-space: nowrap; }
 .goal-actions { display: flex; gap: 6px; }
-.goal-actions button { min-height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: var(--wash); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--ink-soft); font: inherit; font-size: var(--text-meta); font-weight: 520; white-space: nowrap; cursor: pointer; }
-.goal-actions button:hover { background: var(--surface-hover); color: var(--ink); }
-.goal-actions button.danger.armed { background: var(--danger-surface); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 75%, var(--canvas)); color: var(--danger); }
+.goal-actions button { min-height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: var(--control); color: var(--ink-soft); font: inherit; font-size: var(--text-meta); font-weight: 520; white-space: nowrap; cursor: pointer; }
+.goal-actions button:hover { background: var(--control-hover); color: var(--ink); }
+.goal-actions button.danger.armed { background: var(--danger-surface); color: var(--danger); }
 .goal-actions button.danger.armed:hover { background: color-mix(in srgb, var(--danger) 18%, var(--surface)); color: var(--danger); }
 .goal-bar.blocked .goal-target { border-color: var(--danger); }
 .goal-bar.blocked .goal-target span { background: var(--danger); }
@@ -3141,8 +3142,8 @@ pre {
 .side-chat-transcript .message.user .message-text { padding: 9px 13px; }
 .side-chat-transcript .message-text { font-size: var(--text-content); }
 .side-chat-action { display: flex; justify-content: center; padding: 0 17px 12px; }
-.side-chat-action > button { min-width: 0; max-width: 100%; min-height: 28px; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 8px; padding: 4px 12px; background: transparent; color: var(--ink-dim); font-size: var(--text-control); font-weight: 560; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.side-chat-action > button:hover { background: var(--surface-hover); color: var(--ink); }
+.side-chat-action > button { min-width: 0; max-width: 100%; min-height: 28px; overflow: hidden; border: 0; border-radius: 8px; padding: 4px 12px; background: var(--control); color: var(--ink-dim); font-size: var(--text-control); font-weight: 560; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.side-chat-action > button:hover { background: var(--control-hover); color: var(--ink); }
 .side-chat-error { margin: 0; padding: 9px 17px; border-top: 1px solid var(--danger-line); background: var(--danger-surface); color: var(--danger); font-size: var(--text-control); }
 /** The side chat lays its own rows out, so the composer takes the row it falls in rather than the workspace's third. */
 .composer-wrap.side, .composer-wrap.tab { grid-column: auto; grid-row: auto; padding: 10px 14px 0; background: none; }
@@ -4164,7 +4165,6 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   place-items: center;
   border-radius: 6px;
   background: var(--surface-raised);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
   color: var(--ink-dim);
 }
 .attachment-open:is(:hover, :focus-visible) .attachment-edit { background: var(--accent); box-shadow: none; color: var(--accent-ink); }
@@ -4300,8 +4300,8 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
 .viewer-zoom button { width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
 .viewer-zoom button:hover:not(:disabled) { background: var(--control-hover); color: var(--ink); }
 .viewer-zoom button:disabled { opacity: 0.45; cursor: default; }
-.viewer-zoom button.viewer-zoom-level { width: auto; min-width: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 6px; box-shadow: inset 0 0 0 1px var(--line-control); color: var(--ink-soft); font: inherit; font-weight: 550; }
-.viewer-zoom button.viewer-zoom-level:disabled { opacity: 1; box-shadow: none; color: var(--muted); font-weight: 400; }
+.viewer-zoom button.viewer-zoom-level { width: auto; min-width: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 6px; background: var(--control); color: var(--ink-soft); font: inherit; font-weight: 550; }
+.viewer-zoom button.viewer-zoom-level:disabled { opacity: 1; background: none; color: var(--muted); font-weight: 400; }
 .viewer-zoom-level > svg { flex: none; }
 .viewer-zoom-level:disabled > svg { display: none; }
 /* Top padding clears the traffic lights; no-drag opts out of the topbar drag region this overlay covers. */
@@ -4463,13 +4463,13 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   width: 32px;
   height: 32px;
   padding: 0;
-  border: 1px solid var(--line-mid);
+  border: 0;
   border-radius: 9px;
   background: var(--control);
   color: var(--ink-soft);
   cursor: pointer;
 }
-.annotator-undo:hover:not(:disabled) { border-color: var(--line-bright); color: var(--ink); }
+.annotator-undo:hover:not(:disabled) { background: var(--control-hover); color: var(--ink); }
 .annotator-undo:disabled { opacity: var(--disabled-opacity); cursor: default; }
 .composer textarea {
   display: block;
@@ -4618,8 +4618,8 @@ button.setting-hint:hover { color: var(--ink); }
 .context-usage-gauge { position: relative; display: flex; }
 .context-usage-meter { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 4px; border-radius: 8px; }
 .context-usage-gauge:hover .context-usage-meter { background: var(--wash); }
-.context-usage-compact { flex: none; min-height: 28px; padding: 0 11px; border: 1px solid var(--accent-line); border-radius: 8px; background: var(--accent-surface); color: var(--accent-soft); font-size: var(--text-meta); font-weight: 600; white-space: nowrap; cursor: pointer; }
-.context-usage-compact:hover:not(:disabled) { border-color: var(--accent-text); }
+.context-usage-compact { flex: none; min-height: 28px; padding: 0 11px; border: 0; border-radius: 8px; background: var(--accent-surface); color: var(--accent-soft); font-size: var(--text-meta); font-weight: 600; white-space: nowrap; cursor: pointer; }
+.context-usage-compact:hover:not(:disabled) { background: var(--accent-chip); }
 .context-usage-ring {
   flex: none;
   width: 18px;
@@ -4735,7 +4735,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   font-size: 17px;
   line-height: 1;
 }
-.send-button:is(:disabled, [aria-disabled="true"]) { background: var(--surface-inverse-off); box-shadow: inset 0 0 0 1px var(--line-control); color: var(--muted); cursor: default; }
+.send-button:is(:disabled, [aria-disabled="true"]) { background: var(--surface-inverse-off); color: var(--muted); cursor: default; }
 .send-button.busy:disabled { background: var(--surface-inverse); box-shadow: none; color: var(--ink-inverse); }
 .send-spinner { width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.9s linear infinite; }
 .stop-glyph { width: 10px; height: 10px; border-radius: 2px; background: var(--ink-inverse); }
@@ -4864,7 +4864,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .diff-mode-trigger svg { color: var(--quiet-strong); }
 .diff-mode-trigger > small { color: var(--muted); font-size: var(--text-meta); font-weight: 560; }
 .diff-mode-trigger:hover:not([aria-disabled="true"]), .diff-mode-trigger[aria-expanded="true"] { background: var(--surface-hover); color: var(--ink); }
-.diff-mode-trigger[aria-disabled="true"], .diff-side-trigger[aria-disabled="true"] { background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--quiet); cursor: default; }
+.diff-mode-trigger[aria-disabled="true"], .diff-side-trigger[aria-disabled="true"] { background: none; color: var(--quiet); cursor: default; }
 .diff-linked-commit { min-width: 0; display: flex; align-items: center; gap: 5px; min-height: 28px; border: 0; border-radius: 7px; padding: 3px 8px 3px 7px; background: var(--control-soft); color: var(--ink-dim); cursor: pointer; }
 .diff-linked-commit > code { font: var(--text-meta) var(--mono); }
 .diff-linked-commit > svg { flex: none; color: var(--quiet-strong); }
@@ -4900,7 +4900,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .diff-toolbar-actions { display: flex; gap: 2px; }
 .diff-toolbar-actions button { display: grid; place-items: center; padding: 0; width: 28px; height: 28px; border: 0; border-radius: 7px; background: none; color: var(--muted); cursor: pointer; }
 .diff-toolbar-actions button:hover, .diff-toolbar-actions button[aria-expanded="true"] { background: var(--surface-hover); color: var(--ink); }
-.diff-toolbar-actions button.on, .diff-toolbar-actions button.on:hover { background: var(--accent-surface); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--accent-text); }
+.diff-toolbar-actions button.on, .diff-toolbar-actions button.on:hover { background: var(--accent-surface); color: var(--accent-text); }
 .diff-toolbar-actions button[aria-disabled="true"], .diff-toolbar-actions button[aria-disabled="true"]:hover { background: none; box-shadow: none; color: var(--quiet); cursor: default; }
 
 .diff-progress { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding: 5px 12px 6px 7px; color: var(--quiet-strong); font-size: var(--text-meta); }
@@ -4915,12 +4915,12 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .diff-progress-meter > span { display: block; height: 100%; background: var(--success); transition: width 180ms ease-out; }
 .diff-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 8px 12px 0; color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.4; }
 .diff-status .task-spinner { flex: none; width: 12px; height: 12px; }
-.diff-status > button { flex: none; min-height: 24px; border: 1px solid var(--line-strong); border-radius: 6px; padding: 2px 9px; background: transparent; color: var(--ink-dim); font: inherit; cursor: pointer; }
-.diff-status > button:hover { background: var(--surface-hover); color: var(--ink); }
+.diff-status > button { flex: none; min-height: 24px; border: 0; border-radius: 6px; padding: 2px 9px; background: var(--control); color: var(--ink-dim); font: inherit; cursor: pointer; }
+.diff-status > button:hover { background: var(--control-hover); color: var(--ink); }
 .diff-error { display: flex; align-items: center; gap: 10px; margin: 6px 10px 0; border: 1px solid var(--danger-line); border-radius: 8px; padding: 6px 6px 6px 10px; background: var(--danger-surface); color: var(--danger); font-size: var(--text-meta); line-height: 1.4; }
 .diff-error > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.diff-error > button { flex: none; min-height: 24px; border: 1px solid var(--danger-line); border-radius: 6px; padding: 2px 9px; background: var(--surface); color: var(--ink-dim); font: inherit; cursor: pointer; }
-.diff-error > button:hover { background: var(--surface-hover); color: var(--ink); }
+.diff-error > button { flex: none; min-height: 24px; border: 0; border-radius: 6px; padding: 2px 9px; background: var(--control); color: var(--ink-dim); font: inherit; cursor: pointer; }
+.diff-error > button:hover { background: var(--control-hover); color: var(--ink); }
 
 .diff-scroll { position: relative; display: flex; flex: 1; min-height: 0; flex-direction: column; }
 /** One scroller for the whole review, so files read top to bottom instead of each scrolling inside itself. */
@@ -5015,8 +5015,8 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .diff-comment-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet-strong); font-size: var(--text-meta); }
 .diff-comment header button { display: grid; place-items: center; padding: 0; flex: none; width: 24px; height: 24px; border: 0; border-radius: 7px; background: none; color: var(--quiet-strong); cursor: pointer; }
 .diff-comment header button:hover { background: var(--surface-hover); color: var(--ink-dim); }
-.diff-comment header button.armed, .diff-comment header button.armed + button { width: auto; padding: 0 8px; border: 1px solid var(--line-control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 550; }
-.diff-comment header button.armed { border-color: var(--danger-line); color: var(--danger); }
+.diff-comment header button.armed, .diff-comment header button.armed + button { width: auto; padding: 0 8px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 550; }
+.diff-comment header button.armed { color: var(--danger); }
 .diff-comment header button.armed:hover { background: var(--danger-chip); color: var(--danger); }
 .diff-comment .send-button { display: grid; place-items: center; padding: 0; flex: none; width: 28px; height: 28px; }
 
@@ -5373,7 +5373,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .project-directory-options button[aria-selected="true"] { background: var(--row-selected); color: var(--ink); }
 .sidebar-project-empty { padding: 12px; color: var(--muted-strong); font-size: var(--text-menu); line-height: 1.45; overflow-wrap: anywhere; }
 .sidebar-project-empty p { margin: 0 0 10px; }
-.sidebar-empty-action, .thread-jump-empty button { display: inline-flex; align-items: center; gap: 6px; height: 28px; border: 1px solid var(--line-control); border-radius: 7px; padding: 0 10px; background: var(--control); color: var(--ink-dim); font: inherit; font-size: var(--text-meta); cursor: pointer; }
+.sidebar-empty-action, .thread-jump-empty button { display: inline-flex; align-items: center; gap: 6px; height: 28px; border: 0; border-radius: 7px; padding: 0 10px; background: var(--control); color: var(--ink-dim); font: inherit; font-size: var(--text-meta); cursor: pointer; }
 .sidebar-empty-action:hover, .thread-jump-empty button:hover { background: var(--control-hover); color: var(--ink); }
 
 /** Another browser's sites, picked before their sign-ins are copied into the panel. */
