@@ -91,7 +91,6 @@ export function SettingsSidebar({ section, searchRef, onClose, onLand, onRefresh
       <button className="settings-back" type="button" aria-keyshortcuts="Escape" onClick={onClose}>
         <ArrowLeft size={18} aria-hidden="true" />
         <span>Back to AI Coding Tool</span>
-        <kbd aria-hidden="true">Esc</kbd>
       </button>
       <h1>Settings</h1>
       <label className="settings-search">

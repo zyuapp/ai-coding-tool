@@ -2308,7 +2308,6 @@ pre {
   -webkit-app-region: no-drag;
 }
 .settings-back:hover { background: var(--wash); color: var(--ink-soft); }
-.settings-back kbd { margin-left: auto; border: 1px solid var(--line-strong); border-radius: 5px; padding: 1px 5px; color: var(--quiet-strong); font: inherit; font-size: var(--text-meta); line-height: 1.4; }
 .settings-sidebar h1 { flex: 0 0 auto; margin: 26px 10px 22px; color: var(--ink); font-size: var(--text-display); font-weight: 610; letter-spacing: -0.03em; }
 .settings-search {
   flex: 0 0 auto;
