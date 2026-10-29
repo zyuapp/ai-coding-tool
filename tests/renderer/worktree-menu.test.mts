@@ -143,7 +143,7 @@ test("a destination that cannot be chosen yet still takes the keyboard, like oth
   } finally { await view.unmount(); }
 });
 
-test("New worktree stays reachable while a run blocks it, says why, and does nothing", async () => {
+test("New worktree stays reachable while a run blocks it, and does nothing", async () => {
   const view = await renderMenu();
   try {
     await openLocationMenu();
@@ -152,7 +152,6 @@ test("New worktree stays reachable while a run blocks it, says why, and does not
     const creating = query<HTMLButtonElement>(document, ".worktree-menu-new");
     assert.equal(creating.disabled, false);
     assert.equal(creating.getAttribute("aria-disabled"), "true");
-    assert.equal(creating.dataset.tip, "Wait for the run to finish");
     await act(async () => creating.click());
     assert.equal(view.effects.some((effect) => effect.type === "create-worktree"), false);
   } finally { await view.unmount(); }

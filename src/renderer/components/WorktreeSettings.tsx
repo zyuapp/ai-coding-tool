@@ -83,10 +83,7 @@ export function WorktreeSettings({ page, error, notice, dispatch }: WorktreeSett
   const expanded = new Set(page.expandedThreads);
   return (
     <main className="settings-main worktree-settings">
-      <div className="settings-page-heading">
-        <h2>Worktrees</h2>
-        <p>Folders where threads work on their own copy of a project, apart from its checkout.</p>
-      </div>
+      <div className="settings-page-heading"><h2>Worktrees</h2></div>
       <section className="worktree-settings-list" aria-labelledby="worktrees-heading" aria-busy={page.loading}>
         <div className="worktree-toolbar">
           <h3 id="worktrees-heading">On this device{!page.loading && <span className="worktree-count">{page.available.length}</span>}</h3>
@@ -99,7 +96,7 @@ export function WorktreeSettings({ page, error, notice, dispatch }: WorktreeSett
               <ChevronDown size={14} aria-hidden="true" />
             </div>}
             <div className="settings-group-action">
-              <button type="button" disabled={page.loading} aria-busy={page.loading || undefined} data-tip="Compares commits with local Git refs. Fetch first for the latest." onClick={() => dispatch({ type: "worktree.refresh" })}>
+              <button type="button" disabled={page.loading} aria-busy={page.loading || undefined} onClick={() => dispatch({ type: "worktree.refresh" })}>
                 <SpinningIcon icon={RefreshCw} spinning={page.loading} size={14} aria-hidden="true" />{page.loading ? "Reading…" : "Refresh"}
               </button>
             </div>
@@ -108,9 +105,7 @@ export function WorktreeSettings({ page, error, notice, dispatch }: WorktreeSett
         {error && <p className="settings-error" role="alert">{error}</p>}
         {notice && <p className="settings-notice" role="status">{notice}</p>}
         {page.loading && <p className="settings-empty" role="status">Reading worktrees…</p>}
-        {!page.loading && !error && !page.available.length && <p className="settings-empty">{page.project
-          ? <>No worktrees on this device for this project. <button type="button" className="settings-empty-action" onClick={() => dispatch({ type: "worktree.filter-project", project: null })}>Show all projects</button></>
-          : "No worktrees on this device."}</p>}
+        {!page.loading && !error && !page.available.length && <p className="settings-empty">{page.project ? "No worktrees on this device for this project." : "No worktrees on this device."}</p>}
         {page.available.map((worktree) => <WorktreeRow worktree={worktree} expanded={expanded.has(worktree.root)} dispatch={dispatch} key={worktree.root} />)}
       </section>
       {page.missing.length > 0 && <section className="worktree-missing">

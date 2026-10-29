@@ -25,7 +25,6 @@ test("a diagram that failed names why in view, and draws on a second try", async
   assert.equal(query(error, ".block-error-reason").textContent, "Parse error on line 2:", "the first line shows without opening the details");
   const retry = query<HTMLButtonElement>(error, ".limit-action");
   assert.equal(retry.textContent, "Try again");
-  assert.equal(query(error, ".copy-affordance").getAttribute("aria-label"), "Copy the error", "the error can be copied next to Try again");
 
   await act(async () => { retry.click(); });
   await settle();

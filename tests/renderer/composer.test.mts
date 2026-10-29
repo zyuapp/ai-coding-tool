@@ -110,7 +110,6 @@ test("one outside pointer press dismisses the slash menu until the draft changes
     textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText" }));
   });
   assert.ok(view.container.querySelector(".command-menu"));
-  assert.equal([...view.container.querySelectorAll(".command-menu-heading kbd")].length, 3, "the heading names the keys that move, choose and close");
   await act(async () => { document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })); });
   assert.equal(view.container.querySelector(".command-menu"), null);
   await act(async () => {
@@ -380,16 +379,13 @@ test("the prompt asks for work, and says why when it cannot take a message", asy
   await side.unmount();
 });
 
-test("Send names ↑ for the previous message once there is one, and draws its arrow as an icon", async () => {
+test("Send's tip names only its own key, and its arrow is an icon", async () => {
   window.desktop = fakeDesktop();
-  const fresh = await mount(renderConversationComposer({ prompt: "hi" }));
+  const fresh = await mount(renderConversationComposer({ prompt: "hi", history: [{ text: "earlier", annotations: [], pastes: [], files: [], attachments: [] }] }));
   const send = query(fresh.container, ".send-button");
-  assert.doesNotMatch(send.dataset.tip ?? "", /Previous message/);
+  assert.match(send.dataset.tip ?? "", /^Send \([^)]+\)$/);
   assert.ok(send.querySelector("svg"), "the arrow is an icon, not a font glyph");
   await fresh.unmount();
-  const recalled = await mount(renderConversationComposer({ history: [{ text: "earlier", annotations: [], pastes: [], files: [], attachments: [] }] }));
-  assert.match(query(recalled.container, ".send-button").dataset.tip ?? "", / · Previous message \((↑|ArrowUp)\)$/);
-  await recalled.unmount();
 });
 
 test("the side surface keeps the slash palette but never offers to fork a fork", async () => {
@@ -662,7 +658,7 @@ test("the context ring only reads, and Compact stands beside it once the window 
   const high = await mount(renderConversationComposer({ contextUsage: { tokens: 180_000, limit: 200_000, model: "claude-opus-5" }, onCompact }));
   assert.ok(query(high.container, ".context-usage").classList.contains("high"));
   assert.equal(query(high.container, ".context-usage-value").textContent, "90%");
-  assert.equal(query(high.container, ".context-usage-compact").dataset.tip, "Summarize older context to free space");
+  assert.equal(query(high.container, ".context-usage-compact").hasAttribute("data-tip"), false);
   await act(async () => { query<HTMLButtonElement>(high.container, ".context-usage-compact").click(); });
   assert.equal(compacted, 1);
   await high.unmount();

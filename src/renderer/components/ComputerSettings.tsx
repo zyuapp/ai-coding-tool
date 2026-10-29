@@ -1,7 +1,7 @@
-import { LuCheck as Check, LuMonitor as Monitor, LuPlus as Plus, LuPencil as Pencil, LuRefreshCw as RefreshCw, LuTrash2 as Trash } from "react-icons/lu";
+import { LuMonitor as Monitor, LuPlus as Plus, LuPencil as Pencil, LuRefreshCw as RefreshCw, LuTrash2 as Trash } from "react-icons/lu";
 import { useEffect, useState } from "react";
 import { computerAddress, MAX_COMPUTER_NAME, type ComputerLink, type ComputerPairing, type DiscoveredComputer } from "../../domain/computers";
-import type { ComputerUpkeep, UpkeepAction, UpkeepItem, UpkeepPart } from "../../application/computer-updates";
+import type { ComputerUpkeep, UpkeepItem, UpkeepPart } from "../../application/computer-updates";
 import type { AppCommand } from "../../contracts/commands";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { ConfirmAction, SettingGroup } from "./SettingRow";
@@ -50,25 +50,6 @@ function StatusLine({ parts }: { parts: readonly UpkeepPart[] }) {
   );
 }
 
-/** How long a sent step waits for that computer's answer before its button can be pressed again. */
-const SENT_MS = 10_000;
-
-/** A step sent to another computer: busy from the press until that computer's state moves on. */
-function UpkeepButton({ action, state, className, onCommand }: { action: UpkeepAction; state: string; className?: string; onCommand: (command: AppCommand) => void }) {
-  const [sent, setSent] = useState<string | null>(null);
-  const busy = sent === state;
-  useEffect(() => {
-    if (!busy) return;
-    const timer = setTimeout(() => setSent(null), SENT_MS);
-    return () => clearTimeout(timer);
-  }, [busy]);
-  return (
-    <button type="button" className={className} disabled={busy} aria-busy={busy} onClick={() => { setSent(state); onCommand(action.command); }}>
-      {busy && <RefreshCw size={14} aria-hidden="true" className="spinning" />}{action.label}
-    </button>
-  );
-}
-
 /** The software that computer runs, one line each, with every step in one column. */
 function Software({ items, onCommand }: { items: readonly UpkeepItem[]; onCommand?: (command: AppCommand) => void }) {
   if (!items.length) return null;
@@ -80,7 +61,7 @@ function Software({ items, onCommand }: { items: readonly UpkeepItem[]; onComman
           <span className="computer-software-version">{item.version ?? "—"}</span>
           <span className={`computer-software-state ${item.state.tone ?? ""}`}>{item.state.text}</span>
           <span className="computer-software-action">
-            {item.action && onCommand && <UpkeepButton action={item.action} state={`${item.state.text}|${item.action.label}`} className={item.state.tone === "error" ? "primary" : undefined} onCommand={onCommand} />}
+            {item.action && onCommand && <button type="button" className={item.state.tone === "error" ? "primary" : ""} onClick={() => onCommand(item.action!.command)}>{item.action.label}</button>}
           </span>
         </li>
       ))}
@@ -123,7 +104,7 @@ function CodeEntry({ pairing, onPair, onCancel }: { pairing: ComputerPairing; on
 }
 
 /** A computer the tailnet does not list, named by address: the same pairing, with the code shown by that address. */
-function AddressEntry({ pairing, alternative, onPair }: { pairing: ComputerPairing | null; alternative: boolean; onPair: (host: string) => void }) {
+function AddressEntry({ pairing, onPair }: { pairing: ComputerPairing | null; onPair: (host: string) => void }) {
   const [host, setHost] = useState("");
   const [invalid, setInvalid] = useState(false);
   const typed = host.trim();
@@ -138,12 +119,12 @@ function AddressEntry({ pairing, alternative, onPair }: { pairing: ComputerPairi
       }}
     >
       <label>
-        <strong>{alternative ? "Or pair by address" : "Pair by address"}</strong>
+        <span>Or pair by address</span>
         <input
           autoComplete="off"
           spellCheck={false}
           value={host}
-          placeholder="mac.tailnet.ts.net"
+          placeholder="host:port"
           aria-invalid={invalid}
           aria-describedby={invalid ? "computer-address-error" : undefined}
           disabled={pairing?.busy}
@@ -151,7 +132,7 @@ function AddressEntry({ pairing, alternative, onPair }: { pairing: ComputerPairi
         />
       </label>
       <button type="submit" disabled={!typed || (pairing !== null && pairing.busy)}>Pair</button>
-      {invalid && <p id="computer-address-error" className="settings-error" role="alert">Enter a host name or IP address, with :port if it is not 443.</p>}
+      {invalid && <p id="computer-address-error" className="settings-error" role="alert">Not a valid address</p>}
     </form>
   );
 }
@@ -159,14 +140,12 @@ function AddressEntry({ pairing, alternative, onPair }: { pairing: ComputerPairi
 /** What this computer calls itself, kept as it is typed and given once the field is left or Enter is pressed. */
 function NameEntry({ name, onRename }: { name: string; onRename: (name: string) => void }) {
   const [draft, setDraft] = useState(name);
-  const [saved, setSaved] = useState<"named" | "reset" | null>(null);
   useEffect(() => setDraft(name), [name]);
   const commit = () => {
     const typed = draft.trim();
     if (typed === name) return setDraft(name);
     if (!typed) setDraft(name);
     onRename(typed);
-    setSaved(typed ? "named" : "reset");
   };
   return (
     <form
@@ -183,7 +162,7 @@ function NameEntry({ name, onRename }: { name: string; onRename: (name: string) 
           spellCheck={false}
           maxLength={MAX_COMPUTER_NAME}
           value={draft}
-          onInput={(event) => { setDraft(event.currentTarget.value); setSaved(null); }}
+          onInput={(event) => setDraft(event.currentTarget.value)}
           onBlur={commit}
           onKeyDown={(event) => {
             if (event.key !== "Escape" || draft === name) return;
@@ -193,7 +172,6 @@ function NameEntry({ name, onRename }: { name: string; onRename: (name: string) 
           }}
         />
       </label>
-      <span className="computer-name-saved" role="status">{saved && <><Check size={14} aria-hidden="true" />{saved === "named" ? "Saved" : "Back to the machine's own name"}</>}</span>
     </form>
   );
 }
@@ -248,7 +226,7 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
           </div>
           <div className="setting-row-action computer-actions">
             {link.status !== "connected" && !upkeepOf.has(link.id) && <button type="button" onClick={() => onReconnect(link.id)}>Reconnect</button>}
-            {upkeepOf.get(link.id)?.action && onCommand && <UpkeepButton action={upkeepOf.get(link.id)!.action!} state={upkeepOf.get(link.id)!.status.map((part) => part.text).join("|")} onCommand={onCommand} />}
+            {upkeepOf.get(link.id)?.action && onCommand && <button type="button" onClick={() => onCommand(upkeepOf.get(link.id)!.action!.command)}>{upkeepOf.get(link.id)!.action!.label}</button>}
             <button type="button" className="icon" aria-label={`Rename ${link.name}`} data-tip="Rename" disabled={labels.editing === link.id} onClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}><Pencil size={16} aria-hidden="true" /></button>
             <ConfirmAction className="icon danger" aria-label={`Remove ${link.name}`} data-tip="Remove" confirm="Remove" onConfirm={() => onForget(link.id)}><Trash size={16} aria-hidden="true" /></ConfirmAction>
           </div>
@@ -273,7 +251,7 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
       <div className="setting-row" data-address>
         <span className="setting-glyph" aria-hidden="true"><Plus size={16} /></span>
         <div>
-          <AddressEntry pairing={pairing} alternative={offered.length > 0} onPair={(host) => onPair(host, host, "")} />
+          <AddressEntry pairing={pairing} onPair={(host) => onPair(host, host, "")} />
           {pairing && !offered.some((computer) => computer.host === pairing.host) && <CodeEntry pairing={pairing} onPair={(code) => onPair(pairing.host, pairing.name, code)} onCancel={onCancelPairing} />}
         </div>
       </div>

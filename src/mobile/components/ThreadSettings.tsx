@@ -82,7 +82,7 @@ function ModelGroup({ engine, model, locked, refused, onModel, onNewWith }: { en
           <h4 className="sheet-subheading">{group.label}</h4>
           <button type="button" className="menu-row sheet-new-engine" onClick={() => onNewWith!(group.engine)}>
             <span className="menu-glyph" aria-hidden="true"><SquarePen size={18} strokeWidth={1.8} /></span>
-            <span className="menu-copy"><strong>New thread with {group.label}</strong><small>{group.choices.map((choice) => choice.label).join(" · ")}</small></span>
+            <span className="menu-copy"><strong>New thread with {group.label}</strong></span>
             <ChevronRight className="menu-chevron" size={16} aria-hidden="true" />
           </button>
         </Fragment>

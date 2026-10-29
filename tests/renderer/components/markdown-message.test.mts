@@ -127,7 +127,7 @@ test("a web link opens externally by default, and its right-click menu opens it 
   await view.unmount();
 });
 
-test("a web link opens in the browser panel when clicked with the command key held, and stops naming that click once it is used", async () => {
+test("a web link opens in the browser panel when clicked with the command key held", async () => {
   const { MAC } = await import("../../../src/renderer/platform.ts");
   const opened: string[] = [];
   const view = await mountMessage("Read https://example.com/docs for the rest.", { openUrlInApp: (url) => opened.push(url) });
@@ -138,13 +138,12 @@ test("a web link opens in the browser panel when clicked with the command key he
     return event.defaultPrevented;
   };
 
-  assert.equal(link.dataset.tip, `Open in app (${MAC ? "⌘" : "Ctrl+"}Click)`);
   await act(async () => { assert.equal(click(false), false, "a plain click still goes to the default browser"); });
   assert.deepEqual(opened, []);
   await act(async () => { assert.equal(click(true), true); });
   assert.deepEqual(opened, ["https://example.com/docs"]);
   assert.equal(link.title, "");
-  assert.equal(link.dataset.tip, undefined, "once used, the click is named only in the link's menu");
+  assert.equal(link.dataset.tip, undefined);
   await view.unmount();
 });
 

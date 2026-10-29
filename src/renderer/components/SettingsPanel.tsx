@@ -1,7 +1,6 @@
 import { useRef } from "react";
 import type { ShortcutSetting } from "../../domain/shortcuts";
 import type { Thread } from "../../domain/thread";
-import type { Project } from "../../domain/project";
 import type { ThemeMode } from "../../domain/theme";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ArchiveSettings } from "./ArchiveSettings";
@@ -39,8 +38,6 @@ export type SettingsPanelProps = {
   /** Opens a page, marking the control on it a search named. */
   onLand: (section: SettingsSection, settingId: string | null) => void;
   archivedThreads: Thread[];
-  /** The projects archived threads belong to, named on each archive row. */
-  projects?: readonly Project[];
   worktreeSettings: WorktreeSettingsPage;
   worktreeManagementError: string | null;
   worktreeManagementNotice: string | null;
@@ -132,7 +129,6 @@ export function SettingsPanel({
   settingMark,
   onLand,
   archivedThreads,
-  projects,
   cli, onReadCli, onSetCliInstalled, planUsage, computerUsage, onReadPlanUsage,
   computerUseAccess, onEnableComputerUse, onRestartForComputerUse,
   worktreeSettings,
@@ -265,7 +261,7 @@ export function SettingsPanel({
         />
       )}
 
-      {section === "archive" && <ArchiveSettings archivedThreads={archivedThreads} projects={projects} onRestoreThread={onRestoreThread} onClearArchive={onClearArchive} />}
+      {section === "archive" && <ArchiveSettings archivedThreads={archivedThreads} onRestoreThread={onRestoreThread} onClearArchive={onClearArchive} />}
 
       {section === "computer-use" && <ComputerUseSettings computerUse={computerUse} onSetComputerUse={onSetComputerUse} access={computerUseAccess} onEnable={onEnableComputerUse} onRestart={onRestartForComputerUse} />}
     </section>

@@ -132,13 +132,3 @@ test("the search field is a combobox that points assistive technology at the pic
   await view.unmount();
 });
 
-test("the keys the list answers to are named beneath it, and drop away with the matches", async () => {
-  const view = await mount(JUMP);
-  const hints = () => [...document.querySelectorAll(".thread-jump .key-hints > span")].map((hint) => hint.lastChild?.textContent);
-  assert.deepEqual(hints(), ["move", "open", "close"]);
-  assert.equal(document.querySelector(".thread-jump .key-hints")?.getAttribute("aria-hidden"), "true");
-  await view.unmount();
-  const empty = await mount({ query: "zz", index: 0, options: [] });
-  assert.deepEqual(hints(), []);
-  await empty.unmount();
-});

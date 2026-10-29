@@ -599,28 +599,18 @@ export function useThreadRows({
     };
   };
 
-  /** A folded folder's one mark: what most wants the user among the threads it hides, counted when more than one says it. */
+  /** A folded folder's one mark: what most wants the user among the threads it hides. */
   const folderStatus = (threads: Thread[]): ReactNode => {
     let pressing: RowStatus | null = null;
-    let count = 0;
     for (const thread of threads) {
       if (offline(thread.id)) continue;
       const status = rowStatus(rowState(thread));
-      if (!status) continue;
-      const urgency = attentionUrgency(statusTone(status));
-      if (!pressing || urgency < attentionUrgency(statusTone(pressing))) {
-        pressing = status;
-        count = 1;
-      } else if (urgency === attentionUrgency(statusTone(pressing))) count += 1;
+      if (status && (!pressing || attentionUrgency(statusTone(status)) < attentionUrgency(statusTone(pressing)))) pressing = status;
+      if (pressing && attentionUrgency(statusTone(pressing)) === 0) break;
     }
     if (!pressing) return null;
-    const label = count > 1 ? `${FOLDER_LABELS[statusTone(pressing)]}, and ${count - 1} more` : FOLDER_LABELS[statusTone(pressing)];
-    return (
-      <span className="row-mark folder-status" data-tip={label}>
-        {statusMark({ ...pressing, label })}
-        {count > 1 && <span className="folder-status-count" aria-hidden="true">{count}</span>}
-      </span>
-    );
+    const label = FOLDER_LABELS[statusTone(pressing)];
+    return <span className="row-mark folder-status" data-tip={label}>{statusMark({ ...pressing, label })}</span>;
   };
 
   const threadRow = Object.assign((thread: Thread, index: number, place: ThreadRowPlace) => (

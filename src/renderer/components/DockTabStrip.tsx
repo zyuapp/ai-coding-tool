@@ -41,55 +41,24 @@ function scrollTabs(event: WheelEvent<HTMLElement>) {
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 
-/** The tab's title, followed by what its count and dot stand for. */
-function tabTip(tab: DockTab) {
-  const status = [tab.badge ? tab.badgeLabel ?? String(tab.badge) : null, tab.unread ? "Waiting for you" : null].filter(Boolean);
-  return [tab.title, ...status].join(" · ");
-}
-
-type Clipping = { overflowing: boolean; hidden: number };
-
-/** How many tabs sit mostly past the strip's edges. */
-function hiddenTabs(element: HTMLElement) {
-  const box = element.getBoundingClientRect();
-  let hidden = 0;
-  for (const tab of element.children) {
-    const { left, right } = tab.getBoundingClientRect();
-    const middle = (left + right) / 2;
-    if (middle < box.left || middle > box.right) hidden += 1;
-  }
-  return hidden;
-}
-
-/** Whether the strip holds more tabs than it can show at once, and how many it has scrolled out of sight. */
-function useClipping(strip: RefObject<HTMLElement | null>, count: number) {
-  const [clipping, setClipping] = useState<Clipping>({ overflowing: false, hidden: 0 });
+/** Whether the strip holds more tabs than it can show at once. */
+function useOverflowing(strip: RefObject<HTMLElement | null>, count: number) {
+  const [overflowing, setOverflowing] = useState(false);
   useLayoutEffect(() => {
     const element = strip.current;
     if (!element) return;
-    let frame = 0;
-    const measure = () => {
-      frame = 0;
-      const overflowing = element.scrollWidth > element.clientWidth + 1;
-      const hidden = overflowing ? hiddenTabs(element) : 0;
-      setClipping((current) => current.overflowing === overflowing && current.hidden === hidden ? current : { overflowing, hidden });
-    };
-    const scrolled = () => { if (!frame) frame = requestAnimationFrame(measure); };
+    const measure = () => setOverflowing(element.scrollWidth > element.clientWidth + 1);
     measure();
-    element.addEventListener("scroll", scrolled, { passive: true });
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
-    observer?.observe(element);
-    return () => {
-      element.removeEventListener("scroll", scrolled);
-      observer?.disconnect();
-      cancelAnimationFrame(frame);
-    };
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
   }, [strip, count]);
-  return clipping;
+  return overflowing;
 }
 
 /** Every open tab in one list, offered once the strip has clipped some of them past its edges. */
-function TabList({ workspace, tabs, hidden, activeTab }: { workspace: Workspace; tabs: DockTab[]; hidden: number; activeTab: string }) {
+function TabList({ workspace, tabs, activeTab }: { workspace: Workspace; tabs: DockTab[]; activeTab: string }) {
   const open = workspace.openMenu === TABS_MENU;
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -100,14 +69,13 @@ function TabList({ workspace, tabs, hidden, activeTab }: { workspace: Workspace;
       <button
         ref={trigger}
         type="button"
-        aria-label={hidden ? `All tabs (${tabs.length}, ${hidden} out of view)` : `All tabs (${tabs.length})`}
+        aria-label={`All tabs (${tabs.length})`}
         data-tip={open ? undefined : "All tabs"}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => workspace.actions.setOpenMenu(open ? null : TABS_MENU)}
       >
         <ChevronDown size={16} />
-        {hidden > 0 && <span aria-hidden="true">{hidden}</span>}
       </button>
       {open && (
         <div role="menu" aria-label="Open tabs" onKeyDown={menuKeys}>
@@ -146,7 +114,7 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
   onCloseTab: (id: string) => void;
 }) {
   const strip = useRef<HTMLDivElement>(null);
-  const { overflowing, hidden } = useClipping(strip, tabs.length);
+  const overflowing = useOverflowing(strip, tabs.length);
   const menuKeys = useMenuKeys();
   /** Delete closes the focused tab, as the arrows move between them; a pinned tab stays. */
   const onStripKey = (event: KeyboardEvent<HTMLElement>) => {
@@ -177,8 +145,8 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
               aria-selected={activeTab === tab.id}
               tabIndex={activeTab === tab.id || (index === 0 && !tabs.some((other) => other.id === activeTab)) ? 0 : -1}
               aria-keyshortcuts={tab.pinned ? undefined : "Delete"}
-              data-tip={tabTip(tab)}
-              data-tip-overflow={tab.badge || tab.unread ? undefined : true}
+              data-tip={tab.title}
+              data-tip-overflow
               onClick={() => void workspace.actions.selectDockTab(tab.id)}
             >
               <tab.icon size={16} aria-hidden="true" /><span>{tab.title}</span>
@@ -189,7 +157,7 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
           </div>
         ))}
       </div>
-      {overflowing && <TabList workspace={workspace} tabs={tabs} hidden={hidden} activeTab={activeTab} />}
+      {overflowing && <TabList workspace={workspace} tabs={tabs} activeTab={activeTab} />}
       <div ref={addMenu} className={`right-dock-add ${addMenuOpen ? "open" : ""}`.trimEnd()} data-popover-menu>
         <button
           ref={addMenuTrigger}

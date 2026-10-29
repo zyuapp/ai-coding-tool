@@ -41,7 +41,6 @@ test("the Needs-you card pages through approvals and decisions and answers each"
 
   await act(async () => { button("Later").click(); });
   assert.ok(query(view.container, '[aria-label="Decision waiting on you"]'), "Later moves to the next item");
-  assert.ok(button("Send answer").querySelector("kbd"), "Send answer shows the key that sends it");
   assert.equal(query<HTMLInputElement>(view.container, ".decision-own input").placeholder, "", "the visible label names the field");
   await act(async () => { button("Send answer").click(); });
   assert.deepEqual(answered, ["Keep it"]);
@@ -225,11 +224,7 @@ test("the Needs-you card asks to run a thread on another computer, in the folder
   assert.equal(box.checked, true);
   const folder = query<HTMLSelectElement>(page, ".elsewhere-folder select");
   assert.equal(folder.value, "app");
-  const root = () => query(page, ".elsewhere-root");
-  assert.equal(root().textContent, "/code/app", "the folder's full path shows under its name");
-  assert.equal(folder.getAttribute("aria-describedby"), root().id);
   await act(async () => { folder.value = "lab"; folder.dispatchEvent(new Event("change", { bubbles: true })); });
-  assert.equal(root().textContent, "/code/lab", "and follows the folder picked");
   await act(async () => { box.click(); });
   const button = (label: string) => required([...page.querySelectorAll<HTMLButtonElement>("button")].find((item) => labelOf(item) === label));
   await act(async () => { button("Allow").click(); });
@@ -423,7 +418,7 @@ test("← and → turn the Needs-you card's pages, except while they move the ca
   await alone.unmount();
 });
 
-test("the Needs-you card's approval page offers the keys that answer it, as the approval card does", async () => {
+test("the Needs-you card's approval page names the keys that answer it in their tips, as the approval card does", async () => {
   const approval = { approvalId: "a1", taskId: "a", runId: "run-a", title: "Run a command?", description: "", toolName: "Bash", input: { command: "ls" } };
   const decision: CoordinationDecisionView = { thread: member("b", "Settings"), decision: { id: "d1", question: "Keep the v2 reader?", options: [{ label: "Keep it", recommended: true }], raisedAt: 1 } };
   const view = await mount(React.createElement(NeedsYouCard, {
@@ -435,9 +430,8 @@ test("the Needs-you card's approval page offers the keys that answer it, as the 
     onSelect() {},
   }));
   const button = (label: string) => required([...view.container.querySelectorAll<HTMLButtonElement>(".decision-foot button")].find((item) => item.firstChild?.textContent === label));
-  const keys = query(button("Allow once"), "kbd");
-  assert.ok(button("Allow once").dataset.tip?.endsWith(`(${keys.textContent})`));
-  assert.equal(button("Deny").querySelector("kbd"), null, "an unbound one offers no keys");
+  assert.match(button("Allow once").dataset.tip ?? "", /^Allow once \(/);
+  assert.equal(button("Deny").hasAttribute("data-tip"), false, "an unbound one offers no keys");
   assert.equal(query(view.container, ".decision-count").textContent, "1 of 2");
 
   await act(async () => { button("Later").click(); });

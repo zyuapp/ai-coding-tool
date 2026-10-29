@@ -5,15 +5,13 @@ import { REMOTE_UNSUPPORTED } from "../../contracts/computer-capabilities";
 import { useEffect, useId, useState } from "react";
 import { MAC } from "../platform";
 import { shortcutTip } from "./TooltipLayer";
-import { LuAlarmClock as AlarmClock, LuCheck as Check, LuPause as Pause, LuPlay as Play, LuPlus as Plus, LuTrash2 as Trash2, LuTriangleAlert as AlertTriangle } from "react-icons/lu";
+import { LuAlarmClock as AlarmClock, LuPause as Pause, LuPlay as Play, LuPlus as Plus, LuTrash2 as Trash2 } from "react-icons/lu";
 import { automationFields, editedAutomationFields, isOneShotSchedule, sameAutomationFields, scheduleFieldCount, type AutomationEdit, type AutomationFields, type AutomationPatch, type AutomationView } from "../../domain/automation";
 
 export type AutomationPanelProps = {
   automation: AutomationView | null;
   /** Edits not yet saved, kept while the panel is closed. */
   edit?: AutomationEdit | undefined;
-  /** What the engine running this thread is called. */
-  engineLabel: string;
   /** When a run on this thread last found something, which is the only proof a quiet schedule works. */
   lastFoundAt: number | null;
   lastChecked: { at: number; note: string } | null;
@@ -113,16 +111,11 @@ export function lastRunLabel(automation: AutomationView, at: number) {
   return `${automation.lastStatus ?? "ran"} at ${formatMoment(when, at)}`;
 }
 
-/** Missed is the one status that needs the user, so it alone stands out. */
 function AutomationHeading({ status }: { status?: string }) {
   return (
     <header className="agents-panel-heading">
-      <div><h2>Automation</h2><p>Repeat this task on a schedule</p></div>
-      {status && (
-        <span data-state={status === "Paused" ? "paused" : status === "Missed" ? "missed" : undefined}>
-          {status === "Missed" && <AlertTriangle size={12} aria-hidden="true" />}{status}
-        </span>
-      )}
+      <div><h2>Automation</h2></div>
+      {status && <span data-state={status === "Paused" ? "paused" : undefined}>{status}</span>}
     </header>
   );
 }
@@ -136,14 +129,13 @@ function ConditionField({ label, value, placeholder, onChange }: { label: string
   );
 }
 
-function AutomationEmpty({ engineLabel, onCreate }: { engineLabel: string; onCreate: () => void }) {
+function AutomationEmpty({ onCreate }: { onCreate: () => void }) {
   return (
     <section className="automation-panel" aria-label="Automation">
       <AutomationHeading />
       <div className="agents-panel-empty">
         <span className="agent-orb"><AlarmClock size={18} /></span>
         <h2>No automation yet</h2>
-        <p>Ask {engineLabel} to repeat this task, like “run this every morning at 8”. It appears here.</p>
         <CommandButton command={{ type: "automation.save", draft: { prompt: "", schedule: "" } }} type="button" onClick={onCreate}>
           <Plus size={14} aria-hidden="true" />New schedule
         </CommandButton>
@@ -152,14 +144,12 @@ function AutomationEmpty({ engineLabel, onCreate }: { engineLabel: string; onCre
   );
 }
 
-export function AutomationPanel({ automation, edit, engineLabel, lastFoundAt, lastChecked, onEdit, onUpdate, onDelete, onRunNow }: AutomationPanelProps) {
+export function AutomationPanel({ automation, edit, lastFoundAt, lastChecked, onEdit, onUpdate, onDelete, onRunNow }: AutomationPanelProps) {
   const [schedule, setSchedule] = useState(() => editedAutomationFields(automation, edit).schedule);
   const [prompt, setPrompt] = useState(() => editedAutomationFields(automation, edit).prompt);
   const [surfaceWhen, setSurfaceWhen] = useState(() => editedAutomationFields(automation, edit).surfaceWhen);
   const [endsWhen, setEndsWhen] = useState(() => editedAutomationFields(automation, edit).endsWhen);
   const [now, setNow] = useState(() => Date.now());
-  /** What the last press confirmed, shown on its button for a moment. */
-  const [done, setDone] = useState<"saved" | "started" | null>(null);
   /** A new schedule being written before any exists. */
   const [creating, setCreating] = useState(false);
   const controls = useCommandControls();
@@ -185,18 +175,12 @@ export function AutomationPanel({ automation, edit, engineLabel, lastFoundAt, la
   }, [revision, schedule, prompt, surfaceWhen, endsWhen]);
 
   useEffect(() => {
-    if (!done) return;
-    const timer = window.setTimeout(() => setDone(null), 1_600);
-    return () => window.clearTimeout(timer);
-  }, [done]);
-
-  useEffect(() => {
     if (!automation || automation.nextRunAt === null) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => window.clearInterval(timer);
   }, [automation?.nextRunAt]);
 
-  if (!automation && !creating) return <AutomationEmpty engineLabel={engineLabel} onCreate={() => setCreating(true)} />;
+  if (!automation && !creating) return <AutomationEmpty onCreate={() => setCreating(true)} />;
 
   /** A one-time run always surfaces, so it has no quiet sentence to say or keep. */
   const oneShot = isOneShotSchedule(schedule);
@@ -211,14 +195,6 @@ export function AutomationPanel({ automation, edit, engineLabel, lastFoundAt, la
     prompt: prompt.trim(),
     ...(!oneShot && surfaceWhen.trim() ? { surfaceWhen: surfaceWhen.trim() } : {}),
     ...(endsWhen.trim() ? { endsWhen: endsWhen.trim() } : {}),
-  };
-  const save = () => {
-    onUpdate(patch);
-    setDone("saved");
-  };
-  const runNow = () => {
-    onRunNow();
-    setDone("started");
   };
   const canSave = automation ? dirty && !readout?.error : Boolean(draft.prompt) && !readout?.error;
   const cancelCreate = () => {
@@ -239,7 +215,7 @@ export function AutomationPanel({ automation, edit, engineLabel, lastFoundAt, la
           if (!canSave) return;
           const command = automation ? { type: "automation.update", patch } as const : { type: "automation.save", draft } as const;
           if (!controls.available(command)) return;
-          if (automation) save();
+          if (automation) onUpdate(patch);
           else controls.dispatch(command);
           return;
         }
@@ -288,16 +264,12 @@ export function AutomationPanel({ automation, edit, engineLabel, lastFoundAt, la
 
         {automation ? (
           <div className="automation-actions">
-            <CommandButton command={{ type: "automation.update", patch }} type="button" className="automation-save primary" aria-keyshortcuts={MAC ? "Meta+Enter" : "Control+Enter"} data-tip={shortcutTip("Save", "Mod+Enter")} disabled={!canSave} onClick={save}>
-              {done === "saved" && !dirty ? <><Check size={14} aria-hidden="true" />Saved</> : "Save"}
-            </CommandButton>
-            <CommandButton command={{ type: "automation.run-now" }} type="button" className={status === "Missed" && !dirty ? "primary" : undefined} onClick={runNow}>
-              {done === "started" ? <><Check size={14} aria-hidden="true" />Started</> : "Run now"}
-            </CommandButton>
+            <CommandButton command={{ type: "automation.update", patch }} type="button" className="automation-save primary" aria-keyshortcuts={MAC ? "Meta+Enter" : "Control+Enter"} data-tip={shortcutTip("Save", "Mod+Enter")} disabled={!canSave} onClick={() => onUpdate(patch)}>Save</CommandButton>
+            <CommandButton command={{ type: "automation.run-now" }} type="button" onClick={onRunNow}>Run now</CommandButton>
             <CommandButton command={{ type: "automation.update", patch: { paused: !automation.paused } }} type="button" aria-label={automation.paused ? "Resume automation" : "Pause automation"} onClick={() => onUpdate({ paused: !automation.paused })}>
               {automation.paused ? <Play size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}{automation.paused ? "Resume" : "Pause"}
             </CommandButton>
-            <ConfirmAction className="automation-remove" aria-label="Remove automation" data-tip={canDelete ? undefined : REMOTE_UNSUPPORTED} disabled={!canDelete} confirm="Remove" onConfirm={onDelete}><Trash2 size={14} aria-hidden="true" />Remove</ConfirmAction>
+            <ConfirmAction className="automation-remove" aria-label="Remove automation" data-tip={canDelete ? "Remove" : REMOTE_UNSUPPORTED} disabled={!canDelete} confirm="Remove" onConfirm={onDelete}><Trash2 size={14} aria-hidden="true" /></ConfirmAction>
           </div>
         ) : (
           <div className="automation-actions">

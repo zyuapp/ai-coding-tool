@@ -1,13 +1,10 @@
-import { LuArchive as Archive, LuArrowLeft as ArrowLeft, LuBot as Bot, LuFolderGit2 as FolderGit2, LuGauge as Gauge, LuGlobe as Globe, LuKeyboard as Keyboard, LuList as List, LuMonitorCog as MonitorCog, LuPalette as Palette, LuSearch as Search, LuSlidersHorizontal as SlidersHorizontal, LuSmartphone as Smartphone, LuX as X } from "react-icons/lu";
+import { LuArchive as Archive, LuArrowLeft as ArrowLeft, LuBot as Bot, LuFolderGit2 as FolderGit2, LuGauge as Gauge, LuGlobe as Globe, LuKeyboard as Keyboard, LuMonitorCog as MonitorCog, LuPalette as Palette, LuSearch as Search, LuSlidersHorizontal as SlidersHorizontal, LuSmartphone as Smartphone } from "react-icons/lu";
 import type { IconType } from "react-icons";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { SETTINGS_JUMP_OPTIONS, SETTINGS_PAGE_LABELS, type SettingsJumpOption } from "../../domain/settings-catalog";
 import { rankSettingsJumps } from "../../domain/settings-jump";
 import { SETTINGS_SECTIONS, type SettingsSection } from "../../domain/settings-section";
 import { moveListFocus } from "../focus";
-import { shortcutTip } from "./TooltipLayer";
-
-const CLEAR_TIP = shortcutTip("Clear", "Escape");
 
 const PAGE_ICONS: Record<SettingsSection, IconType> = {
   general: SlidersHorizontal,
@@ -103,12 +100,11 @@ export function SettingsSidebar({ section, searchRef, onClose, onLand, onRefresh
           aria-expanded={searching}
           aria-controls="settings-search-results"
           aria-activedescendant={chosen ? resultId(chosen) : undefined}
-          placeholder="Search settings"
+          placeholder="Search"
           spellCheck={false}
           onInput={(event) => { setQuery(event.currentTarget.value); setPicked(0); }}
           onKeyDown={keyDown}
         />
-        {query && <button type="button" className="settings-search-clear" aria-label="Clear the search" data-tip={CLEAR_TIP} onMouseDown={(event) => event.preventDefault()} onClick={clear}><X size={14} aria-hidden="true" /></button>}
       </label>
       {searching ? (
         results.length ? (
@@ -139,7 +135,7 @@ export function SettingsSidebar({ section, searchRef, onClose, onLand, onRefresh
         ) : (
           <div className="settings-search-empty">
             <p>No settings match</p>
-            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={clear}><List size={18} aria-hidden="true" /><span>Show all pages</span></button>
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={clear}><span>Show all pages</span></button>
           </div>
         )
       ) : (

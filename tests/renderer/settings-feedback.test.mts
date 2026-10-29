@@ -29,14 +29,13 @@ function Archive({ initial }: { initial: Thread[] }) {
   return renderSettingsPanel({ initialSection: "archive", archivedThreads: threads, onRestoreThread: (id) => setThreads((all) => all.filter((thread) => thread.id !== id)) });
 }
 
-test("restoring a thread names it, says where it went, and hands the keyboard to the next row", async () => {
+test("restoring a thread hands the keyboard to the next row", async () => {
   window.desktop = fakeDesktop({});
   const threads = [task("Parser fix", { archivedAt: Date.now() }), task("Docs pass", { archivedAt: Date.now() })];
   const view = await mount(React.createElement(Archive, { initial: threads }));
   await act(async () => {});
   const restore = query<HTMLButtonElement>(view.container, 'button[aria-label="Restore Parser fix"]');
   await act(async () => { restore.focus(); restore.click(); });
-  assert.equal(query(view.container, "[role='status'].settings-status").textContent, "Restored “Parser fix” to the sidebar");
   assert.equal(dom.window.document.activeElement?.getAttribute("aria-label"), "Restore Docs pass");
   await view.unmount();
 });
@@ -53,7 +52,6 @@ test("removing an allowed site keeps the keyboard in the list", async () => {
   const remove = query<HTMLButtonElement>(view.container, 'button[aria-label="Remove https://b.test"]');
   await act(async () => { remove.focus(); remove.click(); });
   assert.equal(dom.window.document.activeElement?.getAttribute("aria-label"), "Remove https://a.test");
-  assert.equal(query(view.container, "[role='status'].settings-status").textContent, "Removed https://b.test");
   await view.unmount();
 });
 
@@ -72,46 +70,16 @@ test("a failed reload says why, and engine buttons name their engine", async () 
   await view.unmount();
 });
 
-function Engines({ onSignIn }: { onSignIn: (engine: string) => void }) {
-  const [claude, setClaude] = React.useState<"signed-out" | "ready">("signed-out");
-  return React.createElement(React.Fragment, null,
-    React.createElement("button", { id: "flip", onClick: () => setClaude((access) => access === "ready" ? "signed-out" : "ready") }),
-    renderSettingsPanel({ initialSection: "engines", engineAccess: { claude: { access: claude }, codex: { access: "ready" } }, onSignInEngine: onSignIn }));
-}
-
-test("Sign in waits for the engine to sign in, and a later sign-out offers it fresh", async () => {
-  window.desktop = fakeDesktop({});
-  const asked: string[] = [];
-  const view = await mount(React.createElement(Engines, { onSignIn: (engine) => asked.push(engine) }));
-  await act(async () => {});
-  const signIn = () => query<HTMLButtonElement>(view.container, 'button[aria-label="Sign in to Claude"]');
-  assert.equal(signIn().textContent, "Sign in");
-  await act(async () => { signIn().click(); });
-  assert.deepEqual(asked, ["claude"]);
-  assert.equal(signIn().textContent, "Waiting for sign-in…");
-  assert.equal(signIn().getAttribute("aria-busy"), "true");
-  assert.equal(signIn().disabled, false, "a sign-in left unfinished can be started again");
-  await act(async () => { query<HTMLButtonElement>(view.container, "#flip").click(); });
-  assert.equal(view.container.querySelector('button[aria-label="Sign in to Claude"]'), null);
-  await act(async () => { query<HTMLButtonElement>(view.container, "#flip").click(); });
-  assert.equal(signIn().textContent, "Sign in");
-  await view.unmount();
-});
-
-test("a typed size out of range is clamped and the range stays in view", async () => {
+test("a typed size out of range is clamped", async () => {
   window.desktop = fakeDesktop({});
   const sizes: number[] = [];
   const view = await mount(renderSettingsPanel({ initialSection: "appearance", onSetReadingSize: (size) => sizes.push(size) }));
   await act(async () => {});
   const row = query<HTMLElement>(view.container, '[data-setting="appearance.reading-size"]');
-  const range = () => query(row, ".size-range");
-  assert.match(range().textContent, /^\d+–\d+ px$/, "the range shows at rest");
   const field = query<HTMLInputElement>(row, "input");
   await type(field, "99");
   await act(async () => { field.blur(); });
   assert.ok(sizes.length === 1 && sizes[0]! < 99);
-  assert.ok(range().classList.contains("clamped"));
-  assert.match(range().textContent, /^Max \d+ px$/);
   await view.unmount();
 });
 
@@ -145,7 +113,7 @@ test("a search that lands on a control hands it the keyboard", async () => {
   await view.unmount();
 });
 
-test("an emptied computer name says it went back to the machine's, and Escape reverts only an edit", async () => {
+test("an emptied computer name goes back to the machine's, and Escape reverts only an edit", async () => {
   const renames: string[] = [];
   const view = await mount(React.createElement(ComputerSettings, {
     found: [], searching: false, searchError: null, name: "studio", links: [], pairing: null,
@@ -162,7 +130,6 @@ test("an emptied computer name says it went back to the machine's, and Escape re
     await type(field, "  ");
     await act(async () => { field.blur(); });
     assert.deepEqual(renames, [""]);
-    assert.equal(query(view.container, ".computer-name-saved").textContent, "Back to the machine's own name");
   } finally {
     await view.unmount();
   }

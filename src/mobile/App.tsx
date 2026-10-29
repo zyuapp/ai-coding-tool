@@ -1,5 +1,5 @@
-import { LuChevronDown as ChevronDown, LuChevronLeft as ChevronLeft, LuCloudOff as CloudOff, LuEllipsis as Ellipsis, LuQrCode as QrCode, LuSquarePen as SquarePen, LuX as X } from "react-icons/lu";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+import { LuChevronLeft as ChevronLeft, LuCloudOff as CloudOff, LuEllipsis as Ellipsis, LuQrCode as QrCode, LuSquarePen as SquarePen, LuX as X } from "react-icons/lu";
+import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import type { MobileCommand, MobileDraftView, MobileProjectGroup, MobileThreadEntry, MobileThreadView } from "../contracts/mobile";
 import { defaultModelFor, type AgentEngine } from "../domain/agent-engine";
 import { SETTINGS_PAGE_LABELS, settingControl } from "../domain/settings-catalog";
@@ -20,7 +20,7 @@ import { StartOptions } from "./components/StartOptions";
 import { ThreadList } from "./components/ThreadList";
 import { ThreadMenu, ThreadRowMenu } from "./components/ThreadMenu";
 import { ThreadSettings } from "./components/ThreadSettings";
-import { locationLabel, relativeTime } from "./format";
+import { locationLabel } from "./format";
 import { paintMobileTheme, resolveMobileTheme, writeStoredTheme } from "./theme";
 
 const CONNECTION_LABELS: Record<MobileConnectionState, string> = {
@@ -32,23 +32,15 @@ const CONNECTION_LABELS: Record<MobileConnectionState, string> = {
 
 /**
  * Quiet until it matters: a live line says nothing, a dead one shows a struck cloud, and one on its
- * way a turning ring. A line down for a minute or more says for how long. The region stays mounted
- * on every screen so a reader hears each change.
+ * way a turning ring. The region stays mounted on every screen so a reader hears each change.
  */
-function ConnectionMark({ connection, now }: { connection: MobileConnectionState; now: number }) {
-  const down = connection !== "live";
-  const [since, setSince] = useState(() => Date.now());
-  useEffect(() => {
-    if (down) setSince(Date.now());
-  }, [down]);
-  const long = down && now - since >= 60_000;
+function ConnectionMark({ connection }: { connection: MobileConnectionState }) {
   return (
     <span className="line-status" role="status">
-      {down && (
+      {connection !== "live" && (
         <span className="line-mark" data-connection={connection}>
           {connection === "offline" ? <CloudOff size={14} strokeWidth={2.2} aria-hidden="true" /> : <span className="line-spin" aria-hidden="true" />}
           {CONNECTION_LABELS[connection]}
-          {long && <span className="line-since" aria-hidden="true">{relativeTime(since, now)}</span>}
         </span>
       )}
     </span>
@@ -94,23 +86,20 @@ function Gate({ notice }: { notice: string | null }) {
           window.location.reload();
         }}
       >
-        <span className="gate-field">
-          <input
-            type="text"
-            aria-label="Pairing code"
-            aria-invalid={wrong || undefined}
-            aria-describedby={wrong ? "gate-code-error" : undefined}
-            placeholder={`Or type the ${PAIRING_CODE_LENGTH}-character code`}
-            value={code}
-            autoCapitalize="characters"
-            autoComplete="one-time-code"
-            autoCorrect="off"
-            spellCheck={false}
-            enterKeyHint="go"
-            onInput={(event) => setCode(typedCode(event.currentTarget.value))}
-          />
-          {code && <span className="gate-count" aria-hidden="true">{code.length}/{PAIRING_CODE_LENGTH}</span>}
-        </span>
+        <input
+          type="text"
+          aria-label="Pairing code"
+          aria-invalid={wrong || undefined}
+          aria-describedby={wrong ? "gate-code-error" : undefined}
+          placeholder={`Or type the ${PAIRING_CODE_LENGTH}-character code`}
+          value={code}
+          autoCapitalize="characters"
+          autoComplete="one-time-code"
+          autoCorrect="off"
+          spellCheck={false}
+          enterKeyHint="go"
+          onInput={(event) => setCode(typedCode(event.currentTarget.value))}
+        />
         <button type="submit" className="primary" disabled={!ready}>Pair</button>
       </form>
       {wrong && <p id="gate-code-error" className="gate-error" role="alert">Not a pairing code. Check it on your computer.</p>}
@@ -121,26 +110,9 @@ function Gate({ notice }: { notice: string | null }) {
 /** A notice under the bar: the words open to their full length, and only the cross puts it away. */
 function Banner({ notice, onDismiss }: { notice: string; onDismiss: () => void }) {
   const [open, setOpen] = useState(false);
-  /** Whether the shut text is cut short, which is the only time there is more to open. */
-  const [clamped, setClamped] = useState(false);
-  const words = useRef<HTMLSpanElement>(null);
-  useLayoutEffect(() => {
-    const node = words.current;
-    if (open || !node) return;
-    const measure = () => setClamped(node.scrollHeight > node.clientHeight + 1);
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [open, notice]);
-  const text = <span ref={words} className="banner-words">{notice}</span>;
   return (
     <div className="banner" role="status" data-open={open || undefined}>
-      {open || clamped
-        ? <button type="button" className="banner-text" aria-expanded={open} onClick={() => setOpen((was) => !was)}>
-          {text}
-          <span className="banner-more" aria-hidden="true">{open ? "Less" : "More"}<ChevronDown size={14} strokeWidth={2.2} /></span>
-        </button>
-        : <p className="banner-text">{text}</p>}
+      <button type="button" className="banner-text" aria-expanded={open} onClick={() => setOpen((was) => !was)}><span className="banner-words">{notice}</span></button>
       <button type="button" className="banner-close" aria-label="Dismiss" onClick={onDismiss}><X size={16} aria-hidden="true" /></button>
     </div>
   );
@@ -315,8 +287,7 @@ export function App() {
   const waiting = live ? 0 : state.outbox.length;
   const current = thread ? thread.id : draft ? "draft" : "none";
   const { opening, setOpening, missed, setMissed } = useOpening(current, live);
-  const missedNote = missed && (thread || draft) && screen === "thread" ? `Couldn't open "${missed.title}"` : null;
-  const notice = state.notice ?? missedNote ?? (state.view.error !== state.dismissedError ? state.view.error : null);
+  const notice = state.notice ?? (state.view.error !== state.dismissedError ? state.view.error : null);
   const reading = screen !== "list";
 
   /** Only a theme the Mac has actually sent is worn; the empty view's default is not the Mac's choice. */
@@ -427,9 +398,9 @@ export function App() {
         {screen === "thread" && (pending ? opening.want !== "draft" : thread !== null) && (
           <button type="button" className="ghost icon bar-action" aria-label="Thread options" aria-haspopup="dialog" disabled={pending} onClick={() => setSheet("menu")}><Ellipsis size={20} /></button>
         )}
-        <ConnectionMark connection={state.connection} now={now} />
+        <ConnectionMark connection={state.connection} />
       </header>
-      {notice && <Banner key={notice} notice={notice} onDismiss={notice === missedNote ? () => setMissed(null) : dismissNotice} />}
+      {notice && <Banner key={notice} notice={notice} onDismiss={dismissNotice} />}
       {screen === "changes" && thread
         ? <Changes thread={thread} live={live} query={query} />
         : reading
@@ -449,7 +420,7 @@ export function App() {
                   <p>Couldn't open the thread</p>
                   <button type="button" className="primary" onClick={() => request(missed)}>Try again</button>
                 </div>
-                : <div className="empty" role="status"><span className="line-spin" aria-hidden="true" /><p>Opening the thread…</p></div>
+                : <div className="empty" role="status"><p>Opening the thread…</p></div>
           : <ThreadList
             mode={listMode}
             groups={state.view.groups}

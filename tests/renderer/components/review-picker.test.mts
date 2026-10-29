@@ -47,8 +47,7 @@ test("a commit is reviewed only once its SHA is hex, and anything else says so",
   const field = query<HTMLInputElement>(view.container, ".review-form input");
   const start = query<HTMLButtonElement>(view.container, ".review-form-actions button.primary");
   assert.equal(start.disabled, true);
-  assert.equal(start.textContent?.includes("Start review"), true);
-  assert.equal(query(start, "kbd").getAttribute("aria-hidden"), "true");
+  assert.equal(start.textContent, "Start review");
 
   await type(field, "a1b");
   assert.equal(start.disabled, true, "three characters are still being typed");
@@ -76,7 +75,6 @@ test("a commit is reviewed only once its SHA is hex, and anything else says so",
 test("custom instructions start on Enter, like the composer, and Shift+Enter stays a new line", async () => {
   const { view, calls } = await open("custom");
   const field = query<HTMLTextAreaElement>(view.container, ".review-form textarea");
-  assert.match(query(view.container, ".review-form-keys").textContent ?? "", /New line/);
   await press(field, "Enter");
   assert.deepEqual(calls.reviews, [], "nothing to review yet");
 
@@ -111,7 +109,6 @@ test("Escape steps back to the review options, and closes from there", async () 
   await deeper.view.unmount();
 
   const top = await open("targets");
-  assert.match(query(top.view.container, ".review-heading").textContent ?? "", /Esc/, "the heading names the key that backs out");
   await press(query(top.view.container, '[role="option"]'), "Escape");
   assert.equal(top.calls.closed, 1);
   await act(async () => { query<HTMLButtonElement>(top.view.container, ".review-close").click(); });

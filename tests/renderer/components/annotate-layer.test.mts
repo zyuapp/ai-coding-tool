@@ -66,7 +66,7 @@ test("removing an annotation is set apart from saving it", async () => {
     onRemove() {},
   }));
   assert.ok(query(document.body, ".annotate-editor-save"));
-  assert.match(query<HTMLInputElement>(document.body, ".annotate-editor input").placeholder, /Enter saves, Esc cancels/, "the empty field names both of its keys");
+  assert.equal(query<HTMLInputElement>(document.body, ".annotate-editor input").placeholder, "Add a note");
   assert.equal(query(document.body, ".annotate-editor-remove").getAttribute("aria-label"), "Remove annotation");
   await view.unmount();
 });

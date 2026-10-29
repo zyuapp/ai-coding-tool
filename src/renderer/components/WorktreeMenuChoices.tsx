@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { LuCheck as Check, LuPlus as Plus, LuSearch as Search } from "react-icons/lu";
+import { LuCheck as Check, LuPlus as Plus } from "react-icons/lu";
 import type { AppCommand } from "../../contracts/commands";
 import type { WorktreeMenuChoice, WorktreeMenuList, WorktreeMenuView } from "../../application/worktree-menu";
 
@@ -64,7 +64,6 @@ export function WorktreeMenuChoices({ view, list, dispatch }: { view: WorktreeMe
     });
   }}>
     {searchable && <div className="worktree-menu-search"><label className="menu-search-field">
-      <Search size={14} aria-hidden="true" />
       <input ref={search} type="search" value={query} placeholder={list === "threads" ? "Search threads…" : "Search worktrees…"} aria-label={list === "threads" ? "Search shared threads" : "Search worktrees or branches"} onInput={(event) => dispatch({ type: "worktree.menu-search", list, query: event.currentTarget.value })} onKeyDown={(event) => {
         if (event.key !== "Escape" || !query) return;
         event.preventDefault();
@@ -72,7 +71,7 @@ export function WorktreeMenuChoices({ view, list, dispatch }: { view: WorktreeMe
         dispatch({ type: "worktree.menu-search", list, query: "" });
       }} />
     </label></div>}
-    {list === "destinations" && <><button ref={creating} type="button" role="menuitem" className="worktree-menu-new" aria-disabled={view.canMove ? undefined : "true"} data-tip={view.canMove ? undefined : "Wait for the run to finish"} onClick={view.canMove ? () => select({ type: "task.move-worktree", taskId: view.threadId, destination: { kind: "new" } }) : undefined}><Plus size={14} aria-hidden="true" />New worktree</button><div className="menu-separator" role="separator" /></>}
+    {list === "destinations" && <><button ref={creating} type="button" role="menuitem" className="worktree-menu-new" aria-disabled={view.canMove ? undefined : "true"} onClick={view.canMove ? () => select({ type: "task.move-worktree", taskId: view.threadId, destination: { kind: "new" } }) : undefined}><Plus size={14} aria-hidden="true" />New worktree</button><div className="menu-separator" role="separator" /></>}
     <div ref={scroll} className="worktree-menu-list" role="menu" aria-label={list === "threads" ? "Threads here" : "Move destinations"} style={{ height: Math.min(rows.length, 5) * 44 }}>
       {virtual ? <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>{virtualizer.getVirtualItems().map((item) => <div key={item.key} style={{ position: "absolute", top: item.start, height: item.size, width: "100%" }}>{choice(rows[item.index], item.index)}</div>)}</div> : rows.map((row, index) => <div key={row.id}>{choice(row, index)}</div>)}
     </div>

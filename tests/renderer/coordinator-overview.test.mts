@@ -68,11 +68,6 @@ test("a coordinator's Overview groups its threads by what they need, each openin
   await view.render(overview({ working: { all: true }, done: { open: true } }));
   assert.equal(query(view.container, '[aria-label="Working"]').querySelectorAll(".coordination-row").length, 8, "a group the user asked to see whole shows every thread");
   assert.equal(query(view.container, '[aria-label="Done"]').querySelectorAll(".coordination-row").length, 5);
-  const less = query<HTMLButtonElement>(view.container, '[aria-label="Working"] .coordination-more');
-  assert.equal(less.textContent, "Show less");
-  assert.equal(less.getAttribute("aria-expanded"), "true");
-  await act(async () => { less.click(); });
-  assert.deepEqual(folded.at(-1), ["working", { all: false }], "a whole group folds back to five");
 
   await act(async () => { query<HTMLButtonElement>(busy, 'button[aria-label="Open Dark mode"]').click(); });
   assert.equal(opened, "a");
@@ -160,12 +155,6 @@ test("resolving or reopening from a row, or showing more, keeps the keyboard's p
   await press('[aria-label="Done"] .coordination-more');
   await view.render(overview([ready, done[0]!, resolved(done[1]!), ...done.slice(2)], { done: { open: true, all: true } }));
   assert.equal(focused(), "Open Done 6", "Show more hands focus to the first row it brought in");
-
-  await press('[aria-label="Done"] .coordination-more[aria-expanded="true"]');
-  await view.render(overview([ready, done[0]!, resolved(done[1]!), ...done.slice(2)], { done: { open: true } }));
-  assert.equal(dom.window.document.activeElement?.textContent, "Show 1 more", "Show less hands focus to the Show more that replaced it");
-  await press('[aria-label="Done"] .coordination-more');
-  await view.render(overview([ready, done[0]!, resolved(done[1]!), ...done.slice(2)], { done: { open: true, all: true } }));
 
   await press('button[aria-label="Resolve Done 6"]');
   const rest = [ready, done[0]!, resolved(done[1]!), ...done.slice(2, 6), resolved(done[6]!)];
@@ -349,7 +338,7 @@ test("the Overview's Usage section shows what the coordinator and its threads sp
   const mounted = await mount(shown({}));
   const usage = query(mounted.container, '[aria-label="Usage"]');
   const head = query<HTMLButtonElement>(usage, ".coordination-group-head");
-  assert.equal(head.textContent, "Usage3.1M · coordinator 8%", "the folded head says the coordinator's own share");
+  assert.equal(head.textContent, "Usage3.1M");
   assert.equal(head.dataset.tip, "3,104,220 tokens");
   assert.equal(head.getAttribute("aria-expanded"), "false", "it starts folded");
   assert.equal(usage.querySelector(".coordination-usage-body"), null);
@@ -563,10 +552,8 @@ test("a full memory says so in the row that adds a note", async () => {
   const add = () => query<HTMLTextAreaElement>(view.container, 'textarea[aria-label="Add a note"]');
   assert.equal(add().placeholder, "Memory is full");
   assert.equal(add().disabled, true);
-  assert.equal(view.container.querySelector(".coordination-note-hint"), null);
   await view.render(overview(notes.slice(1)));
   assert.equal(add().placeholder, "Add a note");
   assert.equal(add().disabled, false);
-  assert.equal(query(view.container, ".coordination-note-hint").textContent, "↵ add");
   await view.unmount();
 });

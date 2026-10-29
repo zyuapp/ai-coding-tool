@@ -294,15 +294,6 @@ button {
   background: var(--danger-surface);
 }
 
-.line-since::before {
-  content: "· ";
-}
-
-.line-since {
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-
 .line-spin {
   flex: none;
   width: 10px;
@@ -352,22 +343,6 @@ button {
 
 .banner[data-open] .banner-words {
   display: block;
-}
-
-/* Said only while the words are cut short, or opened. */
-.banner-more {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-weight: 650;
-}
-
-.banner-more svg {
-  transition: transform 140ms ease;
-}
-
-.banner[data-open] .banner-more svg {
-  transform: rotate(180deg);
 }
 
 .banner-close {
@@ -433,19 +408,6 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.section-count {
-  flex: none;
-  min-width: 20px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: var(--surface-raised);
-  font-size: var(--text-meta);
-  line-height: 18px;
-  text-align: center;
-  color: var(--muted-strong);
-  font-variant-numeric: tabular-nums;
 }
 
 .section-chevron {
@@ -1862,11 +1824,6 @@ button.work-row .work-summary {
 .fast-mode-switch[aria-checked="true"] .switch-track { background: var(--accent); box-shadow: none; }
 .fast-mode-switch[aria-checked="true"] .switch-track::after { transform: translateX(14px); background: var(--accent-ink); }
 
-/* Another engine's place in the model list: its heading, and the new thread that reaches its models. */
-.sheet-new-engine small {
-  -webkit-line-clamp: 1;
-}
-
 .sheet-note {
   margin: 8px 9px 4px;
   font-size: var(--text-meta);
@@ -2015,33 +1972,6 @@ button.work-row .work-summary {
 
 .rename-form {
   padding: 4px 9px 8px;
-}
-
-.rename-field {
-  position: relative;
-  display: block;
-}
-
-.rename-form .rename-field input {
-  padding-right: var(--tap);
-}
-
-/* Empties the title in one tap; the input keeps focus. */
-.field-clear {
-  position: absolute;
-  top: 0;
-  right: 0;
-  display: grid;
-  place-items: center;
-  width: var(--tap);
-  height: var(--tap);
-  padding: 0;
-  border-radius: 10px;
-  color: var(--muted);
-}
-
-.field-clear:active {
-  color: var(--ink);
 }
 
 /* Narrows a long list of choices; it stays above them while they scroll. */
@@ -2507,12 +2437,6 @@ button.thread-start-project:active {
   font-size: var(--text-control);
 }
 
-.empty .line-spin {
-  width: 20px;
-  height: 20px;
-  border-width: 2px;
-}
-
 .gate {
   display: flex;
   height: 100dvh;
@@ -2546,18 +2470,10 @@ button.thread-start-project:active {
   margin-top: 14px;
 }
 
-.gate-field {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  display: flex;
-}
-
 .gate-code input {
   flex: 1;
   min-width: 0;
   min-height: 48px;
-  padding-right: 48px;
   font-family: var(--mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -2565,18 +2481,6 @@ button.thread-start-project:active {
 
 .gate-code input[aria-invalid="true"] {
   border-color: var(--danger);
-}
-
-/* How much of the code is in, so a short one reads as short rather than as a dead button. */
-.gate-count {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: var(--text-meta);
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  pointer-events: none;
 }
 
 .gate .gate-error {

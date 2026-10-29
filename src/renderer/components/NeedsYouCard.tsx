@@ -4,7 +4,6 @@ import type { AppCommand } from "../../contracts/commands";
 import type { ThreadModelChoice } from "../../domain/coordination";
 import { modelLabel } from "../../domain/agent-engine";
 import { projectName } from "../../domain/project";
-import { displayShortcut } from "../../domain/shortcuts";
 import type { Thread } from "../../domain/thread";
 import type { CoordinationApprovalView, CoordinationDecisionView, ElsewhereView, ProposalView } from "../../application/coordination-view";
 import type { ApprovalView } from "../../application/thread-run-state";
@@ -13,7 +12,6 @@ import { CommandButton, useCommandControls } from "./CommandControl";
 import { BriefDetails } from "./Coordination";
 import { HostMark } from "./HostMark";
 import { firstFocusable, placeOf, ReturnFocusContext, useKeyboardPlace } from "../focus";
-import { MAC } from "../platform";
 import { ConfirmAction, type ConfirmActionProps } from "./SettingRow";
 import { shortcutTip } from "./TooltipLayer";
 import "./coordination.css";
@@ -279,9 +277,7 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
   const { picked, worktree } = draft ?? { picked: null, worktree: proposal.place.worktree === true };
   /** A folder picked while that computer still holds it, else the one the view settles on, which follows its projects as they arrive. */
   const project = picked !== null && projects.some((item) => item.id === picked) ? picked : elsewhere.project ?? "";
-  const root = projects.find((item) => item.id === project)?.root;
-  const id = useId();
-  const ids = pageIds(id);
+  const ids = pageIds(useId());
   return (
     <section className="decision-card elsewhere-card" aria-label={`Run on ${computer.name}?`} aria-describedby={ids.question} tabIndex={-1}>
       <div className="decision-head">
@@ -293,7 +289,7 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
         <div className="elsewhere-place">
           {projects.length > 0 && <label className="elsewhere-folder">
             <span>Folder</span>
-            <select value={project} aria-describedby={root ? `${id}-root` : undefined} onChange={(event) => onDraft({ kind: "elsewhere", picked: event.currentTarget.value, worktree })}>
+            <select value={project} onChange={(event) => onDraft({ kind: "elsewhere", picked: event.currentTarget.value, worktree })}>
               {projects.map((item) => <option key={item.id} value={item.id} title={item.root}>{projectName(item)}</option>)}
             </select>
           </label>}
@@ -301,7 +297,6 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
             <input type="checkbox" checked={worktree} onChange={(event) => onDraft({ kind: "elsewhere", picked, worktree: event.currentTarget.checked })} />
             New worktree
           </label>
-          {root && <small className="elsewhere-root" id={`${id}-root`}>{root}</small>}
         </div>
         {proposal.brief && <BriefDetails brief={proposal.brief} />}
         {refusal
@@ -344,8 +339,9 @@ function ApprovalForm({ view, bindings, position, onStep, onDecide, onSelect }: 
       <div className="decision-body">
         <p className="decision-question" id={ids.question}>{approval.title}</p>
         {approval.description && <p className="decision-context" id={ids.context}>{approval.description}</p>}
-        {subject && <pre className="decision-command" id={ids.command}>{subject.text}</pre>}
-        {(!subject || subject.more) && <details className="decision-tool"><summary>{approval.toolName}</summary><pre>{JSON.stringify(approval.input, null, 2)}</pre></details>}
+        {subject
+          ? <pre className="decision-command" id={ids.command}>{subject}</pre>
+          : <details className="decision-tool"><summary>{approval.toolName}</summary><pre>{JSON.stringify(approval.input, null, 2)}</pre></details>}
       </div>
       <div className="decision-foot">
         {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
@@ -399,7 +395,7 @@ function DecisionForm({ view, draft, position, onStep, onDraft, onAnswer, onSele
           <input value={own} onChange={(event) => onDraft({ kind: "decision", choice, own: event.currentTarget.value })} />
         </label>
         {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
-        <button type="submit" disabled={!answer}>Send answer<kbd aria-hidden="true">{displayShortcut("Enter", MAC)}</kbd></button>
+        <button type="submit" disabled={!answer}>Send answer</button>
       </div>
     </form>
   );

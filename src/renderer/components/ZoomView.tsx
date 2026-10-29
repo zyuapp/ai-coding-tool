@@ -133,7 +133,7 @@ export function ZoomControls({ zoom }: { zoom: Zoom }) {
       <button type="button" aria-label="Zoom out" aria-keyshortcuts="-" data-tip="Zoom out (−)" disabled={zoom.scale <= zoom.fit} onClick={zoom.zoomOut}>
         <Minus size={16} aria-hidden="true" />
       </button>
-      <button type="button" className="viewer-zoom-level" aria-label={`Zoom ${Math.round(zoom.scale * 100)}%, fit to window`} aria-keyshortcuts="0" data-tip="Fit to window (0)" disabled={zoom.scale === zoom.fit} onClick={zoom.reset}>
+      <button type="button" className="viewer-zoom-level" aria-label={`Zoom ${Math.round(zoom.scale * 100)}%, fit to window`} aria-keyshortcuts="0" data-tip="Fit to window" disabled={zoom.scale === zoom.fit} onClick={zoom.reset}>
         <Fit size={12} aria-hidden="true" />{Math.round(zoom.scale * 100)}%
       </button>
       <button type="button" aria-label="Zoom in" aria-keyshortcuts="+" data-tip="Zoom in (+)" disabled={zoom.scale >= MAX_SCALE} onClick={zoom.zoomIn}>

@@ -80,17 +80,3 @@ test("leaving a worktree only this thread works in says it goes", () => {
   assert.deepEqual(lastCommand(line), { type: "task.move-worktree", taskId: "t1", destination: { kind: "local" } });
 });
 
-test("a line down for a minute or more says for how long", () => {
-  vi.useFakeTimers();
-  try {
-    const line = openPhone({ paired: true });
-    live(line);
-    act(() => line.onclose?.());
-    const mark = () => document.querySelector(".bar .line-mark");
-    assert.equal(mark()?.querySelector(".line-since"), null, "a line just lost says only that it is down");
-    act(() => void vi.advanceTimersByTime(125_000));
-    assert.equal(mark()?.querySelector(".line-since")?.textContent, "2m");
-  } finally {
-    vi.useRealTimers();
-  }
-});

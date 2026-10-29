@@ -2,7 +2,6 @@ import { memo, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { LuBot as Bot, LuCircleCheckBig as CheckCircle2, LuCircleDot as CircleDot, LuCirclePause as CirclePause, LuCircleStop as CircleStop, LuCircleX as XCircle, LuSearch as Search, LuX as X } from "react-icons/lu";
 import { OPEN_SUBAGENT_GROUPS, type Subagent, type SubagentGroup, type SubagentGroups, type SubagentStatus } from "../../domain/run";
-import { CommandButton } from "./CommandControl";
 import { shortcutTip } from "./TooltipLayer";
 
 /** Failures first, then the work still going: a session with a thousand subagents is read from the top. */
@@ -130,8 +129,6 @@ export function AgentsPanel({ subagents, groups, finding = false, onSelect, onSe
         <div className="agents-panel-empty">
           <span className="agent-orb" aria-hidden="true"><Bot size={18} /></span>
           <h2>No subagents yet</h2>
-          <p>They appear here when the thread splits its work.</p>
-          <CommandButton type="button" data-tip={shortcutTip("Ask the thread", "Mod+L")} command={{ type: "view.shortcut", action: "composer.focus", surface: "any" }}>Ask the thread</CommandButton>
         </div>
       </section>
     );

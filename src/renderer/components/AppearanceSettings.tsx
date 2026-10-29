@@ -348,9 +348,8 @@ function FontSelect({ axis, label, chosen, onChoose }: {
 }
 
 /**
- * One size as `− 15 +`, in px, after the range it may take. The steppers move a px at a time; the field
- * takes a typed number and clamps it to the range when it is committed, which the range then says, while
- * Escape abandons the typing and keeps the settled size.
+ * One size as `− 15 +`, in px. The steppers move a px at a time; the field takes a typed number and clamps
+ * it to the range when it is committed, while Escape abandons the typing and keeps the settled size.
  */
 function SizeField({ label, range, value, onChoose }: {
   label: string;
@@ -359,70 +358,53 @@ function SizeField({ label, range, value, onChoose }: {
   onChoose: (size: number) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
-  /** Which end of the range a typed size was held to, until the size next changes. */
-  const [clamped, setClamped] = useState<"min" | "max" | null>(null);
   const abandoned = useRef(false);
-  const step = (delta: 1 | -1) => {
-    setClamped(null);
-    onChoose(stepSize(range, value, delta));
-  };
-
-  let limit = `${range.min}–${range.max} px`;
-  if (clamped === "max") limit = `Max ${range.max} px`;
-  if (clamped === "min") limit = `Min ${range.min} px`;
 
   return (
-    <>
-      <span className={`size-range${clamped ? " clamped" : ""}`} role="status">{limit}</span>
-      <div className="size-stepper">
-        <button type="button" aria-label={`Smaller ${label.toLowerCase()}`} disabled={value <= range.min} onClick={() => step(-1)}>
-          <Minus size={14} aria-hidden="true" />
-        </button>
-        <label className="size-value">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={draft ?? String(value)}
-            aria-label={label}
-            onFocus={(event) => {
-              setClamped(null);
-              setDraft(String(value));
-              event.currentTarget.select();
-            }}
-            onChange={(event) => setDraft(event.target.value)}
-            onBlur={(event) => {
-              const typed = Number(event.target.value);
-              const keep = !abandoned.current && event.target.value.trim() && Number.isFinite(typed);
-              abandoned.current = false;
-              setDraft(null);
-              if (!keep) return;
-              const kept = clampSize(range, typed);
-              setClamped(kept === typed ? null : typed > kept ? "max" : "min");
-              onChoose(kept);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-                event.preventDefault();
-                const typed = Number(draft);
-                const next = stepSize(range, draft?.trim() && Number.isFinite(typed) ? clampSize(range, typed) : value, event.key === "ArrowUp" ? 1 : -1);
-                setDraft(String(next));
-                onChoose(next);
-              }
-              if (event.key === "Enter") event.currentTarget.blur();
-              if (event.key === "Escape") {
-                event.stopPropagation();
-                abandoned.current = true;
-                event.currentTarget.blur();
-              }
-            }}
-          />
-          <span aria-hidden="true">px</span>
-        </label>
-        <button type="button" aria-label={`Larger ${label.toLowerCase()}`} disabled={value >= range.max} onClick={() => step(1)}>
-          <Plus size={14} aria-hidden="true" />
-        </button>
-      </div>
-    </>
+    <div className="size-stepper">
+      <button type="button" aria-label={`Smaller ${label.toLowerCase()}`} disabled={value <= range.min} onClick={() => onChoose(stepSize(range, value, -1))}>
+        <Minus size={14} aria-hidden="true" />
+      </button>
+      <label className="size-value">
+        <input
+          type="text"
+          inputMode="numeric"
+          value={draft ?? String(value)}
+          aria-label={label}
+          onFocus={(event) => {
+            setDraft(String(value));
+            event.currentTarget.select();
+          }}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={(event) => {
+            const typed = Number(event.target.value);
+            const keep = !abandoned.current && event.target.value.trim() && Number.isFinite(typed);
+            abandoned.current = false;
+            setDraft(null);
+            if (keep) onChoose(clampSize(range, typed));
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+              event.preventDefault();
+              const typed = Number(draft);
+              const next = stepSize(range, draft?.trim() && Number.isFinite(typed) ? clampSize(range, typed) : value, event.key === "ArrowUp" ? 1 : -1);
+              setDraft(String(next));
+              onChoose(next);
+            }
+            if (event.key === "Enter") event.currentTarget.blur();
+            if (event.key === "Escape") {
+              event.stopPropagation();
+              abandoned.current = true;
+              event.currentTarget.blur();
+            }
+          }}
+        />
+        <span aria-hidden="true">px</span>
+      </label>
+      <button type="button" aria-label={`Larger ${label.toLowerCase()}`} disabled={value >= range.max} onClick={() => onChoose(stepSize(range, value, 1))}>
+        <Plus size={14} aria-hidden="true" />
+      </button>
+    </div>
   );
 }
 

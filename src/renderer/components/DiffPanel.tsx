@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent, type PointerEvent, type RefObject, type SetStateAction } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { LuArrowDown as ArrowDown, LuCheck as Check, LuMessageSquarePlus as MessageSquarePlus } from "react-icons/lu";
+import { LuArrowDown as ArrowDown, LuCheck as Check } from "react-icons/lu";
 import type { DiffSummaryResult } from "../../contracts/ipc";
 import type { DiffState, FindView } from "../../application/workspace-state";
 import type { FindResults } from "../../domain/find";
@@ -20,7 +20,7 @@ import { useDrawnFiles, usePanelRows, usePinnedFile, useRoomForTwo, useSelection
 import { useReadWholeReview, useReviewFind } from "../diff/use-review-find";
 import { useLazyColours } from "../diff/use-colours";
 import { DiffCommentEditor } from "./DiffCommentEditor";
-import { DiffToolbar, KEYS_MENU, type DiffPickerActions } from "./DiffToolbar";
+import { DiffToolbar, type DiffPickerActions } from "./DiffToolbar";
 import { PanelRowView, PinnedFileRow } from "./DiffRows";
 
 /** What an unwrapped line costs. Rows wrap, so the windowing measures each one and corrects this. */
@@ -101,13 +101,11 @@ function PanelNotice({ note, onRetry, onShowSpacing }: { note: PanelNote; onRetr
 }
 
 /** What the review adds up to: how much of it the user has ticked off, and what it costs in lines. */
-function ReviewProgress({ files, viewed, additions, deletions, hint, onNext }: {
+function ReviewProgress({ files, viewed, additions, deletions, onNext }: {
   files: DiffFileSummary[];
   viewed: Record<string, string>;
   additions: number;
   deletions: number;
-  /** While nothing is picked or commented on, the row says how a comment is made. */
-  hint: boolean;
   onNext: () => void;
 }) {
   if (files.length === 0) return null;
@@ -115,9 +113,8 @@ function ReviewProgress({ files, viewed, additions, deletions, hint, onNext }: {
   return (
     <div className="diff-progress">
       {done < files.length
-        ? <button type="button" aria-keyshortcuts="N" data-tip="Next unviewed file (N)" onClick={onNext}>{`${done} of ${files.length} viewed`}<ArrowDown size={12} aria-hidden="true" /></button>
+        ? <button type="button" aria-keyshortcuts="N" data-tip="Next unviewed file" onClick={onNext}>{`${done} of ${files.length} viewed`}<ArrowDown size={12} aria-hidden="true" /></button>
         : <span className="diff-progress-done" role="status"><Check size={12} aria-hidden="true" />{files.length === 1 ? "Viewed" : `All ${files.length} viewed`}</span>}
-      {hint && <span className="diff-progress-hint" data-tip="Click a line number to comment" data-tip-overflow><MessageSquarePlus size={12} aria-hidden="true" /><span>Click a line number to comment</span></span>}
       <span className="change-counts"><strong>+{additions}</strong><em>−{deletions}</em></span>
       <span className="diff-progress-meter" aria-hidden="true"><span style={{ width: `${(done / files.length) * 100}%` }} /></span>
     </div>
@@ -126,19 +123,6 @@ function ReviewProgress({ files, viewed, additions, deletions, hint, onNext }: {
 
 function typing(target: EventTarget) {
   return target instanceof HTMLElement && (target.isContentEditable || target.matches("input:not([type=checkbox]), textarea, select"));
-}
-
-/** Review shortcuts: n jumps to the next unread file, ? lists the keys, o opens the focused file. */
-function panelKeys({ onNext, onToggleKeys, onOpenFile }: { onNext: () => void; onToggleKeys: () => void; onOpenFile: (path: string) => void }) {
-  return (event: KeyboardEvent<HTMLElement>) => {
-    if (event.metaKey || event.ctrlKey || event.altKey || typing(event.target)) return;
-    const path = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-path]")?.dataset.path : undefined;
-    if (event.key === "n") onNext();
-    else if (event.key === "?") onToggleKeys();
-    else if (event.key === "o" && path) onOpenFile(path);
-    else return;
-    event.preventDefault();
-  };
 }
 
 function gutterOf(target: EventTarget | null) {
@@ -380,11 +364,11 @@ export function DiffPanel({
   const notice = panelNote({ result: diff.result, loading: diff.loading, workspaceId, settling, overBudget, ignoreWhitespace: diff.ignoreWhitespace });
 
   return (
-    <section className="diff-panel" aria-label="Changes" ref={panelRef} onKeyDown={panelKeys({
-      onNext: nextUnviewed,
-      onToggleKeys: () => onSetOpenMenu(openMenu === KEYS_MENU ? null : KEYS_MENU),
-      onOpenFile,
-    })}>
+    <section className="diff-panel" aria-label="Changes" ref={panelRef} onKeyDown={(event) => {
+      if (event.key !== "n" || event.metaKey || event.ctrlKey || event.altKey || typing(event.target)) return;
+      event.preventDefault();
+      nextUnviewed();
+    }}>
       <DiffToolbar
         {...comparisonActions}
         diff={diff}
@@ -399,7 +383,7 @@ export function DiffPanel({
         onRefresh={onRefresh}
       />
 
-      {available && <ReviewProgress files={files} viewed={diff.viewed} additions={available.additions} deletions={available.deletions} hint={!selection && diffComments.length === 0} onNext={nextUnviewed} />}
+      {available && <ReviewProgress files={files} viewed={diff.viewed} additions={available.additions} deletions={available.deletions} onNext={nextUnviewed} />}
       {notice && <PanelNotice note={notice} onRetry={onRefresh} onShowSpacing={() => onSetIgnoreWhitespace(false)} />}
 
       <div className="diff-scroll">

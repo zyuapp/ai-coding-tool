@@ -54,7 +54,6 @@ test("a reviewed commit's chip copies its full hash and says so", async () => {
   await act(async () => { chip.click(); });
   assert.deepEqual(copied, [COMMIT]);
   assert.equal(chip.dataset.tip, "Copied");
-  assert.equal(chip.textContent, "Copied", "the chip says so without a hover");
   assert.ok(chip.classList.contains("copied"));
   await view.unmount();
 });
@@ -100,44 +99,11 @@ test("the mode chip names what it picks", async () => {
   await view.unmount();
 });
 
-test("the review keys open from the toolbar and close with Escape", async () => {
-  function Toolbar() {
-    const [openMenu, setOpenMenu] = React.useState<string | null>(null);
-    return toolbar({ openMenu, onSetOpenMenu: setOpenMenu });
-  }
-  const view = await mount(React.createElement(Toolbar));
-  const keys = query<HTMLButtonElement>(view.container, 'button[aria-label="Review keys"]');
-  assert.equal(keys.getAttribute("aria-expanded"), "false");
-  await act(async () => { keys.click(); });
-  assert.equal(keys.getAttribute("aria-expanded"), "true");
-  const card = query<HTMLElement>(dom.window.document.body, '[role="dialog"][aria-label="Review keys"]');
-  const listed = [...card.querySelectorAll("dd")].map((entry) => entry.textContent);
-  assert.ok(listed.includes("Next unviewed file"));
-  assert.ok(listed.includes("Pick more lines"));
-  assert.ok(listed.includes("Comment on that line"));
-
-  keys.focus();
-  await act(async () => { dom.window.document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
-  assert.equal(dom.window.document.querySelector('[role="dialog"][aria-label="Review keys"]'), null);
-  assert.equal(keys.getAttribute("aria-expanded"), "false");
-  assert.equal(dom.window.document.activeElement, keys, "the caret goes back to the button");
-  await view.unmount();
-});
-
 test("a long branch name keeps its end in view", async () => {
   const view = await mount(toolbar({ currentBranch: "feature/review-panel-polish", diff: diffState({ mode: "branch", range: { kind: "branches", base: "origin/main", compare: null }, ignoreWhitespace: true }) }));
   const [from, into] = [...view.container.querySelectorAll<HTMLElement>(".diff-side-trigger > span")];
   assert.equal(from.textContent, "feature/review-panel-polish · working");
   assert.equal(from.lastElementChild?.textContent, "nel-polish · working");
   assert.equal(into.childElementCount, 1, "a short name is not split");
-  await view.unmount();
-});
-
-test("a commit review lists its commit as the checked mode", async () => {
-  const view = await mount(toolbar({ openMenu: "diff:mode", diff: diffState({ mode: "commit", range: { kind: "commit", commit: COMMIT } }) }));
-  const items = [...dom.window.document.querySelectorAll<HTMLButtonElement>('.diff-mode-menu [role="menuitemradio"]')];
-  assert.deepEqual(items.map((item) => item.getAttribute("aria-checked")), ["true", "false", "false"]);
-  assert.match(items[0].textContent ?? "", new RegExp(`^Commit.*${COMMIT.slice(0, 7)}`));
-  assert.equal(dom.window.document.activeElement, items[0]);
   await view.unmount();
 });

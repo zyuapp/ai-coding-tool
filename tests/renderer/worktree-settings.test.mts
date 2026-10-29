@@ -69,16 +69,12 @@ test("filters both groups, opens missing folders for an empty project, and can c
   } finally { await view.unmount(); }
 });
 
-test("a project with no worktrees offers to show every project again", async () => {
+test("a project with no worktrees says so", async () => {
   const view = await renderSettings();
   try {
     const filter = query<HTMLSelectElement>(view.container, "select");
     await act(async () => { filter.value = "other"; filter.dispatchEvent(new window.Event("change", { bubbles: true })); });
     assert.match(query(view.container, ".worktree-settings-list .settings-empty").textContent!, /No worktrees on this device for this project/);
-    await click("Show all projects");
-    assert.equal(filter.value, "");
-    assert.ok(view.container.querySelector(".worktree-settings-list .worktree-setting-row"));
-    assert.equal(view.container.querySelector(".worktree-settings-list .settings-empty"), null);
   } finally { await view.unmount(); }
 });
 
@@ -155,7 +151,7 @@ test("active runs disable deletion, and an unavailable repository warns before d
   } finally { await view.unmount(); }
 });
 
-test("a refresh in flight keeps its button readable and names the refs it compares against", async () => {
+test("a refresh in flight keeps its button readable", async () => {
   const initial = fixture();
   initial.worktreeManagementLoading = true;
   const view = await renderSettings(initial);
@@ -164,6 +160,5 @@ test("a refresh in flight keeps its button readable and names the refs it compar
     assert.equal(refresh.disabled, true);
     assert.equal(refresh.getAttribute("aria-busy"), "true");
     assert.match(refresh.textContent!, /Reading…/);
-    assert.match(refresh.dataset.tip ?? "", /local Git refs/);
   } finally { await view.unmount(); }
 });

@@ -1,6 +1,6 @@
 import type { QuestionAddress } from "../../domain/agent-question";
 import { LuGitFork as GitFork, LuX as X } from "react-icons/lu";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import type { DockConversationView, FindView, SideChatView } from "../../application/workspace-state";
 import type { ReadingPoint } from "../../contracts/commands";
 import { sentPrompts, type Annotation, type AnnotationAnchor, type AttachedFile, type PastedText } from "../../domain/conversation";
@@ -12,8 +12,6 @@ import { ConversationTimeline, type ConversationTimelineProps } from "./Conversa
 import { ConversationComposer } from "./ConversationComposer";
 import type { ComposerOutbox } from "./ComposerAttachments";
 import { useFileDrop } from "../file-drop";
-import { CommandButton, useCommandControls } from "./CommandControl";
-import { shortcutTip } from "./TooltipLayer";
 
 export type DockConversationProps = {
   chat: DockConversationView;
@@ -68,7 +66,7 @@ export type DockConversationProps = {
  * A thread talked to from a dock tab: its transcript, its approval, and its composer. The tab draws
  * its own header and says what the thread is.
  */
-export function DockConversation({ chat, engineLabel, focusToken = 0, find = null, findBar, folder = "", workspaceId, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onAnnotateReveal, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, outbox, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onEditQueued, onSteerQueued, onDropQueued, updateAvailable = false, className, label, header, empty, surface, disabled = false, error = null, note, action }: DockConversationProps & {
+export function DockConversation({ chat, engineLabel, focusToken = 0, find = null, findBar, folder = "", workspaceId, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onAnnotateReveal, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, outbox, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onEditQueued, onSteerQueued, onDropQueued, updateAvailable = false, className, label, header, empty, surface, disabled = false, error = null, note }: DockConversationProps & {
   className: string;
   label: string;
   header: ReactNode;
@@ -77,8 +75,6 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
   disabled?: boolean;
   error?: string | null;
   note?: string;
-  /** What the user can do to bring a disabled conversation back, drawn above its composer. */
-  action?: ReactNode;
 }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const drop = useFileDrop(onFilesAdd);
@@ -111,7 +107,6 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
         />
         {chat.approval && <ApprovalCard approval={chat.approval} onDecide={onDecide} />}
       </div>
-      {action && <div className="side-chat-action">{action}</div>}
       {error && <p className="side-chat-error" role="alert">{error}</p>}
       <ConversationComposer
         taskId={chat.thread.id}
@@ -174,7 +169,7 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
 }
 
 /** A fork of the thread on screen, asked beside it and never saved. */
-export function SideChat({ chat, sourceTitle, sourceContinued, onClose, focusToken = 0, ...props }: DockConversationProps & {
+export function SideChat({ chat, sourceTitle, sourceContinued, onClose, ...props }: DockConversationProps & {
   chat: SideChatView;
   /** What the thread this chat forks is called, and whether it has a session for the chat to fork. */
   sourceTitle: string;
@@ -182,32 +177,15 @@ export function SideChat({ chat, sourceTitle, sourceContinued, onClose, focusTok
   onClose: () => void;
 }) {
   const available = sourceContinued || Boolean(chat.thread.continuation);
-  const controls = useCommandControls();
-  /** Sent to the main thread from here, the caret comes back here once the chat can fork it. */
-  const awaitingSource = useRef(false);
-  const [returned, setReturned] = useState(0);
-  useEffect(() => {
-    if (!available || !awaitingSource.current) return;
-    awaitingSource.current = false;
-    const at = document.activeElement;
-    if (!at || at === document.body || at.tagName === "TEXTAREA") setReturned((count) => count + 1);
-  }, [available]);
-  const messageSource = { type: "view.shortcut", action: "composer.focus", surface: "any" } as const;
   return (
     <DockConversation
       {...props}
-      focusToken={focusToken + returned}
       chat={chat}
       error={chat.error}
       className="side-chat"
       label="Side chat"
       surface="side"
       disabled={!available}
-      action={available ? null : (
-        <CommandButton type="button" data-tip={shortcutTip("Message the main thread", "Mod+L")} command={messageSource} onClick={() => { awaitingSource.current = true; controls.dispatch(messageSource); }}>
-          Message {sourceTitle}
-        </CommandButton>
-      )}
       header={
         <header className="side-chat-header">
           <div className="side-chat-title">

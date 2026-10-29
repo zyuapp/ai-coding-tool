@@ -5,8 +5,6 @@ import type { ReviewTarget } from "../../domain/review";
 import type { BranchesResult } from "../../contracts/ipc";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 import { matchBranches, useBranches } from "./BranchMenu";
-import { MAC } from "../platform";
-import { displayShortcut } from "../../domain/shortcuts";
 import { shortcutTip } from "./TooltipLayer";
 
 type ReviewPickerProps = {
@@ -39,8 +37,6 @@ function Heading({ step, current, onBack, onClose }: { step: ReviewPickerState["
         ? <ListChecks size={14} aria-hidden="true" />
         : <button type="button" className="review-back" aria-label="Back to review options" data-tip={shortcutTip("Back", "Escape")} onClick={onBack}><ChevronLeft size={16} /></button>}
       <span>{title}</span>
-      {(step === "targets" || step === "base") && <kbd aria-hidden="true">↑↓</kbd>}
-      <kbd aria-hidden="true">{displayShortcut("Escape", MAC)}</kbd>
       <button type="button" className="review-close" aria-label="Close review picker" data-tip={step === "targets" ? shortcutTip("Close", "Escape") : "Close"} onClick={onClose}><X size={16} /></button>
     </div>
   );
@@ -177,7 +173,7 @@ function CommitPicker({ onReview, value: sha, onChange: setSha }: Pick<ReviewPic
       /></label>
       {invalid && <p id={errorId} className="review-form-error" role="alert">Enter a hex commit SHA</p>}
       {short && <p id={errorId} className="review-form-hint">At least 4 characters</p>}
-      <div className="review-form-actions"><button type="submit" className="primary" disabled={!valid}>Start review <kbd aria-hidden="true">{displayShortcut("Enter", MAC)}</kbd></button></div>
+      <div className="review-form-actions"><button type="submit" className="primary" disabled={!valid}>Start review</button></div>
     </form>
   );
 }
@@ -198,10 +194,7 @@ function CustomPicker({ engineLabel, onReview, value: instructions, onChange: se
         onChange={(event) => setInstructions(event.target.value)}
         onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) submit(event); }}
       /></label>
-      <div className="review-form-actions">
-        <span className="review-form-keys" aria-hidden="true"><kbd>{displayShortcut("Shift+Enter", MAC)}</kbd>New line</span>
-        <button type="submit" className="primary" disabled={!custom}>Start review <kbd aria-hidden="true">{displayShortcut("Enter", MAC)}</kbd></button>
-      </div>
+      <div className="review-form-actions"><button type="submit" className="primary" disabled={!custom}>Start review</button></div>
     </form>
   );
 }

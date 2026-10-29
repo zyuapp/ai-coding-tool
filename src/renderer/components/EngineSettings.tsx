@@ -1,5 +1,4 @@
 import { LuRefreshCw as RefreshCw } from "react-icons/lu";
-import { useState } from "react";
 import { SettingGroup } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
 import { AGENT_ENGINES, engineLabel, engineNotice, engineUpdate, type AgentEngine, type EngineReadiness } from "../../domain/agent-engine";
@@ -52,11 +51,6 @@ function reloadLine(status: EngineSettingsProps["reloadStatus"], error: string |
 }
 
 export function EngineSettings({ engineAccess, checking, updating, onRefresh, onSignIn, onUpdate, reloadStatus, reloadError, onReload }: EngineSettingsProps) {
-  /** Engines whose sign-in was started here; the mark lasts until the engine stops reporting signed out. */
-  const [signingIn, setSigningIn] = useState<ReadonlySet<AgentEngine>>(new Set());
-  const settled = [...signingIn].filter((engine) => engineAccess[engine].access !== "signed-out");
-  if (settled.length) setSigningIn(new Set([...signingIn].filter((engine) => !settled.includes(engine))));
-  const waiting = (engine: AgentEngine) => signingIn.has(engine) && !settled.includes(engine);
   return (
     <main className="settings-main">
       <div className="settings-page-heading">
@@ -97,9 +91,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
               </div>
               <div className="setting-row-action">
                 {readiness.access === "signed-out"
-                  ? <button type="button" aria-label={`Sign in to ${engineLabel(engine)}`} aria-busy={waiting(engine)} onClick={() => { setSigningIn((current) => new Set(current).add(engine)); onSignIn(engine); }}>
-                    {waiting(engine) && <RefreshCw size={14} aria-hidden="true" className="spinning" />}{waiting(engine) ? "Waiting for sign-in…" : "Sign in"}
-                  </button>
+                  ? <button type="button" aria-label={`Sign in to ${engineLabel(engine)}`} onClick={() => onSignIn(engine)}>Sign in</button>
                   : update?.command
                     ? <button type="button" aria-label={`${updating === engine ? "Updating" : "Update"} ${engineLabel(engine)}`} disabled={updating !== null || checking} aria-busy={updating === engine} onClick={() => onUpdate(engine)}>
                       {updating === engine && <RefreshCw size={14} aria-hidden="true" className="spinning" />}{updating === engine ? "Updating…" : "Update"}

@@ -3,7 +3,6 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as Rea
 import { createPortal } from "react-dom";
 import { useModalFocus } from "../focus";
 import { MAC } from "../platform";
-import { displayShortcut } from "../../domain/shortcuts";
 import { shortcutTip } from "./TooltipLayer";
 import { renderAnnotated, type Annotation, type AnnotationKind, type Frame } from "../annotate/marks";
 import { useAnnotatorImage, useMarkPointer, usePaintedMarks } from "../annotate/use-annotator";
@@ -262,10 +261,8 @@ function useAnnotatorKeys({ composing, onEscape, onUndo, onTool }: {
   }, []);
 }
 
-function markHint(count: number, toolHint: string, canvasFocused: boolean) {
-  if (count === 0) return toolHint;
-  const marks = `${count} mark${count === 1 ? "" : "s"}.`;
-  return canvasFocused ? `${marks} Arrow keys pick one, ${displayShortcut("Enter", MAC)} edits its note, ${displayShortcut("Backspace", MAC)} deletes it.` : marks;
+function markHint(count: number, toolHint: string) {
+  return count === 0 ? toolHint : `${count} mark${count === 1 ? "" : "s"}.`;
 }
 
 /** The picked mark's bounds as a share of the image, for the ring a keyboard walk shows around it. */
@@ -344,7 +341,6 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
   const [hovered, setHovered] = useState<number | null>(null);
   /** The mark whose tools are showing: the one pointed at or walked to, else the newest. */
   const picked = hovered !== null && shapes[hovered] ? hovered : shapes.length ? shapes.length - 1 : null;
-  const [canvasFocused, setCanvasFocused] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const note = useMarkNote(shapes, change);
   const { pending, editing, composing } = note;
@@ -449,8 +445,6 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
                 aria-label="Screenshot canvas"
                 tabIndex={0}
                 onKeyDown={canvasKeyDown}
-                onFocus={() => setCanvasFocused(true)}
-                onBlur={() => setCanvasFocused(false)}
                 {...handlers}
               />
               {!composing && picked !== null && <PickedRing shape={shapes[picked]!} frame={frame} />}
@@ -484,7 +478,7 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
         <AnnotatorFooter
           discarding={discarding}
           canUndo={history.changed}
-          hint={markHint(shapes.length, activeTool.hint, canvasFocused)}
+          hint={markHint(shapes.length, activeTool.hint)}
           ready={Boolean(image)}
           onUndo={undo}
           onKeep={() => setDiscarding(false)}

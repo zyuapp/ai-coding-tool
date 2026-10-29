@@ -108,14 +108,6 @@ test("a font picker says it is still reading installed fonts", async () => {
   await view.unmount();
 });
 
-test("a size field names its range", async () => {
-  window.desktop = fakeDesktop({});
-  const view = await mount(renderSettingsPanel({ initialSection: "appearance" }));
-  await act(async () => {});
-  assert.match(query(view.container, '[data-setting="appearance.reading-size"] .size-range').textContent, /^\d+–\d+ px$/);
-  await view.unmount();
-});
-
 test("a landed control keeps a still mark until the user next acts", async () => {
   window.desktop = fakeDesktop({});
   const view = await mount(renderSettingsPanel({ initialSection: "appearance", initialSetting: "appearance.mono-font" }));

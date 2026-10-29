@@ -237,32 +237,6 @@ test("a review already drawn is left alone when the panel is drawn again around 
   assert.equal(colouring.reads, drawnRows, "a panel drawn again over the same review draws none of its rows");
 });
 
-test("the progress row says how a comment is made until a line is picked or commented on", async () => {
-  function Review() {
-    const [annotations, setAnnotations] = React.useState<Annotation[]>([]);
-    return panel({ annotations, onComment: (quote, note, anchor) => setAnnotations((current) => [...current, { id: `note-${current.length}`, quote, note, anchor } as Annotation]) });
-  }
-  const view = await mount(React.createElement(Review));
-  await settled(view.container);
-  const hint = () => view.container.querySelector(".diff-progress-hint")?.textContent;
-  assert.equal(hint(), "Click a line number to comment");
-
-  await act(async () => { query<HTMLButtonElement>(view.container, ".diff-files .diff-line.add .diff-gutter").click(); });
-  assert.equal(hint(), undefined, "a picked line needs no telling");
-
-  const note = query<HTMLTextAreaElement>(view.container, ".diff-comment textarea");
-  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")!.set!;
-  await act(async () => {
-    setValue.call(note, "Why 22?");
-    note.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "Why 22?" }));
-  });
-  await act(async () => { query<HTMLButtonElement>(view.container, ".diff-comment .send-button").click(); });
-  assert.equal(view.container.querySelector(".diff-comment"), null, "the note is taken");
-  assert.equal(hint(), undefined, "a review already commented on has learnt it");
-  assert.equal(query<HTMLButtonElement>(view.container, ".diff-inline-comment-markers button").dataset.tip, "Why 22?", "the marker reads the note back");
-  await view.unmount();
-});
-
 test("a wait spins, and a review emptied by hidden spacing offers the spacing back", async () => {
   const reading = await mount(panel({ diff: { ...diffState(), result: null, loading: true } }));
   const wait = query(reading.container, ".diff-status");

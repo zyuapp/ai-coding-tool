@@ -101,12 +101,6 @@ test("a paired computer's row lists its software in one column of steps", async 
     await act(async () => { row.querySelector<HTMLButtonElement>("[data-software='codex'] button")!.click(); });
     await act(async () => { row.querySelector<HTMLButtonElement>("[data-software='app'] button")!.click(); });
     assert.deepEqual(commands, [{ type: "engine.update", engine: "codex", computerId: "mac" }, { type: "app.update", computerId: "mac" }]);
-    const sent = row.querySelector<HTMLButtonElement>("[data-software='app'] button")!;
-    assert.equal(sent.disabled, true, "a sent step waits for that computer's answer");
-    assert.equal(sent.getAttribute("aria-busy"), "true");
-    assert.ok(sent.querySelector(".spinning"));
-    await act(async () => { sent.click(); });
-    assert.equal(commands.length, 2, "a second press sends nothing more");
     assert.ok(row.querySelector("button[aria-label='Rename MacBook']") && row.querySelector("button[aria-label='Remove MacBook']"));
   } finally {
     await view.unmount();
@@ -134,16 +128,14 @@ test("removing a paired computer asks once more before it forgets it", async () 
   }
 });
 
-test("this computer's name says it was saved, and an unchanged name saves nothing", async () => {
+test("an unchanged name saves nothing, and a changed one is given", async () => {
   const renamed: string[] = [];
   const view = await mount(settings({ onRename: (name) => renamed.push(name) }));
   try {
     const field = view.container.querySelector<HTMLInputElement>(".computer-name input")!;
     assert.equal(view.container.querySelector(".computer-name label strong")!.textContent, "This computer's name");
-    const saved = () => view.container.querySelector(".computer-name-saved")!.textContent;
     await act(async () => { field.focus(); field.blur(); });
     assert.deepEqual(renamed, []);
-    assert.equal(saved(), "");
     const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")!.set!;
     await act(async () => {
       field.focus();
@@ -152,26 +144,17 @@ test("this computer's name says it was saved, and an unchanged name saves nothin
     });
     await act(async () => { field.blur(); });
     assert.deepEqual(renamed, ["studio"]);
-    assert.equal(saved(), "Saved");
   } finally {
     await view.unmount();
   }
 });
 
-test("the address field reads as the only way to pair until the tailnet lists a computer", async () => {
-  const label = (view: Awaited<ReturnType<typeof mount>>) => view.container.querySelector(".computer-address label strong")!.textContent;
-  const alone = await mount(settings({}));
+test("this computer's name row carries no step circle", async () => {
+  const view = await mount(settings({}));
   try {
-    assert.equal(label(alone), "Pair by address");
-    assert.equal(alone.container.querySelector("[data-this-computer] .setting-status"), null, "this computer's name row carries no step circle");
+    assert.equal(view.container.querySelector("[data-this-computer] .setting-status"), null);
   } finally {
-    await alone.unmount();
-  }
-  const listed = await mount(settings({ found: [{ host: "studio:7737", name: "studio" } as ComputerSettingsProps["found"][number]] }));
-  try {
-    assert.equal(label(listed), "Or pair by address");
-  } finally {
-    await listed.unmount();
+    await view.unmount();
   }
 });
 

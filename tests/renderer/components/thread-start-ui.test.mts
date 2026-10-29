@@ -136,23 +136,13 @@ test("no project makes a chat, which is left only with whether it coordinates", 
   await view.unmount();
 });
 
-test("a new thread's empty transcript names its project, or that it is a chat, and leads to the composer", async () => {
+test("a new thread's empty transcript names its project, or that it is a chat", async () => {
   const { TimelineEmptyState } = await import("../../../src/renderer/components/TimelineEmptyState.tsx");
-  const { CommandControlsProvider } = await import("../../../src/renderer/components/CommandControl.tsx");
-  const sent: unknown[] = [];
-  const provide = (props: React.ComponentProps<typeof TimelineEmptyState>) => React.createElement(
-    CommandControlsProvider,
-    { value: { available: () => true, dispatch: (command: unknown) => { sent.push(command); } } },
-    React.createElement(TimelineEmptyState, props),
-  );
+  const provide = (props: React.ComponentProps<typeof TimelineEmptyState>) => React.createElement(TimelineEmptyState, props);
   const view = await mount(provide({ restored: true, place: "ai-coding-tool" }));
   assert.equal(query(view.container, ".empty-state h2").textContent, "ai-coding-tool");
   assert.equal(view.container.querySelector(".empty-state p"), null, "there is nothing to explain");
-  const compose = query<HTMLButtonElement>(view.container, ".empty-compose");
-  assert.match(compose.textContent, /^Write a message/);
-  assert.ok(compose.querySelector("kbd")?.textContent, "the button names the keystroke that does the same");
-  await act(async () => { compose.click(); });
-  assert.deepEqual(sent, [{ type: "view.shortcut", action: "composer.focus", surface: "any" }]);
+  assert.equal(view.container.querySelector(".empty-state button"), null);
   await view.render(provide({ restored: true }));
   assert.equal(query(view.container, ".empty-state h2").textContent, "New chat", "without a project it is a chat");
   await view.render(provide({ restored: false, place: "ai-coding-tool" }));

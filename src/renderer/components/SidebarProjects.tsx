@@ -330,7 +330,6 @@ export function SidebarProjects({
       <div className={`section-heading projects-heading${projects.length === 0 ? " empty" : ""}`}>
         <button className="section-toggle" type="button" onClick={() => onSetSectionOpen("projects", !sections.projects)} aria-expanded={sections.projects}>
           <span>Projects</span>
-          {!sections.projects && projects.length > 0 && <span className="section-count">{projects.length}</span>}
           <span className="section-chevron" aria-hidden="true" />
         </button>
         <button className="section-action add-project" type="button" onClick={onOpenFolder} aria-label="Add project" data-tip="Add project"><Plus size={16} aria-hidden="true" /></button>
@@ -373,7 +372,6 @@ export function SidebarProjects({
       <div className="section-heading recents-heading">
         <button className="section-toggle" type="button" onClick={() => onSetSectionOpen("recents", !sections.recents)} aria-expanded={sections.recents}>
           <span>Recents</span>
-          {!sections.recents && recentThreads.length > 0 && <span className="section-count">{recentThreads.length}</span>}
           <span className="section-chevron" aria-hidden="true" />
         </button>
       </div>

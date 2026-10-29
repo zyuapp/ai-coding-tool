@@ -125,16 +125,6 @@ test("a picked mark keeps its tools after the pointer leaves the image", async (
   await view.unmount();
 });
 
-test("the footer names the keys that walk the marks only while the canvas has focus", async () => {
-  const { view, canvas } = await open();
-  assert.equal(query(document.body, ".annotator-count").textContent, "2 marks.");
-  await act(async () => { (canvas as HTMLCanvasElement).focus(); });
-  assert.match(query(document.body, ".annotator-count").textContent ?? "", /^2 marks\. Arrow keys pick one/);
-  await act(async () => { (canvas as HTMLCanvasElement).blur(); });
-  assert.equal(query(document.body, ".annotator-count").textContent, "2 marks.");
-  await view.unmount();
-});
-
 test("the picked mark carries a ring around its bounds, and none while a note is typed", async () => {
   const { view, canvas } = await open();
   await act(async () => press(canvas, "ArrowRight"));

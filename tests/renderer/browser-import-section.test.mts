@@ -67,22 +67,19 @@ test("All sites ticks every matching site in one go, and clears them once all ar
   } finally { await view.unmount(); }
 });
 
-test("At the site limit the picker says so and the unticked sites cannot be ticked", async () => {
+test("At the site limit the unticked sites cannot be ticked", async () => {
   const calls: string[] = [];
   const sites = Array.from({ length: MAX_IMPORT_SITES + 1 }, (_, index) => ({ domain: `site${index}.com`, cookies: 1 }));
   const last = `site${MAX_IMPORT_SITES}.com`;
   const state = (selected: string[], filter = ""): BrowserImportSettings => settings({ sourceId: SOURCE.id, sites, selected, filter }, calls);
-  const limit = () => document.querySelector(".browser-import-limit");
   const box = (domain: string) => [...document.querySelectorAll<HTMLLabelElement>(".browser-import-sites label")]
     .find((label) => label.querySelector("span")?.textContent === domain)!.querySelector("input")!;
   const view = await mount(React.createElement(BrowserImportSection, { settings: state(sites.slice(1, MAX_IMPORT_SITES).map((site) => site.domain)) }));
   try {
-    assert.equal(limit(), null);
     assert.equal(box("site0.com").disabled, false);
 
     const full = sites.slice(0, MAX_IMPORT_SITES).map((site) => site.domain);
     await view.render(React.createElement(BrowserImportSection, { settings: state(full) }));
-    assert.equal(limit()?.textContent, `Limit reached: ${MAX_IMPORT_SITES} of ${MAX_IMPORT_SITES} sites`);
     assert.equal(box("site0.com").disabled, false, "a ticked site can still be cleared");
 
     await view.render(React.createElement(BrowserImportSection, { settings: state(full, last) }));

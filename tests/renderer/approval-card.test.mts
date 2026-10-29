@@ -23,11 +23,7 @@ test("the approval card shows the command it would run and decides it either way
   const button = (label: string) => [...card.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.firstChild?.textContent === label)!;
   assert.match(button("Allow once").dataset.tip ?? "", /^Allow once \(/);
   assert.match(button("Deny").dataset.tip ?? "", /^Deny \(/);
-  for (const label of ["Allow once", "Deny"]) {
-    const keys = query(button(label), "kbd");
-    assert.equal(keys.getAttribute("aria-hidden"), "true");
-    assert.ok(button(label).dataset.tip?.endsWith(`(${keys.textContent})`), "the button shows the keys its tooltip names");
-  }
+  assert.equal(card.querySelector("kbd"), null);
   await act(async () => { button("Allow once").click(); });
   await act(async () => { button("Deny").click(); });
   assert.deepEqual(decided, [true, false]);
@@ -37,7 +33,6 @@ test("the approval card shows the command it would run and decides it either way
   const reboundButton = (label: string) => [...rebound.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.firstChild?.textContent === label)!;
   assert.match(reboundButton("Allow once").dataset.tip ?? "", /Y\)$/, "a rebound shortcut is the one offered");
   assert.equal(reboundButton("Deny").hasAttribute("data-tip"), false, "an unbound one offers no keys");
-  assert.equal(reboundButton("Deny").querySelector("kbd"), null);
   await rebound.unmount();
 
   const other = await mount(React.createElement(ApprovalCard, { approval: { ...approval({ query: "a" }), description: "" }, onDecide() {} }));
@@ -53,7 +48,7 @@ test("the approval card shows the command it would run and decides it either way
 
   const edit = await mount(React.createElement(ApprovalCard, { approval: approval({ file_path: "src/a.ts", old_string: "a", new_string: "b" }), onDecide() {} }));
   assert.equal(query(edit.container, ".approval-command").textContent, "src/a.ts");
-  assert.match(query(edit.container, "details pre").textContent, /new_string/, "the rest of the input stays one fold away");
+  assert.equal(edit.container.querySelector("details"), null, "the path stands for the call without its raw input");
   await edit.unmount();
 });
 

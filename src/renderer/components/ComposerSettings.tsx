@@ -190,7 +190,6 @@ function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]
         />)}
         <div className="effort-knob" />
       </div>
-      {last > 0 && <div className="effort-ends" aria-hidden="true"><span>{steps[0]!.label}</span><span>{steps[last]!.label}</span></div>}
     </div>
     <span className={`effort-strip-value${steps[shown]?.delegates ? " delegates" : ""}`} data-tip={steps[shown]?.description}>{steps[shown]?.label ?? value}</span>
   </>;

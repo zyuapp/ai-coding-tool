@@ -1,4 +1,4 @@
-import { Children, createContext, isValidElement, memo, useContext, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type ReactElement, type ReactNode } from "react";
+import { Children, createContext, isValidElement, memo, useContext, useMemo, useRef, useState, type ComponentProps, type ReactElement, type ReactNode } from "react";
 import { LuArrowUpRight as ArrowUpRight, LuFileText as FileText } from "react-icons/lu";
 import Markdown, { defaultUrlTransform, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -17,7 +17,6 @@ import { copyText } from "../clipboard";
 const APP_HREF = /^aicodingtool:/i;
 const WEB_HREF = /^https?:/i;
 const FILE_HREF = /^file:/i;
-const OPEN_IN_APP_TIP = `Open in app (${MAC ? "⌘" : "Ctrl+"}Click)`;
 
 /** What a link in a message can reach. A handler the host leaves out makes that link plain text. */
 export type MessageLinkActions = {
@@ -97,29 +96,10 @@ function MarkdownTable({ node, ...props }: ComponentProps<"table"> & ExtraProps)
   );
 }
 
-/** How long a link must be rested on for its tip to have been read. */
-const TIP_READ_MS = 900;
-
-/** The in-app click is named on web links until it has been read once or used, then only in their menu. */
-let inAppClickKnown = false;
-const inAppClickListeners = new Set<() => void>();
-function learnInAppClick() {
-  if (inAppClickKnown) return;
-  inAppClickKnown = true;
-  for (const listener of inAppClickListeners) listener();
-}
-function subscribeInAppClick(listener: () => void) {
-  inAppClickListeners.add(listener);
-  return () => { inAppClickListeners.delete(listener); };
-}
-const readInAppClick = () => inAppClickKnown;
-
 /** Opens in the browser, or with the platform's command modifier held, in the app's own browser panel. */
 export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> & { openInApp?: () => void }) {
   const link = useRef<HTMLAnchorElement>(null);
-  const restingSince = useRef<number | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
-  const known = useSyncExternalStore(subscribeInAppClick, readInAppClick);
   const href = props.href ?? "";
   const entries: MenuEntry[] = [
     { label: "Open in browser", onSelect: () => { window.open(href, "_blank", "noreferrer"); } },
@@ -130,21 +110,14 @@ export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> &
   return (
     <>
       <a
-        data-tip={openInApp && !known ? OPEN_IN_APP_TIP : undefined}
         {...props}
         ref={link}
         target="_blank"
         rel="noreferrer"
-        onMouseEnter={() => { restingSince.current = performance.now(); }}
-        onMouseLeave={() => {
-          if (openInApp && restingSince.current !== null && performance.now() - restingSince.current >= TIP_READ_MS) learnInAppClick();
-          restingSince.current = null;
-        }}
         onClick={(event) => {
           props.onClick?.(event);
           if (!openInApp || event.defaultPrevented || !(MAC ? event.metaKey : event.ctrlKey)) return;
           event.preventDefault();
-          learnInAppClick();
           openInApp();
         }}
         onContextMenu={(event) => {

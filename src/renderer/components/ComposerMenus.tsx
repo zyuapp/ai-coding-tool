@@ -5,8 +5,6 @@ import type { AgentEngine } from "../../domain/agent-engine";
 import { handleTokenAt, rankThreadHandles, type ThreadHandleOption } from "../../domain/thread-handles";
 import { useDismissibleLayer } from "../focus";
 import type { ComposerCaret } from "./composer-caret";
-import { displayShortcut } from "../../domain/shortcuts";
-import { MAC } from "../platform";
 
 /** An entry in the `/` menu that the app performs itself instead of sending. */
 export type ComposerAction = { name: string; description: string; run: () => void };
@@ -185,17 +183,12 @@ export function menuActiveDescendant(menus: ComposerMenus) {
   return undefined;
 }
 
-/** The keys an open menu takes, named in its heading. */
-function MenuKeys() {
-  return <span className="command-menu-keys" aria-hidden="true"><kbd>↑↓</kbd><kbd>{displayShortcut("Enter", MAC)}</kbd><kbd>{displayShortcut("Escape", MAC)}</kbd></span>;
-}
-
 export function CommandMenu({ menus }: { menus: ComposerMenus }) {
   const { matchingCommands, selectedCommand } = menus;
 
   return (
     <div className="command-menu" ref={menus.commandMenuRef} id="slash-command-menu" role="listbox" aria-label="Slash commands">
-      <div className="command-menu-heading"><Command size={14} aria-hidden="true" /><span>Commands</span><MenuKeys /></div>
+      <div className="command-menu-heading"><Command size={14} aria-hidden="true" /><span>Commands</span></div>
       <div className="command-menu-list">
         {matchingCommands.map((command, index) => {
           const description = shortDescription(command.description);
@@ -229,7 +222,7 @@ export function ThreadMenu({ menus }: { menus: ComposerMenus }) {
 
   return (
     <div className="command-menu thread-menu" ref={menus.threadMenuRef} id="thread-mention-menu" role="listbox" aria-label="Threads">
-      <div className="command-menu-heading"><MessagesSquare size={14} aria-hidden="true" /><span>Threads</span><MenuKeys /></div>
+      <div className="command-menu-heading"><MessagesSquare size={14} aria-hidden="true" /><span>Threads</span></div>
       <div className="command-menu-list">
         {matchingThreads.map((option, index) => (
           <button

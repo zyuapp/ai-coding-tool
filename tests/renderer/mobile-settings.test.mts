@@ -34,13 +34,13 @@ function draw(remote: MobileServerState, remoteChecking = false) {
   return calls;
 }
 
-function finishSetupButton() {
-  return [...document.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Finish setup");
+function statusPill() {
+  return document.querySelector<HTMLButtonElement>(".settings-pill-jump");
 }
 
-function finishSetup() {
-  const button = finishSetupButton();
-  assert.ok(button, "no Finish setup button");
+function jumpToStep() {
+  const button = statusPill();
+  assert.ok(button, "no status pill to press");
   act(() => void button.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
 }
 
@@ -215,7 +215,7 @@ test("a Tailscale check in flight says so on its button and keeps it readable", 
   assert.equal(button?.getAttribute("aria-busy"), "true");
 });
 
-test("Finish setup takes the user to the step that unblocks it, marked, with its link focused", () => {
+test("Waiting for Tailscale takes the user to the step that unblocks it, marked, with its link focused", () => {
   const scrolled: string[] = [];
   Object.defineProperty(dom.window.HTMLElement.prototype, "scrollIntoView", { configurable: true, writable: true, value(this: HTMLElement) { scrolled.push(this.dataset.step ?? this.tagName); } });
   draw(served({
@@ -224,18 +224,18 @@ test("Finish setup takes the user to the step that unblocks it, marked, with its
     tailscale: { status: "ready", magicDnsName: TAILNET.host, serving: false, certs: false, error: null },
   }));
   assert.equal(document.querySelector(".phone-check.found"), null);
-  assert.equal(document.querySelector("[aria-labelledby='phone-availability-heading'] .settings-group-action > span")?.textContent, "Waiting for Tailscale");
-  finishSetup();
+  assert.equal(statusPill()?.textContent, "Waiting for Tailscale");
+  jumpToStep();
   assert.deepEqual(scrolled, ["https"]);
   assert.equal(document.querySelector("[data-step='https']")?.classList.contains("found"), true);
   assert.equal(document.activeElement?.textContent, "Open admin console");
 
-  finishSetup();
+  jumpToStep();
   assert.deepEqual(scrolled, ["https", "https"], "every ask brings it back");
 });
 
 test("a served bridge's status is plain text, with nothing to jump to", () => {
   draw(served());
-  assert.equal(finishSetupButton(), undefined);
+  assert.equal(statusPill(), null);
   assert.equal(document.querySelector("[aria-labelledby='phone-availability-heading'] .settings-group-heading > span")?.textContent, "On");
 });

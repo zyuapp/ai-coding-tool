@@ -110,7 +110,6 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
 export function WorkspaceHeader({ currentThread, folder, folderLabel, host, sidebarOpen, sessionPanelOpen, rightDockOpen, zen, workingSubagents, openMenu, canOpenFolder, apps, onListApps, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, notifications, onSetMuted, stoppable, onStopAll, onToggleSidebar, onToggleSessionPanel, onToggleRightDock, onChooseFolder }: WorkspaceHeaderProps) {
   const working = workingSubagents > 0 ? `${workingSubagents} ${workingSubagents === 1 ? "agent" : "agents"} working` : "";
   const openIn = { blocked: canOpenFolder ? null : "Worktree is still being created", apps, onListApps, onOpenInApp };
-  const summaryTip = ["Session summary", working, rightDockOpen && !sessionPanelOpen && "Replaces right panel"].filter(Boolean).join(" · ");
   return (
     <header className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()}>
       <div className="task-heading">
@@ -160,7 +159,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
           type="button"
           aria-label={`${sessionPanelOpen ? "Hide" : "Show"} session summary${working ? `, ${working}` : ""}`}
           aria-pressed={sessionPanelOpen}
-          data-tip={summaryTip}
+          data-tip={working ? `Session summary · ${working}` : "Session summary"}
           onClick={onToggleSessionPanel}
         >
           <ClipboardList size={18} aria-hidden="true" />

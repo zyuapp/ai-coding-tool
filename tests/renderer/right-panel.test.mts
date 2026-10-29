@@ -475,7 +475,7 @@ test("an add-menu entry that cannot open stays reachable, says why, and does not
   await view.unmount();
 });
 
-test("a side chat with no main context to fork offers the main thread's composer", async () => {
+test("a side chat with no main context to fork waits for the main thread to start one", async () => {
   seedLoneThread(false);
   const desktop = fakeDesktop();
   window.desktop = desktop;
@@ -484,11 +484,9 @@ test("a side chat with no main context to fork offers the main thread's composer
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Add right panel tab"]').click(); });
   await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>('.right-dock-add button')].find((button) => button.textContent.includes("Side chat"))).click(); });
 
-  const go = query<HTMLButtonElement>(view.container, ".side-chat-action button");
-  assert.equal(go.textContent, "Message Main task");
-  await act(async () => { go.click(); });
+  const side = () => query<HTMLTextAreaElement>(view.container, 'textarea[aria-label="Side chat prompt"]');
+  assert.equal(side().disabled, true);
   const main = query<HTMLTextAreaElement>(view.container, 'textarea[aria-label="Task prompt"]');
-  await settleUntil(() => dom.window.document.activeElement === main, "the main thread's composer takes the caret");
 
   const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")).set;
   await act(async () => {
@@ -498,17 +496,8 @@ test("a side chat with no main context to fork offers the main thread's composer
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Send task"]').click(); });
   const start = startCommand(desktop.sent[0]);
   await act(async () => { desktop.listener({ type: "continuation.updated", taskId: start.taskId, runId: start.runId, sequence: 1, continuation: { provider: "claude", value: "main-session" } }); });
-  await settleUntil(() => dom.window.document.activeElement === view.container.querySelector('textarea[aria-label="Side chat prompt"]'), "the caret comes back to the side chat once it can fork");
-  assert.equal(view.container.querySelector(".side-chat-action"), null);
+  await settleUntil(() => !side().disabled, "the side chat opens once the main thread can be forked");
   await view.unmount();
-
-  seedLoneThread(true);
-  const continued = await mount(React.createElement(App));
-  await act(async () => { query<HTMLButtonElement>(continued.container, 'button[aria-label="Show right panel"]').click(); });
-  await act(async () => { query<HTMLButtonElement>(continued.container, 'button[aria-label="Add right panel tab"]').click(); });
-  await act(async () => { item([...continued.container.querySelectorAll<HTMLButtonElement>('.right-dock-add button')].find((button) => button.textContent.includes("Side chat"))).click(); });
-  assert.equal(continued.container.querySelector(".side-chat-action"), null, "a chat that can fork asks nothing of the main thread");
-  await continued.unmount();
 });
 
 test("a strip with tabs past its edges offers every tab in one list", async () => {
@@ -517,16 +506,7 @@ test("a strip with tabs past its edges offers every tab in one list", async () =
   const proto = dom.window.HTMLElement.prototype;
   const scrollWidth = Object.getOwnPropertyDescriptor(proto, "scrollWidth");
   const clientWidth = Object.getOwnPropertyDescriptor(proto, "clientWidth");
-  const rect = proto.getBoundingClientRect;
   let tight = false;
-  /** The strip shows 300px, and its tabs are 200px apiece from its left edge. */
-  proto.getBoundingClientRect = function (this: HTMLElement) {
-    if (!tight) return rect.call(this);
-    if (this.getAttribute("role") === "tablist") return dom.window.DOMRect.fromRect({ x: 0, width: 300 });
-    const strip = this.parentElement;
-    if (this.classList.contains("right-dock-tab") && strip) return dom.window.DOMRect.fromRect({ x: [...strip.children].indexOf(this) * 200, width: 200 });
-    return rect.call(this);
-  };
   Object.defineProperty(proto, "scrollWidth", { configurable: true, get(this: HTMLElement) { return tight && this.getAttribute("role") === "tablist" ? 600 : 0; } });
   Object.defineProperty(proto, "clientWidth", { configurable: true, get(this: HTMLElement) { return this.getAttribute("role") === "tablist" ? 300 : 0; } });
   try {
@@ -542,10 +522,7 @@ test("a strip with tabs past its edges offers every tab in one list", async () =
     }
     const tabs = () => [...view.container.querySelectorAll<HTMLButtonElement>('.right-dock [role="tab"]')];
     assert.equal(tabs().length, 3);
-    const trigger = query<HTMLButtonElement>(view.container, ".right-dock-overflow > button");
-    assert.equal(trigger.textContent, "1", "the list says how many tabs are out of sight");
-    assert.equal(trigger.getAttribute("aria-label"), "All tabs (3, 1 out of view)");
-    await act(async () => { trigger.click(); });
+    await act(async () => { query<HTMLButtonElement>(view.container, '.right-dock-overflow > button').click(); });
     const entries = [...view.container.querySelectorAll<HTMLButtonElement>('.right-dock-overflow [role="menuitemradio"]')];
     assert.equal(entries.length, 3);
     const checked = entries.findIndex((entry) => entry.getAttribute("aria-checked") === "true");
@@ -556,7 +533,6 @@ test("a strip with tabs past its edges offers every tab in one list", async () =
     assert.equal(view.container.querySelector('.right-dock-overflow [role="menu"]'), null, "picking a tab closes the list");
     await view.unmount();
   } finally {
-    proto.getBoundingClientRect = rect;
     if (scrollWidth) Object.defineProperty(proto, "scrollWidth", scrollWidth);
     else Reflect.deleteProperty(proto, "scrollWidth");
     if (clientWidth) Object.defineProperty(proto, "clientWidth", clientWidth);

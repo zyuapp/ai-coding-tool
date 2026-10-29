@@ -68,10 +68,10 @@ function drawnAt(diagram: Diagram, scale: number): CSSProperties {
 }
 
 /** The diagram over the whole window: fitted on entry, then scalable between that and 400%. */
-export function DiagramViewer({ diagram, source, onClose }: { diagram: Diagram; source: string; onClose: () => void }) {
+export function DiagramViewer({ diagram, onClose }: { diagram: Diagram; onClose: () => void }) {
   const zoom = useZoom(diagram.width ? diagram : null);
   return (
-    <BlockViewer label="Diagram" className="diagram" source={source} controls={<ZoomControls zoom={zoom} />} onClose={onClose}>
+    <BlockViewer label="Diagram" className="diagram" controls={<ZoomControls zoom={zoom} />} onClose={onClose}>
       <div ref={zoom.stage} className="viewer-stage">
         <div
           className="mermaid-svg"
@@ -114,7 +114,7 @@ export function DiagramViewerHost({ children }: { children: ReactNode }) {
     <OpenVisual.Provider value={openVisual}>
       {children}
       {shown && ("diagram" in shown
-        ? <DiagramViewer diagram={shown.diagram} source={shown.source} onClose={close} />
+        ? <DiagramViewer diagram={shown.diagram} onClose={close} />
         : <VisualViewer source={shown.visual} onClose={close} />)}
     </OpenVisual.Provider>
     </OpenDiagram.Provider>

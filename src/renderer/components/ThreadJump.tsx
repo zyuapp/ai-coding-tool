@@ -3,9 +3,7 @@ import { createPortal } from "react-dom";
 import { LuSearch as Search, LuSettings as Settings } from "react-icons/lu";
 import type { JumpRow, JumpView } from "../../application/workspace-jump";
 import type { SettingsSection } from "../../domain/settings-section";
-import { displayShortcut } from "../../domain/shortcuts";
 import { useFocusReturn } from "../focus";
-import { MAC } from "../platform";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 
 /** What the panel asks of the workspace, which is every command it can send. */
@@ -18,17 +16,6 @@ export type ThreadJumpActions = {
 };
 
 export type ThreadJumpProps = { jump: JumpView; actions: ThreadJumpActions };
-
-/** The keys a list answers to, each with the word for what it does. */
-export function KeyHints({ keys }: { keys: readonly (readonly [keys: string, does: string])[] }) {
-  return (
-    <p className="key-hints" aria-hidden="true">
-      {keys.map(([shown, does]) => <span key={shown}><kbd>{shown}</kbd>{does}</span>)}
-    </p>
-  );
-}
-
-const JUMP_KEYS = [["↑↓", "move"], [displayShortcut("Enter", MAC), "open"], [displayShortcut("Escape", MAC), "close"]] as const;
 
 /** The list of threads and settings a name matches, with one row picked and ready for the Enter key. */
 export function ThreadJump({ jump, actions }: ThreadJumpProps) {
@@ -119,7 +106,6 @@ export function ThreadJump({ jump, actions }: ThreadJumpProps) {
             {jump.query && <button type="button" onClick={() => { actions.setJumpQuery(""); input.current?.focus(); }}>Clear search</button>}
           </div>
         )}
-        {jump.options.length > 0 && <KeyHints keys={JUMP_KEYS} />}
       </div>
     </div>,
     document.body,

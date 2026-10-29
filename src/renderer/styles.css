@@ -458,7 +458,6 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   transition: background 0.15s ease;
 }
 .sidebar-search:hover { background: var(--control-hover); }
-.sidebar-search > kbd { color: var(--quiet); font: 11px/1 var(--mono); }
 .folder-button:hover { background: var(--wash); }
 .task-row:hover { background: var(--row-hover); }
 
@@ -648,10 +647,8 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 }
 .project-main > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-main .folder-icon svg { width: 18px; height: 18px; }
-/** A folded folder's one status mark sits after its name, in a rail slot's width, with how many threads share it. */
-.project-main:has(> .folder-status) { grid-template-columns: 18px minmax(0, 1fr) minmax(var(--row-slot), auto); }
-.folder-status:has(> .folder-status-count) { width: auto; display: flex; gap: 4px; padding: 0 4px; }
-.folder-status-count { color: var(--muted-strong); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+/** A folded folder's one status mark sits after its name, in a rail slot's width. */
+.project-main:has(> .folder-status) { grid-template-columns: 18px minmax(0, 1fr) var(--row-slot); }
 /** While the folder's own buttons are hidden, its mark sits in the last rail slot, in line with the thread rows' marks. */
 .project-row:not(:hover, :focus-within, .current):not(:has(.project-menu.open)) .folder-status { position: absolute; right: var(--row-inset); }
 /** A folder's New thread and menu show on the row hovered, focused or current. */
@@ -1195,8 +1192,6 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 /** The title is a button, padded past its text so it is an easy target, with the padding pulled back out of the line. */
 .task-heading h1 > button { min-width: 4ch; height: 28px; margin: 0 -5px; border: 0; border-radius: 7px; padding: 0 5px; overflow: hidden; background: transparent; font: inherit; letter-spacing: inherit; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; -webkit-app-region: no-drag; transition: background 120ms ease, color 120ms ease; }
 .task-heading h1 > button:hover { background: var(--surface-hover); }
-/** A schedule whose last run was missed warns in its icon and its word. */
-.thread-tab-chip.missed, .thread-tab-chip.missed > svg { color: var(--warning); }
 /** An unreachable computer says so in words and offers the way back, beside its name. */
 .task-heading h1 > .heading-host-state { flex: none; align-self: center; height: 28px; display: inline-flex; align-items: center; gap: 6px; margin: 0; border: 1px solid var(--line-strong); border-radius: 7px; padding: 0 8px; background: var(--surface); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; letter-spacing: normal; }
 .task-heading h1 > button.heading-host-state { color: var(--accent-text); cursor: pointer; }
@@ -1363,8 +1358,6 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .right-dock-tab > button:not([role="tab"]) { width: 26px; height: 32px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 7px; padding: 0; background: transparent; color: var(--quiet-strong); cursor: pointer; }
 .right-dock-tab > button:not([role="tab"]):hover { background: var(--surface-active); color: var(--ink-soft); }
 .right-dock-add { position: relative; flex: 0 0 auto; }
-.right-dock-overflow > button { width: auto; min-width: 34px; display: flex; gap: 2px; padding: 0 7px; }
-.right-dock-overflow > button > span { color: var(--ink-dim); font-size: var(--text-meta); font-weight: 600; font-variant-numeric: tabular-nums; }
 .right-dock-add > button, .right-dock-hide { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 9px; background: transparent; color: var(--muted); cursor: pointer; }
 .right-dock-add > button:hover, .right-dock-add.open > button, .right-dock-hide:hover { background: var(--surface-hover); color: var(--ink-dim); }
 .right-dock-hide[aria-pressed="true"] { background: var(--surface-active); color: var(--ink); }
@@ -1495,7 +1488,6 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .agents-panel-heading p { margin: 4px 0 0; color: var(--quiet); font-size: var(--text-meta); }
 .agents-panel-heading > span { color: var(--info-soft); font-size: var(--text-meta); }
 .agents-panel-heading > span[data-state="paused"] { color: var(--muted); }
-.agents-panel-heading > span[data-state="missed"] { display: inline-flex; align-items: center; gap: 5px; color: var(--warning); font-weight: 600; }
 .agents-panel-list { min-height: 0; overflow: auto; margin: 0; padding: 14px; display: block; }
 .agents-panel-list .agent-row { padding: 11px 10px; }
 .agents-panel-none { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 18px 22px; }
@@ -1560,7 +1552,6 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .subagent-group > span:first-child { display: flex; align-items: center; gap: 7px; }
 .agents-panel-empty { flex: 1; display: grid; place-content: center; justify-items: center; padding: 24px 24px 10vh; text-align: center; }
 .agents-panel-empty h2 { margin: 15px 0 7px; color: var(--ink-dim); font-size: var(--text-heading); font-weight: 560; }
-.agents-panel-empty p { max-width: 290px; margin: 0; color: var(--muted); font-size: var(--text-control); line-height: 1.5; }
 .agents-panel-empty button { margin-top: 16px; }
 .conversation {
   min-width: 0;
@@ -1597,9 +1588,6 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .conversation > .empty-state p { max-width: 372px; color: var(--muted-soft); font-size: var(--text-control); line-height: 1.6; }
 /** A new thread names only where it works, and quietly: the composer under it asks the rest. */
 .conversation > .empty-state.empty-place h2 { margin: 16px 0 0; color: var(--ink-soft); font-size: var(--text-display); font-weight: 580; letter-spacing: -0.02em; }
-.conversation > .empty-state .empty-compose { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; margin-top: 12px; border-radius: 7px; padding: 0 9px; background: transparent; color: var(--muted); font-size: var(--text-control); font-weight: 450; }
-.conversation > .empty-state .empty-compose:hover { background: var(--surface-hover); color: var(--ink); }
-.empty-compose kbd { color: var(--quiet); font: var(--text-meta)/1 var(--mono); }
 /* Held back a moment, so a quick restore never flashes it. */
 .empty-state > .empty-loading { font-size: var(--text-control); animation: text-sweep 1.9s linear infinite, empty-loading-in 200ms ease-out 400ms both; }
 @keyframes empty-loading-in { from { opacity: 0; } }
@@ -1909,7 +1897,6 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 :is(.suggestion-dismiss-slot, .process-stop-slot) > button.danger:hover, .decision-foot button.danger.armed:hover { background: var(--danger-chip); color: var(--danger); }
 .decision-foot .armed + button { border-color: var(--line-control); background: transparent; color: var(--ink-dim); font-weight: 500; }
 .suggestion-row:has(.armed) .suggestion-start, .decision-foot:has(.armed) :is(.suggestion-start-all, .decision-allow) { display: none; }
-.elsewhere-root { flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; color: var(--muted); font-family: var(--mono); font-size: var(--text-meta); }
 .elsewhere-place .elsewhere-folder select { min-height: 28px; padding: 3px 8px; border-color: var(--line-input); }
 .message-detail { margin-top: 3px; color: var(--quiet-strong); font-size: var(--text-meta); white-space: pre-wrap; overflow-wrap: anywhere; }
 .message-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-content); }
@@ -2053,7 +2040,7 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 .block-error summary { padding: 6px 0; color: var(--danger-soft); cursor: pointer; }
 .block-error-reason { display: block; margin: 3px 0 0 20px; color: var(--muted); overflow-wrap: anywhere; }
 .block-error pre { margin-bottom: 0; }
-.block-error > :is(.limit-action, .copy-affordance) { flex: none; margin: 0; }
+.block-error > .limit-action { flex: none; margin: 0; }
 .message.tool { margin: 0; }
 /* A run of tool calls is one card, so the calls inside it need no divider of their own. */
 .work-run, .work-row { border: 1px solid var(--line-strong); border-radius: 10px; background: var(--sunken); }
@@ -2089,7 +2076,7 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 .thread-message > summary > .work-lead { flex: none; color: var(--ink-dim); }
 .thread-message-preview { flex: 1; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
 .thread-message[open] .thread-message-preview { display: none; }
-.thread-message > summary > .message-time { flex: none; margin-left: auto; }
+.thread-message[open] > summary::after { margin-left: auto; }
 .thread-message-body { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 8px 4px; }
 .thread-message-text { color: var(--muted); font-size: var(--text-content); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 /* Durations and counts sit in one right-aligned cluster, so a run's times read as a column. */
@@ -2194,12 +2181,8 @@ pre {
   color: var(--muted);
   font-size: var(--text-content);
 }
-.waiting-row > svg, .retrying-row > svg, .compacting-row > svg { width: 16px; height: 16px; flex: none; color: var(--muted-strong); stroke-width: 1.8; }
-.retrying-row > svg, .limit-row > svg { color: var(--warning); }
-.retrying-reason { min-width: 0; color: var(--warning); overflow-wrap: anywhere; }
-.retrying-row > .text-sweep { flex: none; }
-.retrying-row > .copy-affordance { flex: none; }
-:is(.retrying-row, .block-error) > .copy-affordance:not(:hover, :focus-visible, .copied, .failed) { border-color: transparent; background: transparent; color: var(--quiet); }
+.waiting-row > svg { width: 16px; height: 16px; flex: none; color: var(--muted-strong); stroke-width: 1.8; }
+.limit-row > svg { color: var(--warning); }
 .limit-row {
   display: flex;
   align-items: center;
@@ -2267,8 +2250,6 @@ pre {
 .approval-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .approval-actions button { margin-top: 11px; }
 .approval-actions .secondary { border: 1px solid var(--line-strong); background: transparent; color: var(--ink-dim); }
-:is(.approval-actions, .decision-foot, .question-answer) button kbd { margin-left: 7px; color: var(--ink-inverse-soft); font: 11px/1 var(--mono); }
-:is(.approval-actions, .decision-foot) .secondary kbd { color: var(--muted); }
 .question-prompt .question-answer button { border-color: transparent; background: var(--surface-inverse); color: var(--ink-inverse); }
 .question-prompt .question-answer textarea.overridden { color: var(--muted); }
 .question-prompt .question-answer button:disabled { opacity: var(--disabled-opacity); }
@@ -2334,8 +2315,6 @@ pre {
   font-size: var(--text-control);
 }
 .settings-search input:focus { outline: none; }
-.settings-search-clear { flex: none; display: grid; place-items: center; width: 24px; height: 24px; margin-right: -5px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
-.settings-search-clear:hover { background: var(--wash); color: var(--ink-soft); }
 .settings-search-empty p { margin: 0; padding: 9px 10px 6px; color: var(--muted); font-size: var(--text-control); }
 .settings-sidebar :is(nav, .settings-search-results) { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .settings-search-results small { flex: none; max-width: 45%; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet-strong); font-size: var(--text-meta); }
@@ -2490,8 +2469,6 @@ pre {
 
 /** One size as `− 15 +`, where the number is a field a size can be typed straight into. */
 .size-stepper { position: relative; display: flex; align-items: center; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--control-soft); }
-.size-range { color: var(--muted); font-size: var(--text-meta); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.size-range.clamped { color: var(--info-soft); font-weight: 560; }
 .size-stepper button {
   display: flex;
   align-items: center;
@@ -2640,6 +2617,8 @@ pre {
 .settings-group-heading > span, .setting-row-action .setting-pill { flex: 0 0 auto; border-radius: 999px; padding: 5px 9px; background: var(--accent-surface); color: var(--accent-soft); font-size: var(--text-meta); font-style: normal; font-weight: 600; }
 .settings-group-heading > span.ready, .setting-row-action .setting-pill.ready { background: color-mix(in srgb, var(--success) 8%, var(--p-bg-0)); color: var(--success-soft); }
 .setting-row-action .setting-pill.blocked { background: var(--danger-surface); color: var(--danger); }
+.settings-group-heading > button.settings-pill-jump { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 999px; padding: 5px 9px; background: var(--accent-surface); color: var(--accent-soft); font-size: var(--text-meta); font-weight: 600; cursor: pointer; }
+.settings-group-heading > button.settings-pill-jump:hover { color: var(--accent-text); }
 .settings-group-heading > span.neutral, .setting-row-action .setting-pill.neutral { background: var(--wash); color: var(--muted); }
 .setting-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(150px, auto); align-items: center; gap: 13px; border-top: 1px solid var(--line); padding: 19px 0; }
 .setting-status { width: 20px; height: 20px; display: grid; place-items: center; border: 1px solid var(--line-control); border-radius: 50%; color: var(--success-ink); }
@@ -3141,9 +3120,6 @@ pre {
 .side-chat-transcript .message.user > .message-actions { margin-bottom: 0; }
 .side-chat-transcript .message.user .message-text { padding: 9px 13px; }
 .side-chat-transcript .message-text { font-size: var(--text-content); }
-.side-chat-action { display: flex; justify-content: center; padding: 0 17px 12px; }
-.side-chat-action > button { min-width: 0; max-width: 100%; min-height: 28px; overflow: hidden; border: 0; border-radius: 8px; padding: 4px 12px; background: var(--control); color: var(--ink-dim); font-size: var(--text-control); font-weight: 560; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.side-chat-action > button:hover { background: var(--control-hover); color: var(--ink); }
 .side-chat-error { margin: 0; padding: 9px 17px; border-top: 1px solid var(--danger-line); background: var(--danger-surface); color: var(--danger); font-size: var(--text-control); }
 /** The side chat lays its own rows out, so the composer takes the row it falls in rather than the workspace's third. */
 .composer-wrap.side, .composer-wrap.tab { grid-column: auto; grid-row: auto; padding: 10px 14px 0; background: none; }
@@ -3685,11 +3661,6 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
   font-weight: 600;
   letter-spacing: 0.02em;
 }
-.command-menu-keys { display: flex; gap: 8px; margin-left: auto; }
-.command-menu-heading kbd {
-  color: var(--quiet);
-  font: 11px/1 var(--mono);
-}
 .command-menu-list { overflow-y: auto; padding: 6px; }
 .command-option {
   width: 100%;
@@ -3741,7 +3712,6 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
 .review-heading:has(.review-back) { padding-left: 6px; }
 .review-heading > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .review-heading > span code { color: var(--ink-soft); font: 550 var(--text-meta)/1 var(--mono); letter-spacing: 0; }
-.review-heading kbd { margin-left: 0; }
 .review-back,
 .review-close {
   width: 28px;
@@ -3805,13 +3775,10 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
 .review-form input::placeholder,
 .review-form textarea::placeholder { color: var(--quiet); }
 .review-form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
-.review-form-keys { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--text-meta); }
-.review-form-keys kbd { font: 11px/1 var(--mono); }
 .review-form-actions button { min-height: 30px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 0 12px; background: var(--control); color: var(--ink-soft); cursor: pointer; }
 .review-form-actions button.primary { border-color: transparent; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .review-form-actions button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 .review-form-actions button:disabled { opacity: var(--disabled-opacity); cursor: default; }
-.review-form-actions button kbd { margin-left: 6px; color: inherit; font: 11px/1 var(--mono); opacity: 0.8; }
 .annotation-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px 0; }
 .message-stack .annotation-row { padding: 0; justify-content: flex-end; }
 .annotation-pill {
@@ -4273,7 +4240,6 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
 .viewer-close:hover, .viewer-download:hover:not(:disabled), .viewer-copy:hover { color: var(--ink); }
 .viewer-download, .viewer-copy { right: 58px; }
 .viewer-copy.copied { color: var(--success-soft); }
-.viewer-copy.failed { color: var(--danger-soft); }
 .viewer-download:disabled { opacity: var(--disabled-opacity); cursor: default; }
 /* A zooming view brings its own scroller, which fills the shell rather than being centred as one fixed item. */
 .viewer.diagram, .viewer.image, .viewer.visual { display: block; }
@@ -4489,7 +4455,6 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
 .composer textarea::placeholder { color: var(--quiet); }
 /** Files dragged over the window land in this composer, so it lights up as the target. */
 :is(.workspace.dropping > .composer-wrap, .side-chat.dropping) .composer { box-shadow: var(--shadow-float), 0 0 0 2px var(--accent); }
-:is(.workspace.dropping > .composer-wrap, .side-chat.dropping) .composer::after { content: "Drop to attach"; position: absolute; z-index: 2; inset: 0; display: grid; place-items: center; border-radius: inherit; background: color-mix(in srgb, var(--surface) 90%, transparent); color: var(--accent-text); font-size: var(--text-control); font-weight: 600; pointer-events: none; }
 .composer:has(> textarea:focus):where(:root:not([data-focus-appearance="quiet"]) *) { box-shadow: var(--shadow-float), 0 0 0 2px var(--line-input); }
 /** One row at every width: the settings give up their labels' ends before anything wraps; Send/Stop keeps its own space at the right. */
 .composer-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 9px 9px 8px; }
@@ -4869,17 +4834,8 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .diff-linked-commit > code { font: var(--text-meta) var(--mono); }
 .diff-linked-commit > svg { flex: none; color: var(--quiet-strong); }
 .diff-linked-commit:hover { background: var(--surface-hover); color: var(--ink-dim); }
-.diff-linked-commit:hover > svg:last-child { color: var(--ink-dim); }
-.diff-linked-commit > span { min-width: 7ch; font-size: var(--text-meta); }
-.diff-linked-commit.copied, .diff-linked-commit.copied > svg:last-child { color: var(--success); }
-.diff-linked-commit.failed { color: var(--danger); }
+.diff-linked-commit.copied > svg { color: var(--success); }
 .branch-menu.diff-mode-menu { min-width: 230px; }
-.diff-keys { padding: 10px 12px; }
-.diff-keys dl { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 7px 14px; margin: 0; font-size: var(--text-meta); }
-.diff-keys dl > div { display: contents; }
-.diff-keys dt { color: var(--ink-dim); white-space: nowrap; }
-.diff-keys dd { margin: 0; color: var(--muted); }
-.diff-keys kbd { display: inline-block; min-width: 20px; border: 1px solid var(--line-strong); border-radius: 5px; padding: 0 5px; color: var(--ink-dim); font: 11px/17px var(--mono); text-align: center; }
 .diff-mode-menu button { font-size: var(--text-menu); }
 .diff-mode-menu .picker-option { align-items: start; padding-block: 6px; }
 .diff-mode-menu .picker-mark { height: 18px; }
@@ -4908,9 +4864,6 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .diff-progress > .diff-progress-done { display: inline-flex; align-items: center; gap: 4px; color: var(--success); font-weight: 560; }
 .diff-progress > button { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; border: 0; border-radius: 6px; padding: 3px 7px; background: var(--control-soft); color: var(--muted-strong); font: inherit; cursor: pointer; }
 .diff-progress > button:hover { background: var(--surface-hover); color: var(--ink-dim); }
-.diff-progress-hint { flex: 1; min-width: 14px; display: flex; align-items: center; justify-content: center; gap: 5px; overflow: hidden; color: var(--muted); }
-.diff-progress-hint > svg { flex: none; color: var(--info-soft); }
-.diff-progress-hint > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .diff-progress-meter { position: absolute; left: 12px; right: 12px; bottom: 0; height: 3px; border-radius: 2px; background: var(--meter-track); overflow: hidden; }
 .diff-progress-meter > span { display: block; height: 100%; background: var(--success); transition: width 180ms ease-out; }
 .diff-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 8px 12px 0; color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.4; }
@@ -5213,11 +5166,6 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .thread-jump-empty { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; color: var(--muted); font-size: var(--text-meta); }
 .thread-jump-empty p { margin: 0; }
 .thread-jump-heading { margin: 6px 0 2px; padding: 0 9px; color: var(--muted); font-size: var(--text-meta); }
-.key-hints { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; color: var(--quiet); font-size: var(--text-meta); }
-.key-hints > span { display: inline-flex; align-items: center; gap: 5px; }
-.key-hints kbd { color: var(--muted); font: 11px/1 var(--mono); }
-.thread-jump .key-hints { border-top: 1px solid var(--line); padding: 8px 15px; }
-.project-edit-panel .key-hints { margin-top: -8px; }
 
 /* The control a search sent the user to, marked once so the eye lands on it and then let go. */
 .setting-row.found, .settings-group.found > .settings-group-heading { animation: setting-found 2.2s ease-out; }
@@ -5297,7 +5245,6 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .effort-slider.dragging { cursor: grabbing; }
 .effort-slider:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .effort-knob { box-shadow: 0 0 0 2px var(--focus-ring), var(--shadow-thumb); }
 .effort-rail { position: relative; height: 24px; border-radius: 12px; background: var(--meter-track); }
-.effort-ends { display: flex; justify-content: space-between; gap: 8px; margin-top: 3px; padding-inline: 2px; color: var(--quiet-strong); font-size: 11px; line-height: 14px; pointer-events: none; }
 .effort-fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--effort-travel) * var(--effort-at) + var(--effort-knob) / 2); border-radius: 12px 0 0 12px; background: var(--info); transition: width 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background 200ms; }
 .effort-tick { position: absolute; top: 50%; left: calc(var(--effort-travel) * var(--effort-tick) + var(--effort-knob) / 2); width: 4px; height: 4px; border-radius: 50%; background: var(--quiet); transform: translate(-50%, -50%); transition: width 140ms ease, height 140ms ease, background 140ms; pointer-events: none; }
 .effort-tick.passed { background: rgb(255 255 255 / .55); }
@@ -5363,7 +5310,6 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .computer-address input { width: 28ch; border: 1px solid var(--line-input); border-radius: 7px; padding: 5px 9px; background: var(--wash); color: var(--ink); font: var(--text-control)/1.4 var(--mono); }
 .computer-name { display: flex; align-items: end; gap: 10px; }
 .computer-name label { display: grid; gap: 7px; }
-.computer-name-saved { display: inline-flex; align-items: center; gap: 5px; padding-bottom: 7px; color: var(--success-soft); font-size: var(--text-meta); }
 .computer-name input { width: 24ch; border: 1px solid var(--line-input); border-radius: 7px; padding: 5px 9px; background: var(--wash); color: var(--ink); font: var(--text-control)/1.4 var(--ui-font); }
 .computer-rename { width: 24ch; max-width: 100%; height: 24px; border: 1px solid var(--line-strong); border-radius: 6px; padding: 0 6px; background: var(--surface-input); color: var(--ink); font: inherit; font-size: var(--text-control); }
 
@@ -5395,7 +5341,6 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .browser-import-sites .browser-import-every em { font-variant-numeric: tabular-nums; }
 .browser-import-quiet { margin: 0; color: var(--quiet-strong); font-size: var(--text-meta); }
 .browser-import-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
-.browser-import-limit { margin: 0 auto 0 0; color: var(--ink-dim); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
 .browser-import-actions button { border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 11px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
 .browser-import-actions button:hover:not(:disabled) { border-color: var(--line-bright); background: var(--control-hover); }
 .browser-import-actions button:disabled { color: var(--quiet-strong); cursor: default; }

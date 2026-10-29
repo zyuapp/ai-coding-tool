@@ -2,13 +2,10 @@ import { LuSearch as Search } from "react-icons/lu";
 import { useRef, useState } from "react";
 import { ARCHIVE_RETENTION_MS } from "../../domain/thread-retention";
 import type { Thread } from "../../domain/thread";
-import { projectName, type Project } from "../../domain/project";
 import { ConfirmAction, useRowListFocus } from "./SettingRow";
 
 export type ArchiveSettingsProps = {
   archivedThreads: Thread[];
-  /** The projects archived threads may belong to, so each row can say which one. */
-  projects?: readonly Project[];
   onRestoreThread: (threadId: string) => void;
   onClearArchive: () => void;
 };
@@ -22,16 +19,13 @@ function daysLeft(archivedAt: number) {
   return remaining === 1 ? "Deletes in 1 day" : `Deletes in ${remaining} days`;
 }
 
-export function ArchiveSettings({ archivedThreads, projects = [], onRestoreThread, onClearArchive }: ArchiveSettingsProps) {
+export function ArchiveSettings({ archivedThreads, onRestoreThread, onClearArchive }: ArchiveSettingsProps) {
   const [query, setQuery] = useState("");
   const field = useRef<HTMLInputElement>(null);
   const rows = useRowListFocus<HTMLElement>();
-  const [restored, setRestored] = useState<string | null>(null);
-  const names = new Map(projects.map((project) => [project.id, projectName(project)]));
-  const projectOf = (thread: Thread) => (thread.projectId && names.get(thread.projectId)) ?? null;
   const filtering = archivedThreads.length > ARCHIVE_FILTER_FROM;
   const term = filtering ? query.trim().toLowerCase() : "";
-  const shown = term ? archivedThreads.filter((thread) => [thread.title, projectOf(thread) ?? ""].some((text) => text.toLowerCase().includes(term))) : archivedThreads;
+  const shown = term ? archivedThreads.filter((thread) => thread.title.toLowerCase().includes(term)) : archivedThreads;
   const count = archivedThreads.length === 1 ? "1 thread" : `${archivedThreads.length} threads`;
   return (
     <main className="settings-main">
@@ -45,11 +39,10 @@ export function ArchiveSettings({ archivedThreads, projects = [], onRestoreThrea
           <div>
             <h3 id="archive-heading">Archive</h3>
             <p>Restore a thread to put it back in the sidebar. Its automation stays off.</p>
-            <p role="status" className="settings-status done">{restored && `Restored “${restored}” to the sidebar`}</p>
           </div>
           <div className="settings-group-action">
             <span>{archivedThreads.length} archived</span>
-            {archivedThreads.length > 0 && <ConfirmAction className="danger" confirm={`Delete ${count}`} onConfirm={() => { setRestored(null); onClearArchive(); }}>Clear all</ConfirmAction>}
+            {archivedThreads.length > 0 && <ConfirmAction className="danger" confirm={`Delete ${count}`} onConfirm={onClearArchive}>Clear all</ConfirmAction>}
           </div>
         </div>
 
@@ -82,10 +75,10 @@ export function ArchiveSettings({ archivedThreads, projects = [], onRestoreThrea
               <div className="setting-row plain" key={thread.id}>
                 <div>
                   <strong>{thread.title}</strong>
-                  <p>{[projectOf(thread), daysLeft(thread.archivedAt!)].filter(Boolean).join(" · ")}</p>
+                  <p>{daysLeft(thread.archivedAt!)}</p>
                 </div>
                 <div className="setting-row-action">
-                  <button type="button" aria-label={`Restore ${thread.title}`} onClick={() => { setRestored(thread.title); onRestoreThread(thread.id); }}>Restore</button>
+                  <button type="button" aria-label={`Restore ${thread.title}`} onClick={() => onRestoreThread(thread.id)}>Restore</button>
                 </div>
               </div>
             ))}

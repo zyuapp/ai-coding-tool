@@ -50,18 +50,14 @@ test("a tab waiting on the user is marked by more than its dot", async () => {
   await view.unmount();
 });
 
-test("a tab's tooltip says what its count and dot mean, and a plain tab's only shows when cut short", async () => {
+test("a tab's tooltip is its title, shown only when cut short", async () => {
   const view = await mount(strip());
   const tab = (id: string) => query<HTMLButtonElement>(view.container, `[data-dock-tab="${id}"] [role="tab"]`);
-  assert.equal(tab("diff").dataset.tip, "Changes · 3 files unreviewed");
-  assert.equal(tab("diff").dataset.tipOverflow, undefined);
-  assert.equal(tab("side-1").dataset.tip, "Side question · Waiting for you");
+  for (const id of ["diff", "side-1"]) assert.equal(tab(id).dataset.tipOverflow, "true");
+  assert.equal(tab("diff").dataset.tip, "Changes");
+  assert.equal(tab("side-1").dataset.tip, "Side question");
   assert.equal(view.container.querySelectorAll('[role="tab"] [data-tip]').length, 0, "nothing inside a tab has a tooltip of its own");
   await view.unmount();
-
-  const plain = await mount(strip({ tabs: [{ id: "browser", title: "Browser", icon: Bot }] }));
-  assert.equal(query<HTMLButtonElement>(plain.container, '[role="tab"]').dataset.tipOverflow, "true");
-  await plain.unmount();
 });
 
 test("typing in the all-tabs menu jumps to the tab of that name", async () => {

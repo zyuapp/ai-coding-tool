@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { LuFolderOpen as FolderOpen, LuLoaderCircle as LoaderCircle } from "react-icons/lu";
+import { LuFolderOpen as FolderOpen } from "react-icons/lu";
 import type { ProjectEditorView } from "../../application/workspace-state";
 import { folderName } from "../../domain/project";
 import { useModalFocus } from "../focus";
-import { SpinningIcon } from "./SpinningIcon";
 
 export type ProjectEditDialogProps = {
   editor: ProjectEditorView;
@@ -98,7 +97,7 @@ export function ProjectEditDialog({ editor, onSave, onClose }: ProjectEditDialog
         )}
         <div className="project-edit-actions">
           <button type="button" onClick={onClose}>Cancel</button>
-          <button type="submit" className="primary" disabled={!trimmedRoot || saving}>{saving ? <><SpinningIcon icon={LoaderCircle} spinning size={14} aria-hidden="true" />Saving…</> : "Save"}</button>
+          <button type="submit" className="primary" disabled={!trimmedRoot || saving}>{saving ? "Saving…" : "Save"}</button>
         </div>
       </form>
     </div>,

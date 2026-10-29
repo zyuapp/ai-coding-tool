@@ -385,8 +385,6 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .coordination-note-add:disabled { cursor: default; }
 .coordination-memory > .subagent-list { gap: 4px; }
 .coordination-note-add:focus { padding-right: 52px; }
-.coordination-note-hint { position: absolute; right: 9px; bottom: 7px; color: var(--quiet-strong); font: var(--text-meta)/1 var(--mono); opacity: 0; pointer-events: none; transition: opacity 0.15s ease; }
-.coordination-note-add:focus + .coordination-note-hint { opacity: 1; }
 /** Forget, and once pressed its question, sit over the note's right end. */
 .coordination-note-actions { position: absolute; top: 3px; right: 3px; display: flex; gap: 4px; border-radius: 8px; }
 .coordination-note-actions:has(.danger) { background: var(--sunken); box-shadow: -10px 0 8px var(--sunken); }
@@ -459,12 +457,9 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .coordination-overview .coordination-row strong { color: var(--ink-soft); font-size: var(--text-control); font-weight: 550; }
 .coordination-more {
   width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 6px;
   border: 0;
   border-radius: 8px;
-  padding: 6px 8px 6px 19px;
+  padding: 6px 8px 6px 39px;
   background: transparent;
   color: var(--quiet-strong);
   font: inherit;
@@ -473,7 +468,6 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   cursor: pointer;
 }
 .coordination-more:hover { background: var(--wash); color: var(--muted); }
-.coordination-more[aria-expanded="true"] > svg { transform: rotate(180deg); }
 /** What a coordinator and its threads spent, lined up under its head's label, its bars thin cuts of the plan-usage ones. */
 .coordination-usage { margin-top: 6px; }
 .coordination-usage-body { padding: 0 8px 4px 29px; color: var(--muted); font-size: var(--text-menu); }

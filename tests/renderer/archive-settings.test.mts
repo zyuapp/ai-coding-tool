@@ -67,19 +67,3 @@ test("an archive offers a filter, and a filter that misses offers the way back",
   assert.equal(none.container.querySelector('input[aria-label="Filter archived threads"]'), null);
   await none.unmount();
 });
-
-test("each archived thread names its project, and the filter finds threads by it", async () => {
-  window.desktop = fakeDesktop({});
-  const projects = [{ id: "p1", root: "/work/parser" }, { id: "p2", root: "/work/site", name: "Website" }];
-  const filler = Array.from({ length: 8 }, (_, index) => task(`Other ${index + 1}`, { archivedAt: Date.now() }));
-  const threads = [task("fix-1", { title: "Fix", archivedAt: Date.now(), projectId: "p1" }), task("fix-2", { title: "Fix", archivedAt: Date.now(), projectId: "p2" }), ...filler];
-  const view = await mount(renderSettingsPanel({ initialSection: "archive", archivedThreads: threads, projects }));
-  await act(async () => {});
-  const lines = () => [...view.container.querySelectorAll(".settings-group .setting-row p")].map((line) => line.textContent);
-  assert.match(item(lines()[0]), /^parser · Deletes in \d+ days?$/);
-  assert.match(item(lines()[1]), /^Website · /);
-  await typeInto(query<HTMLInputElement>(view.container, 'input[aria-label="Filter archived threads"]'), "website");
-  assert.equal(lines().length, 1);
-  assert.match(item(lines()[0]), /^Website · /);
-  await view.unmount();
-});

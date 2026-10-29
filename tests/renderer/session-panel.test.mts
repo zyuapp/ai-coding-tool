@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
 
-import type { AppCommand } from "../../src/contracts/commands.ts";
 import type { InstalledApp } from "../../src/contracts/ipc.ts";
 import { NO_PULL_REQUEST } from "../../src/domain/pull-request.ts";
 import { OPEN_SUBAGENT_GROUPS, type BackgroundProcess, type Subagent, type SubagentActivity } from "../../src/domain/run.ts";
@@ -31,7 +30,6 @@ const { SubagentInspector } = await import("../../src/renderer/components/Subage
 const { AgentsPanel, matchSubagents } = await import("../../src/renderer/components/SubagentList.tsx");
 const { WorkspaceHeader } = await import("../../src/renderer/components/WorkspaceHeader.tsx");
 const { OpenInMenu } = await import("../../src/renderer/components/OpenInMenu.tsx");
-const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
 
 function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
   return React.createElement(SessionPanel, {
@@ -675,15 +673,10 @@ test("the subagent search clears from its button or Escape", async () => {
   await view.unmount();
 });
 
-test("an empty subagents panel offers the composer, and a search that matches nothing offers the whole roster", async () => {
-  const sent: AppCommand[] = [];
-  const controls = { available: () => true, dispatch: (command: AppCommand) => { sent.push(command); } };
-  const empty = await mount(React.createElement(CommandControlsProvider, { value: controls },
-    React.createElement(AgentsPanel, { subagents: [], groups: OPEN_SUBAGENT_GROUPS, onSelect() {}, onSetGroup() {} })));
-  const message = query<HTMLButtonElement>(empty.container, ".agents-panel-empty button");
-  assert.equal(message.textContent, "Ask the thread");
-  await act(async () => { message.click(); });
-  assert.deepEqual(sent, [{ type: "view.shortcut", action: "composer.focus", surface: "any" }]);
+test("an empty subagents panel says so, and a search that matches nothing offers the whole roster", async () => {
+  const empty = await mount(React.createElement(AgentsPanel, { subagents: [], groups: OPEN_SUBAGENT_GROUPS, onSelect() {}, onSetGroup() {} }));
+  assert.equal(query(empty.container, ".agents-panel-empty").textContent, "No subagents yet");
+  assert.equal(empty.container.querySelector(".agents-panel-empty button"), null);
   await empty.unmount();
 
   const roster: Subagent[] = [{ id: "a", description: "Read the reducer", status: "failed", startedAt: 1, activity: [] }];

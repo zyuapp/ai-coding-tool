@@ -55,7 +55,6 @@ test("the phone page pairs from the address, opens a thread, and answers an appr
   assert.deepEqual([...document.querySelectorAll('.sheet [role="radiogroup"] .sheet-subheading')].map((node) => node.textContent), ["Claude"], "a thread that exists offers only its own engine's models");
   assert.deepEqual([...document.querySelectorAll(".sheet-subheading")].map((node) => node.textContent), ["Claude", "Codex"], "the other engine keeps its place in the model list");
   assert.equal(document.querySelector(".sheet-new-engine strong")?.textContent, "New thread with Codex");
-  assert.match(document.querySelector(".sheet-new-engine small")?.textContent ?? "", /\S/, "and names the models a new thread on it reaches");
   click(".sheet-option");
   assert.deepEqual(lastCommand(line), { type: "task.set-policy", taskId: "t1", policy: "autonomous" });
   assert.match(document.querySelector('.sheet-group[aria-label="Mode"] [aria-checked="true"]')?.textContent ?? "", /^Auto/, "the tap shows before the Mac echoes it");
@@ -200,8 +199,6 @@ test("the phone shows the thread the Mac actually has open, and says what went w
   assert.equal(document.querySelector(".bar-title h1")?.textContent, "Rewrite the docs", "the title stays while a notice is up");
   assert.equal(document.querySelector(".bar .banner"), null, "the notice sits under the bar, not in it");
 
-  assert.equal(document.querySelector(".banner-more"), null, "a notice shown whole has nothing more to open");
-  assert.equal(document.querySelector("button.banner-text"), null);
   click(".banner-close");
   assert.equal(document.querySelector(".banner"), null, "the cross puts the sentence away");
   receive({ kind: "patch", sequence: 4, patch: { thread: { kind: "changed", id: "t2", delta: { status: "idle" } } } });
@@ -668,24 +665,16 @@ test("a file whose patch could not be read offers Try again, which reads it agai
   assert.equal(document.querySelector(".diff-error"), null, "the file says it is reading again");
 });
 
-test("a notice cut short says there is more, and opens to its full length", () => {
+test("a tapped notice opens to its full length, and a second tap shuts it", () => {
   const line = openPhone({ paired: true });
   live(line);
-  const scrollHeight = Object.getOwnPropertyDescriptor(dom.window.HTMLElement.prototype, "scrollHeight");
-  Object.defineProperty(dom.window.HTMLElement.prototype, "scrollHeight", { configurable: true, get(this: HTMLElement) { return this.classList.contains("banner-words") ? 60 : 0; } });
-  try {
-    act(() => line.onmessage?.({ data: JSON.stringify({ kind: "patch", sequence: 2, patch: { error: "The worktree could not be removed because a process still holds files open in it." } }) }));
-    assert.equal(document.querySelector(".banner-more")?.textContent, "More");
-    assert.equal(document.querySelector(".banner-text")?.getAttribute("aria-expanded"), "false");
-    click(".banner-text");
-    assert.equal(document.querySelector(".banner")?.getAttribute("data-open"), "true");
-    assert.equal(document.querySelector(".banner-text")?.getAttribute("aria-expanded"), "true");
-    assert.equal(document.querySelector(".banner-more")?.textContent, "Less");
-    click(".banner-text");
-    assert.equal(document.querySelector(".banner")?.getAttribute("data-open"), null);
-  } finally {
-    if (scrollHeight) Object.defineProperty(dom.window.HTMLElement.prototype, "scrollHeight", scrollHeight);
-  }
+  act(() => line.onmessage?.({ data: JSON.stringify({ kind: "patch", sequence: 2, patch: { error: "The worktree could not be removed because a process still holds files open in it." } }) }));
+  assert.equal(document.querySelector(".banner-text")?.getAttribute("aria-expanded"), "false");
+  click(".banner-text");
+  assert.equal(document.querySelector(".banner")?.getAttribute("data-open"), "true");
+  assert.equal(document.querySelector(".banner-text")?.getAttribute("aria-expanded"), "true");
+  click(".banner-text");
+  assert.equal(document.querySelector(".banner")?.getAttribute("data-open"), null);
 });
 
 test("the connection's state is said on the list as well as in a thread", () => {

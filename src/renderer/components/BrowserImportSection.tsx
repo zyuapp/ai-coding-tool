@@ -87,7 +87,6 @@ function SitePicker({ picker, importing, onToggle, onFilter, onRun, onCancel }: 
               {matching.length > SHOWN_SITES && <p className="browser-import-quiet">Showing {SHOWN_SITES} of {matching.length}. Search to find the rest.</p>}
             </>}
       <div className="browser-import-actions">
-        {full && <p className="browser-import-limit" role="status">Limit reached: {count} of {MAX_IMPORT_SITES} sites</p>}
         <button type="button" onClick={onCancel} disabled={importing}>Cancel</button>
         <button type="button" className="primary" onClick={onRun} disabled={importing || count === 0} aria-busy={importing || undefined}>
           {importing ? "Importing…" : count === 0 ? "Import" : `Import ${count} ${count === 1 ? "site" : "sites"}`}

@@ -158,7 +158,6 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, cho
         <header className="group-header">
           <button type="button" className="section-toggle" aria-expanded={open} onClick={() => toggle(key)}>
             <span>{label}</span>
-            {threads.length > 0 && <span className="section-count">{threads.length}</span>}
             <ChevronDown className="section-chevron" size={16} strokeWidth={2.2} aria-hidden="true" />
             {mark && <span className="section-mark" data-kind={mark} />}
             {mark && <span className="sr-only">{mark === "needs-you" ? "Needs you" : "Unread"}</span>}

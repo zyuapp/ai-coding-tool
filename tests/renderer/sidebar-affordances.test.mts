@@ -251,22 +251,6 @@ test("an open folder with no threads offers to start one there", async () => {
   } finally { await view.unmount(); }
 });
 
-test("a folded Projects or Recents heading says how many it holds, and an open one does not", async () => {
-  const props: Partial<ProjectSidebarProps> = {
-    projects: [{ id: "a", root: "/work/a" }, { id: "b", root: "/work/b" }],
-    recentThreads: [task("loose")],
-  };
-  const open = await mount(renderProjectSidebar(props));
-  try {
-    assert.equal(open.container.querySelector(".section-count"), null);
-  } finally { await open.unmount(); }
-  const folded = await mount(renderProjectSidebar({ ...props, sections: { projects: false, recents: false, priority: true, running: true, threads: true, snoozed: true } }));
-  try {
-    assert.equal(query(folded.container, ".projects-heading .section-count").textContent, "2");
-    assert.equal(query(folded.container, ".recents-heading .section-count").textContent, "1");
-  } finally { await folded.unmount(); }
-});
-
 test("a folder's menu renames it in place, as a double-click does", async () => {
   const renamed: [string, string][] = [];
   const view = await mount(React.createElement(Harness, {
@@ -356,7 +340,7 @@ test("the search button beside New thread opens the jump palette and names its k
   try {
     const search = query<HTMLButtonElement>(view.container, ".new-task-bar .sidebar-search");
     assert.match(search.dataset.tip ?? "", /^Search \(.+K\)$/);
-    assert.match(query(search, "kbd").textContent ?? "", /K$/, "the keystroke reads without hovering");
+    assert.equal(search.querySelector("kbd"), null);
     assert.equal(query(view.container, ".new-task-button").textContent, "New thread");
     await act(async () => { search.click(); });
     assert.deepEqual(sent, ["view.jump-open"]);
@@ -527,19 +511,16 @@ test("a folded folder carries the most pressing status of the threads it hides",
   const projects = [{ id: "asks", root: "/work/asks" }, { id: "runs", root: "/work/runs" }, { id: "quiet", root: "/work/quiet" }];
   const orderedThreads = [
     task("working", { projectId: "asks" }), task("asked", { projectId: "asks" }),
-    task("busy", { projectId: "runs" }), task("also-busy", { projectId: "runs" }), task("idle", { projectId: "quiet" }),
+    task("busy", { projectId: "runs" }), task("idle", { projectId: "quiet" }),
   ];
-  const marks = { runningThreadIds: new Set(["working", "asked", "busy", "also-busy"]), blockedThreadIds: new Set(["asked"]) };
+  const marks = { runningThreadIds: new Set(["working", "asked", "busy"]), blockedThreadIds: new Set(["asked"]) };
   const view = await mount(renderProjectSidebar({ projects, orderedThreads, ...marks }));
   try {
     const status = (name: string) => [...view.container.querySelectorAll<HTMLElement>(".project-main")]
       .find((row) => row.textContent?.startsWith(name))!.querySelector<HTMLElement>(".folder-status");
     assert.equal(status("asks")!.dataset.tip, "A thread needs your approval");
     assert.ok(status("asks")!.querySelector(".task-attention.approval"));
-    assert.equal(status("asks")!.querySelector(".folder-status-count"), null, "one thread asking carries no count");
-    assert.equal(status("runs")!.dataset.tip, "A thread is working, and 1 more");
-    assert.equal(query(status("runs")!, ".folder-status-count").textContent, "2", "threads sharing the most pressing status are counted");
-    assert.equal(query(status("runs")!, '[role="img"]').getAttribute("aria-label"), "A thread is working, and 1 more");
+    assert.equal(status("runs")!.dataset.tip, "A thread is working");
     assert.equal(status("quiet"), null);
   } finally { await view.unmount(); }
 

@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { LuAlarmClock as AlarmClock, LuCirclePause as CirclePause, LuTriangleAlert as TriangleAlert, LuChevronDown as ChevronDown, LuFileDiff as FileDiff, LuGitBranch as GitBranch, LuGitPullRequest as GitPullRequest, LuScrollText as ScrollText } from "react-icons/lu";
+import { LuAlarmClock as AlarmClock, LuChevronDown as ChevronDown, LuFileDiff as FileDiff, LuGitBranch as GitBranch, LuGitPullRequest as GitPullRequest, LuScrollText as ScrollText } from "react-icons/lu";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { CommandButton } from "./CommandControl";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
@@ -32,26 +32,6 @@ export function scheduleChipLabel(automation: AutomationView | null, now = Date.
   const next = new Date(automation.nextRunAt);
   if (next.toDateString() === new Date(now).toDateString()) return `Next ${RUN_TIME.format(next)}`;
   return `Next ${(automation.nextRunAt - now < WEEK ? RUN_WEEKDAY : RUN_DATE).format(next)}`;
-}
-
-/** What the schedule chip's tip says happened, where its label is a single word. */
-export function scheduleChipTip(automation: AutomationView | null) {
-  if (automation?.paused) return "Automation is paused";
-  if (automation && automation.nextRunAt === null) return "Last run was missed";
-  return "Automation";
-}
-
-/** The schedule chip's tone: calm while it waits for its next run, a warning once a run was missed. */
-export function scheduleChipTone(automation: AutomationView | null): "scheduled" | "missed" | null {
-  if (!automation || automation.paused) return null;
-  return automation.nextRunAt === null ? "missed" : "scheduled";
-}
-
-/** The schedule chip's glyph, so a paused or missed schedule reads without its word. */
-function scheduleChipIcon(automation: AutomationView | null) {
-  if (automation?.paused) return CirclePause;
-  if (automation && automation.nextRunAt === null) return TriangleAlert;
-  return AlarmClock;
 }
 
 /** What stands in for the checkout's chips until Git has answered for it; `failed` when Git refused. */
@@ -169,7 +149,6 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
   const note = environmentNote(tab);
   const brief = tab.thread.brief;
   const clean = available !== null && available.files.length === 0;
-  const ScheduleIcon = scheduleChipIcon(tab.automation);
   return (
     <>
       <div className="thread-tab-strip">
@@ -205,11 +184,11 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
         <PullRequestChip pullRequest={tab.pullRequest} />
         <button
           type="button"
-          className={`thread-tab-chip ${scheduleChipTone(tab.automation) ?? ""}`.trimEnd()}
-          data-tip={scheduleChipTip(tab.automation)}
+          className={`thread-tab-chip${tab.automation && !tab.automation.paused ? " scheduled" : ""}`}
+          data-tip="Automation"
           onClick={actions.onOpenAutomations}
         >
-          <ScheduleIcon size={14} aria-hidden="true" />
+          <AlarmClock size={14} aria-hidden="true" />
           <span>{scheduleChipLabel(tab.automation)}</span>
         </button>
         {brief && (
@@ -218,7 +197,6 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
             className={`thread-tab-chip thread-tab-brief-toggle ${briefOpen ? "open" : ""}`.trimEnd()}
             aria-expanded={briefOpen}
             aria-controls={briefOpen ? briefId : undefined}
-            data-tip={briefOpen ? undefined : brief.intent.split("\n", 1)[0]}
             onClick={() => setBriefOpen(!briefOpen)}
           >
             <ScrollText size={14} aria-hidden="true" />

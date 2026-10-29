@@ -52,31 +52,25 @@ function sendLabel(surface: ComposerSurface, runActive: boolean) {
   return runActive ? "Stop task" : "Send task";
 }
 
-/** `recall` is set once there is an earlier message to bring back. */
-function sendTip(runActive: boolean, { recall = false } = {}) {
-  const keys = runActive
-    ? [shortcutTip("Stop", "Escape")]
-    : [shortcutTip("Send", "Enter"), shortcutTip("New line", "Shift+Enter"), ...(recall ? [shortcutTip("Previous message", "ArrowUp")] : [])];
-  return keys.join(" · ");
-}
+const SEND_TIP = shortcutTip("Send", "Enter");
+const STOP_TIP = shortcutTip("Stop", "Escape");
 
 /**
  * Sends what is written, or stops the run while one is going. `busy` is a send already on its way.
  */
-function SendButton({ taskId, surface, runActive, command, disabled, busy, recall, onSend, onCancel }: {
+function SendButton({ taskId, surface, runActive, command, disabled, busy, onSend, onCancel }: {
   taskId: string | undefined;
   surface: ComposerSurface;
   runActive: boolean;
   command: AppCommand;
   disabled: boolean;
   busy: boolean;
-  recall: boolean;
   onSend: () => void;
   onCancel: () => void;
 }) {
   if (runActive) {
     return (
-      <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)} data-tip={sendTip(true)}>
+      <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)} data-tip={STOP_TIP}>
         <span className="stop-glyph" />
       </CommandButton>
     );
@@ -88,7 +82,7 @@ function SendButton({ taskId, surface, runActive, command, disabled, busy, recal
       onClick={onSend}
       aria-label={sendLabel(surface, false)}
       aria-busy={busy || undefined}
-      data-tip={sendTip(false, { recall })}
+      data-tip={SEND_TIP}
     >
       {busy ? <span className="send-spinner" aria-hidden="true" /> : <ArrowUp size={16} strokeWidth={2.5} aria-hidden="true" />}
     </CommandButton>
@@ -100,7 +94,7 @@ function AttachButton({ disabled, onFilesAdd }: { disabled: boolean; onFilesAdd:
   const input = useRef<HTMLInputElement>(null);
   return (
     <>
-      <button type="button" className="composer-attach" aria-label="Attach files" data-tip="Attach files, or drop or paste them" disabled={disabled} onClick={() => input.current?.click()}>
+      <button type="button" className="composer-attach" aria-label="Attach files" data-tip="Attach files" disabled={disabled} onClick={() => input.current?.click()}>
         <Paperclip size={16} aria-hidden="true" />
       </button>
       <input
@@ -148,7 +142,7 @@ function UnopenableComposer({ reason, taskId, surface, runActive, updateAvailabl
       {updateAvailable
         ? <CommandButton command={{ type: "app.update" }} className="composer-unopenable-update">Update</CommandButton>
         : <CommandButton command={{ type: "app.check-for-updates" }} className="composer-unopenable-check">Check for updates</CommandButton>}
-      {runActive && <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)} data-tip={sendTip(true)}>
+      {runActive && <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)} data-tip={STOP_TIP}>
         <span className="stop-glyph" />
       </CommandButton>}
     </div>
@@ -398,7 +392,7 @@ export function ConversationComposer({
           <div className="composer-actions">
             {planUsage && <PlanUsageMeter engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
-            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} recall={history.length > 0} onSend={() => void submit()} onCancel={onCancel} />
+            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} />
           </div>
         </div>
       </div>}

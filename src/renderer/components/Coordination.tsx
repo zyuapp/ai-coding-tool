@@ -125,7 +125,6 @@ export function CoordinatorOverview({ header, memory, members, usage, worktrees,
 type OverviewPlace =
   | { kind: "row"; threadId: string; section: string; index: number }
   | { kind: "more"; section: string; index: number }
-  | { kind: "less"; section: string }
   | { kind: "stop"; index: number }
   | { kind: "note"; index: number };
 
@@ -145,7 +144,6 @@ function rememberOverviewPlace(pressed: HTMLElement, root: HTMLElement): Overvie
   if (!section) return null;
   if (pressed.matches(".coordination-stop > .armed")) return { kind: "stop", index: groupHeads(root).indexOf(section.querySelector<HTMLElement>(".coordination-group-head")!) };
   const rows = sectionRows(section);
-  if (pressed.matches('.coordination-more[aria-expanded="true"]')) return { kind: "less", section: section.dataset.section! };
   if (pressed.matches(".coordination-more")) return { kind: "more", section: section.dataset.section!, index: rows.length };
   if (!pressed.matches('[data-action="resolve"], [data-action="reopen"]')) return null;
   const item = pressed.closest<HTMLElement>("[data-thread-id]");
@@ -156,16 +154,14 @@ function rememberOverviewPlace(pressed: HTMLElement, root: HTMLElement): Overvie
 /**
  * Where the keyboard goes in the Overview once what it pressed is gone. A resolved or reopened row
  * hands focus to the row that took its place, else the one before it, else its own row or the head of
- * the group it went to; a Show more to the first row it brought in, and a Show less to the Show more that replaced it; Stop all, once the Working group
+ * the group it went to; a Show more to the first row it brought in; Stop all, once the Working group
  * is gone, to the head of the group that took its place; a forgotten note to the one that took its
  * place, or to the row that adds one.
  */
 function overviewFocus(place: OverviewPlace, root: HTMLElement, groups: Record<OverviewGroup, readonly CoordinatedThreadView[]>): HTMLElement | null | undefined {
   if (place.kind === "note") return root.querySelectorAll<HTMLElement>(".coordination-note-text")[place.index] ?? root.querySelector<HTMLElement>(".coordination-note-add");
   if (place.kind === "stop") return placeOf(groupHeads(root), place.index) ?? root.querySelector<HTMLElement>(".coordination-group-head");
-  const section = root.querySelector(`[data-section="${place.section}"]`);
-  if (place.kind === "less") return section?.querySelector<HTMLElement>(".coordination-more") ?? section?.querySelector<HTMLElement>(".coordination-group-head");
-  const rows = sectionRows(section);
+  const rows = sectionRows(root.querySelector(`[data-section="${place.section}"]`));
   if (place.kind === "more") return rows[place.index] ?? rows.at(-1);
   const went = OVERVIEW_GROUPS.find((group) => groups[group].some((view) => view.thread.id === place.threadId));
   const own = root.querySelector<HTMLElement>(`[data-thread-id="${place.threadId}"] .coordination-row`);
@@ -318,7 +314,6 @@ function NoteInput({ notes, onAdd }: { notes: readonly MemoryNote[]; onAdd: (tex
   return (
     <div className="coordination-note">
       <textarea rows={1} className="coordination-note-add" aria-label="Add a note" placeholder={full ? "Memory is full" : "Add a note"} disabled={full} maxLength={MAX_MEMORY_NOTE} value={text} onChange={(event) => setText(event.currentTarget.value)} onKeyDown={onKeyDown} />
-      {!full && <kbd className="coordination-note-hint" aria-hidden="true">↵ add</kbd>}
     </div>
   );
 }
@@ -348,12 +343,11 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
   const { total, coordinator, byModel, byThread } = usage;
   const shown = fold.all ? byThread : byThread.slice(0, OVERVIEW_LIMIT);
   const own = shareOf(coordinator, total);
-  const ownShare = `${own > 0 && own < 1 ? "<1" : Math.round(own)}%`;
   return (
     <section className="coordination-group coordination-usage" aria-label="Usage" data-section="usage">
-      <FoldHead label="Usage" count={`${compactTokens(total)} · coordinator ${ownShare}`} title={`${total.toLocaleString("en-US")} tokens`} open={open} onToggle={() => onSetFold("usage", { open: !open })} />
+      <FoldHead label="Usage" count={compactTokens(total)} title={`${total.toLocaleString("en-US")} tokens`} open={open} onToggle={() => onSetFold("usage", { open: !open })} />
       {open && <div className="coordination-usage-body">
-        <p className="coordination-usage-own">This coordinator <strong>{compactTokens(coordinator)}</strong> · {ownShare}</p>
+        <p className="coordination-usage-own">This coordinator <strong>{compactTokens(coordinator)}</strong> · {own > 0 && own < 1 ? "<1" : Math.round(own)}%</p>
         <h4>By model</h4>
         {byModel.map(({ model, tokens }) => (
           <div key={model} className="coordination-usage-model" data-tip={`${tokens.toLocaleString("en-US")} tokens`}>
@@ -370,20 +364,13 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
               <span className="coordination-usage-tokens">{compactTokens(tokens)}</span>
             </button>
           ))}
-          {byThread.length > OVERVIEW_LIMIT && (
-            <MoreToggle hidden={byThread.length - OVERVIEW_LIMIT} all={Boolean(fold.all)} onToggle={(all) => onSetFold("usage", { all })} />
+          {byThread.length > shown.length && (
+            <button type="button" className="coordination-more" onClick={() => onSetFold("usage", { all: true })}>Show {byThread.length - shown.length} more</button>
           )}
         </>}
       </div>}
     </section>
   );
-}
-
-/** Shows a long list's rest, then folds it back; each is its own button, so the keyboard settles where the list changed. */
-function MoreToggle({ hidden, all, onToggle }: { hidden: number; all: boolean; onToggle: (all: boolean) => void }) {
-  return all
-    ? <button key="less" type="button" className="coordination-more" aria-expanded="true" onClick={() => onToggle(false)}><ChevronDown size={14} aria-hidden="true" />Show less</button>
-    : <button key="more" type="button" className="coordination-more" aria-expanded="false" onClick={() => onToggle(true)}><ChevronDown size={14} aria-hidden="true" />Show {hidden} more</button>;
 }
 
 /** Stops the coordinator and everything working under it on the second press. */
@@ -449,8 +436,8 @@ function ThreadGroup({ group, members, fold, worktrees, action, onSetFold, ...ac
       {/** Only Needs you speaks, as only Priority does in the sidebar: a working thread's progress is not news to read out. */}
       {open && <div className="subagent-list" aria-live={group === "needs" ? "polite" : undefined}>
         {shown.map((view) => <ThreadRow key={view.thread.id} view={view} worktrees={worktrees} {...actions} />)}
-        {members.length > OVERVIEW_LIMIT && (
-          <MoreToggle hidden={members.length - OVERVIEW_LIMIT} all={Boolean(fold.all)} onToggle={(all) => onSetFold(group, { all })} />
+        {members.length > shown.length && (
+          <button type="button" className="coordination-more" onClick={() => onSetFold(group, { all: true })}>Show {members.length - shown.length} more</button>
         )}
       </div>}
     </section>

@@ -10,7 +10,6 @@ import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { AUTOMATION_PANEL, DIFF_PANEL, OVERVIEW_PANEL } from "../../application/workspace-reducer";
 import { overviewGroups } from "../../application/coordination-view";
 import { isCoordinator } from "../../domain/coordination";
-import { engineLabel } from "../../domain/agent-engine";
 import type { DiffState } from "../../application/workspace-state";
 import type { FindTarget } from "../../domain/find";
 import { REMOTE_UNSUPPORTED } from "../../contracts/computer-capabilities";
@@ -90,7 +89,6 @@ function automationPanel(workspace: Workspace, scheduled: Workspace["threadTabs"
     <AutomationPanel
       automation={automation}
       edit={automation ? workspace.automationEdits[automation.taskId] : undefined}
-      engineLabel={scheduled ? engineLabel(scheduled.thread.engine) : workspace.engineLabel}
       lastFoundAt={scheduled ? scheduled.thread.lastFindingAt ?? null : workspace.lastFoundAt}
       lastChecked={scheduled ? scheduled.thread.lastChecked ?? null : workspace.lastChecked}
       onEdit={(base, fields) => { if (automation) void workspace.dispatch({ type: "view.edit-automation", taskId: automation.taskId, base, fields }); }}

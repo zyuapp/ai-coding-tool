@@ -59,7 +59,7 @@ export type ThreadStartOptionsProps = {
 
 function CoordinatorToggle({ coordinator, onSetCoordinator }: Pick<ThreadStartOptionsProps, "coordinator" | "onSetCoordinator">) {
   return (
-    <button type="button" className="thread-start-toggle thread-start-coordinator" aria-pressed={coordinator} data-tip="Delegates work to new threads instead of editing files" onClick={() => onSetCoordinator(!coordinator)}>
+    <button type="button" className="thread-start-toggle thread-start-coordinator" aria-pressed={coordinator} onClick={() => onSetCoordinator(!coordinator)}>
       <Waypoints size={14} />
       <span>Coordinator</span>
     </button>
@@ -175,7 +175,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           )}
         </div>
 
-        <button type="button" className="thread-start-toggle" aria-pressed={worktree} data-tip="Work in a new git worktree, leaving the project's checkout as it is" onClick={() => onSetWorktree(!worktree)}>
+        <button type="button" className="thread-start-toggle" aria-pressed={worktree} onClick={() => onSetWorktree(!worktree)}>
           <FolderSymlink size={14} />
           <span>Worktree</span>
         </button>

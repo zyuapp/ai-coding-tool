@@ -199,12 +199,12 @@ test("the right panel toggle's tip names it and its shortcut, whatever else is o
   } finally { await view.unmount(); }
 });
 
-test("the session summary toggle says it takes the right panel's place while that is open", async () => {
+test("the session summary toggle names the agents working", async () => {
   const view = await mount(React.createElement(WorkspaceHeader, headerProps({ workingSubagents: 2 })));
   try {
     const toggle = () => query<HTMLButtonElement>(view.container, 'button[aria-pressed][aria-label*="session summary"]');
     assert.equal(toggle().dataset.tip, "Session summary · 2 agents working");
     await view.render(React.createElement(WorkspaceHeader, headerProps({ workingSubagents: 0, rightDockOpen: true })));
-    assert.equal(toggle().dataset.tip, "Session summary · Replaces right panel");
+    assert.equal(toggle().dataset.tip, "Session summary");
   } finally { await view.unmount(); }
 });

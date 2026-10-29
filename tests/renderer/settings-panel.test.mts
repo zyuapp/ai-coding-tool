@@ -578,7 +578,6 @@ test("Restore defaults asks first, and Esc takes the question back", async () =>
   const named = (name: string) => item([...actions().querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === name));
 
   assert.ok(named("Restore defaults").closest(".settings-page-heading"), "it sits over every group, not in the first one");
-  assert.equal(actions().querySelector("span")?.textContent, "1 changed");
   await act(async () => { named("Restore defaults").click(); });
   assert.equal(resets, 0);
   assert.equal(dom.window.document.activeElement, named("Cancel"));

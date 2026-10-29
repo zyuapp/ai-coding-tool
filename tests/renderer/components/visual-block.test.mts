@@ -32,8 +32,7 @@ test("the window takes size and error reports only from its own frame, and keeps
 
   await say(frame.contentWindow, { type: "aicodingtool-visual:error", message: "first is not defined" });
   await say(frame.contentWindow, { type: "aicodingtool-visual:error", message: "second" });
-  assert.equal(view.container.querySelector(".visual-error .block-error-message")?.textContent, "first is not defined");
-  assert.equal(view.container.querySelector(".visual-error pre")?.textContent, '<div id="viz-sized"></div>', "the failing source can be read beside the error");
+  assert.equal(view.container.querySelector(".visual-error pre")?.textContent, "first is not defined");
   await view.unmount();
 
   const again = await mount(React.createElement(VisualBlock, { source: '<div id="viz-sized"></div>' }));
@@ -70,7 +69,6 @@ test("a visual that failed can be drawn again in a fresh frame, and one that dre
   await say(first.contentWindow, { type: "aicodingtool-visual:error", message: "broke" });
   const retry = view.container.querySelector<HTMLButtonElement>(".visual-error .limit-action");
   assert.equal(retry?.textContent, "Try again");
-  assert.equal(view.container.querySelector(".visual-error .copy-affordance")?.getAttribute("aria-label"), "Copy the error");
   await act(async () => { retry!.click(); });
   assert.equal(view.container.querySelector(".visual-error"), null, "the error clears while it draws again");
   assert.notEqual(frameOf(view.container), first, "the visual is drawn into a new frame");
@@ -108,7 +106,6 @@ test("a visual opens at full size in a viewer of its own, which keeps the inline
   const full = dialog.querySelector("iframe") as HTMLIFrameElement & { contentWindow: Window };
   assert.ok(full && full !== inline, "the viewer draws the visual in its own frame");
   assert.equal(dialog.querySelector('button[aria-label="Open the visual at full size"]'), null);
-  assert.ok(dialog.querySelector('button.viewer-copy[aria-label="Copy the source"]'), "the viewer offers the visual's source");
 
   await say(full.contentWindow, { type: "aicodingtool-visual:size", height: 640 });
   await act(async () => { document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });

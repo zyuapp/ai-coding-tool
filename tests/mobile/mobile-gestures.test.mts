@@ -271,28 +271,10 @@ test("Rename offers Cancel beside Save, and Cancel renames nothing", () => {
   assert.equal(line.sent.length, sent);
 });
 
-test("Rename's clear button empties the title, which Save then sends", () => {
+test("a folded group that needs the user says so", () => {
   const line = openPhone({ paired: true });
   live(line);
-  click(".thread-row .thread-open");
-  click('button[aria-label="Thread options"]');
-  clickRow("Rename");
-  click('.rename-field button[aria-label="Clear title"]');
-  const field = document.querySelector<HTMLInputElement>(".rename-field input")!;
-  assert.equal(field.value, "");
-  assert.equal(document.activeElement, field);
-  assert.equal(document.querySelector('.rename-field button[aria-label="Clear title"]'), null, "nothing left to clear");
-  click(".sheet-head button:last-child");
-  assert.equal(lastCommand(line)?.type, "task.rename");
-  assert.equal((lastCommand(line) as { title: string }).title, "");
-});
-
-test("a group says how many threads it holds, open or folded", () => {
-  const line = openPhone({ paired: true });
-  live(line);
-  assert.equal(document.querySelector(".section-count")?.textContent, "1");
   click(".section-toggle");
-  assert.equal(document.querySelector(".section-count")?.textContent, "1");
   assert.equal(document.querySelector(".section-toggle .sr-only")?.textContent, "Needs you");
 });
 
@@ -302,7 +284,6 @@ test("an unpaired phone takes the code typed from the computer, and only a whole
   assert.equal(pair().disabled, true);
   typeInto(".gate-code input", "k7m2");
   assert.equal(pair().disabled, true, "half a code is not sent");
-  assert.equal(document.querySelector(".gate-count")?.textContent, "4/8", "a short code says how short");
   assert.equal(document.querySelector(".gate-error"), null);
   typeInto(".gate-code input", "k7m2p9qx");
   assert.equal(document.querySelector<HTMLInputElement>(".gate-code input")?.value, "K7M2P9QX");

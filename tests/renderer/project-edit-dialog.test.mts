@@ -66,7 +66,7 @@ test("the editor opens with the name selected, and Save with nothing changed jus
   } finally { await view.unmount(); }
 });
 
-test("while saving, the form is busy and Save shows a spinner", async () => {
+test("while saving, the form is busy and Save says so", async () => {
   Object.defineProperty(window, "desktop", { configurable: true, value: { openFolder: () => Promise.resolve(null) } });
   const view = await mount(createElement(ProjectEditDialog, { editor: { ...editor, saving: true }, onSave: () => {}, onClose: () => {} }));
   try {
@@ -74,7 +74,6 @@ test("while saving, the form is busy and Save shows a spinner", async () => {
     const save = query<HTMLButtonElement>(document.body, "button[type=submit]");
     assert.equal(save.disabled, true);
     assert.equal(save.textContent, "Saving…");
-    assert.ok(save.querySelector("svg"));
   } finally { await view.unmount(); }
 });
 
