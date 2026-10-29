@@ -369,12 +369,16 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 4px;
   /** The window's traffic lights own the left of this strip, so everything here stays clear of them, packed to the right. */
   padding-left: max(0px, calc(var(--window-controls-inset) - 10px));
+  container: sidebar-strip / inline-size;
   -webkit-app-region: drag;
 }
-.thread-nav { flex: none; margin-left: auto; display: flex; align-items: center; gap: 1px; -webkit-app-region: no-drag; }
+.thread-nav, .sidebar-modes { display: flex; align-items: center; gap: 1px; -webkit-app-region: no-drag; }
+.sidebar-modes { min-width: 0; margin-left: auto; gap: 4px; }
+.thread-nav::before { content: ""; width: 1px; height: 14px; margin: 0 5px 0 1px; background: var(--line); }
+.thread-nav, .sidebar-mode-switch { flex: none; }
 .thread-nav-button {
   width: 28px;
   height: 28px;
@@ -388,7 +392,26 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   cursor: pointer;
 }
 .thread-nav-button:hover { background: var(--wash); color: var(--muted-strong); }
+/** A pressed header switch takes the accent, so a narrowed or re-ranked list is never mistaken for the default. */
+.thread-nav-button.active, .thread-nav-button.active:hover { background: var(--accent-chip); color: var(--accent-soft); }
 .thread-nav-button:disabled { opacity: var(--disabled-opacity); cursor: default; background: transparent; color: var(--muted); }
+/** Both ways of drawing the lists, side by side in one sunken track, the one in effect raised out of it. */
+.sidebar-mode-switch { display: flex; gap: 1px; padding: 2px; border-radius: 8px; background: var(--surface-input); }
+.sidebar-mode {
+  width: 26px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.sidebar-mode:hover { background: var(--wash); color: var(--ink-dim); }
+.sidebar-mode.active, .sidebar-mode.active:hover { background: var(--chip); color: var(--ink); box-shadow: var(--shadow-thumb); cursor: default; }
+.new-task-button,
 .folder-button,
 .task-row {
   width: 100%;
@@ -398,54 +421,44 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   cursor: pointer;
 }
 /** The window strip above plus this bar come to --chrome-head, so its lower edge meets the top bar's line. */
-.new-task-bar { display: flex; align-items: center; gap: 2px; height: calc(var(--chrome-head) - var(--window-strip)); margin: 0 0 0 1px; }
-.sidebar-search, .new-task-button {
-  flex: none;
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 8px;
-  padding: 0;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-.new-task-button { color: var(--muted-strong); }
-.sidebar-search:hover, .new-task-button:hover { background: var(--wash); color: var(--ink-dim); }
-/** The heading of the lists below: the view in ink, the project or computer it is narrowed to in a quieter voice. */
-.sidebar-scope { position: relative; flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 2px; -webkit-app-region: no-drag; }
-.sidebar-scope-trigger {
+.new-task-bar { display: flex; gap: 6px; height: calc(var(--chrome-head) - var(--window-strip)); margin: 0 3px; }
+.new-task-button {
   position: relative;
+  flex: 1;
   min-width: 0;
-  height: 32px;
+  width: auto;
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  justify-content: center;
   gap: 7px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--control);
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: var(--text-control);
+  font-weight: 500;
+  transition: background 0.15s ease;
+}
+.new-task-button:hover { background: var(--control-hover); }
+.new-task-label { position: relative; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-search {
+  flex: none;
+  min-width: calc(var(--chrome-head) - var(--window-strip));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 9px;
   border: 0;
   border-radius: 8px;
-  padding: 0 8px;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
+  background: var(--control);
+  color: var(--muted-strong);
   cursor: pointer;
-  line-height: 32px;
+  transition: background 0.15s ease;
 }
-.sidebar-scope-trigger:hover, .sidebar-scope-trigger[aria-expanded="true"] { background: var(--wash); }
-.sidebar-scope-view { flex: none; font-size: var(--text-content); font-weight: 600; }
-.sidebar-scope-name, .sidebar-scope-host { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--text-control); }
-.sidebar-scope-host { flex: 0 1000 auto; color: var(--quiet); }
-.sidebar-scope-trigger.narrowed .sidebar-scope-name { color: var(--accent-soft); }
-.sidebar-scope-trigger.offline .sidebar-scope-name { color: var(--warning); }
-.sidebar-scope-trigger > svg { flex: none; align-self: center; color: var(--muted); }
-/** A computer out of reach while every computer is listed: a warning dot on the trigger's corner. */
-.sidebar-scope-trigger.some-away::after { content: ""; position: absolute; top: 6px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 1.5px var(--sidebar); }
-.sidebar-scope-clear { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 6px; padding: 0; background: transparent; color: var(--muted); cursor: pointer; }
-.sidebar-scope-clear:hover { background: var(--wash); color: var(--ink-dim); }
-.sidebar-scope-menu { min-width: 220px; max-width: min(320px, calc(100vw - 28px)); max-height: min(480px, var(--menu-room, 480px)); overflow-y: auto; -webkit-app-region: no-drag; }
-.sidebar-scope-menu button.offline { color: var(--quiet); }
-.sidebar-scope-menu .offline .menu-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: middle; }
+.sidebar-search:hover { background: var(--control-hover); }
+.sidebar-search > kbd { color: var(--quiet); font: 11px/1 var(--mono); }
 .folder-button:hover { background: var(--wash); }
 .task-row:hover { background: var(--row-hover); }
 
@@ -467,9 +480,36 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .projects-heading, .recents-heading { grid-template-columns: minmax(0, 1fr) var(--row-slot); }
 .projects-heading { margin-top: 8px; }
 .recents-heading { margin-top: 12px; }
+/** Narrows activity mode to one project. Quiet at rest, and filled while it narrows the lists. */
+.activity-filter { position: relative; margin: 8px var(--row-inset) 2px 3px; }
+.activity-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 7px 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--surface-raised);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-meta);
+  cursor: pointer;
+}
+.activity-filter-trigger > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-filter-trigger > svg { flex: none; }
+.activity-filter-trigger > svg { color: var(--quiet); }
+.activity-filter-trigger:hover, .activity-filter-trigger[aria-expanded="true"] { background: var(--control); color: var(--muted-strong); }
+.activity-filter-trigger.narrowed { background: var(--accent-chip); color: var(--ink-dim); }
+.activity-filter-host { color: var(--quiet); }
+.activity-filter:has(.activity-filter-clear) { display: flex; align-items: center; gap: 2px; }
+.activity-filter:has(.activity-filter-clear) > .activity-filter-trigger { min-width: 0; }
+.activity-filter-clear { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 7px; padding: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.activity-filter-clear:hover { background: var(--wash); color: var(--ink-dim); }
+.activity-filter-menu { min-width: 220px; max-height: min(420px, var(--menu-room, 420px)); overflow-y: auto; }
 /** Activity mode's three headings share one shape: label, fold, and at most one action. */
 .activity-heading { grid-template-columns: minmax(0, 1fr) var(--row-slot); }
-.activity-group:first-of-type .activity-heading { margin-top: 8px; }
 .activity-group + .activity-group .activity-heading { margin-top: 12px; }
 /** A folded list's count, as a chip beside its label. */
 .section-count {
@@ -5300,6 +5340,23 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 
 /* ── Computers ───────────────────────────────────────────────────────────── */
 
+/** A narrow sidebar shortens the computer's name before the header runs into the traffic lights. */
+.computer-switch { position: relative; min-width: 0; display: flex; }
+/** Narrowed, the switch names the computer the lists are drawn from. */
+.computer-switch-trigger.active { width: auto; min-width: 0; max-width: 120px; display: flex; gap: 5px; padding: 0 8px 0 6px; }
+.computer-switch-trigger > svg { flex: none; }
+.computer-switch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-meta); font-weight: 500; }
+/** Too narrow to show a useful part of the name, the pressed switch stands alone and its tip names the computer. */
+@container sidebar-strip (max-width: 214px) { .computer-switch-name { display: none; } }
+.computer-switch-trigger[aria-expanded="true"] { background: var(--wash); color: var(--muted-strong); }
+.computer-switch-trigger.offline > svg { color: var(--warning); }
+/** A computer out of reach while every computer is listed: a warning dot on the switch's corner. */
+.computer-switch-trigger.some-away { position: relative; }
+.computer-switch-trigger.some-away::after { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 1.5px var(--sidebar); }
+/** Opened rightward, as the button sits near the window's left edge and a long computer name would push a right-anchored menu off it. */
+.computer-switch-menu { top: calc(100% + 4px); left: 0; right: auto; max-width: min(320px, calc(100vw - 28px)); -webkit-app-region: no-drag; }
+.computer-switch-menu button.offline { color: var(--quiet); }
+.computer-switch-menu .offline .menu-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: middle; }
 .task-row.offline, .project-task-row.offline { color: var(--quiet); cursor: default; }
 .task-away { color: var(--warning); }
 .task-row.offline:hover, .project-task-row.offline:hover { background: transparent; }

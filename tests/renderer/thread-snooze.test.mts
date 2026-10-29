@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import React, { act, useState } from "react";
 import { dom, mount, query } from "../support/renderer-dom.mts";
-import { renderProjectSidebar, seedProjectTasks, chooseSidebarView } from "../support/sidebar.mts";
+import { renderProjectSidebar, seedProjectTasks } from "../support/sidebar.mts";
 import { fakeDesktop } from "../support/desktop-api.mts";
 import { task } from "../application/workspace-reducer-fixtures.mts";
 import { createSnoozeTimer } from "../../src/host/snooze-timer.ts";
@@ -23,7 +23,7 @@ test("Priority's right-click submenu snoozes a thread into Snoozed, and Unsnooze
   window.desktop = desktop;
   const view = await mount(React.createElement(App));
   try {
-    await chooseSidebarView(view.container, "Activity");
+    await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Rank threads by activity"]').click(); });
     const row = query<HTMLElement>(view.container, 'nav[aria-label="Priority"] .task-row');
     await act(async () => { row.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true, clientX: 160, clientY: 120 })); });
     assert.ok(menuItem("Snooze"));

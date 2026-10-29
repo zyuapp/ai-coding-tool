@@ -11,7 +11,6 @@ import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import { SidebarActivity } from "./SidebarActivity";
 import { SidebarHeader, SidebarResizer } from "./SidebarChrome";
-import { SidebarScope, type SidebarScopeProps } from "./SidebarScope";
 import type { ThreadHost } from "../../application/computers";
 import { offlineMessage, type ComputerFilter, type ComputerLink } from "../../domain/computers";
 import { PROJECT_DRAG, RECENTS_DROPPABLE, SidebarProjects, useShownThreads } from "./SidebarProjects";
@@ -21,11 +20,14 @@ import type { ThreadRole } from "../../domain/thread-role";
 import type { AppUpdate } from "../../domain/app-update";
 import { SidebarFooter } from "./SidebarFooter";
 import { shortcutTip } from "./TooltipLayer";
+import { displayShortcut } from "../../domain/shortcuts";
+import { MAC } from "../platform";
 import { CommandButton } from "./CommandControl";
 import { roleIcon } from "./ThreadRoleMark";
 
 const NEW_THREAD_TIP = shortcutTip("New thread", "Mod+N");
 const SEARCH_TIP = shortcutTip("Search", "Mod+K");
+const SEARCH_KEYS = displayShortcut("Mod+K", MAC);
 
 export type ProjectSidebarProps = {
   open: boolean;
@@ -167,17 +169,17 @@ function useProjectGroups(orderedThreads: Thread[], worktreeGroups: WorktreeGrou
   return { threadsByProject, checkoutsByProject };
 }
 
-/** What the lists show, then searching them and starting a thread. */
-function SidebarHead({ scope, onNewThread }: { scope: SidebarScopeProps; onNewThread: () => void }) {
+function NewThreadBar({ onNewThread }: { onNewThread: () => void }) {
   return (
     <div className="new-task-bar">
-      <SidebarScope {...scope} />
-      <CommandButton command={{ type: "view.jump-open" }} className="sidebar-search" type="button" aria-label="Search threads and settings" data-tip={SEARCH_TIP}>
-        <Search size={16} aria-hidden="true" />
-      </CommandButton>
-      <button className="new-task-button" type="button" aria-label="New thread" onClick={() => onNewThread()} data-tip={NEW_THREAD_TIP}>
-        <SquarePen size={16} aria-hidden="true" />
+      <button className="new-task-button" type="button" onClick={() => onNewThread()} data-tip={NEW_THREAD_TIP}>
+        <SquarePen size={14} aria-hidden="true" />
+        <span className="new-task-label">New thread</span>
       </button>
+      <CommandButton command={{ type: "view.jump-open" }} className="sidebar-search" type="button" aria-label="Search threads and settings" data-tip={SEARCH_TIP}>
+        <Search size={14} aria-hidden="true" />
+        <kbd aria-hidden="true">{SEARCH_KEYS}</kbd>
+      </CommandButton>
     </div>
   );
 }
@@ -285,8 +287,8 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       inert={inactive || !open}
       style={{ "--row-slots": railSlots } as React.CSSProperties}
     >
-      <SidebarHeader canGoBack={canGoBack} canGoForward={canGoForward} onGoBack={onGoBack} onGoForward={onGoForward} />
-      <SidebarHead onNewThread={onNewThread} scope={{ mode, onSetMode, projects, projectHosts, project: activityProject, onSetProject: onSetActivityProject, computerLinks, computerName, computerFilter, onSetComputerFilter, openMenu, onSetOpenMenu }} />
+      <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
+      <NewThreadBar onNewThread={onNewThread} />
 
       <div className="sidebar-scroll">
         {projects.length === 0 && <div className="sidebar-project-empty">
@@ -302,6 +304,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
           onSetSectionOpen={onSetSectionOpen}
           onDismissAll={() => onDismissAll(activityProject)}
           renderRow={activityRow}
+          projectFilter={{ projects, projectHosts, project: activityProject, onSetProject: onSetActivityProject, openMenu, onSetOpenMenu }}
         />}
 
         {mode === "projects" && <SidebarProjects

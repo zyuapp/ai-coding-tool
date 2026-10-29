@@ -1,8 +1,8 @@
-import React, { act } from "react";
+import React from "react";
 import type { Thread } from "../../src/domain/thread.ts";
 import type { AutomationView } from "../../src/domain/automation.ts";
 import type { ProjectSidebarProps } from "../../src/renderer/components/ProjectSidebar.tsx";
-import { query } from "./renderer-dom.mts";
+import "./renderer-dom.mts";
 
 const { ProjectSidebar } = await import("../../src/renderer/components/ProjectSidebar.tsx");
 
@@ -83,11 +83,4 @@ export function seedProjectTasks(tasks: SeedProjectThread[]) {
     projects: JSON.stringify({ version: 2, value: [{ id: "project-1", root: "/project" }] }),
     lastFolder: JSON.stringify({ version: 2, value: "/project" }),
   }));
-}
-
-/** Picks a view from the menu under the sidebar's heading. */
-export async function chooseSidebarView(container: ParentNode, label: "Activity" | "Projects") {
-  await act(async () => { query<HTMLButtonElement>(container, ".sidebar-scope-trigger").click(); });
-  const choice = [...document.querySelectorAll<HTMLButtonElement>('.sidebar-scope-menu [role="menuitemcheckbox"]')].find((button) => button.querySelector(".menu-label")?.textContent === label);
-  await act(async () => { choice!.click(); });
 }

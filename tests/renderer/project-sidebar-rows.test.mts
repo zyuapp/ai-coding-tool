@@ -1,4 +1,4 @@
-import { renderProjectSidebar, seedProjectTasks, chooseSidebarView } from "../support/sidebar.mts";
+import { renderProjectSidebar, seedProjectTasks } from "../support/sidebar.mts";
 import { mountWorkspace } from "../support/workspace-renderer.mts";
 import { automationView, fakeDesktop } from "../support/desktop-api.mts";
 import assert from "node:assert/strict";
@@ -243,7 +243,7 @@ test("typing and streaming leave sidebar rows alone while sidebar changes still 
   });
   try {
     const row = (title: string) => item(query(view.container, `.task-row [data-tip="${title}"]`).closest<HTMLElement>(".task-row"));
-    await chooseSidebarView(view.container, "Activity");
+    await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Rank threads by activity"]').click(); });
     await act(async () => { row("Streaming task").click(); });
     await settleFrame();
     assert.ok(quietFormats > 0, "the quiet row was rendered before the measurement");
@@ -297,12 +297,12 @@ test("the sidebar switches to activity mode, and dismissing there takes the dot 
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
 
-  const heading = () => query(view.container, ".sidebar-scope-view").textContent;
+  const toggle = () => query<HTMLButtonElement>(view.container, '[aria-label="Rank threads by activity"]');
   assert.equal(view.container.querySelector('nav[aria-label="Priority"]'), null, "the sidebar opens grouped by project");
-  assert.equal(heading(), "Projects");
+  assert.equal(toggle().getAttribute("aria-pressed"), "false");
 
-  await chooseSidebarView(view.container, "Activity");
-  assert.equal(heading(), "Activity");
+  await act(async () => { toggle().click(); });
+  assert.equal(toggle().getAttribute("aria-pressed"), "true");
 
   const priority = () => [...view.container.querySelectorAll('nav[aria-label="Priority"] .task-row-text > span')].map((row) => row.textContent);
   assert.deepEqual(priority(), ["Settled task"]);
@@ -324,8 +324,9 @@ test("the sidebar switches to activity mode, and dismissing there takes the dot 
     "a dismissed thread drops into the chronological list",
   );
 
-  await chooseSidebarView(view.container, "Projects");
-  assert.equal(heading(), "Projects");
+  /** The one switch carries both directions, so pressing it again puts the folders back. */
+  await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Group by project"]').click(); });
+  assert.equal(toggle().getAttribute("aria-pressed"), "false");
   assert.equal(view.container.querySelector('nav[aria-label="Priority"]'), null);
   assert.ok(view.container.querySelector(".project-list"), "the folders come back");
   await view.unmount();

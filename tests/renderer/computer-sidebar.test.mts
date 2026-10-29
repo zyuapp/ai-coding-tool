@@ -180,7 +180,7 @@ test("rows on a paired computer carry its name, and rows on one that cannot be r
   }
 });
 
-test("the sidebar heading's menu names every computer and narrows the lists to the one chosen", async () => {
+test("the header's computer button names every computer and narrows the lists to the one chosen", async () => {
   const filters: ComputerFilter[] = [];
   function Sidebar() {
     const [openMenu, onSetOpenMenu] = useState<string | null>(null);
@@ -199,41 +199,51 @@ test("the sidebar heading's menu names every computer and narrows the lists to t
   }
   const view = await mount(createElement(Sidebar));
   try {
-    const trigger = query<HTMLButtonElement>(view.container, ".new-task-bar .sidebar-scope-trigger");
-    const choicesInMenu = () => [...document.querySelectorAll<HTMLButtonElement>('.sidebar-scope-menu [role="menuitemcheckbox"]')];
-    const choose = async (label: string) => {
-      await act(async () => { trigger.click(); });
-      await act(async () => { choicesInMenu().find((choice) => choice.querySelector(".menu-label")?.textContent === label)!.click(); });
+    const trigger = query<HTMLButtonElement>(view.container, ".traffic-space .sidebar-modes .computer-switch-trigger");
+    const choicesInMenu = () => [...view.container.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')];
+    const press = async (target: HTMLElement, key: string) => {
+      await act(async () => { target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true })); });
     };
-    assert.equal(trigger.getAttribute("aria-label"), "Sidebar: Projects, 1 offline");
-    assert.equal(trigger.dataset.tip, "old-laptop offline", "every computer listed flags the one out of reach");
+    assert.equal(trigger.parentElement?.previousElementSibling?.getAttribute("aria-label"), "Sidebar view", "it sits beside the view switch");
+    assert.ok(trigger.classList.contains("thread-nav-button"));
+    assert.equal(trigger.getAttribute("aria-label"), "Computers, 1 offline");
+    assert.equal(trigger.dataset.tip, "Computers · old-laptop offline", "every computer listed flags the one out of reach");
     assert.ok(trigger.classList.contains("some-away"));
     assert.equal(trigger.getAttribute("aria-haspopup"), "menu");
     assert.equal(trigger.getAttribute("aria-expanded"), "false");
     await act(async () => { trigger.click(); });
     assert.equal(trigger.getAttribute("aria-expanded"), "true");
     const choices = choicesInMenu();
-    assert.deepEqual(choices.map((choice) => choice.querySelector(".menu-label")?.textContent), ["Activity", "Projects", "All computers", "My Mac", "linux-box", "old-laptop"]);
-    assert.deepEqual(choices.map((choice) => choice.getAttribute("aria-checked")), ["false", "true", "true", "false", "false", "false"]);
-    assert.equal(choices[5]!.classList.contains("offline"), true);
-    assert.equal(choices[5]!.querySelector(".menu-shortcut")?.textContent, "Offline", "an away computer says so in the menu itself");
-    assert.equal(choices[4]!.querySelector(".menu-shortcut"), null);
-    await act(async () => { choices[4]!.click(); });
+    assert.deepEqual(choices.map((choice) => choice.querySelector(".menu-label")?.textContent), ["All", "My Mac", "linux-box", "old-laptop"]);
+    assert.deepEqual(choices.map((choice) => choice.getAttribute("aria-checked")), ["true", "false", "false", "false"]);
+    assert.equal(choices[3]!.classList.contains("offline"), true);
+    assert.equal(choices[3]!.querySelector(".menu-shortcut")?.textContent, "Offline", "an away computer says so in the menu itself");
+    assert.equal(choices[2]!.querySelector(".menu-shortcut"), null);
+    assert.equal(choices[3]!.disabled, false);
+    await act(async () => { choices[2]!.click(); });
+    assert.equal(trigger.dataset.tip, "Only linux-box");
     assert.equal(trigger.getAttribute("aria-expanded"), "false");
-    assert.equal(query(trigger, ".sidebar-scope-name").textContent, "linux-box");
-    assert.ok(trigger.classList.contains("narrowed"));
-    await choose("old-laptop");
-    assert.ok(trigger.classList.contains("offline"));
-    assert.equal(trigger.dataset.tip, "old-laptop offline");
-    await choose("All computers");
-    assert.deepEqual(filters, ["linux", "old", "all"]);
-    assert.equal(trigger.querySelector(".sidebar-scope-name"), null);
-    await act(async () => { trigger.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })); });
-    assert.equal(trigger.getAttribute("aria-expanded"), "true", "the arrow keys open the menu");
-    await act(async () => { query(document, '.sidebar-scope-menu').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+    await press(trigger, "ArrowDown");
+    assert.equal(choicesInMenu()[2]!.getAttribute("aria-checked"), "true");
+    const menu = query<HTMLElement>(view.container, '[role="menu"]');
+    assert.equal(document.activeElement, menu);
+    await press(menu, "ArrowDown");
+    await press(menu, "ArrowDown");
+    assert.equal(document.activeElement, choicesInMenu()[1]);
+    await act(async () => { (document.activeElement as HTMLButtonElement).click(); });
+    assert.equal(trigger.dataset.tip, "Only My Mac");
+    await act(async () => { trigger.click(); });
+    await act(async () => { choicesInMenu()[3]!.click(); });
+    assert.equal(trigger.dataset.tip, "Only old-laptop (offline)");
+    await act(async () => { trigger.click(); });
+    await act(async () => { choicesInMenu()[0]!.click(); });
+    assert.deepEqual(filters, ["linux", "this", "old", "all"]);
+    assert.equal(trigger.dataset.tip, "Computers · old-laptop offline");
+    await act(async () => { trigger.click(); });
+    await press(query(view.container, '[role="menu"]'), "Escape");
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
     assert.equal(trigger.getAttribute("aria-expanded"), "false");
-    assert.equal(document.activeElement, trigger, "Escape returns focus to the heading");
+    assert.equal(document.activeElement, trigger, "Escape returns focus to the button");
     await act(async () => { trigger.click(); });
     await act(async () => { document.body.dispatchEvent(new dom.window.Event("pointerdown", { bubbles: true })); });
     assert.equal(trigger.getAttribute("aria-expanded"), "false");
@@ -245,40 +255,43 @@ test("the sidebar heading's menu names every computer and narrows the lists to t
   }
 });
 
-test("the sidebar heading names the computer the lists are narrowed to, warning when it is offline", async () => {
+test("the computer button is pressed while the lists are narrowed, and dimmed when the chosen computer is offline", async () => {
   const links = [
     { id: "linux", name: "linux-box", host: "linux.tail.ts.net", status: "connected" as const, error: null, pairedAt: 1 },
     { id: "old", name: "old-laptop", host: "old.tail.ts.net", status: "offline" as const, error: "Timed out", pairedAt: 1 },
   ];
   const view = await mount(renderProjectSidebar({ computerLinks: links, computerFilter: "all" }));
   try {
-    const trigger = () => query<HTMLButtonElement>(view.container, ".sidebar-scope-trigger");
-    const name = () => trigger().querySelector(".sidebar-scope-name")?.textContent ?? null;
-    assert.deepEqual([trigger().classList.contains("narrowed"), trigger().classList.contains("offline"), name()], [false, false, null], "showing every computer, the heading is the view alone");
+    const trigger = () => query<HTMLButtonElement>(view.container, ".computer-switch-trigger");
+    assert.deepEqual([trigger().classList.contains("active"), trigger().classList.contains("offline")], [false, false]);
+    assert.equal(trigger().textContent, "", "showing every computer, the button is the icon alone");
     await view.render(renderProjectSidebar({ computerLinks: links, computerFilter: "linux" }));
-    assert.deepEqual([trigger().classList.contains("narrowed"), trigger().classList.contains("offline"), name()], [true, false, "linux-box"]);
+    assert.deepEqual([trigger().classList.contains("active"), trigger().classList.contains("offline")], [true, false]);
+    assert.equal(trigger().dataset.tip, "Only linux-box");
+    assert.equal(trigger().textContent, "linux-box", "narrowed, it names the computer");
     await view.render(renderProjectSidebar({ computerLinks: links, computerFilter: "this", computerName: "" }));
-    assert.equal(name(), "This computer");
+    assert.equal(trigger().dataset.tip, "Only this computer");
+    assert.equal(trigger().textContent, "This computer");
+    assert.ok(trigger().classList.contains("active"));
     await view.render(renderProjectSidebar({ computerLinks: links, computerFilter: "old" }));
-    assert.deepEqual([trigger().classList.contains("narrowed"), trigger().classList.contains("offline")], [true, true]);
-    const clear = query<HTMLButtonElement>(view.container, '.sidebar-scope-clear[aria-label="Show all computers"]');
-    assert.ok(clear);
+    assert.deepEqual([trigger().classList.contains("active"), trigger().classList.contains("offline")], [true, true]);
+    assert.equal(trigger().dataset.tip, "Only old-laptop (offline)");
   } finally {
     await view.unmount();
   }
 });
 
-test("a sidebar with no paired computer lists no computers", async () => {
-  const view = await mount(renderProjectSidebar({ openMenu: "sidebar:scope" }));
+test("a sidebar with no paired computer draws no computer button", async () => {
+  const view = await mount(renderProjectSidebar({}));
   try {
-    assert.deepEqual([...document.querySelectorAll('.sidebar-scope-menu [role="menuitemcheckbox"]')].map((choice) => choice.textContent), ["Activity", "Projects"]);
+    assert.equal(view.container.querySelector(".computer-switch") === null, true);
     assert.equal(query(view.container, ".traffic-space").nextElementSibling, query(view.container, ".new-task-bar"));
   } finally {
     await view.unmount();
   }
 });
 
-test("the Priority view narrows to one project from the heading's menu, naming the computer that holds each one elsewhere", async () => {
+test("the Priority view narrows to one project from its own list, naming the computer that holds each one elsewhere", async () => {
   const picked: (string | null)[] = [];
   const dismissed: (string | null)[] = [];
   const projects = [{ id: "web", root: "/work/web" }, { id: "remote-api", root: "/linux/api" }];
@@ -294,23 +307,24 @@ test("the Priority view narrows to one project from the heading's menu, naming t
   });
   const view = await mount(props(null));
   try {
-    const trigger = () => query<HTMLButtonElement>(view.container, ".new-task-bar .sidebar-scope-trigger");
-    const named = () => [...trigger().querySelectorAll(".sidebar-scope-view, .sidebar-scope-name, .sidebar-scope-host")].map((part) => part.textContent);
-    assert.deepEqual([named(), trigger().classList.contains("narrowed")], [["Activity", "All projects"], false]);
-    await view.render(props(null, "sidebar:scope"));
+    const trigger = () => query<HTMLButtonElement>(view.container, ".sidebar-scroll .activity-filter-trigger");
+    assert.equal(view.container.querySelector(".traffic-space .activity-filter-trigger"), null, "the header stays the same in both views");
+    assert.equal(query(view.container, ".activity-filter").nextElementSibling?.querySelector(".section-toggle")?.textContent, "Priority", "it heads the Priority list");
+    assert.deepEqual([trigger().textContent, trigger().classList.contains("narrowed")], ["All projects", false]);
+    await view.render(props(null, "activity:project"));
     const choices = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')];
-    assert.deepEqual(choices.map((choice) => choice.textContent), ["Activity", "Projects", "All projects", "web", "apilinux-box"]);
-    assert.deepEqual(choices.map((choice) => choice.getAttribute("aria-checked")), ["true", "false", "true", "false", "false"]);
-    await act(async () => { choices[4]!.click(); });
+    assert.deepEqual(choices.map((choice) => choice.textContent), ["All projects", "web", "apilinux-box"]);
+    assert.deepEqual(choices.map((choice) => choice.getAttribute("aria-checked")), ["true", "false", "false"]);
+    await act(async () => { choices[2]!.click(); });
     assert.deepEqual(picked, ["remote-api"]);
     await view.render(props("remote-api"));
-    assert.deepEqual([named(), trigger().classList.contains("narrowed")], [["Activity", "api", "linux-box"], true]);
+    assert.deepEqual([trigger().textContent, trigger().classList.contains("narrowed")], ["apilinux-box", true]);
     await act(async () => { query<HTMLButtonElement>(view.container, '.dismiss-all').click(); });
     assert.deepEqual(dismissed, ["remote-api"], "dismiss all keeps to the project shown");
     await view.render(renderProjectSidebar({ mode: "projects", projects }));
-    assert.deepEqual(named(), ["Projects"], "the projects view draws every project");
+    assert.equal(view.container.querySelector(".activity-filter"), null, "the projects view is untouched");
     await view.render(renderProjectSidebar({ mode: "activity", projects: projects.slice(0, 1) }));
-    assert.deepEqual(named(), ["Activity"], "one project has nothing to narrow to");
+    assert.equal(view.container.querySelector(".activity-filter"), null, "one project has nothing to narrow to");
   } finally {
     await view.unmount();
   }
@@ -388,7 +402,7 @@ test("an empty device offers adding a project, while an offline device shows its
     assert.equal(added, 1);
     await view.render(renderProjectSidebar({ ...props, computerLinks: [{ ...link, status: "offline", error: "Connection refused" }] }));
     assert.equal(query(view.container, ".sidebar-project-empty [role='alert']").textContent, "zyuapp is offline. Connection refused");
-    assert.ok(query(view.container, ".sidebar-scope-trigger").classList.contains("offline"));
+    assert.ok(query(view.container, ".computer-switch-trigger").classList.contains("offline"));
     const showAll = query<HTMLButtonElement>(view.container, ".sidebar-project-empty button");
     assert.equal(showAll.textContent, "Show all computers");
     await act(async () => showAll.click());

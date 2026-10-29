@@ -4,7 +4,7 @@ import { test, vi } from "vitest";
 import React, { act } from "react";
 import { App } from "../../src/renderer/App.tsx";
 import { mount, query } from "../support/renderer-dom.mts";
-import { seedProjectTasks, chooseSidebarView } from "../support/sidebar.mts";
+import { seedProjectTasks } from "../support/sidebar.mts";
 
 vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
@@ -29,7 +29,7 @@ test("dismissing a Priority row files it away with no toast", async () => {
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
   try {
-    await chooseSidebarView(view.container, "Activity");
+    await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Rank threads by activity"]').click(); });
     await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Dismiss Review me"]').click(); });
     assert.equal(view.container.querySelector('nav[aria-label="Priority"] .task-row'), null);
     assert.equal(view.container.querySelector(".toasts"), null);
