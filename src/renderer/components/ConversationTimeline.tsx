@@ -286,9 +286,9 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
         <div className="scroll-to-end-dock">
         <button
           type="button"
-          className={status === "running" ? "scroll-to-end live" : "scroll-to-end"}
-          aria-label={status === "running" ? "Scroll to the new output" : "Scroll to the latest message"}
-          data-tip={status === "running" ? "New output below" : "Latest message"}
+          className="scroll-to-end"
+          aria-label="Scroll to the latest message"
+          data-tip="Latest message"
           onClick={scrollToFoot}
         >
           <ChevronDown size={18} aria-hidden="true" />

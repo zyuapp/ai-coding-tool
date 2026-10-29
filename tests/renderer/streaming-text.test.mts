@@ -218,8 +218,8 @@ test("a reader who scrolls away keeps the view, and is offered a way back to the
   assert.equal(button.getAttribute("aria-label"), "Scroll to the latest message");
   await view.render(harness.render(messages, "running", null));
   const live = query<HTMLButtonElement>(view.container, ".scroll-to-end");
-  assert.equal(live.getAttribute("aria-label"), "Scroll to the new output");
-  assert.equal(live.dataset.tip, "New output below", "the live dot says what it means");
+  assert.equal(live.getAttribute("aria-label"), "Scroll to the latest message");
+  assert.equal(live.className, "scroll-to-end", "a running thread adds no mark");
   await view.render(harness.render(messages, "idle", null));
 
   await act(async () => { query<HTMLButtonElement>(view.container, ".scroll-to-end").click(); });
