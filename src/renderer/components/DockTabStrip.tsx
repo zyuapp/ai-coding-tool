@@ -216,7 +216,6 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
               >
                 <launcher.icon size={16} aria-hidden="true" />
                 <span>{launcher.title}{launcher.disabledLabel && <small>{launcher.disabledLabel}</small>}</span>
-                {!launcher.disabled && <kbd aria-hidden="true">/{launcher.command}</kbd>}
               </button>
             ))}
           </div>

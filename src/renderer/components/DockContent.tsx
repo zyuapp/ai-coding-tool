@@ -99,7 +99,6 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
             >
               <launcher.icon size={18} aria-hidden="true" />
               <span><strong>{launcher.title}</strong><small id={`${described}-${launcher.id}`}>{launcher.disabledLabel ?? launcher.description}</small></span>
-              {!launcher.disabled && <kbd aria-hidden="true">/{launcher.command}</kbd>}
             </button>
           ))}
         </div>

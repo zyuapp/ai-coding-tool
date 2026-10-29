@@ -1379,7 +1379,6 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .right-dock-add > div button[aria-disabled="true"] { color: var(--quiet); cursor: default; }
 .right-dock-add > div button[aria-disabled="true"] > svg { color: var(--quiet); }
 .right-dock-add > div button > .right-dock-tab-attention { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--info); box-shadow: 0 0 0 3px var(--info-surface); }
-.right-dock-add > div button > kbd { flex: none; color: var(--quiet-strong); font: var(--text-meta) var(--mono); }
 /** xterm gives its scrollbar and decorations a z-index of their own; isolating the region keeps them
  *  under the tab strip, whose menu hangs over it. */
 .right-dock-content { isolation: isolate; }
@@ -1396,11 +1395,10 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .right-dock-picker h2 { margin: 0; color: var(--ink-soft); font-size: var(--text-heading); font-weight: 580; }
 .right-dock-picker p { max-width: 330px; margin: 7px 0 0; color: var(--quiet); font-size: var(--text-control); line-height: 1.45; }
 .right-dock-picker > div { width: min(360px, 100%); display: grid; gap: 10px; }
-.right-dock-picker button { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 13px; background: var(--control-soft); color: var(--link); text-align: left; cursor: pointer; }
+.right-dock-picker button { display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 13px; background: var(--control-soft); color: var(--link); text-align: left; cursor: pointer; }
 .right-dock-picker button:hover:not([aria-disabled="true"]) { border-color: var(--info-line); background: var(--surface-hover); }
 .right-dock-picker button[aria-disabled="true"] { border-style: dashed; border-color: var(--line-strong); background: none; color: var(--quiet); cursor: default; }
 .right-dock-picker button[aria-disabled="true"] strong { color: var(--muted); }
-.right-dock-picker kbd { align-self: start; padding: 1px 0; color: var(--quiet-strong); font: var(--text-meta) var(--mono); }
 .right-dock-picker button > svg { justify-self: center; }
 .right-dock-picker button span { min-width: 0; display: grid; gap: 3px; }
 .right-dock-picker strong { color: var(--ink-soft); font-size: var(--text-control); font-weight: 580; }
@@ -4515,9 +4513,6 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   cursor: pointer;
 }
 .composer-attach:hover:not(:disabled) { background: var(--wash); color: var(--ink); }
-.composer-hint { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: var(--text-meta); white-space: nowrap; }
-.composer-hint > span { display: inline-flex; align-items: center; gap: 5px; }
-.composer-hint kbd { color: var(--ink-dim); font: 11px/1 var(--mono); }
 .fast-mode-toggle {
   display: flex;
   align-items: center;
@@ -4748,9 +4743,6 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .stop-glyph { width: 10px; height: 10px; border-radius: 2px; background: var(--ink-inverse); }
 .send-button + .send-button { margin-left: -6px; }
 
-@container (max-width: 560px) {
-  .composer-hint { display: none; }
-}
 /** Plan meters share the bar with the settings, so the axis names and the meter's icon go first, then the weekly part, then the meter. */
 @container (max-width: 720px) {
   .composer:has(.plan-usage) :is(.setting-axis, .plan-usage-icon) { display: none; }
@@ -4774,7 +4766,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   .context-usage-value, .plan-usage-icon { display: none; }
 }
 @container (max-width: 300px) {
-  .composer-hint, .context-usage-value { display: none; }
+  .context-usage-value { display: none; }
   .composer-settings { gap: 0; }
   .composer-bar { gap: 6px; padding-left: 10px; }
   .setting-menu > summary { padding-inline: 6px; }

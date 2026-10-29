@@ -1,5 +1,5 @@
 import { LuArrowUp as ArrowUp, LuCircleAlert as CircleAlert, LuInfo as Info, LuPaperclip as Paperclip, LuX as X } from "react-icons/lu";
-import { useId, useRef, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "./QuestionPrompt";
 import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
@@ -27,8 +27,6 @@ import type { ActiveGoal } from "../../domain/goal";
 import { CommandButton, useCommandControls } from "./CommandControl";
 import { ReturnFocusContext } from "../focus";
 import type { AppCommand } from "../../contracts/commands";
-import { MAC } from "../platform";
-import { displayShortcut } from "../../domain/shortcuts";
 import { shortcutTip } from "./TooltipLayer";
 
 const NOTHING = () => {};
@@ -47,9 +45,6 @@ function composerPlaceholder({ surface, folder, disabled, engineLabel }: {
       : folder ? `Ask ${engineLabel} to work on anything` : `Ask ${engineLabel} anything`;
   return ask;
 }
-
-const SEND_KEYS = displayShortcut("Enter", MAC);
-const STEER_KEYS = displayShortcut("Mod+Enter", MAC);
 
 function sendLabel(surface: ComposerSurface, runActive: boolean) {
   if (surface === "side") return runActive ? "Stop side chat" : "Send side chat message";
@@ -97,17 +92,6 @@ function SendButton({ taskId, surface, runActive, command, disabled, busy, recal
     >
       {busy ? <span className="send-spinner" aria-hidden="true" /> : <ArrowUp size={16} strokeWidth={2.5} aria-hidden="true" />}
     </CommandButton>
-  );
-}
-
-/** The keys that queue and steer while a run goes and something is written. */
-function ComposerHint({ id, steer }: { id: string; steer: boolean }) {
-  if (!steer) return null;
-  return (
-    <span className="composer-hint" id={id}>
-      <span><kbd>{SEND_KEYS}</kbd> queue</span>
-      <span><kbd>{STEER_KEYS}</kbd> steer</span>
-    </span>
   );
 }
 
@@ -363,9 +347,6 @@ export function ConversationComposer({
     attachments.send(steer);
   }
 
-  const steerHint = runActive && !nothingToSend && !disabled && !attachments.sending;
-  const hintId = useId();
-
   return (
     <footer className={`composer-wrap ${surface}`}>
       {surface === "main" && goal && <GoalBar goal={goal} onClear={onGoalClear} />}
@@ -409,14 +390,12 @@ export function ConversationComposer({
           aria-controls={reviewPicker ? "review-picker" : menuControls(menus)}
           aria-expanded={Boolean(reviewPicker) || menus.commandMenuOpen || menus.threadMenuOpen}
           aria-activedescendant={menuActiveDescendant(menus)}
-          aria-describedby={steerHint ? hintId : undefined}
           rows={2}
         />
         <div className="composer-bar">
           <AttachButton disabled={disabled} onFilesAdd={onFilesAdd} />
           <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} coordinating={coordinating} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
-            <ComposerHint id={hintId} steer={steerHint} />
             {planUsage && <PlanUsageMeter engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
             <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} recall={history.length > 0} onSend={() => void submit()} onCancel={onCancel} />

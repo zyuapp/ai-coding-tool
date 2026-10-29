@@ -90,11 +90,3 @@ test("a focused tab closes on Delete", async () => {
   assert.equal(query(view.container, '[data-dock-tab="side-1"] > button:not([role="tab"])').dataset.tip, "Close tab");
   await view.unmount();
 });
-
-test("the add menu teaches each panel's slash command, except on one that cannot open", async () => {
-  const launcher = (id: string, disabled: boolean) => ({ id, title: id, description: "", command: id, icon: Bot, open: () => {}, disabled, disabledLabel: disabled ? "Not here" : undefined, disabledReason: disabled ? "Not here" : undefined });
-  const view = await mount(strip({ addMenuOpen: true, launchers: [launcher("browser", false), launcher("terminal", true)] as unknown as StripProps["launchers"] }));
-  const items = [...view.container.querySelectorAll<HTMLButtonElement>('.right-dock-add [role="menuitem"]')];
-  assert.deepEqual(items.map((entry) => entry.querySelector("kbd")?.textContent ?? null), ["/browser", null]);
-  await view.unmount();
-});
