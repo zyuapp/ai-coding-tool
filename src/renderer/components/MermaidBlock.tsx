@@ -196,6 +196,8 @@ async function drawDiagram(source: string, id: string, room: number): Promise<Dr
         startOnLoad: false,
         securityLevel: "strict",
         theme: scheme === "light" ? "default" : "dark",
+        /** The layout every diagram here was drawn with before ELK became the default. */
+        layout: "dagre",
         /**
          * A label drawn as SVG text is measured and painted in one place. An HTML label is
          * measured in one and painted in another, which cuts a label that grew between the two.
