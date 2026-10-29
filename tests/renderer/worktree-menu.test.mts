@@ -238,7 +238,7 @@ test("large destination lists search branches and keep the submenu inside the wi
     place('.menu-submenu', { x: 0, y: 0, width: 280, height: 350 });
     await pumpResizeObservers();
     const panel = query<HTMLElement>(document, '.menu-submenu');
-    assert.equal(panel.style.left, '-275px');
+    assert.equal(panel.style.left, '-283px');
     assert.equal(panel.style.top, '-128px');
     await search("issue-199");
     assert.equal(document.querySelectorAll('.worktree-menu-choice').length, 1);

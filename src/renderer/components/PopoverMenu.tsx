@@ -83,8 +83,8 @@ function SubmenuPanel({ children, top, autoFocus, onLeave }: { children: ReactNo
     const place = () => {
       const box = element.getBoundingClientRect();
       const parent = element.parentElement!.getBoundingClientRect();
-      let left = parent.right - 5;
-      if (left + box.width + EDGE > innerWidth) left = parent.left - box.width + 5;
+      let left = parent.right + 3;
+      if (left + box.width + EDGE > innerWidth) left = parent.left - box.width - 3;
       left = Math.max(EDGE, Math.min(left, innerWidth - box.width - EDGE)) - parent.left;
       const placedTop = Math.max(EDGE, Math.min(parent.top + top, innerHeight - box.height - EDGE)) - parent.top;
       setPlacement((current) => current?.left === left && current?.top === placedTop ? current : { left, top: placedTop });
@@ -202,7 +202,7 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
   const fallback = useRef<HTMLDivElement>(null);
   const list = menuRef ?? fallback;
   const usable = itemIndexes(entries);
-  const checkable = entries.some((entry) => entry !== "separator" && entry.checked !== undefined);
+  const checkable = entries.some((entry) => entry !== "separator" && entry.checked);
   const isSubmenu = Boolean(onLeave);
   const placement = useSubmenuPlacement(isSubmenu, list);
 
