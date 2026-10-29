@@ -12,7 +12,7 @@ const projects = [
 ];
 const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")!.set!;
 
-test("the Priority view's project menu is searched by project or computer name, and Enter picks the top match", async () => {
+test("the sidebar heading's menu is searched by project or computer name, and Enter picks the top match", async () => {
   const picked: (string | null)[] = [];
   const view = await mount(renderProjectSidebar({
     mode: "activity",
@@ -20,12 +20,12 @@ test("the Priority view's project menu is searched by project or computer name, 
     projectHosts: new Map([["ml", linux]]),
     activityThreads: { priority: [task("done", { projectId: "web", outcome: "finished" })], running: [], threads: [], snoozed: [] },
     activityProject: null,
-    openMenu: "activity:project",
+    openMenu: "sidebar:scope",
     onSetActivityProject: (projectId) => picked.push(projectId),
   }));
   try {
-    const field = query<HTMLInputElement>(document, ".activity-filter-menu .menu-search input");
-    const labels = () => [...document.querySelectorAll<HTMLButtonElement>('.activity-filter-menu [role="menuitemcheckbox"]')].map((choice) => choice.textContent);
+    const field = query<HTMLInputElement>(document, ".sidebar-scope-menu .menu-search input");
+    const labels = () => [...document.querySelectorAll<HTMLButtonElement>('.sidebar-scope-menu [role="menuitemcheckbox"]')].map((choice) => choice.textContent);
     const type = async (text: string) => act(async () => {
       setValue.call(field, text);
       field.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
@@ -34,7 +34,7 @@ test("the Priority view's project menu is searched by project or computer name, 
     assert.equal(field.closest(".sidebar-scroll"), null, "the menu is drawn outside the scrolling list that would crop it");
     assert.equal(document.activeElement, field, "the caret is in the field as the menu opens");
     assert.equal(field.placeholder, "Search projects");
-    assert.deepEqual(labels(), ["All projects", "web-app", "billing-api", "api-gateway", "ml-pipelinelinux-box"]);
+    assert.deepEqual(labels(), ["Activity", "Projects", "All projects", "web-app", "billing-api", "api-gateway", "ml-pipelinelinux-box"]);
 
     await type("api");
     assert.deepEqual(labels(), ["api-gateway", "billing-api"], "a name that starts with the query comes first");
@@ -43,7 +43,7 @@ test("the Priority view's project menu is searched by project or computer name, 
     assert.deepEqual(labels(), ["ml-pipelinelinux-box"], "the computer's name finds its projects");
     await type("nothing here");
     assert.deepEqual(labels(), []);
-    assert.equal(query(document, ".activity-filter-menu .menu-empty").textContent, "No matches");
+    assert.equal(query(document, ".sidebar-scope-menu .menu-empty").textContent, "No matches");
 
     await type("bill");
     await press(field, "ArrowDown");

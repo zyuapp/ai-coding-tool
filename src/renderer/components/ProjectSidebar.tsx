@@ -9,8 +9,9 @@ import type { SidebarMode, SidebarSection, SidebarSections } from "../../domain/
 import type { ActivitySections } from "../../application/thread-order";
 import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
-import { ProjectFilter, SidebarActivity } from "./SidebarActivity";
-import { SidebarHeader, SidebarResizer, SidebarViewControls } from "./SidebarChrome";
+import { SidebarActivity } from "./SidebarActivity";
+import { SidebarHeader, SidebarResizer } from "./SidebarChrome";
+import { SidebarScope, type SidebarScopeProps } from "./SidebarScope";
 import type { ThreadHost } from "../../application/computers";
 import { offlineMessage, type ComputerFilter, type ComputerLink } from "../../domain/computers";
 import { PROJECT_DRAG, RECENTS_DROPPABLE, SidebarProjects, useShownThreads } from "./SidebarProjects";
@@ -20,14 +21,11 @@ import type { ThreadRole } from "../../domain/thread-role";
 import type { AppUpdate } from "../../domain/app-update";
 import { SidebarFooter } from "./SidebarFooter";
 import { shortcutTip } from "./TooltipLayer";
-import { displayShortcut } from "../../domain/shortcuts";
-import { MAC } from "../platform";
 import { CommandButton } from "./CommandControl";
 import { roleIcon } from "./ThreadRoleMark";
 
 const NEW_THREAD_TIP = shortcutTip("New thread", "Mod+N");
 const SEARCH_TIP = shortcutTip("Search", "Mod+K");
-const SEARCH_KEYS = displayShortcut("Mod+K", MAC);
 
 export type ProjectSidebarProps = {
   open: boolean;
@@ -169,22 +167,17 @@ function useProjectGroups(orderedThreads: Thread[], worktreeGroups: WorktreeGrou
   return { threadsByProject, checkoutsByProject };
 }
 
-function NewThreadBar({ onNewThread }: { onNewThread: () => void }) {
+/** What the lists show, then searching them and starting a thread. */
+function SidebarHead({ scope, onNewThread }: { scope: SidebarScopeProps; onNewThread: () => void }) {
   return (
     <div className="new-task-bar">
-      <button className="new-task-button" type="button" onClick={() => onNewThread()} data-tip={NEW_THREAD_TIP}>
-        {/** Two copies of one outline: the resting hairline, and the accent that draws over it on hover. */}
-        <svg className="new-task-edge" aria-hidden="true" focusable="false">
-          <rect className="new-task-edge-rest" pathLength={100} />
-          <rect className="new-task-edge-draw" pathLength={100} />
-        </svg>
-        <SquarePen className="new-task-icon" size={16} aria-hidden="true" />
-        <span className="new-task-label">New thread</span>
-      </button>
+      <SidebarScope {...scope} />
       <CommandButton command={{ type: "view.jump-open" }} className="sidebar-search" type="button" aria-label="Search threads and settings" data-tip={SEARCH_TIP}>
         <Search size={16} aria-hidden="true" />
-        <kbd aria-hidden="true">{SEARCH_KEYS}</kbd>
       </CommandButton>
+      <button className="new-task-button" type="button" aria-label="New thread" onClick={() => onNewThread()} data-tip={NEW_THREAD_TIP}>
+        <SquarePen size={16} aria-hidden="true" />
+      </button>
     </div>
   );
 }
@@ -293,7 +286,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       style={{ "--row-slots": railSlots } as React.CSSProperties}
     >
       <SidebarHeader canGoBack={canGoBack} canGoForward={canGoForward} onGoBack={onGoBack} onGoForward={onGoForward} />
-      <NewThreadBar onNewThread={onNewThread} />
+      <SidebarHead onNewThread={onNewThread} scope={{ mode, onSetMode, projects, projectHosts, project: activityProject, onSetProject: onSetActivityProject, computerLinks, computerName, computerFilter, onSetComputerFilter, openMenu, onSetOpenMenu }} />
 
       <div className="sidebar-scroll">
         {projects.length === 0 && <div className="sidebar-project-empty">
@@ -335,11 +328,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
           onRemoveProject={onRemoveProject}
         />}
       </div>
-      <SidebarFooter settingsOpen={settingsOpen} onOpenSettings={onOpenSettings} update={appUpdate} onDownloadUpdate={onDownloadUpdate} onInstallUpdate={onInstallUpdate}>
-        <SidebarViewControls mode={mode} onSetMode={onSetMode} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu}>
-          {mode === "activity" && <ProjectFilter projects={projects} projectHosts={projectHosts} project={activityProject} onSetProject={onSetActivityProject} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
-        </SidebarViewControls>
-      </SidebarFooter>
+      <SidebarFooter settingsOpen={settingsOpen} onOpenSettings={onOpenSettings} update={appUpdate} onDownloadUpdate={onDownloadUpdate} onInstallUpdate={onInstallUpdate} />
       <SidebarResizer />
     </aside>
     </DragDropContext>

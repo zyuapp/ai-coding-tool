@@ -328,22 +328,18 @@ test("the header's buttons name themselves and their keystrokes", async () => {
   try {
     assert.match(query(view.container, '[aria-label="Go back"]').dataset.tip ?? "", /^Back \(.+\[\)$/);
     assert.match(query(view.container, '[aria-label="Go forward"]').dataset.tip ?? "", /^Forward \(.+\]\)$/);
-    assert.match(query(view.container, '.new-task-button').dataset.tip ?? "", /^New thread \(.+N\)$/);
-    const modes = () => [...view.container.querySelectorAll<HTMLButtonElement>('[role="group"][aria-label="Sidebar view"] > button')];
-    assert.deepEqual(modes().map((mode) => [mode.getAttribute("aria-label"), mode.dataset.tip, mode.getAttribute("aria-pressed")]), [
-      ["Group by project", "Group by project", "true"],
-      ["Rank threads by activity", "Rank by activity", "false"],
-    ], "both views are on show, the one in effect pressed");
+    assert.match(query(view.container, '.new-task-button[aria-label="New thread"]').dataset.tip ?? "", /^New thread \(.+N\)$/);
   } finally { await view.unmount(); }
 
   const modes: string[] = [];
-  const activity = await mount(renderProjectSidebar({ mode: "activity", onSetMode: (mode) => { modes.push(mode); } }));
+  const activity = await mount(renderProjectSidebar({ mode: "activity", openMenu: "sidebar:scope", onSetMode: (mode) => { modes.push(mode); } }));
   try {
-    const button = (label: string) => query<HTMLButtonElement>(activity.container, `[aria-label="${label}"]`);
-    assert.equal(button("Rank threads by activity").getAttribute("aria-pressed"), "true");
-    await act(async () => { button("Rank threads by activity").click(); });
-    assert.deepEqual(modes, [], "choosing the view in effect changes nothing");
-    await act(async () => { button("Group by project").click(); });
+    const choice = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('.sidebar-scope-menu [role="menuitemcheckbox"]')].find((item) => item.textContent === label)!;
+    assert.equal(choice("Activity").getAttribute("aria-checked"), "true");
+    await act(async () => { choice("Activity").click(); });
+    assert.equal(modes.length, 0, "choosing the view in effect changes nothing");
+    await activity.render(renderProjectSidebar({ mode: "activity", openMenu: "sidebar:scope", onSetMode: (mode) => { modes.push(mode); } }));
+    await act(async () => { choice("Projects").click(); });
     assert.deepEqual(modes, ["projects"]);
   } finally { await activity.unmount(); }
 });
@@ -356,13 +352,11 @@ test("the search button beside New thread opens the jump palette and names its k
   try {
     const search = query<HTMLButtonElement>(view.container, ".new-task-bar .sidebar-search");
     assert.match(search.dataset.tip ?? "", /^Search \(.+K\)$/);
-    assert.match(query(search, "kbd").textContent ?? "", /K$/, "the keystroke reads without hovering");
-    assert.equal(query(view.container, ".new-task-button").textContent, "New thread");
+    assert.equal(search.nextElementSibling, query(view.container, ".new-task-button"));
     await act(async () => { search.click(); });
     assert.deepEqual(sent, ["view.jump-open"]);
   } finally { await view.unmount(); }
 });
-
 test("the folder a new thread would start in is marked, and an open folder draws open", async () => {
   const view = await mount(renderProjectSidebar({
     projects: [{ id: "a", root: "/work/a" }, { id: "b", root: "/work/b" }],
@@ -612,7 +606,7 @@ test("an activity row holds its buttons without being one, is marked current whe
   } finally { await view.unmount(); }
 });
 
-test("a narrowed activity filter clears in one press beside it, and focus lands back on the filter", async () => {
+test("a narrowed sidebar heading clears in one press beside it, and focus lands back on the heading", async () => {
   const picked: (string | null)[] = [];
   const view = await mount(renderProjectSidebar({
     mode: "activity",
@@ -621,15 +615,15 @@ test("a narrowed activity filter clears in one press beside it, and focus lands 
     onSetActivityProject: (id) => { picked.push(id); },
   }));
   try {
-    const clear = query<HTMLButtonElement>(view.container, '.activity-filter-clear[aria-label="Show all projects"]');
+    const clear = query<HTMLButtonElement>(view.container, '.sidebar-scope-clear[aria-label="Show all projects"]');
     await act(async () => { clear.click(); });
     assert.deepEqual(picked, [null]);
-    assert.equal(document.activeElement, query(view.container, ".activity-filter-trigger"));
+    assert.equal(document.activeElement, query(view.container, ".sidebar-scope-trigger"));
   } finally { await view.unmount(); }
 
   const all = await mount(renderProjectSidebar({ mode: "activity", projects: [{ id: "web", root: "/work/web" }, { id: "api", root: "/work/api" }] }));
   try {
-    assert.equal(all.container.querySelector(".activity-filter-clear"), null, "nothing to clear while every project is listed");
+    assert.equal(all.container.querySelector(".sidebar-scope-clear"), null, "nothing to clear while every project is listed");
   } finally { await all.unmount(); }
 });
 

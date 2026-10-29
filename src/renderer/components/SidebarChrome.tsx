@@ -1,86 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { LuActivity as ActivityIcon, LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight, LuFolder as Folder, LuMonitor as Monitor, LuMonitorOff as MonitorOff } from "react-icons/lu";
-import { awayStatus, type ComputerFilter, type ComputerLink } from "../../domain/computers";
-import type { SidebarMode } from "../../domain/sidebar";
-import { useDismissibleLayer } from "../focus";
-import { MenuList, type MenuItem } from "./PopoverMenu";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight } from "react-icons/lu";
 import { shortcutTip } from "./TooltipLayer";
 
 const BACK_TIP = shortcutTip("Back", "Mod+[");
 const FORWARD_TIP = shortcutTip("Forward", "Mod+]");
-
-type ComputerSwitchProps = {
-  links: ComputerLink[];
-  /** What this computer calls itself. */
-  name: string;
-  filter: ComputerFilter;
-  onSetFilter: (filter: ComputerFilter) => void;
-  openMenu: string | null;
-  onSetOpenMenu: (menu: string | null) => void;
-};
-
-const COMPUTER_MENU = "sidebar:computers";
-
-/**
- * Which computers' threads the lists above draw: every one, this one, or one paired computer. A
- * footer button the size of its neighbours, pressed while the lists are narrowed to one computer.
- */
-function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenMenu }: ComputerSwitchProps) {
-  const open = openMenu === COMPUTER_MENU;
-  const root = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-  useDismissibleLayer(open, [root], () => onSetOpenMenu(null), trigger);
-  /** A computer that is not connected says whether it is being dialled again or waiting to be. */
-  const choices: Array<{ filter: ComputerFilter; label: string; away?: string }> = [
-    { filter: "all", label: "All" },
-    { filter: "this", label: name || "This computer" },
-    ...links.map((link) => ({ filter: link.id, label: link.name, ...(link.status !== "connected" ? { away: awayStatus(link.status) } : {}) })),
-  ];
-  const selected = choices.find((choice) => choice.filter === filter) ?? choices[0]!;
-  const narrowed = selected.filter !== "all";
-  const Screen = selected.away ? MonitorOff : Monitor;
-  /** Computers out of reach while the lists draw from more than the one picked, which the trigger flags. */
-  const away = narrowed ? [] : choices.filter((choice) => choice.away);
-  const awayTip = away.map((choice) => `${choice.label} ${choice.away}`).join(" · ");
-  const tip = !narrowed ? ["Computers", awayTip].filter(Boolean).join(" · ") : selected.filter === "this" ? `Only ${name || "this computer"}` : `Only ${selected.label}${selected.away ? ` (${selected.away})` : ""}`;
-  const entries: MenuItem[] = choices.map((choice) => ({
-    label: choice.label,
-    checked: filter === choice.filter,
-    className: choice.away ? "offline" : undefined,
-    detail: choice.away && `${choice.away[0]!.toUpperCase()}${choice.away.slice(1)}`,
-    onSelect: () => onSetFilter(choice.filter),
-  }));
-  return (
-    <div ref={root} className="computer-switch" data-popover-menu onBlur={(event) => {
-      if (open && !event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
-    }}>
-      <button
-        ref={trigger}
-        type="button"
-        className={`thread-nav-button computer-switch-trigger${narrowed ? " active" : ""}${selected.away ? " offline" : ""}${away.length ? " some-away" : ""}`}
-        aria-label={away.length ? `Computers, ${away.length} offline` : "Computers"}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        data-tip={tip}
-        onClick={() => onSetOpenMenu(open ? null : COMPUTER_MENU)}
-        onKeyDown={(event) => {
-          if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-          event.preventDefault();
-          onSetOpenMenu(COMPUTER_MENU);
-        }}
-      >
-        <Screen size={16} aria-hidden="true" />
-        {narrowed && <span className="computer-switch-name">{selected.label}</span>}
-      </button>
-      {open && <MenuList entries={entries} onClose={() => onSetOpenMenu(null)} className="computer-switch-menu" />}
-    </div>
-  );
-}
-
-const SIDEBAR_MODES = [
-  { value: "projects", label: "Group by project", tip: "Group by project", Icon: Folder },
-  { value: "activity", label: "Rank threads by activity", tip: "Rank by activity", Icon: ActivityIcon },
-] as const satisfies ReadonlyArray<{ value: SidebarMode; label: string; tip: string; Icon: unknown }>;
 
 export type SidebarHeaderProps = {
   canGoBack: boolean;
@@ -100,46 +23,6 @@ export function SidebarHeader({ canGoBack, canGoForward, onGoBack, onGoForward }
           <ChevronRight size={16} aria-hidden="true" />
         </button>
       </div>
-    </div>
-  );
-}
-
-export type SidebarViewControlsProps = {
-  mode: SidebarMode;
-  /** The paired computers, whose switch shows only once there is one. */
-  computerLinks: ComputerLink[];
-  computerName: string;
-  computerFilter: ComputerFilter;
-  openMenu: string | null;
-  onSetComputerFilter: (filter: ComputerFilter) => void;
-  onSetOpenMenu: (menu: string | null) => void;
-  onSetMode: (mode: SidebarMode) => void;
-  /** Activity mode's project filter, drawn after the computer switch. */
-  children?: ReactNode;
-};
-
-/** How the lists are drawn and which threads they draw from, in the sidebar's footer. */
-export function SidebarViewControls({ mode, computerLinks, computerName, computerFilter, openMenu, onSetComputerFilter, onSetOpenMenu, onSetMode, children }: SidebarViewControlsProps) {
-  return (
-    <div className="sidebar-modes">
-      {/** Both ways of drawing the lists side by side, the one in effect filled. */}
-      <div className="sidebar-mode-switch" role="group" aria-label="Sidebar view">
-        {SIDEBAR_MODES.map(({ value, label, tip, Icon }) => (
-          <button
-            key={value}
-            className={`sidebar-mode${mode === value ? " active" : ""}`}
-            type="button"
-            aria-label={label}
-            aria-pressed={mode === value}
-            data-tip={tip}
-            onClick={() => { if (mode !== value) onSetMode(value); }}
-          >
-            <Icon size={16} aria-hidden="true" />
-          </button>
-        ))}
-      </div>
-      {computerLinks.length > 0 && <ComputerSwitch links={computerLinks} name={computerName} filter={computerFilter} onSetFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
-      {children}
     </div>
   );
 }

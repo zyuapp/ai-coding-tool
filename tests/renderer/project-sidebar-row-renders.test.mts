@@ -1,4 +1,4 @@
-import { seedProjectTasks } from "../support/sidebar.mts";
+import { seedProjectTasks, chooseSidebarView } from "../support/sidebar.mts";
 import { automationView, fakeDesktop } from "../support/desktop-api.mts";
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
@@ -70,7 +70,7 @@ test("a background run's tool call redraws only its own row, in both sidebar mod
     assert.ok(query(row("Busy task"), ".task-spinner"), "the busy row keeps its spinner");
     assert.ok(row("Quiet task").classList.contains("active"));
 
-    await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Rank threads by activity"]').click(); });
+    await chooseSidebarView(view.container, "Activity");
     await settleFrame();
     await toolCall();
     assert.ok(query(row("Busy task"), ".task-spinner"), "the busy row keeps its spinner");

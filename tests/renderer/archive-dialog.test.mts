@@ -4,7 +4,7 @@ import { test, vi } from "vitest";
 import React, { act } from "react";
 import { App } from "../../src/renderer/App.tsx";
 import { dom, mount, query } from "../support/renderer-dom.mts";
-import { seedProjectTasks } from "../support/sidebar.mts";
+import { seedProjectTasks, chooseSidebarView } from "../support/sidebar.mts";
 
 vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
@@ -29,7 +29,7 @@ test("a row's Archive asks first: Cancel, Escape and the backdrop keep the threa
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
   try {
-    await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Rank threads by activity"]').click(); });
+    await chooseSidebarView(view.container, "Activity");
     await chooseArchive(view.container, "Quiet");
     assert.equal(dialog()?.getAttribute("aria-label"), "Archive “Quiet”?");
     assert.match(dialog()?.textContent ?? "", /It leaves the sidebar\. Restore it from Settings › Archived threads within 5 days\./);
