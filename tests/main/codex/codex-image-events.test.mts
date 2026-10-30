@@ -5,7 +5,7 @@ import type { ThreadItem } from "../../../src/main/codex/protocol/v2/ThreadItem.
 import { completeTurn, harness, input, opened, sentBy, tick, turn } from "../../support/codex-client.mjs";
 
 const at = { threadId: "thread-1", turnId: "turn-1" };
-const image: ThreadItem = { type: "imageGeneration", id: "image-1", status: "completed", revisedPrompt: "Cat", result: "image bytes", failure: null };
+const image: ThreadItem = { type: "imageGeneration", id: "image-1", status: "completed", revisedPrompt: "Cat", result: "image bytes", failure: null, generationId: null };
 
 test("image generation reports progress and waits for a durable artifact before the run completes", async () => {
   const events: ProviderEvent[] = [];
