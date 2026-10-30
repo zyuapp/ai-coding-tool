@@ -1187,7 +1187,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   height: 18px;
   transform: translateY(1px);
 }
-.heading-separator { flex: none; color: var(--quiet); font-weight: 400; }
+.heading-separator { flex: none; margin-right: 2px; color: var(--quiet); font-weight: 400; }
 .heading-thread { flex: 0 1 auto; min-width: 6ch; }
 /** The title is a button, padded past its text so it is an easy target, with the padding pulled back out of the line. */
 .task-heading h1 > button { min-width: 4ch; height: 28px; margin: 0 -5px; border: 0; border-radius: 7px; padding: 0 5px; overflow: hidden; background: transparent; font: inherit; letter-spacing: inherit; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; -webkit-app-region: no-drag; transition: background 120ms ease, color 120ms ease; }
