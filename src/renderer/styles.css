@@ -1176,9 +1176,9 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 }
 /* Both crumbs shrink, so a long project and a long title each give ground before the row clips. */
 .task-heading h1 > span { overflow: hidden; text-overflow: ellipsis; }
-.task-heading h1 > .heading-project { flex: 0 1 auto; min-width: 6ch; color: var(--muted); font-weight: 500; }
+.task-heading h1 > .heading-project { flex: 0 1 auto; min-width: calc-size(max-content, min(size, 6ch)); color: var(--muted); font-weight: 500; }
 /* Use the name's text baseline for the crumb, keeping the icon out of baseline calculation. */
-.task-heading h1 > .heading-host { flex: 0 1 auto; align-items: baseline; min-width: 4ch; font-size: inherit; font-weight: 500; color: var(--muted); }
+.task-heading h1 > .heading-host { flex: 0 1 auto; align-items: baseline; min-width: calc-size(max-content, min(size, 4ch)); font-size: inherit; font-weight: 500; color: var(--muted); }
 .task-heading h1 > .heading-host > svg { align-self: center; }
 /* Match the heading's visual weight and compensate for the font's lower optical center. */
 .task-heading h1 > .heading-host > svg,
