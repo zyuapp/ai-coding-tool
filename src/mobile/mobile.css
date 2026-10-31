@@ -160,6 +160,17 @@ button {
   transition: transform 220ms var(--ease);
 }
 
+@media (display-mode: standalone) {
+  html,
+  body {
+    height: 100lvh;
+  }
+
+  .app {
+    height: calc(100lvh - var(--keyboard-height, 0px));
+  }
+}
+
 #root:has(> .app[data-swiping]) {
   background: var(--sunken);
 }
@@ -2447,6 +2458,12 @@ button.thread-start-project:active {
   padding: var(--gutter);
   text-align: center;
   color: var(--muted);
+}
+
+@media (display-mode: standalone) {
+  .gate {
+    height: 100lvh;
+  }
 }
 
 .gate h1 {
