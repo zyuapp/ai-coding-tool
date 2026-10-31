@@ -504,6 +504,8 @@ export type ViewCommand =
   /** Folds or unfolds one group of a coordinator's Overview, or shows every thread in it. */
   | { type: "view.set-overview-group"; taskId: string; group: OverviewSection; open?: boolean; all?: boolean }
   | { type: "view.set-model-favorite"; model: AgentModel; favorite: boolean }
+  /** Puts a project picked to start a thread at the front of the new-thread picker's Recent list. */
+  | { type: "view.remember-project"; projectId: string }
   /** The theme the window paints in. An id the app does not ship is ignored. */
   | { type: "view.set-theme"; theme: string }
   /** The family to paint, on whichever ground the mode in effect asks for. */

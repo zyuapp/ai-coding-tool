@@ -11,6 +11,7 @@ import { capabilitiesFor, isAgentModel } from "../../domain/agent-engine.js";
 import { isSubagentGroup } from "../../domain/run.js";
 import { isSettingsSection } from "../../domain/settings-section.js";
 import { isSidebarSection } from "../../domain/sidebar.js";
+import { rememberProject } from "../../domain/project.js";
 import { isThemeMode, themeById, themeFor, themeOrDefault, variantFor } from "../../domain/theme.js";
 import { READING_SIZE, TERMINAL_SIZE, monoFontById, sizeById, uiFontById } from "../../domain/typography.js";
 
@@ -29,6 +30,12 @@ export function reduceModelFavorite(state: WorkspaceState, input: Extract<Worksp
   const favoriteModels = state.favoriteModels.filter((model) => model !== input.model);
   if (input.favorite) favoriteModels.push(input.model);
   const next = { ...state, favoriteModels };
+  return settled(next, persistView(next));
+}
+
+export function reduceRememberProject(state: WorkspaceState, input: Extract<WorkspaceInput, { type: "view.remember-project" }>): WorkspaceTransition {
+  if (state.recentProjects[0] === input.projectId) return settled(state);
+  const next = { ...state, recentProjects: rememberProject(state.recentProjects, input.projectId) };
   return settled(next, persistView(next));
 }
 

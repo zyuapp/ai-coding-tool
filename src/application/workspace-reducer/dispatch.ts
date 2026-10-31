@@ -17,7 +17,7 @@ import { reduceSideChats, SIDE_CHAT_INPUTS } from "./side-chats.js";
 import { DIFF_INPUTS, reduceDiffs } from "./diffs.js";
 import { reduceStore, STORE_INPUTS } from "./store.js";
 import { COMPOSER_INPUTS, reduceComposer } from "./composer.js";
-import { reduceSettings, reduceModelFavorite, SETTINGS_INPUTS } from "./settings.js";
+import { reduceSettings, reduceModelFavorite, reduceRememberProject, SETTINGS_INPUTS } from "./settings.js";
 import { DOCK_INPUTS, reduceDock } from "./dock.js";
 import { BROWSER_INPUTS, reduceBrowser } from "./browser.js";
 import { BROWSER_IMPORT_INPUTS, reduceBrowserImport } from "./browser-import.js";
@@ -68,6 +68,7 @@ export const CLAIMS = [
   claim(STORE_INPUTS, reduceStore),
   claim(COMPOSER_INPUTS, reduceComposer),
   claim(["view.set-model-favorite"], reduceModelFavorite),
+  claim(["view.remember-project"], reduceRememberProject),
   claim(["view.dismiss-toast", "view.hold-toasts"], reduceToasts),
   claim(APP_UPDATE_INPUTS, reduceAppUpdate),
   claim(SETTINGS_INPUTS, reduceSettings),

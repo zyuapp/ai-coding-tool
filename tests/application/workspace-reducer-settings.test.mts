@@ -226,3 +226,22 @@ test("a poll that brings the same permissions leaves the window nothing to redra
   assert.notEqual(changed.state, first.state);
   assert.deepEqual(changed.state.computerUsePermissions.permissions, { accessibility: true, screenRecording: true });
 });
+
+test("picked projects lead a recent list of five that persists and restores", () => {
+  let state = workspace();
+  for (const projectId of ["a", "b", "c", "d", "e", "f"]) state = reduce(state, { type: "view.remember-project", projectId }).state;
+  assert.deepEqual(state.recentProjects, ["f", "e", "d", "c", "b"], "the oldest falls off past five");
+  const moved = reduce(state, { type: "view.remember-project", projectId: "c" });
+  assert.deepEqual(moved.state.recentProjects, ["c", "f", "e", "d", "b"], "picking one again moves it to the front");
+  const saved = effectAt(moved, "persist-preferences").preferences;
+  assert.deepEqual(saved.recentProjects, ["c", "f", "e", "d", "b"]);
+  assert.deepEqual(reduce(moved.state, { type: "view.remember-project", projectId: "c" }).effects, [], "the project already in front writes nothing");
+  const storage = new Map<string, string>([[VIEW_PREFERENCES_KEY, JSON.stringify(saved)]]);
+  const read = readViewPreferences({ getItem: (key) => storage.get(key) ?? null, setItem: () => {} });
+  assert.deepEqual(reduce(workspace(), { type: "preferences.loaded", preferences: { ...saved, ...read } }).state.recentProjects, ["c", "f", "e", "d", "b"]);
+});
+
+test("a stored recent list drops what it cannot read and keeps five", () => {
+  const storage = new Map<string, string>([[VIEW_PREFERENCES_KEY, JSON.stringify({ recentProjects: ["a", 3, "", "a", "b", "c", "d", "e", "f"] })]]);
+  assert.deepEqual(readViewPreferences({ getItem: (key) => storage.get(key) ?? null, setItem: () => {} }).recentProjects, ["a", "b", "c", "d", "e"]);
+});

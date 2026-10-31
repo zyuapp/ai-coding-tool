@@ -326,6 +326,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   /** The control on that page to scroll to and mark, when something named one. */
   settingsFocus: SettingMark | null;
   favoriteModels: AgentModel[];
+  /** The projects last picked in the new-thread picker, newest first. Kept between launches. */
+  recentProjects: string[];
   /** The bindings the user changed, and the action waiting for a keystroke while settings are open. */
   shortcuts: ShortcutOverrides;
   capturingShortcut: string | null;
@@ -501,6 +503,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     settingsSection: null,
     settingsFocus: null,
     favoriteModels: [],
+    recentProjects: [],
     shortcuts: {},
     capturingShortcut: null,
     desktopShortcutUnavailable: null,
@@ -794,7 +797,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     computerUse: state.computerUse,
     browserTools: state.browserTools,
     notifications: state.notifications,
-    favoriteModels: state.favoriteModels, shortcuts: shortcutSettings(state.shortcuts),
+    favoriteModels: state.favoriteModels, recentProjects: state.recentProjects, shortcuts: shortcutSettings(state.shortcuts),
     capturingShortcut: state.capturingShortcut, desktopShortcutUnavailable: state.desktopShortcutUnavailable,
     composerFocus: state.composerFocus,
     /** Only the dock on screen can take the keys, so a request in another thread's dock is not drawn. */

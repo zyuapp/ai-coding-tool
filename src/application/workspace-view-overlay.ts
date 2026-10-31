@@ -15,7 +15,7 @@ const OWN_VIEW_KEYS = [
   "installedApps", "cli", "planUsage", "computerUsePermissions", "computerUseSetup", "storageError", "hiddenThreads", "restored", "viewingImage",
   "expandedProjects", "projectAdd", "projectEditor", "worktreeMove", "forkName", "archivePrompt", "sections", "subagentGroups", "theme", "themeMode", "uiFont", "monoFont", "readingSize", "terminalSize",
   "sidebarMode", "activityProject", "sidebarOpen", "sessionPanelOpen", "captureSound", "captureFocus", "chromeBrowser", "computerUse", "browserTools", "notifications",
-  "favoriteModels", "shortcuts", "capturingShortcut", "desktopShortcutUnavailable", "composerFocus", "settingsOpen", "settingsSection", "settingsFocus",
+  "favoriteModels", "recentProjects", "shortcuts", "capturingShortcut", "desktopShortcutUnavailable", "composerFocus", "settingsOpen", "settingsSection", "settingsFocus",
   "openMenu", "jump", "zen", "remote", "remoteChecking", "appUpdate", "visibleToasts", "automationEdits", "canGoBack", "canGoForward", "browserOrigins", "browserImport",
   "computerLinks", "computerUsage", "computerUpkeep", "activeComputer", "computerName", "computerFilter", "computerPairing", "computersFound", "computersSearching", "computersSearchError", "threadHosts", "projectHosts",
   "threadsByCoordinator", "waitingLines", "coordinatorsByComputer",

@@ -1768,6 +1768,8 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   font-size: var(--text-meta);
   font-weight: 500;
 }
+/** A heading that names no computer, drawn as a computer's heading is. */
+.thread-start-group-label { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
 /** The option that is not a branch is set apart from the branches under it. */
 .branch-menu button.branch-menu-extra { border-bottom: 1px solid var(--line-soft); }
 /** A grouped list already names what follows, so the rule under the extra would say it twice. */

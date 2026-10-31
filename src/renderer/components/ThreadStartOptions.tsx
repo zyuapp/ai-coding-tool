@@ -1,4 +1,4 @@
-import { LuChevronDown as ChevronDown, LuCircleAlert as CircleAlert, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuMessageCircle as MessageCircle, LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
+import { LuChevronDown as ChevronDown, LuCircleAlert as CircleAlert, LuClock as Clock, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuMessageCircle as MessageCircle, LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
 import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import type { ThreadHost } from "../../application/computers";
@@ -14,6 +14,12 @@ export function matchProjects(projects: Project[], query: string, projectHosts?:
   if (!needle) return projects;
   const localHostName = projects.some((project) => projectHosts?.has(project.id)) ? "This computer" : "";
   return projects.filter((project) => `${projectName(project)} ${project.root} ${projectHosts?.get(project.id)?.name ?? localHostName}`.toLowerCase().includes(needle));
+}
+
+/** The recently picked projects that still exist, newest first. */
+export function recentProjects(projects: Project[], recentIds: readonly string[]) {
+  const byId = new Map(projects.map((project) => [project.id, project]));
+  return recentIds.flatMap((id) => byId.get(id) ?? []);
 }
 
 /** Each computer's projects by name, with this computer before the paired computers by name. */
@@ -41,6 +47,8 @@ export type ThreadStartOptionsProps = {
   projects: Project[];
   projectHosts?: ReadonlyMap<string, ThreadHost>;
   projectId: string | null;
+  /** Project ids last picked here, newest first. Ids with no project are skipped. */
+  recentProjectIds?: readonly string[];
   /** The project's registered workspace, which is what the branches are read from. */
   workspaceId?: string;
   branch: DraftBranch | null;
@@ -71,7 +79,7 @@ function CoordinatorToggle({ coordinator, onSetCoordinator }: Pick<ThreadStartOp
  * from, and whether it gets a checkout of its own. No project makes it a chat. Nothing here touches
  * disk — the first message does that.
  */
-export function ThreadStartOptions({ projects, projectHosts, projectId, workspaceId, branch, worktree, startsInWorktree, onSelectProject, onSelectBranch, onSetWorktree, coordinator, onSetCoordinator }: ThreadStartOptionsProps) {
+export function ThreadStartOptions({ projects, projectHosts, projectId, recentProjectIds = [], workspaceId, branch, worktree, startsInWorktree, onSelectProject, onSelectBranch, onSetWorktree, coordinator, onSetCoordinator }: ThreadStartOptionsProps) {
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [projectQuery, setProjectQuery] = useState("");
   const [branchesOpen, setBranchesOpen] = useState(false);
@@ -103,6 +111,21 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
   const host = project && projectHosts?.get(project.id);
   const showComputers = projects.some((item) => projectHosts?.has(item.id));
   const label = project ? projectName(project) : "No project";
+  const recent = projectQuery.trim() ? [] : recentProjects(projects, recentProjectIds);
+  const hostName = (item: Project) => projectHosts?.get(item.id)?.name ?? "This computer";
+  const option = (item: Project) => (
+    <PickerOption
+      key={item.id}
+      aria-label={showComputers ? `${projectName(item)} on ${hostName(item)}` : undefined}
+      selected={item.id === projectId}
+      onClick={() => {
+        setProjectsOpen(false);
+        onSelectProject(item.id);
+      }}
+    >
+      {projectName(item)}
+    </PickerOption>
+  );
 
   return (
     <div className="thread-start" aria-label="How this thread starts">
@@ -120,23 +143,20 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           <div role="listbox" aria-label="Projects">
             {/** Leaving the project behind is how a chat is started, so it leads the list rather than hiding in it. */}
             {!projectQuery.trim() && <PickerOption className="thread-start-no-project" selected={!project} onClick={() => { setProjectsOpen(false); if (project) onSelectProject(undefined); }}>No project</PickerOption>}
+            {recent.length > 0 && (
+              <div role="group" aria-label="Recent">
+                <div className="thread-start-group-heading" aria-hidden="true"><span className="thread-start-group-label"><Clock size={12} /><span>Recent</span></span></div>
+                {recent.map(option)}
+              </div>
+            )}
             {matched.length === 0 && <p className="thread-start-empty">No project matches</p>}
+            {/** Below Recent, an unlabelled list would read as more of it, so it is named when no computer names it. */}
             {groupProjects(matched, projectHosts).map(({ host, projects: grouped }) => (
-              <div key={host ? `remote:${host.id}` : "local"} role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? "This computer" : undefined}>
-                {showComputers && <div className="thread-start-group-heading" aria-hidden="true"><HostMark name={host?.name ?? "This computer"} offline={host?.offline} reconnecting={host?.reconnecting} /></div>}
-                {grouped.map((item) => (
-                  <PickerOption
-                    key={item.id}
-                    aria-label={showComputers ? `${projectName(item)} on ${host?.name ?? "This computer"}` : undefined}
-                    selected={item.id === projectId}
-                    onClick={() => {
-                      setProjectsOpen(false);
-                      onSelectProject(item.id);
-                    }}
-                  >
-                    {projectName(item)}
-                  </PickerOption>
-                ))}
+              <div key={host ? `remote:${host.id}` : "local"} role={showComputers || recent.length ? "group" : undefined} aria-label={showComputers ? host?.name ?? "This computer" : recent.length ? "All projects" : undefined}>
+                {showComputers
+                  ? <div className="thread-start-group-heading" aria-hidden="true"><HostMark name={host?.name ?? "This computer"} offline={host?.offline} reconnecting={host?.reconnecting} /></div>
+                  : recent.length > 0 && <div className="thread-start-group-heading" aria-hidden="true"><span className="thread-start-group-label"><span>All projects</span></span></div>}
+                {grouped.map(option)}
               </div>
             ))}
           </div>

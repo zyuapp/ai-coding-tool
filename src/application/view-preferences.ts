@@ -3,6 +3,7 @@ import { isBrowserImportMemory } from "../domain/browser-import.js";
 import type { KeyValueStorage } from "./task-store.js";
 import { DRAFT_DOCK, type WorkspaceState } from "./workspace-state.js";
 import { MAX_REMEMBERED_TOASTS } from "../domain/toast.js";
+import { MAX_RECENT_PROJECTS } from "../domain/project.js";
 import { MAX_DISCARDED_LEADS } from "./computers.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import { shortcutAction, shortcutOverrides, shortcutProblem, type ShortcutOverrides } from "../domain/shortcuts.js";
@@ -78,6 +79,7 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
     const browserOrigins = urlList(value.browserOrigins);
     const dismissedToasts = Array.isArray(value.dismissedToasts) ? value.dismissedToasts.filter((key): key is string => typeof key === "string" && key.length > 0 && key.length <= 256).slice(-MAX_REMEMBERED_TOASTS) : undefined;
     const discardedLeads = Array.isArray(value.discardedLeads) ? value.discardedLeads.filter((id): id is string => typeof id === "string" && id.length > 0 && id.length <= 256).slice(-MAX_DISCARDED_LEADS) : undefined;
+    const recentProjects = Array.isArray(value.recentProjects) ? [...new Set(value.recentProjects.filter((id): id is string => typeof id === "string" && id.length > 0 && id.length <= 256))].slice(0, MAX_RECENT_PROJECTS) : undefined;
     const shortcuts = bindings(value.shortcuts);
     const groups = subagentGroups(value.subagentGroups);
     const folds = sidebarSections(value.sections);
@@ -110,6 +112,7 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
       ...(isBrowserImportMemory(value.browserImport) ? { browserImport: value.browserImport } : {}),
       ...(dismissedToasts ? { dismissedToasts } : {}),
       ...(discardedLeads?.length ? { discardedLeads } : {}),
+      ...(recentProjects?.length ? { recentProjects } : {}),
     };
   } catch {
     return {};
@@ -160,6 +163,7 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
     ...(state.browserImport.last ? { browserImport: state.browserImport.last } : {}),
     ...(state.dismissedToasts.length ? { dismissedToasts: state.dismissedToasts } : {}),
     ...(state.computers.discardedLeads.length ? { discardedLeads: state.computers.discardedLeads } : {}),
+    ...(state.recentProjects.length ? { recentProjects: state.recentProjects } : {}),
   };
 }
 
@@ -188,5 +192,6 @@ export function viewPreferenceState(preferences: ViewPreferences) {
     shortcuts: preferences.shortcuts ?? {},
     browserOrigins: preferences.browserOrigins ?? [],
     dismissedToasts: preferences.dismissedToasts ?? [],
+    recentProjects: preferences.recentProjects ?? [],
   };
 }
