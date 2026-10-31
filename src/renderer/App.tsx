@@ -176,7 +176,7 @@ export function App() {
 
   return (
     <CommandControlsProvider value={workspace.commandControls}><MessageLinkProvider actions={messageLinks}>
-    {workspace.viewingImage && <AttachmentViewer key={workspace.viewingImage} source={workspace.viewingImage} onClose={() => void workspace.dispatch({ type: "image.close" })} onDownload={() => void workspace.dispatch({ type: "image.download" })} />}
+    {workspace.viewingImage && <AttachmentViewer source={workspace.viewingImage} gallery={workspace.viewingGallery} onStep={(delta) => void workspace.dispatch({ type: "image.step", delta })} onClose={() => void workspace.dispatch({ type: "image.close" })} onDownload={() => void workspace.dispatch({ type: "image.download" })} />}
     <DiagramViewerHost>
     <main className={`app-shell ${workspace.zen ? "zen" : ""}`.trimEnd()}>
       <PartBoundary name="sidebar" className={`sidebar ${sidebarOpen ? "compact-open" : "hidden"}`}>

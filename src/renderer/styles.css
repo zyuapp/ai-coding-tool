@@ -4239,6 +4239,40 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
 .viewer-download, .viewer-copy { right: 58px; }
 .viewer-copy.copied { color: var(--success-soft); }
 .viewer-download:disabled { opacity: var(--disabled-opacity); cursor: default; }
+/* Room either side for the step buttons, so a fitted picture never sits under them. */
+.viewer.gallery { padding-inline: 68px; }
+.viewer-step {
+  position: absolute;
+  top: 50%;
+  width: 36px;
+  height: 36px;
+  margin-top: -18px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--control);
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.viewer-step.previous { left: 20px; }
+.viewer-step.next { right: 20px; }
+.viewer-step:hover:not(:disabled) { color: var(--ink); }
+.viewer-step:disabled { opacity: var(--disabled-opacity); cursor: default; }
+.viewer-count {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
 /* A zooming view brings its own scroller, which fills the shell rather than being centred as one fixed item. */
 .viewer.diagram, .viewer.image, .viewer.visual { display: block; }
 /* A visual draws on the conversation's own canvas, so the viewer lays one under it. */

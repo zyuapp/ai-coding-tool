@@ -15,7 +15,7 @@ async function loaded(width: number, height: number) {
 }
 
 test("a loaded picture exposes zoom controls and resizes its image", async () => {
-  const view = await mount(React.createElement(AttachmentViewer, { source: "shot.png", onClose: () => {}, onDownload: () => {} }));
+  const view = await mount(React.createElement(AttachmentViewer, { source: "shot.png", gallery: [], onStep: () => {}, onClose: () => {}, onDownload: () => {} }));
   const readout = () => query(document, ".viewer-zoom-level").textContent;
   const zoom = (label: string) => query<HTMLButtonElement>(document, `.viewer-zoom button[aria-label="${label}"]`);
 
@@ -43,7 +43,7 @@ test("a loaded picture exposes zoom controls and resizes its image", async () =>
 test("the picture viewer closes on Escape and on the backdrop, but not on a drag off the picture", async () => {
   const closed: string[] = [];
   const downloads: string[] = [];
-  const view = await mount(React.createElement(AttachmentViewer, { source: "shot.png", onClose: () => closed.push("closed"), onDownload: () => downloads.push("download") }));
+  const view = await mount(React.createElement(AttachmentViewer, { source: "shot.png", gallery: [], onStep: () => {}, onClose: () => closed.push("closed"), onDownload: () => downloads.push("download") }));
   const backdrop = query(document, ".viewer.image");
   assert.equal(document.querySelector("button[aria-label='Download image']"), null, "nothing is offered for a picture still loading");
   const image = await loaded(800, 400);
@@ -67,11 +67,36 @@ test("the picture viewer closes on Escape and on the backdrop, but not on a drag
 });
 
 test("a picture that is gone says so and offers only closing", async () => {
-  const view = await mount(React.createElement(AttachmentViewer, { source: "gone.png", onClose: () => {}, onDownload: () => {} }));
+  const view = await mount(React.createElement(AttachmentViewer, { source: "gone.png", gallery: [], onStep: () => {}, onClose: () => {}, onDownload: () => {} }));
   await act(async () => { query(document, ".viewer-stage img").dispatchEvent(new dom.window.Event("error")); });
   assert.match(query(document, ".viewer-stage [role='status']").textContent, /no longer available/);
   assert.equal(document.querySelector("button[aria-label='Download image']"), null);
   assert.equal(document.querySelector(".viewer-zoom"), null);
   assert.ok(document.querySelector("button[aria-label='Close screenshot']"));
+  await view.unmount();
+});
+
+test("arrow keys and the side buttons step through a gallery, and do nothing for a lone picture", async () => {
+  const steps: number[] = [];
+  const props = { gallery: ["a.png", "b.png", "c.png"], onStep: (delta: -1 | 1) => steps.push(delta), onClose: () => {}, onDownload: () => {} };
+  const view = await mount(React.createElement(AttachmentViewer, { ...props, source: "a.png" }));
+  const key = (name: string) => document.dispatchEvent(new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true }));
+  const button = (label: string) => query<HTMLButtonElement>(document, `button[aria-label="${label}"]`);
+
+  assert.equal(query(document, ".viewer-count").textContent, "1 / 3");
+  assert.equal(button("Previous image").disabled, true);
+  await act(async () => { key("ArrowRight"); key("ArrowLeft"); button("Next image").click(); });
+  assert.deepEqual(steps, [1, -1, 1]);
+
+  await view.render(React.createElement(AttachmentViewer, { ...props, source: "c.png" }));
+  assert.equal(query(document, ".viewer-count").textContent, "3 / 3");
+  assert.equal(button("Next image").disabled, true);
+  assert.equal(query<HTMLImageElement>(document, ".viewer-stage img").getAttribute("src"), "c.png");
+
+  await view.render(React.createElement(AttachmentViewer, { ...props, gallery: [], source: "c.png" }));
+  steps.length = 0;
+  await act(async () => { key("ArrowRight"); });
+  assert.deepEqual(steps, []);
+  assert.equal(document.querySelector(".viewer-step"), null);
   await view.unmount();
 });

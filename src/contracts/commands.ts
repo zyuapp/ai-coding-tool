@@ -241,8 +241,12 @@ export type ImageCommand =
   /** Images offered back with a sent message, named by where the app keeps them. */
   | { type: "image.recall"; taskId?: string; paths: string[] };
 
-/** Enlarges a picture without changing a composer's attachments. */
-export type ImageViewCommand = { type: "image.open"; source: string } | { type: "image.close" } | { type: "image.download" };
+/** Enlarges a picture without changing a composer's attachments. `gallery` holds its neighbours, in order, for stepping through. */
+export type ImageViewCommand =
+  | { type: "image.open"; source: string; gallery?: string[] }
+  | { type: "image.step"; delta: -1 | 1 }
+  | { type: "image.close" }
+  | { type: "image.download" };
 
 export type ProjectCommand =
   /** `start` asks for a folder by path to start a thread in, rather than one to add to the sidebar. */

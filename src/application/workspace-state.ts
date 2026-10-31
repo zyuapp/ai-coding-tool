@@ -420,6 +420,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   storageError: string | null; hiddenThreads: number;
   actionError: string | null;
   viewingImage: string | null;
+  /** The pictures shown beside the enlarged one, which the arrow keys step through. */
+  viewingGallery: string[];
   /** The settings page that clears the error above, when one does. */
   actionErrorPage: SettingsSection | null;
   writable: boolean;
@@ -551,6 +553,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     storageError, hiddenThreads: 0,
     actionError: null,
     viewingImage: null,
+    viewingGallery: [],
     actionErrorPage: null,
     writable: storageError === null,
     restored: false,
@@ -771,7 +774,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     computerUsePermissions: state.computerUsePermissions,
     storageError: state.storageError, hiddenThreads: state.hiddenThreads,
     actionError: state.actionError,
-    viewingImage: state.viewingImage,
+    viewingImage: state.viewingImage, viewingGallery: state.viewingGallery,
     actionErrorPage: state.actionErrorPage,
     restored: state.restored,
     computerUseSetup: state.computerUseSetup,

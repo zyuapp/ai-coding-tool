@@ -23,13 +23,16 @@ export type MessageLinkActions = {
   selectThread?: (threadId: string) => void;
   openFile?: (path: string, line: number | null) => void;
   openUrlInApp?: (url: string) => void;
-  openImage?: (source: string) => void;
+  /** `gallery` lists the pictures shown beside this one, in order. */
+  openImage?: (source: string, gallery?: string[]) => void;
   openCommit?: (commit: string, taskId?: string) => void;
 };
 
 /** The thread a transcript belongs to, and the checkout its commits are looked up in. */
 export const MessageArtifactScope = createContext<{ root: string; taskId?: string; workspaceId?: string }>({ root: "" });
 const MessageId = createContext("");
+/** The full-size sources of a message's image previews, in the order they are shown. */
+const MessageGallery = createContext<string[]>([]);
 const CodeBlock = createContext(false);
 
 const MessageLinks = createContext<MessageLinkActions>({});
@@ -174,10 +177,11 @@ function MarkdownLink({ children, ...props }: ComponentProps<"a">) {
   );
   /** Anything else under the scheme is text, never a live link. */
   if (APP_HREF.test(href)) return <>{children}</>;
+  const gallery = useContext(MessageGallery);
   const image = messageImagePath(href);
   if (image && messageId && actions.openImage) return <a {...props} onClick={(event) => {
     event.preventDefault();
-    actions.openImage!(messageImageUrl(image, scope.root, messageId, false, scope.taskId));
+    actions.openImage!(messageImageUrl(image, scope.root, messageId, false, scope.taskId), gallery);
   }}>{children}</a>;
   const file = parseFileHref(href);
   if (file) return actions.openFile
@@ -202,6 +206,7 @@ function MarkdownCode({ children, ...props }: ComponentProps<"code">) {
 function MessageImagePreview({ image: linked, messageId }: { image: MessageImage; messageId: string }) {
   const scope = useContext(MessageArtifactScope);
   const actions = useContext(MessageLinks);
+  const gallery = useContext(MessageGallery);
   const [failed, setFailed] = useState(false);
   const source = messageImageUrl(linked.path, scope.root, messageId, false, scope.taskId);
   const unavailable = <>{linked.label} · Preview unavailable</>;
@@ -209,7 +214,7 @@ function MessageImagePreview({ image: linked, messageId }: { image: MessageImage
     {failed ? (actions.openFile
       ? <button type="button" className="message-image-unavailable" data-tip={linked.path} onClick={() => actions.openFile!(linked.path, null)}><FileText className="message-link-glyph" aria-hidden="true" />{unavailable}</button>
       : <span className="message-image-unavailable">{unavailable}</span>) :
-      <button type="button" aria-label={`Enlarge ${linked.label}`} onClick={() => actions.openImage?.(source)}>
+      <button type="button" aria-label={`Enlarge ${linked.label}`} onClick={() => actions.openImage?.(source, gallery)}>
         <img src={messageImageUrl(linked.path, scope.root, messageId, true, scope.taskId)} alt={linked.label} loading="lazy" decoding="async" onError={() => setFailed(true)} />
       </button>}
   </div>;
@@ -280,15 +285,19 @@ function renderMarkdown(text: string, animate: boolean, cache: boolean) {
 export const MarkdownMessage = memo(function MarkdownMessage({ children, animate, cache, messageId = "" }: { children: string; animate?: boolean; cache?: boolean; messageId?: string }) {
   const actions = useContext(MessageLinks);
   const images = useMemo(() => !animate && messageId && actions.openImage ? messageImages(children) : [], [children, animate, messageId, actions.openImage]);
+  const scope = useContext(MessageArtifactScope);
+  const gallery = useMemo(() => images.map((linked) => messageImageUrl(linked.path, scope.root, messageId, false, scope.taskId)), [images, scope.root, scope.taskId, messageId]);
   const tree = useMemo(() => renderMarkdown(children, !!animate, !!cache), [children, animate, cache]);
   return (
     <MessageId.Provider value={messageId}>
+    <MessageGallery.Provider value={gallery}>
     <Unsettled.Provider value={!!animate}>
       <Source.Provider value={children}>
         {tree}
         {images.length > 0 && <div className="message-image-previews">{images.map((linked) => <MessageImagePreview key={`${messageId}:${linked.path}`} image={linked} messageId={messageId} />)}</div>}
       </Source.Provider>
     </Unsettled.Provider>
+    </MessageGallery.Provider>
     </MessageId.Provider>
   );
 });

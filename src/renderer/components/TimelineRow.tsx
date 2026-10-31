@@ -39,11 +39,12 @@ function senderThread(origin: MessageOrigin | undefined): string | undefined {
   return origin?.kind === "thread" && !origin.computer ? origin.threadId : undefined;
 }
 
-function UserMessage({ message, onView }: { message: ConversationMessage; onView: (source: string) => void }) {
+function UserMessage({ message, onView }: { message: ConversationMessage; onView: (source: string, gallery: string[]) => void }) {
   const { taskId } = useContext(MessageArtifactScope);
   const { selectThread } = useMessageLinks();
   const label = messageLabel(message);
   const sender = senderThread(message.origin);
+  const sources = useMemo(() => message.attachments?.map((file) => attachmentUrl(file, taskId)) ?? [], [message.attachments, taskId]);
   return (
     <article className="message user">
       <MessageActions at={message.at} text={message.text} label="Copy the message" />
@@ -51,16 +52,16 @@ function UserMessage({ message, onView }: { message: ConversationMessage; onView
         {message.annotations?.length ? <AnnotationRow annotations={message.annotations} /> : null}
         {message.pastes?.length ? <PasteRow pastes={message.pastes} /> : null}
         {message.files?.length ? <FileRow files={message.files} /> : null}
-        {message.attachments?.length ? (
+        {sources.length ? (
           <div className="message-attachments">
-            {message.attachments.map((file) => (
+            {message.attachments!.map((file, index) => (
               <button
                 type="button" key={file} className="message-attachment"
                 aria-label={`View ${file.split("/").at(-1)}`}
                 data-tip={file.split("/").at(-1)}
-                onClick={() => onView(attachmentUrl(file, taskId))}
+                onClick={() => onView(sources[index]!, sources)}
               >
-                <img src={attachmentUrl(file, taskId)} alt="" />
+                <img src={sources[index]} alt="" />
               </button>
             ))}
           </div>
@@ -85,7 +86,7 @@ type TimelineRowProps = {
   newest: boolean;
   measure: (node: Element | null) => void;
   streamingTail?: StreamingTail | null;
-  onViewAttachment: (source: string) => void;
+  onViewAttachment: (source: string, gallery: string[]) => void;
 };
 
 /** The live turn re-renders on every tail, so its segments are only rebuilt when its steps change. */
@@ -96,7 +97,7 @@ function LiveSteps({ engine, steps, tail }: { engine: AgentEngine; steps: Conver
 
 type Entry = Exclude<TimelineGroup, { kind: "updates" }>;
 
-function TimelineEntry({ engine, entry, streamingTail, onViewAttachment }: { engine: AgentEngine; entry: Entry; streamingTail?: StreamingTail | null; onViewAttachment: (source: string) => void }) {
+function TimelineEntry({ engine, entry, streamingTail, onViewAttachment }: { engine: AgentEngine; entry: Entry; streamingTail?: StreamingTail | null; onViewAttachment: (source: string, gallery: string[]) => void }) {
   if (entry.kind === "threads") return <ThreadCards threadIds={entry.threadIds} />;
   if (entry.kind === "turn") {
     return (
@@ -150,7 +151,7 @@ function ThreadMessage({ from, message }: { from: string; message: ConversationM
 }
 
 /** Earlier thread updates and the coordinator's answers to them, behind one row until opened. */
-function FoldedUpdates({ engine, group, onViewAttachment }: { engine: AgentEngine; group: Extract<TimelineGroup, { kind: "updates" }>; onViewAttachment: (source: string) => void }) {
+function FoldedUpdates({ engine, group, onViewAttachment }: { engine: AgentEngine; group: Extract<TimelineGroup, { kind: "updates" }>; onViewAttachment: (source: string, gallery: string[]) => void }) {
   const summary = (
     <>
       <span className="work-lead">Earlier thread updates</span>

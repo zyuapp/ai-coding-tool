@@ -39,6 +39,8 @@ test("the view can send provider commands, attachments, and presentation reports
     { type: "diff.open-commit", taskId: "thread", commit: "60cceb8" },
     { type: "diff.set-range", range: { kind: "commit", commit: "60cceb8" } },
     { type: "image.open", source: "message-image://file/?path=%2Ftmp%2Fshot.png&root=&message=reply" },
+    { type: "image.open", source: "message-image://file/?path=%2Ftmp%2Fshot.png&root=&message=reply", gallery: ["message-image://file/?path=%2Ftmp%2Fshot.png&root=&message=reply"] },
+    { type: "image.step", delta: -1 },
     { type: "image.close" },
     { type: "image.download" },
     { type: "find.results", target: { kind: "terminal", terminalId: "terminal" }, results: { matches: 0, index: 0, counting: false } },
@@ -103,6 +105,8 @@ test("large valid composer content remains within the view contract", () => {
 test("image and commit actions validate their targets at the view boundary", () => {
   assert.equal(isWorkspaceViewInput({ type: "image.open", source: "file:///etc/passwd" }), false);
   assert.equal(isWorkspaceViewInput({ type: "image.open", source: "https://example.com/image.png" }), false);
+  assert.equal(isWorkspaceViewInput({ type: "image.open", source: "message-image://file/?path=a", gallery: ["message-image://file/?path=a", "file:///etc/passwd"] }), false);
+  assert.equal(isWorkspaceViewInput({ type: "image.step", delta: 2 }), false);
   assert.equal(isWorkspaceViewInput({ type: "diff.open-commit", commit: "--output=/tmp/file" }), false);
   assert.equal(isWorkspaceViewInput({ type: "diff.set-range", range: { kind: "commit", commit: "HEAD;touch x" } }), false);
 });

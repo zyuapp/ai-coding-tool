@@ -152,7 +152,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   const artifactScope = useMemo(() => ({ root: folder, taskId: currentThread?.id, workspaceId }), [folder, currentThread?.id, workspaceId]);
   const timelineRef = useRef<HTMLDivElement>(null);
   const links = useMessageLinks();
-  const viewAttachment = useCallback((source: string) => links.openImage?.(source), [links.openImage]);
+  const viewAttachment = useCallback((source: string, gallery: string[]) => links.openImage?.(source, gallery), [links.openImage]);
   const annotate = useAnnotationSelection({ onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide });
   const lastMessage = messages.at(-1);
   /** The answer being read out, whether it is still streaming or has already finished. */

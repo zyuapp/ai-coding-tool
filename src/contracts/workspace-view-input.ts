@@ -77,6 +77,7 @@ const optionalText = optional(text);
 const optionalBoolean = optional(boolean);
 const nullableText = nullable(text);
 const step = literals(-1, 1);
+const imageGallery: Validator<string[]> = (value): value is string[] => array(isImageSource)(value) && value.length <= 500;
 const readingPoint = nullable(object({ anchor: text, depth: number }));
 const dropTarget = object({ projectId: nullableText, index: number });
 /** A host, with an optional port, already in the form it is dialled in. */
@@ -375,7 +376,8 @@ const commands = {
   "browser-import.run": { fields: {}, at: "local" },
   "browser-import.again": { fields: {}, at: "local" },
   "file.open": { fields: { taskId: optionalText, path: text, line: optional(number) }, at: "own" },
-  "image.open": { fields: { source: isImageSource }, at: "local" },
+  "image.open": { fields: { source: isImageSource, gallery: optional(imageGallery) }, at: "local" },
+  "image.step": { fields: { delta: step }, at: "local" },
   "image.close": { fields: {}, at: "local" },
   "image.download": { fields: {}, at: "local" },
   "diff.open-commit": { fields: { commit: isCommitHash, taskId: optionalText }, at: "thread" },

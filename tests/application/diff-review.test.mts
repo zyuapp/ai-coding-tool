@@ -146,6 +146,23 @@ test("Escape closes an enlarged image before reaching the active run", () => {
   assert.deepEqual(reduce(closed.state, { type: "image.download" }).effects, []);
 });
 
+test("arrow steps move through an enlarged image's gallery and stop at its ends", () => {
+  const shot = (name: string) => `message-image://file/?path=%2Ftmp%2F${name}.png&root=&message=reply`;
+  const gallery = [shot("a"), shot("b"), shot("c")];
+  const opened = reduce(workspace(), { type: "image.open", source: gallery[1], gallery }).state;
+  assert.deepEqual(deriveView(opened).viewingGallery, gallery);
+  const next = reduce(opened, { type: "image.step", delta: 1 }).state;
+  assert.equal(next.viewingImage, gallery[2]);
+  assert.equal(reduce(next, { type: "image.step", delta: 1 }).state, next);
+  const first = reduce(reduce(next, { type: "image.step", delta: -1 }).state, { type: "image.step", delta: -1 }).state;
+  assert.equal(first.viewingImage, gallery[0]);
+  assert.equal(reduce(first, { type: "image.step", delta: -1 }).state, first);
+  assert.deepEqual(reduce(first, { type: "image.close" }).state.viewingGallery, []);
+  const alone = reduce(workspace(), { type: "image.open", source: shot("d"), gallery }).state;
+  assert.deepEqual(alone.viewingGallery, []);
+  assert.equal(reduce(alone, { type: "image.step", delta: 1 }).state, alone);
+});
+
 /** Opens the review and answers the read it asks for, which is what the renderer would do. */
 function reviewing(state: WorkspaceState, files: DiffFileSummary[]): WorkspaceState {
   const opened = reduce(state, { type: "diff.toggle" });
