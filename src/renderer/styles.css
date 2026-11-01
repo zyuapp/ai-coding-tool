@@ -869,13 +869,14 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 }
 .task-rename.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
 .task-rename.invalid::placeholder { color: var(--muted); }
+/** Looping indicators move in 50 ms steps: between steps nothing changes, so Chromium draws no frame. */
 .task-spinner {
   width: 14px;
   height: 14px;
   border: 2px solid var(--line-bright);
   border-right-color: var(--muted-strong);
   border-radius: 50%;
-  animation: spin 900ms linear infinite;
+  animation: spin 900ms steps(18) infinite;
 }
 .task-attention {
   flex: none;
@@ -2166,9 +2167,9 @@ pre {
 }
 .scroll-to-end:hover { background: var(--surface-glass-hover); color: var(--ink); }
 .thinking-row { position: relative; display: flex; align-items: center; gap: 5px; padding: 2px 0 28px; }
-.thinking-row i { width: 5px; height: 5px; border-radius: 50%; background: var(--muted-soft); animation: bounce 1.1s infinite ease-in-out; }
-.thinking-row i:nth-child(2) { animation-delay: 0.14s; }
-.thinking-row i:nth-child(3) { animation-delay: 0.28s; }
+.thinking-row i { width: 5px; height: 5px; border-radius: 50%; background: var(--muted-soft); animation: bounce 1.1s infinite steps(7); }
+.thinking-row i:nth-child(2) { animation-delay: 0.15s; }
+.thinking-row i:nth-child(3) { animation-delay: 0.3s; }
 .thinking-label { margin-left: 5px; font-size: var(--text-meta); line-height: 1; }
 .thinking-elapsed { margin-left: 5px; color: var(--quiet-strong); font-size: var(--text-meta); font-variant-numeric: tabular-nums; line-height: 1; }
 .compacting-row,
@@ -2222,16 +2223,16 @@ pre {
   text-overflow: inherit;
   pointer-events: none;
   user-select: none;
-  animation: sweep-band 1.9s linear infinite;
+  animation: sweep-band 1.9s steps(38) infinite;
 }
-.sweep-band::before { content: attr(data-text); position: absolute; inset: 0; box-sizing: border-box; padding: inherit; overflow: hidden; text-overflow: inherit; color: var(--ink); animation: sweep-ink 1.9s linear infinite; }
+.sweep-band::before { content: attr(data-text); position: absolute; inset: 0; box-sizing: border-box; padding: inherit; overflow: hidden; text-overflow: inherit; color: var(--ink); animation: sweep-ink 1.9s steps(38) infinite; }
 @keyframes sweep-band { from { transform: translateX(-130%); } to { transform: translateX(130%); } }
 @keyframes sweep-ink { from { transform: translateX(130%); } to { transform: translateX(-130%); } }
 @media (prefers-reduced-motion: reduce) { .sweep-band { display: none; } }
 .activity-dots { display: inline-flex; gap: 3px; margin-left: 1px; }
-.activity-dots i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; animation: bounce 1.1s infinite ease-in-out; }
-.activity-dots i:nth-child(2) { animation-delay: 0.14s; }
-.activity-dots i:nth-child(3) { animation-delay: 0.28s; }
+.activity-dots i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; animation: bounce 1.1s infinite steps(7); }
+.activity-dots i:nth-child(2) { animation-delay: 0.15s; }
+.activity-dots i:nth-child(3) { animation-delay: 0.3s; }
 
 /* Held at the foot of the transcript while the reader is further up, since the run waits on it. */
 .approval-card {
@@ -2993,7 +2994,7 @@ pre {
 }
 .toast-icon { flex: none; margin-top: 1px; }
 .toast.update .toast-icon { color: var(--accent); }
-.toast.progress .toast-icon { color: var(--info); animation: spin 900ms linear infinite; }
+.toast.progress .toast-icon { color: var(--info); animation: spin 900ms steps(18) infinite; }
 .toast.success .toast-icon { color: var(--success); }
 .toast.error .toast-icon { color: var(--danger); }
 .toast-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
@@ -3428,7 +3429,7 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
 .agent-orb.idle { background: var(--control); color: var(--quiet-strong); }
 .agent-orb.completed { background: var(--success-surface); color: var(--success); }
 .agent-orb.failed, .agent-orb.stopped { background: var(--danger-chip); color: var(--danger); }
-.agent-working-icon { color: var(--info); animation: pulse 1.4s ease-in-out infinite; }
+.agent-working-icon { color: var(--info); animation: pulse 1.4s steps(14) infinite; }
 .session-back {
   display: flex;
   align-items: center;
@@ -3554,7 +3555,7 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
 .workflow-lane-track > i.queue { top: 12px; height: 4px; border: 1px dashed var(--line-strong); }
 .workflow-lane-track > i.run { background: var(--info); border: 1px solid var(--info); }
 /** A bar still running has no end yet, so its right edge stays open. */
-.workflow-lane-track > i.run.running { border-radius: 3px 0 0 3px; animation: pulse 1.6s ease-in-out infinite; }
+.workflow-lane-track > i.run.running { border-radius: 3px 0 0 3px; animation: pulse 1.6s steps(16) infinite; }
 .workflow-lane-track > i.run.done { background: color-mix(in srgb, var(--success) 60%, transparent); border-color: var(--success); }
 .workflow-lane-track > i.run.error { background: repeating-linear-gradient(135deg, var(--danger-surface) 0 3px, var(--danger-line) 3px 5px); border-color: var(--danger); }
 .workflow-lane-track > i.run.stopped { background: var(--control); border-color: var(--line-strong); }
@@ -4743,7 +4744,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 }
 .send-button:is(:disabled, [aria-disabled="true"]) { background: var(--surface-inverse-off); color: var(--muted); cursor: default; }
 .send-button.busy:disabled { background: var(--surface-inverse); box-shadow: none; color: var(--ink-inverse); }
-.send-spinner { width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.9s linear infinite; }
+.send-spinner { width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.9s steps(18) infinite; }
 .stop-glyph { width: 10px; height: 10px; border-radius: 2px; background: var(--ink-inverse); }
 .send-button + .send-button { margin-left: -6px; }
 
@@ -4778,7 +4779,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 
 @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.35; } 30% { transform: translateY(-4px); opacity: 1; } }
 @keyframes spin { to { transform: rotate(360deg); } }
-.spinning { animation: spin 0.9s linear infinite; }
+.spinning { animation: spin 0.9s steps(18) infinite; }
 @keyframes command-menu-in { from { opacity: 0; transform: translateY(5px); } }
 @keyframes working-pulse { 50% { opacity: 0.35; } }
 /** Indicators that loop for as long as work runs rest while another app is in front. */
