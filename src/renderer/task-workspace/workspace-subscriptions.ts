@@ -4,6 +4,7 @@ import type { WorkspaceState } from "../../application/workspace-state";
 import { displayShortcut } from "../../domain/shortcuts";
 import { MAC } from "../platform";
 import { installFocusAppearance } from "../focus-appearance";
+import { installWindowActivity } from "../window-activity";
 import { onTerminalFindResults, onTerminalResize } from "./terminal-views";
 
 export type SubscriptionHost = {
@@ -15,6 +16,7 @@ export type SubscriptionHost = {
 /** DOM focus and terminal views belong to the window displaying the workspace. */
 export function useWorkspaceSubscriptions(host: SubscriptionHost) {
   useEffect(installFocusAppearance, []);
+  useEffect(installWindowActivity, []);
   useEffect(() => {
     const onFocus = () => void host.dispatch({ type: "view.set-focused", focused: true });
     const onBlur = () => void host.dispatch({ type: "view.set-focused", focused: false });

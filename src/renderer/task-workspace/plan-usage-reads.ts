@@ -1,13 +1,14 @@
 import { useEffect, useRef } from "react";
 
-/** How often the composer's plan limits are read again while the window is on screen. */
-const PLAN_USAGE_POLL_MS = 5 * 60_000;
+/** How often the composer's plan limits are read again while the window is in use. */
+const PLAN_USAGE_POLL_MS = 15 * 60_000;
 /** A run that just ended changed the numbers, but each read starts a session with every provider. */
 const RUN_END_GAP_MS = 30_000;
 
 /**
  * When the composer asks how much of the plan is left: as it appears, as the run on screen ends,
- * and on a slow poll. A hidden window asks nothing, and catches up on the way back.
+ * and on a slow poll. Each read starts an agent process, so a window nobody is using asks nothing on
+ * the poll, and catches up when it is back in use.
  */
 export function usePlanUsageReads(runActive: boolean, read: () => void) {
   const latest = useRef(read);
@@ -22,12 +23,14 @@ export function usePlanUsageReads(runActive: boolean, read: () => void) {
 
   useEffect(() => {
     ask(0);
-    const timer = window.setInterval(() => ask(PLAN_USAGE_POLL_MS - 1_000), PLAN_USAGE_POLL_MS);
+    const timer = window.setInterval(() => { if (document.hasFocus()) ask(PLAN_USAGE_POLL_MS - 1_000); }, PLAN_USAGE_POLL_MS);
     const back = () => ask(PLAN_USAGE_POLL_MS);
     document.addEventListener("visibilitychange", back);
+    window.addEventListener("focus", back);
     return () => {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", back);
+      window.removeEventListener("focus", back);
     };
   }, []);
 

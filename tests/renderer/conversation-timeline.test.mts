@@ -291,7 +291,7 @@ test("a settled turn times each step it folds away", async () => {
 });
 
 test("a running turn counts up until its work ends", async (t) => {
-  vi.useFakeTimers({ toFake: ["setInterval", "Date"] });
+  vi.useFakeTimers({ toFake: ["setInterval", "setTimeout", "Date"] });
   vi.setSystemTime(100_000);
   t.onTestFinished(() => { vi.useRealTimers(); });
   const running: TimelineMessage[] = [
@@ -315,7 +315,7 @@ test("a running turn counts up until its work ends", async (t) => {
 });
 
 test("a stopped turn freezes at the moment its run ended", async (t) => {
-  vi.useFakeTimers({ toFake: ["setInterval", "Date"] });
+  vi.useFakeTimers({ toFake: ["setInterval", "setTimeout", "Date"] });
   vi.setSystemTime(100_000);
   t.onTestFinished(() => { vi.useRealTimers(); });
   const running: TimelineMessage[] = [
@@ -369,7 +369,7 @@ test("a thread waiting on its checkout says so in the transcript, and its compos
 });
 
 test("a wait on the checkout counts how long it has taken, and starts over for the next wait", async (t) => {
-  vi.useFakeTimers({ toFake: ["setInterval", "Date"] });
+  vi.useFakeTimers({ toFake: ["setInterval", "setTimeout", "Date"] });
   vi.setSystemTime(100_000);
   t.onTestFinished(() => { vi.useRealTimers(); });
   const messages = transcript({ kind: "user", text: "Refactor the loader" });
@@ -394,7 +394,7 @@ test("a running turn says it is working to assistive tech, not only with dots", 
 });
 
 test("the working row shows how long the live turn has run", async (t) => {
-  vi.useFakeTimers({ toFake: ["setInterval", "Date"] });
+  vi.useFakeTimers({ toFake: ["setInterval", "setTimeout", "Date"] });
   vi.setSystemTime(100_000);
   t.onTestFinished(() => { vi.useRealTimers(); });
   const running: TimelineMessage[] = [

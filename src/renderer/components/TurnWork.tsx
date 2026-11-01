@@ -9,6 +9,7 @@ import { timeSteps, toSegments, type TimedStep, type TurnSegment } from "../time
 import { Copyable } from "./CopyButton";
 import { MarkdownMessage } from "./MarkdownMessage";
 import { StreamingText } from "./StreamingText";
+import { useSecondClock } from "../second-clock";
 
 /** The message a match is in. Whatever holds it opens, however deep the fold it was written into. */
 export const RevealedMessage = createContext<string | null>(null);
@@ -23,17 +24,8 @@ export function formatElapsed(ms: number) {
 
 /** Work still in flight has no end yet, so it counts up from its start once a second. */
 export function Elapsed({ startedAt, endsAt }: { startedAt: number; endsAt: number | null }) {
-  const [end, setEnd] = useState(() => endsAt ?? Date.now());
-  useEffect(() => {
-    if (endsAt !== null) {
-      setEnd(endsAt);
-      return;
-    }
-    setEnd(Date.now());
-    const timer = setInterval(() => setEnd(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [endsAt]);
-  return <span className="work-time">{formatElapsed(end - startedAt)}</span>;
+  const now = useSecondClock(endsAt === null);
+  return <span className="work-time">{formatElapsed((endsAt ?? now) - startedAt)}</span>;
 }
 
 /**

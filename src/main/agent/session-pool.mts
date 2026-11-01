@@ -2,9 +2,9 @@ import { continuationOf, type ProviderResult, type ProviderRunInput } from "./ag
 import type { CoordinationRole } from "../../domain/coordination.js";
 
 /** How long a thread's session waits, with nothing left running under it, before giving its process back. */
-const IDLE_SESSION_MS = 15 * 60 * 1_000;
+const IDLE_SESSION_MS = 5 * 60 * 1_000;
 /** How many threads keep a session warm. Beyond this the least recently used idle one is let go. */
-const MAX_LIVE_SESSIONS = 4;
+const MAX_LIVE_SESSIONS = 3;
 
 /** What the pool asks of a session, whichever engine it runs on. */
 export type PooledSession = {

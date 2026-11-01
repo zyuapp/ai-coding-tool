@@ -2211,16 +2211,20 @@ pre {
 /* Stopping a run reads the same here as on a workflow or subagent. */
 /** A band of brighter ink travels across the letters, so a wait reads as motion in the word itself. */
 .text-sweep { position: relative; color: var(--muted); }
+/** The copy takes the label's padding and wrapping, so it lands on the same letters. */
 .sweep-band {
   position: absolute;
   inset: 0;
   -webkit-mask-image: linear-gradient(90deg, transparent 20%, #000 50%, transparent 80%);
   mask-image: linear-gradient(90deg, transparent 20%, #000 50%, transparent 80%);
+  padding: inherit;
+  white-space: inherit;
+  text-overflow: inherit;
   pointer-events: none;
   user-select: none;
   animation: sweep-band 1.9s linear infinite;
 }
-.sweep-band::before { content: attr(data-text); display: block; overflow: hidden; color: var(--ink); white-space: nowrap; text-overflow: ellipsis; animation: sweep-ink 1.9s linear infinite; }
+.sweep-band::before { content: attr(data-text); position: absolute; inset: 0; box-sizing: border-box; padding: inherit; overflow: hidden; text-overflow: inherit; color: var(--ink); animation: sweep-ink 1.9s linear infinite; }
 @keyframes sweep-band { from { transform: translateX(-130%); } to { transform: translateX(130%); } }
 @keyframes sweep-ink { from { transform: translateX(130%); } to { transform: translateX(-130%); } }
 @media (prefers-reduced-motion: reduce) { .sweep-band { display: none; } }
@@ -4777,6 +4781,9 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .spinning { animation: spin 0.9s linear infinite; }
 @keyframes command-menu-in { from { opacity: 0; transform: translateY(5px); } }
 @keyframes working-pulse { 50% { opacity: 0.35; } }
+/** Indicators that loop for as long as work runs rest while another app is in front. */
+:root[data-window-inactive] :is(.task-spinner, .spinning, .send-spinner, .toast.progress .toast-icon, .thinking-row i, .activity-dots i, .agent-working-icon, .workflow-lane-track > i.run.running, .host-mark.reconnecting > svg, .worktree-safety-dot) { animation-play-state: paused; }
+:root[data-window-inactive] .sweep-band { display: none; }
 @media (prefers-reduced-motion: reduce) {
   /** A mask that follows the scroll position is not motion, and is the only sign a strip has more past its edge. */
   :where(:not(.right-dock-tabs > div:first-child, .message-image-previews)) { animation: none !important; }

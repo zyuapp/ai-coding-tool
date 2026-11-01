@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSecondClock } from "../second-clock";
 import { shortcutTip } from "./TooltipLayer";
 import { ConfirmAction } from "./SettingRow";
 import { LuArrowLeft as ArrowLeft, LuBoxes as Boxes, LuCircleCheckBig as CheckCircle2, LuCircleDot as CircleDot, LuCircleX as XCircle, LuClock as Clock, LuSquare as Square, LuTriangleAlert as AlertTriangle } from "react-icons/lu";
@@ -20,18 +21,8 @@ import {
   type WorkflowGroup,
 } from "../../domain/workflow";
 
-/** How often a running workflow redraws. Its own frames are far rarer, so lanes would jump without it. */
-const TICK_MS = 1_000;
-
-function useClock(live: boolean) {
-  const [clock, setClock] = useState(() => Date.now());
-  useEffect(() => {
-    if (!live) return;
-    const timer = setInterval(() => setClock(Date.now()), TICK_MS);
-    return () => clearInterval(timer);
-  }, [live]);
-  return live ? clock : Date.now();
-}
+/** A running workflow redraws each second. Its own frames are far rarer, so lanes would jump without it. */
+const useClock = useSecondClock;
 
 function AgentIcon({ state }: { state: WorkflowAgentState }) {
   if (state === "done") return <CheckCircle2 size={16} />;

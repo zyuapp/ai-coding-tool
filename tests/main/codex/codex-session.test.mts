@@ -640,20 +640,20 @@ test("an app server that dies mid-turn fails the run and ends the session", asyn
 test("sessions are per thread, reused only for the thread they hold, and the coldest idle one goes when the pool is full", async () => {
   const codex = harness();
   const results: ProviderResult[] = [];
-  for (const taskId of ["a", "b", "c", "d"]) results.push((await turn(codex, { taskId })).result);
-  assert.equal(codex.clients.length, 4);
-  assert.deepEqual(results.map((result) => result.status), ["succeeded", "succeeded", "succeeded", "succeeded"]);
+  for (const taskId of ["a", "b", "c"]) results.push((await turn(codex, { taskId })).result);
+  assert.equal(codex.clients.length, 3);
+  assert.deepEqual(results.map((result) => result.status), ["succeeded", "succeeded", "succeeded"]);
 
-  await turn(codex, { taskId: "e" });
-  assert.equal(codex.clients.length, 5);
+  await turn(codex, { taskId: "d" });
+  assert.equal(codex.clients.length, 4);
   assert.equal(codex.clients[0].closed, true, "thread a's session is the coldest, so it is the one let go");
   assert.equal(codex.clients[1].closed, false);
 
   await turn(codex, { taskId: "b", continuation: { provider: "codex", value: threadId } });
-  assert.equal(codex.clients.length, 5, "thread b's warm session takes its next turn");
+  assert.equal(codex.clients.length, 4, "thread b's warm session takes its next turn");
 
   await turn(codex, { taskId: "c", workspaceRoot: "/tmp/elsewhere" });
-  assert.equal(codex.clients.length, 6, "a run built differently gets a session of its own");
+  assert.equal(codex.clients.length, 5, "a run built differently gets a session of its own");
   assert.equal(codex.clients[2].closed, true);
   codex.provider.closeAll();
   assert.equal(codex.clients.filter((client) => !client.closed).length, 0);

@@ -37,16 +37,15 @@ test("engines sharing a pool share its cap, and the coldest idle session goes wh
   assert.deepEqual(await claude(input({ engine: "claude", taskId: "a" })), { status: "succeeded", message: "claude:a" });
   await codex(input({ taskId: "b" }));
   await claude(input({ engine: "claude", taskId: "c" }));
-  await codex(input({ taskId: "d" }));
-  assert.equal(opened.length, 4);
+  assert.equal(opened.length, 3);
   assert.ok(opened.every((session) => session.live));
 
-  await codex(input({ taskId: "e" }));
-  assert.equal(opened.length, 5);
-  assert.deepEqual(opened.map((session) => session.live), [false, true, true, true, true], "the Claude session of thread a was the coldest");
+  await codex(input({ taskId: "d" }));
+  assert.equal(opened.length, 4);
+  assert.deepEqual(opened.map((session) => session.live), [false, true, true, true], "the Claude session of thread a was the coldest");
 
   await claude(input({ engine: "claude", taskId: "c" }));
-  assert.equal(opened.length, 5, "thread c's session is warm and reused");
+  assert.equal(opened.length, 4, "thread c's session is warm and reused");
   assert.equal(pool.liveSession("c"), opened[2]);
   assert.equal(pool.liveSession("a"), undefined);
 

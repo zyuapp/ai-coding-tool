@@ -31,6 +31,8 @@ export class TerminalOutput {
       this.write(event.data, event.size);
       return;
     }
+    /** A suspended view that already overflowed reloads from a snapshot, so nothing held would be read. */
+    if (this.ready && this.overflowed) return;
     if (this.pendingSize + event.data.length > (this.ready ? MAX_SUSPENDED : MAX_PENDING)) {
       this.pending = [];
       this.pendingSize = 0;
