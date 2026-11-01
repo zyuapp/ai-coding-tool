@@ -598,7 +598,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .host-mark > svg { flex: none; }
 .host-mark > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .host-mark.offline > svg { color: var(--warning); }
-.host-mark.reconnecting > svg { animation: host-reconnecting 1.4s ease-in-out infinite; }
+.host-mark.reconnecting > svg { animation: host-reconnecting 1.4s steps(14) infinite; }
 @keyframes host-reconnecting { 50% { opacity: 0.55; } }
 @media (prefers-reduced-motion: reduce) { .host-mark.reconnecting > svg { animation: none; } }
 .computer-heading-status { flex: none; margin-left: 6px; color: var(--quiet); font-size: var(--text-meta); }
@@ -2123,7 +2123,8 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 .work-steps > .work-row > .copyable > pre { background: var(--surface); }
 .work-note { padding: 9px 0; color: var(--muted-strong); }
 /** Text that has not formed a Markdown block yet, styled as the paragraph it is about to become. */
-.stream-word { animation: stream-word 180ms ease-out both; }
+.stream-word { animation: stream-word 180ms steps(3) both; }
+:root[data-window-inactive] .stream-word { animation: none; }
 @keyframes stream-word { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .stream-word { animation: none; } }
 pre {
@@ -4783,14 +4784,14 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 @keyframes command-menu-in { from { opacity: 0; transform: translateY(5px); } }
 @keyframes working-pulse { 50% { opacity: 0.35; } }
 /** Indicators that loop for as long as work runs rest while another app is in front. */
-:root[data-window-inactive] :is(.task-spinner, .spinning, .send-spinner, .toast.progress .toast-icon, .thinking-row i, .activity-dots i, .agent-working-icon, .workflow-lane-track > i.run.running, .host-mark.reconnecting > svg, .worktree-safety-dot) { animation-play-state: paused !important; }
+:root[data-window-inactive] :is(.task-spinner, .spinning, .send-spinner, .toast.progress .toast-icon, .thinking-row i, .activity-dots i, .agent-working-icon, .workflow-lane-track > i.run.running, .host-mark.reconnecting > svg, .worktree-safety-dot) { animation-name: none !important; }
 :root[data-window-inactive] .sweep-band { display: none; }
 @media (prefers-reduced-motion: reduce) {
   /** A mask that follows the scroll position is not motion, and is the only sign a strip has more past its edge. */
   :where(:not(.right-dock-tabs > div:first-child, .message-image-previews)) { animation: none !important; }
   * { scroll-behavior: auto !important; transition: none !important; }
   /** Work in progress still shows it is moving, by a slow fade in place of a turn. */
-  .spinning, .toast.progress .toast-icon { animation: working-pulse 1.8s ease-in-out infinite !important; }
+  .spinning, .toast.progress .toast-icon { animation: working-pulse 1.8s steps(18) infinite !important; }
 }
 
 @media (max-width: 1100px) {

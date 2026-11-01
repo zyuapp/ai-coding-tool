@@ -405,6 +405,8 @@ async function createWindow() {
   };
   window.on("focus", active);
   window.on("blur", active);
+  window.webContents.on("did-finish-load", active);
+  active();
   window.on("closed", () => {
     workspaceRuntime.setViewVisible(false);
     browser.stopBrowserHost();

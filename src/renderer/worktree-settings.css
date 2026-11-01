@@ -38,7 +38,7 @@
 .worktree-safety.safe { border-color: var(--success-line); color: var(--success-soft); background: var(--success-surface); }
 .worktree-safety.warning { border-color: color-mix(in srgb, var(--warning) 35%, transparent); color: var(--warning); background: color-mix(in srgb, var(--warning) 9%, transparent); }
 .worktree-safety.busy { border-color: var(--info-line); color: var(--info-soft); background: var(--info-surface-soft); }
-.worktree-safety-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: worktree-pulse 1.4s ease-in-out infinite; }
+.worktree-safety-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: worktree-pulse 1.4s steps(14) infinite; }
 @keyframes worktree-pulse { 50% { opacity: .35; } }
 .worktree-row-actions { grid-column: 4; grid-row: 1; display: flex; align-items: center; justify-content: flex-end; gap: 2px; min-width: 64px; }
 .worktree-icon-button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px; color: var(--muted); background: transparent; cursor: pointer; }

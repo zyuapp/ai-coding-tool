@@ -4,6 +4,16 @@ import { MarkdownMessage } from "./MarkdownMessage";
 
 /** How much settled text one chunk gathers before it is frozen and never parsed again. */
 const CHUNK_CHARS = 4_000;
+/** A line that may still belong to the block above: indented, a list item, a quote, or a link definition. */
+const CONTINUES = /^(?:[ \t]|[-*+][ \t]|\d+[.)][ \t]|>|\[[^\]]*\]:)/;
+
+/** A cut holds only where the next line has arrived and starts a block of its own. */
+function cleanCut(text: string, at: number) {
+  const newline = text.indexOf("\n", at);
+  if (newline === -1) return false;
+  const next = text.slice(at, newline);
+  return next.trim() !== "" && !CONTINUES.test(next);
+}
 
 /**
  * Streamed text only ever grows, so the block scan resumes rather than re-reading from the start.
@@ -26,7 +36,7 @@ function useCompleteBlocks(text: string, active: boolean) {
   scan.current = scanBlocks(text, scan.current);
   seen.current = text;
   const end = scan.current.safeEnd;
-  if (end - (cuts.current.at(-1) ?? 0) >= CHUNK_CHARS) cuts.current = [...cuts.current, end];
+  if (end - (cuts.current.at(-1) ?? 0) >= CHUNK_CHARS && cleanCut(text, end)) cuts.current = [...cuts.current, end];
   return { end, cuts: cuts.current };
 }
 

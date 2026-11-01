@@ -222,11 +222,11 @@ function createEnvironmentPoll(refresh: () => void) {
   let running = false;
   let visible = true;
   let inUse = true;
-  function restart() {
+  function restart(read = true) {
     clearInterval(timer);
     timer = undefined;
     if (!visible) return;
-    refresh();
+    if (read) refresh();
     timer = setInterval(refresh, running ? (inUse ? 2_000 : 10_000) : 15_000);
   }
   return {
@@ -244,7 +244,7 @@ function createEnvironmentPoll(refresh: () => void) {
     setInUse(next: boolean, active: boolean) {
       if (next === inUse) return;
       inUse = next;
-      if (active && running) restart();
+      if (active && running) restart(false);
     },
     stop() {
       clearInterval(timer);

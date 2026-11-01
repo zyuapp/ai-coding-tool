@@ -160,7 +160,7 @@ export async function changedFiles(workspaceId: string, workspaces: Pick<Workspa
     const head = await headState(root);
     const base = await comparisonBase(root, head.commit, resolving);
     const [{ stdout: statusOutput }, { stdout: numstatOutput }] = await Promise.all([
-      execFileAsync("git", ["status", "--porcelain=v1", "-z"], { cwd: root, timeout: 5_000 }),
+      execFileAsync("git", ["--no-optional-locks", "status", "--porcelain=v1", "-z"], { cwd: root, timeout: 5_000 }),
       execFileAsync("git", ["diff", "--numstat", "-z", base?.commit ?? "HEAD", "--"], { cwd: root, timeout: 5_000 }),
     ]);
     const statusRecords = statusOutput.split("\0").filter(Boolean);

@@ -238,3 +238,14 @@ test("a long answer settles across chunks with every paragraph in order", async 
   assert.match(view.container.textContent, /Paragraph 7/);
   await view.unmount();
 });
+
+test("a loose list that runs past a chunk's size streams as one list", async () => {
+  const item = (index: number) => `- Item ${index} ${"word ".repeat(150)}\n\n`;
+  const items = Array.from({ length: 8 }, (_, index) => item(index)).join("");
+  const view = await mount(streaming({ committed: "", tail: "" }));
+  for (let index = 1; index <= 8; index += 1) await view.render(streaming({ committed: "", tail: items.slice(0, item(0).length * index) }));
+
+  assert.equal(view.container.querySelectorAll("ul").length, 1, "a blank line between items is not a place to cut");
+  assert.equal(view.container.querySelectorAll("li").length, 8);
+  await view.unmount();
+});
