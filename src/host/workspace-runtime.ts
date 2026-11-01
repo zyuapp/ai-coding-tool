@@ -162,6 +162,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
     dispatch,
     queryThreads: localThreadReader(() => state, history.prepareThreadRequest, () => subscriptions?.flush(), () => disposed),
     setViewVisible: (visible: boolean) => environmentPoll.setVisible(visible, started !== null),
+    setViewInUse: (inUse: boolean) => environmentPoll.setInUse(inUse, started !== null),
     /** Reads the stored drafts again, for text that arrived in storage after the start. */
     restoreDrafts: () => drafts.restore(),
     loaded: loaded.promise,
@@ -211,20 +212,22 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
 export type WorkspaceRuntime = ReturnType<typeof createWorkspaceRuntime>;
 
 /**
- * Asks Git about the checkout in front at once, then on a timer: often during a run, rarely
- * otherwise. Git is polled only while the window can show the answer; a run's end reads it regardless.
+ * Asks Git about the checkout in front at once, then on a timer: often during a run someone is
+ * watching, rarely otherwise. Git is polled only while the window can show the answer; a run's end
+ * reads it regardless.
  */
 function createEnvironmentPoll(refresh: () => void) {
   let timer: ReturnType<typeof setInterval> | undefined;
   let inputs: unknown[] = [];
   let running = false;
   let visible = true;
+  let inUse = true;
   function restart() {
     clearInterval(timer);
     timer = undefined;
     if (!visible) return;
     refresh();
-    timer = setInterval(refresh, running ? 2_000 : 15_000);
+    timer = setInterval(refresh, running ? (inUse ? 2_000 : 10_000) : 15_000);
   }
   return {
     update(next: unknown[], run: boolean) {
@@ -237,6 +240,11 @@ function createEnvironmentPoll(refresh: () => void) {
       if (next === visible) return;
       visible = next;
       if (active) restart();
+    },
+    setInUse(next: boolean, active: boolean) {
+      if (next === inUse) return;
+      inUse = next;
+      if (active && running) restart();
     },
     stop() {
       clearInterval(timer);

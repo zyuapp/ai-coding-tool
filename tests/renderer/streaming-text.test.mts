@@ -226,3 +226,15 @@ test("a reader who scrolls away keeps the view, and is offered a way back to the
   assert.equal(harness.sentTo.at(-1), harness.bottom, "the button returns to the end");
   await view.unmount();
 });
+
+test("a long answer settles across chunks with every paragraph in order", async () => {
+  const paragraph = (index: number) => `Paragraph ${index} ${"word ".repeat(150)}\n\n`;
+  const opening = Array.from({ length: 6 }, (_, index) => paragraph(index)).join("");
+  const view = await mount(streaming({ committed: opening, tail: "Still writing" }));
+
+  await view.render(streaming({ committed: opening + paragraph(6) + paragraph(7), tail: "Still writing" }));
+  const paragraphs = [...view.container.querySelectorAll("p")].map((node) => node.textContent?.split(" ").slice(0, 2).join(" "));
+  assert.deepEqual(paragraphs, [...Array.from({ length: 8 }, (_, index) => `Paragraph ${index}`), "Still writing"]);
+  assert.match(view.container.textContent, /Paragraph 7/);
+  await view.unmount();
+});

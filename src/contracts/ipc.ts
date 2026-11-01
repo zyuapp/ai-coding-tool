@@ -399,6 +399,8 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   setBadgeCount(count: number): void;
   /** The thread a clicked notification named, on its way to becoming the current one. */
   onOpenThread(listener: (taskId: string) => void): () => void;
+  /** Whether the window is the one in use, its browser panel included. */
+  onWindowActive(listener: (active: boolean) => void): () => void;
 };
 
 /** The calls a window's own views make on the desktop, each relayed to main by name. */
@@ -410,7 +412,7 @@ export type WindowDesktopCall =
 /** What a window reaches directly: its calls, what main pushes at it, and what it answers itself. The rest is the runtime's. */
 export type WindowDesktopAPI = Pick<DesktopAPI, WindowDesktopCall
   | "platform" | "pathForFile"
-  | "onTerminalData" | "onWindowScreenshot" | "onDesktopShortcutRefused" | "onShortcut" | "onShortcutCaptured" | "onOpenThread"
+  | "onTerminalData" | "onWindowScreenshot" | "onDesktopShortcutRefused" | "onShortcut" | "onShortcutCaptured" | "onOpenThread" | "onWindowActive"
 >;
 
 /** What a keystroke asked for, and where it was pressed. */

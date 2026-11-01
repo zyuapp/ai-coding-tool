@@ -40,6 +40,7 @@ const api: WindowDesktopAPI = {
   onShortcut: pushed<ShortcutInvocation>("window:shortcut"),
   onShortcutCaptured: pushed<string | null>("window:shortcut-captured"),
   onOpenThread: pushed<string>("window:open-thread"),
+  onWindowActive: pushed<boolean>("window:active"),
 };
 
 contextBridge.exposeInMainWorld("desktop", api);

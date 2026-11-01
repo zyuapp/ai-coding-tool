@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { WINDOW_ACTIVITY_EVENT, windowInUse } from "../window-activity";
 
 /** How often the composer's plan limits are read again while the window is in use. */
 const PLAN_USAGE_POLL_MS = 15 * 60_000;
@@ -23,14 +24,14 @@ export function usePlanUsageReads(runActive: boolean, read: () => void) {
 
   useEffect(() => {
     ask(0);
-    const timer = window.setInterval(() => { if (document.hasFocus()) ask(PLAN_USAGE_POLL_MS - 1_000); }, PLAN_USAGE_POLL_MS);
-    const back = () => ask(PLAN_USAGE_POLL_MS);
+    const timer = window.setInterval(() => { if (windowInUse()) ask(PLAN_USAGE_POLL_MS - 1_000); }, PLAN_USAGE_POLL_MS);
+    const back = () => { if (windowInUse()) ask(PLAN_USAGE_POLL_MS); };
     document.addEventListener("visibilitychange", back);
-    window.addEventListener("focus", back);
+    window.addEventListener(WINDOW_ACTIVITY_EVENT, back);
     return () => {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", back);
-      window.removeEventListener("focus", back);
+      window.removeEventListener(WINDOW_ACTIVITY_EVENT, back);
     };
   }, []);
 

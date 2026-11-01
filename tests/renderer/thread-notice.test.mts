@@ -20,12 +20,13 @@ test("the window answers a clicked notification by selecting that thread", async
     onShortcutCaptured: (listener) => listen("onShortcutCaptured", listener),
     onDesktopShortcutRefused: (listener) => listen("onDesktopShortcutRefused", listener),
     onWindowScreenshot: (listener) => listen("onWindowScreenshot", listener),
+    onWindowActive: (listener) => listen("onWindowActive", listener),
     onOpenThread(listener: Parameters<DesktopAPI["onOpenThread"]>[0]) {
       listeners.set("onOpenThread", listener);
       openThread = listener;
       return () => { listeners.delete("onOpenThread"); openThread = undefined; };
     },
-  } satisfies Pick<DesktopAPI, "onShortcut" | "onShortcutCaptured" | "onDesktopShortcutRefused" | "onWindowScreenshot" | "onOpenThread">;
+  } satisfies Pick<DesktopAPI, "onShortcut" | "onShortcutCaptured" | "onDesktopShortcutRefused" | "onWindowScreenshot" | "onWindowActive" | "onOpenThread">;
   const previous = Object.getOwnPropertyDescriptor(window, "desktop");
   Object.defineProperty(window, "desktop", { configurable: true, value: desktop });
   let view: Awaited<ReturnType<typeof mount>> | undefined;

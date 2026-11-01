@@ -4782,7 +4782,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 @keyframes command-menu-in { from { opacity: 0; transform: translateY(5px); } }
 @keyframes working-pulse { 50% { opacity: 0.35; } }
 /** Indicators that loop for as long as work runs rest while another app is in front. */
-:root[data-window-inactive] :is(.task-spinner, .spinning, .send-spinner, .toast.progress .toast-icon, .thinking-row i, .activity-dots i, .agent-working-icon, .workflow-lane-track > i.run.running, .host-mark.reconnecting > svg, .worktree-safety-dot) { animation-play-state: paused; }
+:root[data-window-inactive] :is(.task-spinner, .spinning, .send-spinner, .toast.progress .toast-icon, .thinking-row i, .activity-dots i, .agent-working-icon, .workflow-lane-track > i.run.running, .host-mark.reconnecting > svg, .worktree-safety-dot) { animation-play-state: paused !important; }
 :root[data-window-inactive] .sweep-band { display: none; }
 @media (prefers-reduced-motion: reduce) {
   /** A mask that follows the scroll position is not motion, and is the only sign a strip has more past its edge. */

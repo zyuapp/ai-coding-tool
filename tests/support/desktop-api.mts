@@ -96,7 +96,7 @@ export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     directories: async () => [],
     registerProject: async (root) => ({ id: root, kind: "project", root }),
     onOpenProject: (next) => { openProject = next; return () => {}; },
-    onOpenThread: (next) => { openThread = next; return () => {}; },
+    onOpenThread: (next) => { openThread = next; return () => {}; }, onWindowActive: () => () => {},
     cliStatus: async () => ({ state: "missing", path: "/usr/local/bin/aic" }),
     installCli: async () => ({ state: "installed", path: "/usr/local/bin/aic" }),
     uninstallCli: async () => ({ state: "missing", path: "/usr/local/bin/aic" }),

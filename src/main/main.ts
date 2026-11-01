@@ -397,6 +397,14 @@ async function createWindow() {
   window.on("minimize", visibility);
   window.on("restore", visibility);
   visibility();
+  /** The native window keeps focus while its browser panel has it, which the page's own focus does not. */
+  const active = () => {
+    if (shown.isDestroyed()) return;
+    workspaceRuntime.setViewInUse(shown.isFocused());
+    shown.webContents.send("window:active", shown.isFocused());
+  };
+  window.on("focus", active);
+  window.on("blur", active);
   window.on("closed", () => {
     workspaceRuntime.setViewVisible(false);
     browser.stopBrowserHost();
