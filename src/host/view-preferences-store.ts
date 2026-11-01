@@ -23,6 +23,7 @@ export function loadViewPreferences(storage: KeyValueStorage, viewportWidth?: nu
     computerUse: stored.computerUse ?? true,
     browserTools: stored.browserTools ?? true,
     notifications: stored.notifications ?? true,
+    idleCompaction: stored.idleCompaction ?? true,
     sidebarOpen: stored.sidebarOpen ?? (viewportWidth === undefined || viewportWidth >= 900),
     sidebarMode: stored.sidebarMode ?? "projects",
     ...(stored.activityProject ? { activityProject: stored.activityProject } : {}),

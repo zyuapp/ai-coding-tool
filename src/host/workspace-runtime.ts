@@ -9,7 +9,7 @@ import { createTaskStore, createDraftPersistence } from "./draft-persistence.js"
 import { loadViewPreferences } from "./view-preferences-store.js";
 import { createRuntimeInputs } from "./runtime-inputs.js";
 import { screenOf } from "../application/input-scope.js";
-import { createSnoozeTimer } from "./snooze-timer.js";
+import { createDeadlineTimers } from "./snooze-timer.js";
 import { createToastTimers } from "./toast-timers.js";
 import { createRuntimeHistory } from "./runtime-history.js";
 import { errorMessage } from "./errors.js";
@@ -74,8 +74,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
   /** Settles once the store and drafts are in, before the current thread's history; never rejects. */
   const loaded = deferred();
   const drafts = createDraftPersistence(host.storage, () => state, dispatch);
-  const snoozeTimer = createSnoozeTimer((at) => { void dispatch({ type: "snoozes.elapsed", at }); });
-  const limitTimer = createSnoozeTimer((at) => { void dispatch({ type: "limits.elapsed", at }); });
+  const deadlines = createDeadlineTimers(dispatch);
   const toastTimers = createToastTimers((id) => { void dispatch({ type: "view.dismiss-toast", id }); });
   const history = createRuntimeHistory({ state: () => state, load: (taskId) => desktop.loadThreadMessages(taskId), search: (search, taskIds) => desktop.searchThreadMessages(search, taskIds), dispatch: (input) => rawExecute(input).completed.then(() => undefined), persistence });
   const inputs = createRuntimeInputs({
@@ -124,7 +123,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
       commit,
       prepare: async (input) => { for (const taskId of history.needed(input)) await history.hydrate(taskId); },
       track: (work) => trackUntilSettled(effectsInFlight, work),
-      perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop, storage: host.storage, environmentRefreshes, scheduleSnoozeExpiry: snoozeTimer.schedule, scheduleLimitReset: limitTimer.schedule, scheduleToastDismissal: toastTimers.schedule, surface: host.surface }),
+      perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop, storage: host.storage, environmentRefreshes, scheduleSnoozeExpiry: deadlines.scheduleSnoozeExpiry, scheduleLimitReset: deadlines.scheduleLimitReset, scheduleIdleCompaction: deadlines.scheduleIdleCompaction, scheduleToastDismissal: toastTimers.schedule, surface: host.surface }),
     });
     trackUntilSettled(effectsInFlight, execution.completed);
     return execution;
@@ -204,7 +203,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
       subscriptions = null;
       if (refreshTimer !== undefined) clearInterval(refreshTimer);
       drafts.dispose();
-      snoozeTimer.dispose(); limitTimer.dispose(); toastTimers.dispose();
+      deadlines.dispose(); toastTimers.dispose();
       started = null;
       generation += 1;
       history.invalidate();

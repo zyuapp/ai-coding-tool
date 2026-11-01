@@ -82,27 +82,8 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       return rejected(next, input.message);
     }
 
-    case "run.compact": {
-      const taskId = targetId(state, input.taskId);
-      const thread = state.threads.find((item) => item.id === taskId);
-      if (!thread || !modelSupportsManualCompaction(thread.engine, thread.model ?? defaultModelFor(thread.engine)) || thread.continuation?.provider !== thread.engine || !thread.contextUsage || threadBusy(state, thread.id)) return settled(state);
-      if (state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
-      if (leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
-      const project = projectFor(state, thread);
-      const pending: PendingRun = {
-        id: crypto.randomUUID(),
-        runId: crypto.randomUUID(),
-        origin: "composer",
-        operation: { type: "compact" },
-        taskId: thread.id,
-        ...(project ? { projectId: project.id } : {}),
-        text: "",
-        prompt: "",
-        attachments: [],
-      };
-      const resolving = resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false);
-      return settled(withPending(state, pending), [resolving]);
-    }
+    case "run.compact":
+      return requestCompaction(state, targetId(state, input.taskId), false);
 
     case "run.cancel": {
       const taskId = targetId(state, input.taskId);
@@ -249,6 +230,32 @@ function turnPullRequestRead(state: WorkspaceState, taskId: string) {
   return thread.brief?.delivers === "pull-request" || thread.pullRequest ? memberPullRequestRead(state, thread) : null;
 }
 
+export function compactable(state: WorkspaceState, thread: Thread) {
+  return modelSupportsManualCompaction(thread.engine, thread.model ?? defaultModelFor(thread.engine)) && thread.continuation?.provider === thread.engine && Boolean(thread.contextUsage) && !threadBusy(state, thread.id);
+}
+
+/** Compacts a thread without adding a user message. `idle` is the app compacting a thread nobody is using. */
+export function requestCompaction(state: WorkspaceState, taskId: string | null, idle: boolean): WorkspaceTransition {
+  const thread = state.threads.find((item) => item.id === taskId);
+  if (!thread || !compactable(state, thread)) return settled(state);
+  if (state.creatingWorktrees.includes(thread.id)) return idle ? settled(state) : rejected(state, WORKTREE_CREATING_ERROR);
+  if (leavingThreadIds(state).has(thread.id)) return idle ? settled(state) : rejected(state, WORKTREE_RELEASING_ERROR);
+  const project = projectFor(state, thread);
+  const pending: PendingRun = {
+    id: crypto.randomUUID(),
+    runId: crypto.randomUUID(),
+    origin: "composer",
+    operation: { type: "compact", ...(idle ? { idle: true as const } : {}) },
+    taskId: thread.id,
+    ...(project ? { projectId: project.id } : {}),
+    text: "",
+    prompt: "",
+    attachments: [],
+  };
+  const resolving = resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false);
+  return settled(withPending(state, pending), [resolving]);
+}
+
 function startCompaction(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {
   const thread = pending.taskId ? state.threads.find((item) => item.id === pending.taskId) : undefined;
   if (!thread || !modelSupportsManualCompaction(thread.engine, thread.model ?? defaultModelFor(thread.engine)) || thread.continuation?.provider !== thread.engine || !thread.contextUsage || state.activeRuns[thread.id]) return settled(state);
@@ -256,7 +263,8 @@ function startCompaction(state: WorkspaceState, pending: PendingRun, workspace: 
     ...startRunCommand(state, thread, pending.runId, "", workspace.id),
     operation: { type: "compact" as const, preTokens: thread.contextUsage.tokens },
   };
-  return settled(beginRun(state, thread.id, pending.runId, { ...ATTENDED_RUN, operation: "compact" }), [{ type: "start-run", command }]);
+  const idle = pending.operation?.type === "compact" && pending.operation.idle ? { idle: true as const } : {};
+  return settled(beginRun(state, thread.id, pending.runId, { ...ATTENDED_RUN, operation: "compact", ...idle }), [{ type: "start-run", command }]);
 }
 
 function reviewableThread(state: WorkspaceState, taskId: string | null) {

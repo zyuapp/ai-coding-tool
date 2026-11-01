@@ -35,10 +35,10 @@ const EFFORTS_THROUGH_ULTRA = efforts("ultra", ...EFFORTS_THROUGH_MAX.map((spec)
 export type ClaudeEffort = Exclude<AgentEffort, "ultra">;
 
 const CLAUDE_MODELS = [
-  { id: "fable", label: "Fable", description: "Most capable for demanding work", contextWindow: 1_000_000, efforts: EFFORTS_THROUGH_MAX },
-  { id: "opus", label: "Opus", description: "Best for complex reasoning", contextWindow: 1_000_000, efforts: EFFORTS_THROUGH_MAX },
-  { id: "sonnet", label: "Sonnet", description: "Balanced speed and capability", contextWindow: 1_000_000, efforts: EFFORTS_THROUGH_MAX },
-  { id: "haiku", label: "Haiku", description: "Fastest for lightweight work", contextWindow: 200_000, efforts: [], delegable: false },
+  { id: "fable", label: "Fable", description: "Most capable for demanding work", contextWindow: 1_000_000, efforts: EFFORTS_THROUGH_MAX, manualCompaction: true },
+  { id: "opus", label: "Opus", description: "Best for complex reasoning", contextWindow: 1_000_000, efforts: EFFORTS_THROUGH_MAX, manualCompaction: true },
+  { id: "sonnet", label: "Sonnet", description: "Balanced speed and capability", contextWindow: 1_000_000, efforts: EFFORTS_THROUGH_MAX, manualCompaction: true },
+  { id: "haiku", label: "Haiku", description: "Fastest for lightweight work", contextWindow: 200_000, efforts: [], manualCompaction: true, delegable: false },
 ] as const;
 
 /** The default context window in Codex's model catalogue, used until the server reports its own. */
@@ -63,8 +63,8 @@ export function currentModel(value: unknown): unknown {
 /**
  * Runs always request the widest context a model offers, so `contextWindow` is that ceiling. An
  * empty `efforts` is a model that takes no effort at all, which is drawn as no effort control.
- * `manualCompaction` is the model's own protocol command for compacting on request, which Claude
- * models do not offer. `delegable: false` is a model a coordinator may not start a thread on.
+ * `manualCompaction` is the model compacting its thread on request, without a user message.
+ * `delegable: false` is a model a coordinator may not start a thread on.
  */
 export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number; efforts: readonly EffortSpec[]; manualCompaction?: boolean; delegable?: false };
 
@@ -80,6 +80,11 @@ export type EngineCapabilities = {
   subagentMetadata: boolean;
   /** Reviewing the thread's changes is work the engine performs itself, not a prompt it is sent. */
   review: boolean;
+  /**
+   * How long the engine's prompt cache holds an idle thread, where re-reading the thread once the
+   * cache expires costs the plan. Such a thread is compacted shortly before then. Null for none.
+   */
+  idleCompactionCacheMs: number | null;
 };
 
 type EngineSpec = {
@@ -96,14 +101,14 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     models: CLAUDE_MODELS,
     defaultModel: "opus",
     defaultEffort: "high",
-    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false },
+    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false, idleCompactionCacheMs: 60 * 60 * 1_000 },
   },
   codex: {
     label: "Codex",
     models: CODEX_MODELS,
     defaultModel: "gpt-6.1-sol",
     defaultEffort: "high",
-    capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true },
+    capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true, idleCompactionCacheMs: null },
   },
 };
 
@@ -288,7 +293,7 @@ function engineSpec(engine: AgentEngine): EngineSpec | undefined {
   return Object.hasOwn(ENGINES, engine) ? ENGINES[engine] : undefined;
 }
 
-const NO_CAPABILITIES: EngineCapabilities = { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false };
+const NO_CAPABILITIES: EngineCapabilities = { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, idleCompactionCacheMs: null };
 
 export function modelsFor(engine: AgentEngine): readonly ModelSpec[] {
   return engineSpec(engine)?.models ?? [];

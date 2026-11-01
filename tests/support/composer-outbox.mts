@@ -28,6 +28,7 @@ export function useSavingOutbox(onSend: (attachments: RunAttachment[], steer: bo
           environmentRefreshes: { current: new Map() },
           scheduleSnoozeExpiry: () => {},
           scheduleLimitReset: () => {},
+          scheduleIdleCompaction: () => {},
           scheduleToastDismissal: () => {},
           dispatch: async (input) => {
             if (input.type === "attachments.saved") {

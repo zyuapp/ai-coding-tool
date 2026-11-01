@@ -76,8 +76,8 @@ test("manual Codex compaction reuses the run lifecycle without becoming a task r
   assert.equal(finished.state.activeRuns["task-a"], undefined);
   assert.deepEqual(finished.effects, [], "context maintenance neither announces a finished task nor refreshes its checkout");
 
-  const claude = { ...state, threads: [{ ...state.threads[0], engine: "claude" as const, model: "opus" as const, continuation: { provider: "claude" as const, value: "session-1" } }] };
-  assert.deepEqual(reduce(claude, { type: "run.compact" }).effects, [], "the command stays specific to models that compact on request");
+  const fresh = { ...state, threads: [{ ...state.threads[0], continuation: undefined, continuationStatus: "none" as const }] };
+  assert.deepEqual(reduce(fresh, { type: "run.compact" }).effects, [], "only a thread with a session of its engine compacts");
 });
 
 test("a Codex review picker starts a native review without adding a user message", () => {

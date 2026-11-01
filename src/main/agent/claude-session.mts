@@ -14,6 +14,8 @@ import { TurnSlot, type SessionTurn } from "./session-turn.mjs";
 
 /** The model the agent process stamps on replies it produced itself: slash commands, interrupts, error notices. */
 const SYNTHETIC_MODEL = "<synthetic>";
+/** Claude Code's own command for summarizing the session so far. It answers with no model turn. */
+const COMPACT_COMMAND = "/compact";
 
 /** A response's usage as the API reports it, whole on a message or in part on a stream frame. */
 type ResponseUsage = { input_tokens?: number | null; cache_creation_input_tokens?: number | null; cache_read_input_tokens?: number | null; output_tokens?: number | null };
@@ -239,6 +241,10 @@ export class ClaudeSession {
   private async begin(turn: Turn) {
     await this.retune(turn.input);
     if (this.turn !== turn) return;
+    if (turn.input.operation?.type === "compact") {
+      this.push({ message: userMessage(COMPACT_COMMAND) });
+      return;
+    }
     // One message keeps the boundary after inherited history without giving Claude an extra turn.
     const prompt = this.sideChatBoundaryPending ? `${SIDE_CHAT_BOUNDARY}\n\nSide-chat request:\n${turn.input.prompt}` : turn.input.prompt;
     this.sideChatBoundaryPending = false;

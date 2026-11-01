@@ -451,6 +451,7 @@ const commands = {
   "view.set-computer-use": { fields: { enabled: boolean }, at: "local" },
   "view.set-browser-tools": { fields: { enabled: boolean }, at: "local" },
   "view.set-notifications": { fields: { enabled: boolean }, at: "local" },
+  "view.set-idle-compaction": { fields: { enabled: boolean }, at: "local" },
   "view.inspect-subagent": { fields: { taskId: optionalText, subagentId: text }, at: "thread" },
   "view.set-settings-open": { fields: { open: boolean, section: optional(isSettingsSection), settingId: optionalText }, at: "local" },
   "view.close-tab": { fields: {}, at: "thread" },

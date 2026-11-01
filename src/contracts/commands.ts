@@ -539,6 +539,7 @@ export type ViewCommand =
   | { type: "view.set-computer-use"; enabled: boolean }
   | { type: "view.set-browser-tools"; enabled: boolean }
   | { type: "view.set-notifications"; enabled: boolean }
+  | { type: "view.set-idle-compaction"; enabled: boolean }
   /** Opening a subagent's detail, which is when its activity is read out of the store. */
   | { type: "view.inspect-subagent"; taskId?: string; subagentId: string }
   /**

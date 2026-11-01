@@ -39,14 +39,14 @@ test("a foreign model uses the engine's default context window", () => {
 });
 
 test("per-engine settings and operations are catalogue entries", () => {
-  assert.deepEqual(capabilitiesFor("codex"), { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true });
-  assert.deepEqual(capabilitiesFor("claude"), { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false });
+  assert.deepEqual(capabilitiesFor("codex"), { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true, idleCompactionCacheMs: null });
+  assert.deepEqual(capabilitiesFor("claude"), { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false, idleCompactionCacheMs: 3_600_000 });
 });
 
 test("manual compaction belongs to the model and only through the engine that offers it", () => {
   assert.equal(modelSupportsManualCompaction("codex", "gpt-6.1-sol"), true);
   assert.equal(modelSupportsManualCompaction("codex", "gpt-6-astra"), true);
-  assert.equal(modelSupportsManualCompaction("claude", "opus"), false);
+  assert.equal(modelSupportsManualCompaction("claude", "opus"), true);
   assert.equal(modelSupportsManualCompaction("claude", "gpt-6.1-sol"), false);
   for (const engine of engines) {
     for (const model of modelsFor(engine)) assert.equal(modelSupportsManualCompaction(engine, model.id), model.manualCompaction === true);

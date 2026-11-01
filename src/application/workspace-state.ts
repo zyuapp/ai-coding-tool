@@ -96,7 +96,7 @@ export type PendingRun = Pick<HeldMessage, "usersOwn"> & {
   runId: string;
   origin: "composer" | "automation";
   /** `resume` picks a thread back up after its usage limit lifts, with no message of the user's. */
-  operation?: { type: "compact" } | { type: "review"; target: ReviewTarget } | { type: "resume" };
+  operation?: { type: "compact"; idle?: true } | { type: "review"; target: ReviewTarget } | { type: "resume" };
   taskId?: string;
   projectId?: string;
   /** The checkout the run was told to happen in, for a thread that does not exist yet to claim. */
@@ -320,6 +320,10 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   browserTools: boolean;
   /** Whether a thread that needs the user is announced on the desktop. Off leaves it to the sidebar alone. */
   notifications: boolean;
+  /** Whether a large idle thread is compacted before its prompt cache expires, on engines that charge to read it again. */
+  idleCompaction: boolean;
+  /** Each thread's last run end that idle compaction already acted on or let pass. Session-only. */
+  idleCompactionSeen: Record<string, number>;
   settingsOpen: boolean;
   /** The page settings opens on, when something opened it on one. Null lets it open where it opens. */
   settingsSection: SettingsSection | null;
@@ -501,6 +505,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     computerUse: true,
     browserTools: true,
     notifications: true,
+    idleCompaction: true,
+    idleCompactionSeen: {},
     settingsOpen: false,
     settingsSection: null,
     settingsFocus: null,
@@ -799,7 +805,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     chromeBrowser: state.chromeBrowser,
     computerUse: state.computerUse,
     browserTools: state.browserTools,
-    notifications: state.notifications,
+    notifications: state.notifications, idleCompaction: state.idleCompaction,
     favoriteModels: state.favoriteModels, recentProjects: state.recentProjects, shortcuts: shortcutSettings(state.shortcuts),
     capturingShortcut: state.capturingShortcut, desktopShortcutUnavailable: state.desktopShortcutUnavailable,
     composerFocus: state.composerFocus,

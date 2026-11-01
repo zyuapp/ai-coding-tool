@@ -3,6 +3,7 @@ import { apply } from "./workspace-reducer/dispatch.js";
 import { reconcileSnoozes } from "./thread-snooze.js";
 import { reconcileLimitPauses } from "./limit-pauses.js";
 import { reconcileAppUpdate } from "./app-updates.js";
+import { reconcileIdleCompaction } from "./idle-compaction.js";
 import { reconcileCoordination } from "./workspace-reducer/coordination.js";
 import { shownPageEffects } from "./workspace-reducer/browser-tabs.js";
 import { prunedWorkflowPanels, TAKE_KEYS, withOverviewPanels } from "./workspace-reducer/dock-tabs.js";
@@ -54,7 +55,7 @@ function reduceInput(state: WorkspaceState, input: WorkspaceInput): WorkspaceTra
   if (route.kind === "computer" && !route.also) return forwarded(state, route);
   const carried = route.kind === "computer" ? [forwardEffect(route)] : [];
   const left = leavingComputer(state, input);
-  const applied = reconcileAppUpdate(left, reconcileCoordination(left, reconcileLimitPauses(left, reconcileSnoozes(left, apply(left, input), input), input), input));
+  const applied = reconcileAppUpdate(left, reconcileCoordination(left, reconcileIdleCompaction(left, reconcileLimitPauses(left, reconcileSnoozes(left, apply(left, input), input), input), input), input));
   applied.effects = [...leftBehind(state, left), ...carried, ...applied.effects];
   const transition = { ...applied, state: settledUnlisted(left, withOverviewPanels(prunedWorkflowPanels(prunedFind(applied.state)))) };
   if (transition.state.browserOrigins !== state.browserOrigins || (input.type === "task.set-policy" && transition.state !== state) || input.type === "store.loaded" || input.type === "preferences.loaded" || transition.effects.some((effect) => ["browser.open", "browser.navigate", "browser.act", "browser.history", "browser.reload"].includes(effect.type))) {
