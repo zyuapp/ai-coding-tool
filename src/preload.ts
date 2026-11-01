@@ -16,6 +16,11 @@ function pushed<Payload>(channel: string) {
   };
 }
 
+/** Main may say whether the window is in use before the page listens, so the last word is kept. */
+let windowActive: boolean | undefined;
+ipcRenderer.on("window:active", (_event, active: boolean) => { windowActive = active; });
+const onWindowActive = pushed<boolean>("window:active");
+
 const api: WindowDesktopAPI = {
   platform: process.platform === "darwin" ? "macos" : process.platform === "linux" ? "linux" : "other",
   pathForFile: (file: File) => webUtils.getPathForFile(file),
@@ -40,7 +45,10 @@ const api: WindowDesktopAPI = {
   onShortcut: pushed<ShortcutInvocation>("window:shortcut"),
   onShortcutCaptured: pushed<string | null>("window:shortcut-captured"),
   onOpenThread: pushed<string>("window:open-thread"),
-  onWindowActive: pushed<boolean>("window:active"),
+  onWindowActive: (listener) => {
+    if (windowActive !== undefined) listener(windowActive);
+    return onWindowActive(listener);
+  },
 };
 
 contextBridge.exposeInMainWorld("desktop", api);
