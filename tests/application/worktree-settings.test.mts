@@ -152,3 +152,16 @@ test("bulk delete of two counts both, and a lone delete afterwards reports its p
   assert.deepEqual(nothing.effects, []);
   assert.equal(nothing.state.worktreeSettings.bulk, null);
 });
+
+test("bulk delete keeps recovery pointers, a failure's error, and its count across closing Settings", () => {
+  const roots = ["clean", "loose"].map((id) => heldWorktree(id).root);
+  const started = reduce(bulkFixture(), { type: "worktree.delete-safe", roots }).state;
+  const failed = reduce(started, { type: "worktrees.failed", root: roots[0], message: "Locked" }).state;
+  const closed = reduce(failed, { type: "view.set-settings-open", open: false }).state;
+  assert.deepEqual(closed.worktreeSettings.bulk?.pending, [roots[1]]);
+  const snapshot = { commit: "abcdef1234", shortCommit: "abcdef1", ref: "refs/aicodingtool/loose" };
+  const done = reduce(closed, { type: "worktree.deleted", worktreeId: "loose", root: roots[1], snapshot }).state;
+  assert.equal(done.worktreeManagementNotice, "Deleted 1 worktree. Recover repo-loose with git show refs/aicodingtool/loose.");
+  assert.equal(done.worktreeManagementError, "Locked");
+  assert.equal(done.worktreeSettings.bulk, null);
+});

@@ -170,7 +170,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
     case "worktrees.loaded": return settled({ ...state, managedWorktrees: input.worktrees, worktreeManagementLoading: false, worktreeManagementError: null });
 
     /** A failed delete leaves the checkout on the list, so only its wait and the error change. */
-    case "worktrees.failed": return settled({ ...state, deletingWorktrees: input.root ? withoutWorktreeRoot(state, input.root) : state.deletingWorktrees, worktreeSettings: input.root ? settleBulk(state, input.root, false) : state.worktreeSettings, worktreeManagementLoading: input.root ? state.worktreeManagementLoading : false, worktreeManagementError: input.message }, [], { ok: false, message: input.message });
+    case "worktrees.failed": return settled({ ...state, deletingWorktrees: input.root ? withoutWorktreeRoot(state, input.root) : state.deletingWorktrees, worktreeSettings: input.root ? settleBulk(state, input.root, null) : state.worktreeSettings, worktreeManagementLoading: input.root ? state.worktreeManagementLoading : false, worktreeManagementError: input.message }, [], { ok: false, message: input.message });
 
     case "worktree.released": {
       const thread = state.threads.find((item) => item.id === input.taskId);
@@ -196,17 +196,19 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
         const filed = { ...state, threads: dismissed(state.threads, claimants) };
         dropped = dropWorktree(filed, worktree.id, () => createConversationMessage("system", text, ref ? `Recover it with git show ${ref}` : undefined));
       }
+      let recovery = "";
+      if (!input.missingOnly && ref) recovery = `git show ${ref}`;
+      else if (!input.missingOnly && commit) recovery = `git show ${shortCommit ?? commit}`;
       let notice = `Deleted ${input.root}.`;
       if (input.missingOnly) notice = `Forgot ${input.root}. Thread history kept.`;
-      else if (ref) notice += ` Recover it with git show ${ref}.`;
-      else if (commit) notice += ` Recover loose work with git show ${shortCommit ?? commit}.`;
-      const worktreeSettings = settleBulk(dropped, input.root, true);
+      else if (ref) notice += ` Recover it with ${recovery}.`;
+      else if (commit) notice += ` Recover loose work with ${recovery}.`;
       const bulk = dropped.worktreeSettings.bulk;
-      if (bulk?.pending.includes(input.root)) {
-        const count = bulk.deleted + 1;
-        notice = `Deleted ${count} ${count === 1 ? "worktree" : "worktrees"}.`;
-      }
-      const refreshed = reduceDiffs({ ...dropped, worktreeSettings, managedWorktrees: dropped.managedWorktrees?.filter((item) => item.root !== input.root) ?? null, deletingWorktrees: withoutWorktreeRoot(dropped, input.root), worktreeManagementError: null, worktreeManagementNotice: notice }, { type: "view.refresh-environment" });
+      const inBulk = Boolean(bulk?.pending.includes(input.root));
+      const recover = recovery ? `Recover ${input.root.split("/").filter(Boolean).at(-1)} with ${recovery}.` : null;
+      const worktreeSettings = settleBulk(dropped, input.root, { recover });
+      if (bulk && inBulk) notice = bulkNotice(bulk, recover);
+      const refreshed = reduceDiffs({ ...dropped, worktreeSettings, managedWorktrees: dropped.managedWorktrees?.filter((item) => item.root !== input.root) ?? null, deletingWorktrees: withoutWorktreeRoot(dropped, input.root), worktreeManagementError: inBulk ? dropped.worktreeManagementError : null, worktreeManagementNotice: notice }, { type: "view.refresh-environment" });
       return { ...refreshed, effects: followUps(refreshed.effects) };
     }
   }
@@ -227,16 +229,23 @@ function deleteSafe(state: WorkspaceState, requested: string[]): WorkspaceTransi
     effects.push(...deleted.effects);
     pending.push(root);
   }
-  return settled({ ...next, worktreeSettings: { ...next.worktreeSettings, bulk: pending.length ? { pending, deleted: 0 } : null } }, effects);
+  return settled({ ...next, worktreeSettings: { ...next.worktreeSettings, bulk: pending.length ? { pending, deleted: 0, recover: [] } : null } }, effects);
 }
 
-/** Takes a finished root off the bulk delete, counting it when it went. */
-function settleBulk(state: WorkspaceState, root: string, deleted: boolean): WorkspaceState["worktreeSettings"] {
+type Bulk = NonNullable<WorkspaceState["worktreeSettings"]["bulk"]>;
+
+/** Takes a finished root off the bulk delete, counting it and keeping its recovery pointer when it went. */
+function settleBulk(state: WorkspaceState, root: string, deleted: { recover: string | null } | null): WorkspaceState["worktreeSettings"] {
   const bulk = state.worktreeSettings.bulk;
   if (!bulk?.pending.includes(root)) return state.worktreeSettings;
   const pending = bulk.pending.filter((item) => item !== root);
-  const count = bulk.deleted + (deleted ? 1 : 0);
-  return { ...state.worktreeSettings, bulk: pending.length ? { pending, deleted: count } : null };
+  const next: Bulk = { pending, deleted: bulk.deleted + (deleted ? 1 : 0), recover: deleted?.recover ? [...bulk.recover, deleted.recover] : bulk.recover };
+  return { ...state.worktreeSettings, bulk: pending.length ? next : null };
+}
+
+function bulkNotice(bulk: Bulk, recover: string | null) {
+  const count = bulk.deleted + 1;
+  return [`Deleted ${count} ${count === 1 ? "worktree" : "worktrees"}.`, ...bulk.recover, ...(recover ? [recover] : [])].join(" ");
 }
 
 function reduceCheckout(state: WorkspaceState, input: Extract<WorktreeInput, { type: "task.checkout-branch" | "checkout.finished" }>): WorkspaceTransition {

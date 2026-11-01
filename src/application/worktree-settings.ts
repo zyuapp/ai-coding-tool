@@ -8,8 +8,8 @@ export type WorktreeSettingsState = {
   missingOpen: boolean | null;
   expandedThreads: string[];
   confirmingSafe: boolean;
-  /** The roots of a bulk delete still on their way out, and how many already went. */
-  bulk: { pending: string[]; deleted: number } | null;
+  /** The roots of a bulk delete still on their way out, how many already went, and how to recover any snapshots. */
+  bulk: { pending: string[]; deleted: number; recover: string[] } | null;
 };
 
 export type WorktreeSettingsView = ManagedWorktree & {

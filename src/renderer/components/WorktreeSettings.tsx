@@ -72,7 +72,7 @@ function WorktreeRow({ worktree, expanded, dispatch }: { worktree: WorktreeSetti
       </button>}
       {worktree.deleting
         ? <span className="text-sweep" role="status">{worktree.available ? "Deleting…" : "Forgetting…"}</span>
-        : <button type="button" className="worktree-icon-button worktree-delete" aria-label={worktree.available ? "Delete…" : "Forget…"} data-tip={worktree.busy ? "Wait for the active run to finish" : worktree.available ? "Delete" : "Forget"} aria-disabled={worktree.busy || undefined} aria-describedby={worktree.busy ? statusId : undefined} onClick={() => { if (!worktree.busy) dispatch({ type: "worktree.confirm-delete", root: worktree.root }); }}>
+        : <button type="button" className="worktree-icon-button worktree-delete" aria-label={worktree.available ? "Delete…" : "Forget…"} data-tip={worktree.busy ? "Wait for the active run to finish" : worktree.available ? "Delete" : "Forget"} aria-disabled={worktree.busy || undefined} aria-describedby={worktree.busy && worktree.available ? statusId : undefined} onClick={() => { if (!worktree.busy) dispatch({ type: "worktree.confirm-delete", root: worktree.root }); }}>
           <Trash size={16} aria-hidden="true" />
         </button>}
     </div>
