@@ -378,3 +378,50 @@ test("a branch list that cannot be read says so on the picker, which still opens
   assert.equal(query(view.container, ".branch-menu-empty.error").textContent, "not a git repository");
   await view.unmount();
 });
+
+test("the project picker leads with recent projects until a search starts", async () => {
+  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  window.desktop = fakeDesktop();
+  const projects = [{ id: "alpha", root: "/repo/alpha" }, { id: "beta", root: "/repo/beta" }, { id: "gamma", root: "/repo/gamma" }];
+  const chosen: Array<string | undefined> = [];
+  const options = (recentProjectIds: string[], extra: Partial<React.ComponentProps<typeof ThreadStartOptions>> = {}) => React.createElement(ThreadStartOptions, {
+    projects, projectId: "gamma", recentProjectIds, branch: null, worktree: false,
+    onSelectProject: (id) => { chosen.push(id); },
+    onSelectBranch() {}, onSetWorktree() {}, coordinator: false, onSetCoordinator() {},
+    ...extra,
+  });
+  const view = await mount(options(["gamma", "removed", "alpha"]));
+  const trigger = query<HTMLButtonElement>(view.container, 'button[aria-label^="Project: "]');
+  await act(async () => { trigger.click(); });
+  const groups = () => [...view.container.querySelectorAll('[role="group"]')].map((group) => group.getAttribute("aria-label"));
+  const rows = () => [...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')];
+  assert.deepEqual(groups(), ["Recent", "All projects"], "recent projects sit above every project, which is named apart from them");
+  assert.deepEqual([...view.container.querySelectorAll(".thread-start-group-heading")].map((heading) => heading.textContent), ["Recent", "All projects"]);
+  assert.deepEqual(rows().map((row) => row.textContent), ["No project", "gamma", "alpha", "alpha", "beta", "gamma"], "a project gone from the list is skipped, and recent ones stay in their own group");
+  assert.deepEqual(rows().filter((row) => row.getAttribute("aria-selected") === "true").map((row) => row.textContent), ["gamma", "gamma"], "the selected project is marked wherever it appears");
+  await act(async () => { item(rows()[2]).click(); });
+  assert.deepEqual(chosen, ["alpha"], "a recent row picks its project");
+
+  await act(async () => { trigger.click(); });
+  const search = query<HTMLInputElement>(view.container, 'input[aria-label="Search projects"]');
+  await act(async () => {
+    item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set!.call(search, "a");
+    search.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+  });
+  assert.deepEqual(groups(), [], "searching hides Recent");
+  assert.deepEqual(rows().map((row) => row.textContent), ["alpha", "beta", "gamma"]);
+
+  await view.render(options(["removed"]));
+  await act(async () => { trigger.click(); });
+  await act(async () => { trigger.click(); });
+  assert.deepEqual(groups(), [], "no recent project that still exists leaves no Recent group");
+  assert.equal(query(view.container, '[role="listbox"]').textContent, "No projectalphabetagamma");
+
+  const studio = { id: "studio", name: "Studio Mac", offline: false };
+  await view.render(options(["beta"], { projectHosts: new Map([["beta", studio]]) }));
+  await act(async () => { trigger.click(); });
+  await act(async () => { trigger.click(); });
+  assert.deepEqual(groups(), ["Recent", "This computer", "Studio Mac"], "computer headings follow Recent");
+  assert.equal(rows()[1]?.getAttribute("aria-label"), "beta on Studio Mac", "a recent row names its computer");
+  await view.unmount();
+});

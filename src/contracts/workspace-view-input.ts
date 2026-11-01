@@ -430,6 +430,7 @@ const commands = {
   "view.set-subagent-group": { fields: { group: isSubagentGroup, open: boolean }, at: "local" },
   "view.set-overview-group": { fields: { taskId: text, group: isOverviewSection, open: optionalBoolean, all: optionalBoolean }, at: "local" },
   "view.set-model-favorite": { fields: { model: isAgentModel, favorite: boolean }, at: "local" },
+  "view.remember-project": { fields: { projectId: text }, at: "local" },
   "view.set-theme": { fields: { theme: text }, at: "local" },
   "view.set-theme-family": { fields: { family: text, systemDark: boolean }, at: "local" },
   "view.set-theme-mode": { fields: { mode: isThemeMode, systemDark: boolean }, at: "local" },

@@ -19,6 +19,13 @@ export type ThreadDropTarget = {
   index: number;
 };
 
+export const MAX_RECENT_PROJECTS = 5;
+
+/** The recently picked project ids with `projectId` moved to the front, newest first. */
+export function rememberProject(recent: readonly string[], projectId: string): string[] {
+  return [projectId, ...recent.filter((id) => id !== projectId)].slice(0, MAX_RECENT_PROJECTS);
+}
+
 /** How a folder names itself: its last path segment. */
 export function folderName(root: string) {
   let end = root.length;

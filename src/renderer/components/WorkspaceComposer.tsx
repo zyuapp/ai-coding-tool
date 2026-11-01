@@ -82,11 +82,15 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
           projects={workspace.startProjects}
           projectHosts={workspace.projectHosts}
           projectId={workspace.currentProject?.id ?? null}
+          recentProjectIds={workspace.recentProjects}
           {...(workspace.currentProject?.workspaceId ? { workspaceId: workspace.currentProject.workspaceId } : {})}
           branch={workspace.draftBranch}
           worktree={workspace.draftWorktree}
           {...(workspace.draftWorktreeName ? { startsInWorktree: workspace.draftWorktreeName } : {})}
-          onSelectProject={workspace.actions.newThread}
+          onSelectProject={(projectId) => {
+            if (projectId) void workspace.dispatch({ type: "view.remember-project", projectId });
+            void workspace.actions.newThread(projectId);
+          }}
           onSelectBranch={workspace.actions.setBranch}
           onSetWorktree={workspace.actions.setWorktree}
           coordinator={workspace.draftRole === "coordinator"}
