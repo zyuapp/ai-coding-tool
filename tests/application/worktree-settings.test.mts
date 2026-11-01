@@ -91,3 +91,64 @@ test("forgetting a missing folder only removes its record and returns linked thr
   assert.match(deleted.worktreeManagementNotice!, /Forgot.*Thread history kept/);
   assert.equal(deriveView(deleted).worktreeSettings.missing.length, 0);
 });
+
+function bulkFixture() {
+  const ids = ["clean", "dirty", "ahead", "unknown", "busy", "loose"];
+  const records = ids.map((id) => heldWorktree(id));
+  const status = {
+    clean: { changedFiles: 0, comparison: { branch: "origin/main", ahead: 0 } },
+    dirty: { changedFiles: 1, comparison: { branch: "origin/main", ahead: 0 } },
+    ahead: { changedFiles: 0, comparison: { branch: "origin/main", ahead: 2 } },
+    unknown: { changedFiles: 0, comparison: null },
+    busy: { changedFiles: 0, comparison: { branch: "origin/main", ahead: 0 } },
+    loose: { changedFiles: 0, comparison: { branch: "origin/main", ahead: 0 } },
+  } as const;
+  const state = projected({
+    settingsOpen: true,
+    worktrees: records.filter((record) => record.id !== "loose"),
+    threads: [task("in-clean", { worktreeId: "clean", projectId: PROJECT.id }), task("in-busy", { worktreeId: "busy", projectId: PROJECT.id })],
+    managedWorktrees: records.map((record) => ({ id: record.id, root: record.root, repository: PROJECT.root, branch: null, status: status[record.id as keyof typeof status] })),
+  });
+  state.activeRuns = { "in-busy": activeRun("in-busy", "run") };
+  return state;
+}
+
+test("only clean, merged, idle checkouts count as safe", () => {
+  const page = deriveView(bulkFixture()).worktreeSettings;
+  assert.deepEqual(page.safe.map((worktree) => worktree.id), ["clean", "loose"]);
+  assert.equal(page.safeConfirmation, null);
+  const confirming = reduce(bulkFixture(), { type: "worktree.confirm-delete-safe", open: true }).state;
+  assert.deepEqual(deriveView(confirming).worktreeSettings.safeConfirmation?.map((worktree) => worktree.id), ["clean", "loose"]);
+  const filtered = reduce(confirming, { type: "worktree.filter-project", project: PROJECT.id }).state;
+  assert.equal(deriveView(filtered).worktreeSettings.safeConfirmation, null);
+});
+
+test("bulk delete rejudges each root, deletes only safe ones, and reports one count", () => {
+  const state = reduce(bulkFixture(), { type: "worktree.confirm-delete-safe", open: true }).state;
+  const roots = ["clean", "dirty", "busy", "loose", "clean"].map((id) => heldWorktree(id).root);
+  const started = reduce(state, { type: "worktree.delete-safe", roots });
+  assert.deepEqual(started.effects.filter((effect) => effect.type === "delete-worktree").map((effect) => effect.worktreeId), ["clean", "loose"]);
+  assert.deepEqual(started.state.deletingWorktrees, [heldWorktree("clean").root, heldWorktree("loose").root]);
+  assert.equal(started.state.worktreeSettings.confirmingSafe, false);
+  assert.deepEqual(deriveView(started.state).worktreeSettings.safe, []);
+  const snapshot = { commit: null, shortCommit: null, ref: null };
+  const first = reduce(started.state, { type: "worktree.deleted", worktreeId: "clean", root: heldWorktree("clean").root, snapshot }).state;
+  assert.equal(first.worktreeManagementNotice, "Deleted 1 worktree.");
+  assert.equal(first.threads.find((thread) => thread.id === "in-clean")?.worktreeId, undefined);
+  const failed = reduce(first, { type: "worktrees.failed", root: heldWorktree("loose").root, message: "Locked" }).state;
+  assert.equal(failed.worktreeSettings.bulk, null);
+  assert.equal(failed.worktreeManagementError, "Locked");
+  assert.deepEqual(failed.deletingWorktrees, []);
+});
+
+test("bulk delete of two counts both, and a lone delete afterwards reports its path", () => {
+  const started = reduce(bulkFixture(), { type: "worktree.delete-safe", roots: [heldWorktree("clean").root, heldWorktree("loose").root] }).state;
+  const snapshot = { commit: null, shortCommit: null, ref: null };
+  const first = reduce(started, { type: "worktree.deleted", worktreeId: "clean", root: heldWorktree("clean").root, snapshot }).state;
+  const second = reduce(first, { type: "worktree.deleted", worktreeId: "loose", root: heldWorktree("loose").root, snapshot }).state;
+  assert.equal(second.worktreeManagementNotice, "Deleted 2 worktrees.");
+  assert.equal(second.worktreeSettings.bulk, null);
+  const nothing = reduce(bulkFixture(), { type: "worktree.delete-safe", roots: [heldWorktree("dirty").root] });
+  assert.deepEqual(nothing.effects, []);
+  assert.equal(nothing.state.worktreeSettings.bulk, null);
+});

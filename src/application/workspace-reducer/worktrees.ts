@@ -11,7 +11,8 @@ import { dropWorktree, leaveWorktree, releaseWorktrees, withCreatingWorktree, wi
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { updateThread } from "../thread-run-state.js";
 import { runsInWorkspace } from "../run-record.js";
-import { isWorking } from "../thread-activity.js";
+import { isWorking, threadActivity } from "../thread-activity.js";
+import { worktreeSettingsViews } from "../worktree-settings.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, worktreeById, worktreeClaimants, worktreeFor } from "../thread-location.js";
 import { withoutWorktreeRoot, type WorkspaceState } from "../workspace-state.js";
 import { createConversationMessage } from "../../domain/conversation.js";
@@ -19,7 +20,7 @@ import { dismissed } from "../../domain/attention.js";
 import type { Worktree } from "../../domain/worktree.js";
 
 export const WORKTREE_INPUTS = [
-  "worktree.filter-project", "worktree.confirm-delete", "worktree.set-missing-open", "worktree.set-threads-open", "worktree.open-thread",
+  "worktree.filter-project", "worktree.confirm-delete", "worktree.confirm-delete-safe", "worktree.delete-safe", "worktree.set-missing-open", "worktree.set-threads-open", "worktree.open-thread",
   "view.move-worktree", "task.set-worktree", "task.move-worktree", "task.set-branch", "task.checkout-branch", "worktree.refresh", "worktree.reveal",
   "worktree.delete", "worktree.created", "worktree.failed", "worktrees.loaded", "worktrees.failed", "worktree.released", "worktree.release-failed",
   "worktree.deleted", "checkout.finished"
@@ -33,7 +34,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
   switch (input.type) {
     case "task.move-worktree": return reduceWorktreeMove(state, input);
 
-    case "worktree.filter-project": case "worktree.confirm-delete": case "worktree.set-missing-open":
+    case "worktree.filter-project": case "worktree.confirm-delete": case "worktree.confirm-delete-safe": case "worktree.set-missing-open":
     case "worktree.set-threads-open": case "worktree.open-thread":
       return reduceWorktreeSettings(state, input);
 
@@ -102,7 +103,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
 
     case "worktree.refresh":
       if (state.worktreeManagementLoading) return settled(state);
-      return settled({ ...state, worktreeManagementLoading: true, worktreeSettings: { ...state.worktreeSettings, confirming: null }, worktreeManagementError: null, worktreeManagementNotice: null }, [{ type: "list-worktrees" }]);
+      return settled({ ...state, worktreeManagementLoading: true, worktreeSettings: { ...state.worktreeSettings, confirming: null, confirmingSafe: false }, worktreeManagementError: null, worktreeManagementNotice: null }, [{ type: "list-worktrees" }]);
 
     case "worktree.reveal": {
       /** The Settings list loads on demand, so a checkout a thread records is revealable before it has. */
@@ -128,6 +129,8 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       if (input.missingOnly) effect.missingOnly = true;
       return settled({ ...state, worktreeSettings: { ...state.worktreeSettings, confirming: null }, deletingWorktrees: [...state.deletingWorktrees, worktree.root], actionError: null, worktreeManagementError: null, worktreeManagementNotice: null }, [effect]);
     }
+
+    case "worktree.delete-safe": return deleteSafe(state, input.roots);
 
     case "worktree.created": {
       const settling = withoutCreatingWorktree(state, input.taskId);
@@ -167,7 +170,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
     case "worktrees.loaded": return settled({ ...state, managedWorktrees: input.worktrees, worktreeManagementLoading: false, worktreeManagementError: null });
 
     /** A failed delete leaves the checkout on the list, so only its wait and the error change. */
-    case "worktrees.failed": return settled({ ...state, deletingWorktrees: input.root ? withoutWorktreeRoot(state, input.root) : state.deletingWorktrees, worktreeManagementLoading: input.root ? state.worktreeManagementLoading : false, worktreeManagementError: input.message }, [], { ok: false, message: input.message });
+    case "worktrees.failed": return settled({ ...state, deletingWorktrees: input.root ? withoutWorktreeRoot(state, input.root) : state.deletingWorktrees, worktreeSettings: input.root ? settleBulk(state, input.root, false) : state.worktreeSettings, worktreeManagementLoading: input.root ? state.worktreeManagementLoading : false, worktreeManagementError: input.message }, [], { ok: false, message: input.message });
 
     case "worktree.released": {
       const thread = state.threads.find((item) => item.id === input.taskId);
@@ -197,10 +200,43 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       if (input.missingOnly) notice = `Forgot ${input.root}. Thread history kept.`;
       else if (ref) notice += ` Recover it with git show ${ref}.`;
       else if (commit) notice += ` Recover loose work with git show ${shortCommit ?? commit}.`;
-      const refreshed = reduceDiffs({ ...dropped, managedWorktrees: dropped.managedWorktrees?.filter((item) => item.root !== input.root) ?? null, deletingWorktrees: withoutWorktreeRoot(dropped, input.root), worktreeManagementError: null, worktreeManagementNotice: notice }, { type: "view.refresh-environment" });
+      const worktreeSettings = settleBulk(dropped, input.root, true);
+      const bulk = dropped.worktreeSettings.bulk;
+      if (bulk?.pending.includes(input.root)) {
+        const count = bulk.deleted + 1;
+        notice = `Deleted ${count} ${count === 1 ? "worktree" : "worktrees"}.`;
+      }
+      const refreshed = reduceDiffs({ ...dropped, worktreeSettings, managedWorktrees: dropped.managedWorktrees?.filter((item) => item.root !== input.root) ?? null, deletingWorktrees: withoutWorktreeRoot(dropped, input.root), worktreeManagementError: null, worktreeManagementNotice: notice }, { type: "view.refresh-environment" });
       return { ...refreshed, effects: followUps(refreshed.effects) };
     }
   }
+}
+
+/** Each checkout is judged again here, so one that changed since the confirmation stays. */
+function deleteSafe(state: WorkspaceState, requested: string[]): WorkspaceTransition {
+  const views = worktreeSettingsViews(state, threadActivity(state).working) ?? [];
+  const safe = new Set(views.filter((view) => view.safe).map((view) => view.root));
+  let next: WorkspaceState = { ...state, worktreeSettings: { ...state.worktreeSettings, confirmingSafe: false } };
+  const effects: WorkspaceEffect[] = [];
+  const pending: string[] = [];
+  for (const root of new Set(requested)) {
+    if (!safe.has(root)) continue;
+    const deleted = reduceWorktrees(next, { type: "worktree.delete", root });
+    if (!deleted.state.deletingWorktrees.includes(root)) continue;
+    next = deleted.state;
+    effects.push(...deleted.effects);
+    pending.push(root);
+  }
+  return settled({ ...next, worktreeSettings: { ...next.worktreeSettings, bulk: pending.length ? { pending, deleted: 0 } : null } }, effects);
+}
+
+/** Takes a finished root off the bulk delete, counting it when it went. */
+function settleBulk(state: WorkspaceState, root: string, deleted: boolean): WorkspaceState["worktreeSettings"] {
+  const bulk = state.worktreeSettings.bulk;
+  if (!bulk?.pending.includes(root)) return state.worktreeSettings;
+  const pending = bulk.pending.filter((item) => item !== root);
+  const count = bulk.deleted + (deleted ? 1 : 0);
+  return { ...state.worktreeSettings, bulk: pending.length ? { pending, deleted: count } : null };
 }
 
 function reduceCheckout(state: WorkspaceState, input: Extract<WorktreeInput, { type: "task.checkout-branch" | "checkout.finished" }>): WorkspaceTransition {

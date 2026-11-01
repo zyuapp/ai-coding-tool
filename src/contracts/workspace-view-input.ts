@@ -334,6 +334,8 @@ const commands = {
   "worktree.refresh": { fields: {}, at: "local" },
   "worktree.filter-project": { fields: { project: nullableText }, at: "local" },
   "worktree.confirm-delete": { fields: { root: nullableText }, at: "own" },
+  "worktree.confirm-delete-safe": { fields: { open: boolean }, at: "local" },
+  "worktree.delete-safe": { fields: { roots: array(text) }, at: "local" },
   "worktree.set-missing-open": { fields: { open: boolean }, at: "local" },
   "worktree.set-threads-open": { fields: { root: text, open: boolean }, at: "local" },
   "worktree.open-thread": { fields: { taskId: text }, at: "select", leaves: true },

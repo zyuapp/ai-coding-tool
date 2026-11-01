@@ -40,7 +40,7 @@ async function renderSettings(initial = fixture(), platform = "macos") {
 }
 
 async function click(label: string, root: ParentNode = document) {
-  const button = [...root.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === label);
+  const button = [...root.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === label || item.getAttribute("aria-label") === label);
   assert.ok(button, `Button not found: ${label}`);
   await act(async () => button.click());
 }
@@ -49,10 +49,12 @@ test("filters both groups, opens missing folders for an empty project, and can c
   const view = await renderSettings();
   try {
     assert.match(view.container.textContent!, /feat\/model-selection/);
-    assert.match(view.container.textContent!, /2 changed files/);
-    assert.match(view.container.textContent!, /3 commits not in main/);
+    const badge = query(view.container, ".worktree-safety.warning");
+    assert.equal(badge.textContent, "2 uncommitted files · 3 unmerged commits");
+    assert.equal(badge.dataset.tip, "2 uncommitted files. 3 commits not in main.");
+    assert.match(query(view.container, ".worktree-project-group h5").textContent!, /1$/);
     const path = query(view.container, ".worktree-settings-list .worktree-path");
-    assert.equal(query(path, "code").textContent, fixture().worktrees[0].root);
+    assert.equal(query(path, "code").dataset.tip, fixture().worktrees[0].root);
     assert.equal(query(path, "button").getAttribute("aria-label"), "Copy path");
     const filter = query<HTMLSelectElement>(view.container, "select");
     await act(async () => { filter.value = "other"; filter.dispatchEvent(new window.Event("change", { bubbles: true })); });
@@ -81,7 +83,7 @@ test("a project with no worktrees says so", async () => {
 test("thread links expand and open archived threads without restoring them", async () => {
   const view = await renderSettings();
   try {
-    await click("2 linked threads");
+    await click("2 threads");
     assert.equal(query(view.container, ".worktree-thread-list").hasAttribute("hidden"), false);
     await click("Review pickerArchived");
     assert.equal(view.state().currentId, "Review picker");
@@ -135,7 +137,7 @@ test("active runs disable deletion, and an unavailable repository warns before d
     await act(async () => { deleteButton.click(); });
     assert.equal(active.container.querySelector('[role="dialog"]'), null, "a busy worktree opens no delete confirmation");
     assert.match(active.container.textContent!, /Run active/);
-    const badge = query(active.container, ".worktree-busy");
+    const badge = query(active.container, ".worktree-safety.busy");
     assert.equal(deleteButton.getAttribute("aria-describedby"), badge.id, "the disabled Delete names the run holding it");
   } finally { await active.unmount(); }
   const unavailable = fixture();
@@ -160,5 +162,29 @@ test("a refresh in flight keeps its button readable", async () => {
     assert.equal(refresh.disabled, true);
     assert.equal(refresh.getAttribute("aria-busy"), "true");
     assert.match(refresh.textContent!, /Reading…/);
+  } finally { await view.unmount(); }
+});
+
+test("bulk delete lists the safe worktrees, cancels with Escape, and deletes only those", async () => {
+  const initial = fixture();
+  const clean = heldWorktree("clean");
+  initial.worktrees = [...initial.worktrees, clean];
+  initial.managedWorktrees = [...initial.managedWorktrees!, { id: clean.id, root: clean.root, repository: PROJECT.root, branch: null, status: { changedFiles: 0, comparison: { branch: "origin/main", ahead: 0 } } }];
+  const view = await renderSettings(initial);
+  try {
+    assert.equal(query(view.container, ".worktree-safety.safe").textContent, "Safe to delete");
+    await click("Delete 1 safe");
+    const dialog = query(document, '[role="dialog"]');
+    assert.equal(dialog.querySelectorAll(".worktree-bulk-list li").length, 1);
+    assert.match(dialog.textContent!, /No uncommitted changes, and every commit is on the default branch/);
+    assert.equal(document.activeElement?.textContent, "Cancel");
+    await act(async () => { document.activeElement?.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); });
+    assert.equal(document.querySelector('[role="dialog"]'), null);
+    await click("Delete 1 safe");
+    await click("Delete 1 worktree", query(document, '[role="dialog"]'));
+    assert.deepEqual(view.effects.filter((effect) => effect.type === "delete-worktree").map((effect) => effect.root), [clean.root]);
+    assert.equal(document.querySelector('[role="dialog"]'), null);
+    assert.match(query<HTMLButtonElement>(view.container, ".settings-group-action .danger").textContent!, /None safe to delete/);
+    assert.equal(query<HTMLButtonElement>(view.container, ".settings-group-action .danger").disabled, true);
   } finally { await view.unmount(); }
 });

@@ -7,6 +7,9 @@ export type WorktreeSettingsState = {
   confirming: string | null;
   missingOpen: boolean | null;
   expandedThreads: string[];
+  confirmingSafe: boolean;
+  /** The roots of a bulk delete still on their way out, and how many already went. */
+  bulk: { pending: string[]; deleted: number } | null;
 };
 
 export type WorktreeSettingsView = ManagedWorktree & {
@@ -20,6 +23,8 @@ export type WorktreeSettingsView = ManagedWorktree & {
   busy: boolean;
   /** The checkout is on its way out, whether Settings or its own thread asked, so the row only waits. */
   deleting: boolean;
+  /** Nothing would be lost: no uncommitted changes, every commit is on the default branch, and no run is active. */
+  safe: boolean;
 };
 
 export type WorktreeSettingsPage = {
@@ -32,7 +37,15 @@ export type WorktreeSettingsPage = {
   missingOpen: boolean;
   expandedThreads: string[];
   confirmation: WorktreeSettingsView | null;
+  /** Shown checkouts that can go without losing work. */
+  safe: WorktreeSettingsView[];
+  safeConfirmation: WorktreeSettingsView[] | null;
 };
+
+export function safeToDelete(worktree: Omit<WorktreeSettingsView, "safe">): boolean {
+  const { changedFiles, comparison } = worktree.status;
+  return worktree.available && Boolean(worktree.repository) && changedFiles === 0 && comparison?.ahead === 0 && !worktree.busy && !worktree.deleting;
+}
 
 export function worktreeSettingsViews(state: WorkspaceState, busy: Set<string>): WorktreeSettingsView[] | null {
   if (state.managedWorktrees === null) return null;
@@ -65,7 +78,7 @@ export function worktreeSettingsViews(state: WorkspaceState, busy: Set<string>):
     const threads = threadsByWorktree.get(record?.id ?? directory.id) ?? [];
     const project = record ? projectsById.get(record.projectId) : projectsByRoot.get(directory.repository ?? "");
     const name = directory.root.split("/").filter(Boolean).at(-1) ?? directory.id;
-    return {
+    const view = {
       ...directory,
       name,
       title: record?.name ?? directory.branch ?? threads[0]?.title ?? name,
@@ -77,11 +90,12 @@ export function worktreeSettingsViews(state: WorkspaceState, busy: Set<string>):
       busy: threads.some((thread) => busy.has(thread.id)),
       deleting: deleting.has(directory.root) || threads.some((thread) => releasing.has(thread.id)),
     };
+    return { ...view, safe: safeToDelete(view) };
   }).sort((left, right) => left.project.localeCompare(right.project) || left.title.localeCompare(right.title) || left.root.localeCompare(right.root));
 }
 
 export function worktreeSettingsPage(state: WorkspaceState, worktrees: WorktreeSettingsView[] | null): WorktreeSettingsPage {
-  const { project, confirming, missingOpen, expandedThreads } = state.worktreeSettings;
+  const { project, confirming, missingOpen, expandedThreads, confirmingSafe } = state.worktreeSettings;
   const projects = new Map(state.projects.map((item) => [item.id, { key: item.id, name: projectName(item), count: 0 }]));
   for (const worktree of worktrees ?? []) {
     const option = projects.get(worktree.projectKey) ?? { key: worktree.projectKey, name: worktree.project, count: 0 };
@@ -93,6 +107,7 @@ export function worktreeSettingsPage(state: WorkspaceState, worktrees: WorktreeS
   const available = visible.filter((worktree) => worktree.available);
   const missing = visible.filter((worktree) => !worktree.available);
   const confirmation = visible.find((worktree) => worktree.root === confirming && !worktree.deleting) ?? null;
+  const safe = available.filter((worktree) => worktree.safe);
   return {
     loading: state.worktreeManagementLoading,
     total: worktrees?.length ?? 0,
@@ -103,5 +118,7 @@ export function worktreeSettingsPage(state: WorkspaceState, worktrees: WorktreeS
     missingOpen: missingOpen ?? (!available.length && missing.length > 0),
     expandedThreads,
     confirmation,
+    safe,
+    safeConfirmation: confirmingSafe && safe.length ? safe : null,
   };
 }

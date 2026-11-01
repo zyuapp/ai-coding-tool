@@ -276,6 +276,9 @@ export type WorktreeCommand =
   | { type: "worktree.refresh" }
   | { type: "worktree.filter-project"; project: string | null }
   | { type: "worktree.confirm-delete"; root: string | null }
+  | { type: "worktree.confirm-delete-safe"; open: boolean }
+  /** Deletes each named checkout that is still safe to delete; the rest stay. */
+  | { type: "worktree.delete-safe"; roots: string[] }
   | { type: "worktree.set-missing-open"; open: boolean }
   | { type: "worktree.set-threads-open"; root: string; open: boolean }
   | { type: "worktree.open-thread"; taskId: string }

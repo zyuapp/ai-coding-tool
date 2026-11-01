@@ -9,13 +9,15 @@ import { reduceSettings } from "./settings.js";
 import { reduceThreadCommands } from "./thread-commands.js";
 import type { WorkspaceTransition } from "./types.js";
 
-type Input = Extract<WorktreeCommand, { type: "worktree.filter-project" | "worktree.confirm-delete" | "worktree.set-missing-open" | "worktree.set-threads-open" | "worktree.open-thread" }>;
+type Input = Extract<WorktreeCommand, { type: "worktree.filter-project" | "worktree.confirm-delete" | "worktree.confirm-delete-safe" | "worktree.set-missing-open" | "worktree.set-threads-open" | "worktree.open-thread" }>;
 
 export function reduceWorktreeSettings(state: WorkspaceState, input: Input): WorkspaceTransition {
   const settings = state.worktreeSettings;
   switch (input.type) {
     case "worktree.filter-project":
-      return settled({ ...state, worktreeSettings: { ...settings, project: input.project, confirming: null } });
+      return settled({ ...state, worktreeSettings: { ...settings, project: input.project, confirming: null, confirmingSafe: false } });
+    case "worktree.confirm-delete-safe":
+      return settled({ ...state, worktreeSettings: { ...settings, confirming: null, confirmingSafe: input.open } });
     case "worktree.confirm-delete": {
       if (input.root === null) return settled({ ...state, worktreeSettings: { ...settings, confirming: null } });
       const worktree = worktreeSettingsViews(state, threadActivity(state).working)?.find((item) => item.root === input.root);

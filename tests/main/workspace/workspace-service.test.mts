@@ -78,6 +78,19 @@ test("forgets a worktree while preserving another workspace kind at the same roo
   await assert.rejects(() => service.resolve(first.workspace.id), UnknownWorkspaceError);
 });
 
+test("concurrent forgets all reach the saved registry", async () => {
+  const { directory, registryPath, projectlessRoot } = await setup();
+  const roots = Array.from({ length: 8 }, (_, index) => path.join(directory, `worktree-${index}`));
+  await Promise.all(roots.map((root) => mkdir(root)));
+  const service = new WorkspaceService({ registryPath, projectlessRoot });
+  const registered = [];
+  for (const root of roots) registered.push(await service.registerWorktree(root));
+  await Promise.all(registered.map((item) => service.forgetWorktree(item.workspace.root)));
+
+  const reloaded = new WorkspaceService({ registryPath, projectlessRoot });
+  for (const item of registered) await assert.rejects(() => reloaded.resolve(item.workspace.id), UnknownWorkspaceError);
+});
+
 test("rolls back an in-memory registration when persistence fails", async () => {
   const { directory, registryPath, projectlessRoot } = await setup();
   const project = path.join(directory, "project");

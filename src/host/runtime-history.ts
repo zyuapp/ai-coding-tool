@@ -108,6 +108,9 @@ export function createRuntimeHistory(host: HistoryHost) {
       case "worktree.deleted":
         claimants(state.worktrees.find((worktree) => worktree.id === input.worktreeId || worktree.root === input.root)?.id);
         break;
+      case "worktree.delete-safe":
+        for (const root of input.roots) claimants(state.worktrees.find((worktree) => worktree.root === root)?.id);
+        break;
       case "worktree.delete": {
         const taskId = input.taskId ?? state.currentId;
         const id = input.worktreeId ?? (input.root

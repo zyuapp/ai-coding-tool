@@ -218,7 +218,7 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
         ...state,
         settingsOpen: input.open,
         worktreeManagementLoading: state.worktreeManagementLoading || (input.open && section === "worktrees"),
-        worktreeSettings: input.open ? state.worktreeSettings : { project: null, confirming: null, missingOpen: null, expandedThreads: [] },
+        worktreeSettings: input.open ? state.worktreeSettings : { project: null, confirming: null, missingOpen: null, expandedThreads: [], confirmingSafe: false, bulk: null },
         settingsSection: input.open ? section : null,
         settingsFocus: input.open && section && input.settingId ? { id: input.settingId, visit: (state.settingsFocus?.visit ?? 0) + 1 } : null,
         /** Naming a page takes over from the computer-use setup that held settings open on its own. */

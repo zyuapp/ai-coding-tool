@@ -2743,9 +2743,7 @@ pre {
 .phone-pairing-copy p.phone-pairing-expired { color: var(--accent-soft); }
 .phone-pairing-url { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 11px; }
 .phone-pairing-url code { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:is(.phone-pairing-url, .setting-readiness, .worktree-path) .copy-affordance { flex: none; opacity: 1; pointer-events: auto; }
-.worktree-path { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 6px; }
-.worktree-path code { min-width: 0; overflow: hidden; color: var(--quiet-strong); font: var(--text-meta)/1.5 var(--mono); text-overflow: ellipsis; white-space: nowrap; user-select: text; }
+:is(.phone-pairing-url, .setting-readiness) .copy-affordance { flex: none; opacity: 1; pointer-events: auto; }
 .phone-device-state { color: var(--quiet-strong); font-size: var(--text-meta); }
 .phone-device-state.live { color: var(--success-soft); }
 .settings-empty { margin: 0; border-top: 1px solid var(--line); padding: 19px 0; color: var(--quiet-strong); font-size: var(--text-control); }

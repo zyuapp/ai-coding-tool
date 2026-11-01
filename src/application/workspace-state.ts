@@ -442,7 +442,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     projects: [],
     worktrees: [],
     managedWorktrees: null,
-    worktreeSettings: { project: null, confirming: null, missingOpen: null, expandedThreads: [] },
+    worktreeSettings: { project: null, confirming: null, missingOpen: null, expandedThreads: [], confirmingSafe: false, bulk: null },
     worktreeMenuSearch: { threads: "", destinations: "" },
     worktreeManagementLoading: false,
     worktreeManagementError: null,

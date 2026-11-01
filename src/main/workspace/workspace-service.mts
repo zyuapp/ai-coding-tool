@@ -24,6 +24,7 @@ export class WorkspaceService {
   private readonly projectlessRoot: string;
   private readonly ready: Promise<void>;
   private registrationQueue = Promise.resolve();
+  private registryWrites = Promise.resolve();
   private records = new Map<string, WorkspaceRecord>();
 
   constructor(options: WorkspaceServiceOptions) {
@@ -117,7 +118,14 @@ export class WorkspaceService {
     for (const workspace of parsed.workspaces) this.records.set(workspace.id, workspace);
   }
 
-  private async writeRegistry() {
+  /** Writes one at a time, each with the records as they are when it starts, so the last write is the latest. */
+  private writeRegistry() {
+    const write = this.registryWrites.then(() => this.replaceRegistry());
+    this.registryWrites = write.catch(() => undefined);
+    return write;
+  }
+
+  private async replaceRegistry() {
     await mkdir(path.dirname(this.registryPath), { recursive: true });
     const registry: RegistryFile = { version: 1, workspaces: [...this.records.values()] };
     const temporaryPath = `${this.registryPath}.${randomUUID()}.tmp`;
