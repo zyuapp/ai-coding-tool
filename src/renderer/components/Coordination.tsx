@@ -22,6 +22,7 @@ import { ConfirmAction } from "./SettingRow";
 import { REMOTE_UNSUPPORTED } from "../../contracts/computer-capabilities";
 import { placeOf, useKeyboardPlace } from "../focus";
 import "./coordination.css";
+import { SweepBand } from "./SweepBand";
 
 const STATUS_LABELS: Record<CoordinatedThreadStatus, string> = {
   approval: "Needs approval",
@@ -575,7 +576,7 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
           <strong>{thread.title}</strong>
           <ThreadMarks thread={thread} host={host} worktree={worktree} />
         </span>
-        <small id={lineId} className={status === "working" && !lastHeard ? "text-sweep" : undefined} title={line}>{line}</small>
+        <small id={lineId} className={status === "working" && !lastHeard ? "text-sweep" : undefined} title={line}>{line}{status === "working" && !lastHeard && <SweepBand>{line}</SweepBand>}</small>
         {pullRequest && Icon && (
           <span id={pullRequestId} className="coordination-card-pull-request" data-state={pullRequest.state} title={pullRequestText ?? undefined}>
             <Icon size={12} aria-hidden="true" />
@@ -625,7 +626,7 @@ export function MemberWorktreeList({ worktrees, onReveal, onDelete }: {
           return (
             <div key={worktree.id} className="coordination-row coordination-worktree">
               <span className={`coordination-row-mark worktree-mark hue-${worktreeHue(worktree.id)}`}><FolderSymlink size={12} aria-hidden="true" /></span>
-              <span data-tip={worktree.root}><strong>{worktree.name}</strong><small className={worktree.deleting ? "text-sweep" : undefined}>{detail}</small></span>
+              <span data-tip={worktree.root}><strong>{worktree.name}</strong><small className={worktree.deleting ? "text-sweep" : undefined}>{detail}{worktree.deleting && <SweepBand>{detail}</SweepBand>}</small></span>
               <span className="coordination-worktree-actions">
                 {onReveal && <button type="button" aria-label={`Reveal ${worktree.name}`} data-tip={MAC ? "Reveal in Finder" : "Show in file manager"} disabled={worktree.deleting} onClick={() => onReveal(worktree.root)}>
                   <FolderOpen size={14} />

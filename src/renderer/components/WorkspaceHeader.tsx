@@ -9,6 +9,7 @@ import { RenameInput, useRenaming } from "./SidebarRename";
 import { threadMenuEntries } from "./thread-menu";
 import { shortcutTip } from "./TooltipLayer";
 import type { ThreadRole } from "../../domain/thread-role";
+import { SweepBand } from "./SweepBand";
 
 export type WorkspaceHeaderProps = {
   currentThread?: Thread;
@@ -58,7 +59,7 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
         {host && <>
           <HostMark name={host.name} offline={host.offline} reconnecting={host.reconnecting} className="heading-host" />
           {host.offline && (host.reconnecting
-            ? <span className="heading-host-state" role="status"><span className="text-sweep">Reconnecting…</span></span>
+            ? <span className="heading-host-state" role="status"><span className="text-sweep">Reconnecting…<SweepBand>Reconnecting…</SweepBand></span></span>
             : <CommandButton type="button" className="heading-host-state" command={{ type: "computers.reconnect", id: host.id }} data-tip={`Reconnect to ${host.name}`}>Reconnect</CommandButton>)}
           <span className="heading-separator" aria-hidden="true">/</span>
         </>}

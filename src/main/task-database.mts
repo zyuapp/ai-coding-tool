@@ -42,6 +42,7 @@ export class TaskDatabase {
     this.database.function("js_lower", { deterministic: true }, (value) => typeof value === "string" ? value.toLowerCase() : null);
     this.database.exec(`
       PRAGMA journal_mode = WAL;
+      PRAGMA synchronous = NORMAL;
       PRAGMA foreign_keys = ON;
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, position INTEGER NOT NULL, data TEXT NOT NULL);

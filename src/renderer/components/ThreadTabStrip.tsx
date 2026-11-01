@@ -9,6 +9,7 @@ import { deliveryLabel, type ThreadBrief } from "../../domain/coordination";
 import type { AutomationView } from "../../domain/automation";
 import type { PullRequestAnswer, PullRequestState } from "../../domain/pull-request";
 import type { ThreadTabView } from "../../application/workspace-state";
+import { SweepBand } from "./SweepBand";
 
 export type ThreadTabStripActions = {
   onToggleChanges: () => void;
@@ -180,7 +181,7 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
               <span id={noteId} data-tip={note.text} data-tip-overflow>{note.text}</span>
               <CommandButton type="button" className="thread-tab-retry" aria-describedby={noteId} command={{ type: "view.refresh-environment" }}>Retry</CommandButton>
             </span>
-          : <span className="thread-tab-note" role={note.reading ? "status" : undefined}><span className={note.reading ? "text-sweep" : undefined}>{note.text}</span></span>)}
+          : <span className="thread-tab-note" role={note.reading ? "status" : undefined}><span className={note.reading ? "text-sweep" : undefined}>{note.text}{note.reading && <SweepBand>{note.text}</SweepBand>}</span></span>)}
         <PullRequestChip pullRequest={tab.pullRequest} />
         <button
           type="button"

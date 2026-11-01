@@ -356,8 +356,6 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      /** Hidden terminal views still consume output while their dock is closed. */
-      backgroundThrottling: false,
     },
   });
   if (process.platform === "linux") {
@@ -392,7 +390,15 @@ async function createWindow() {
   });
   if (placement.maximized && !placement.fullScreen) window.maximize();
   watchWindowPlacement(window);
+  const shown = window;
+  const visibility = () => { workspaceRuntime.setViewVisible(!shown.isDestroyed() && shown.isVisible() && !shown.isMinimized()); };
+  window.on("show", visibility);
+  window.on("hide", visibility);
+  window.on("minimize", visibility);
+  window.on("restore", visibility);
+  visibility();
   window.on("closed", () => {
+    workspaceRuntime.setViewVisible(false);
     browser.stopBrowserHost();
     terminal.stopTerminalHost();
     if (quitState === "running") {
@@ -428,6 +434,12 @@ async function sweepUserData(userData: string, database: TaskDatabaseService) {
   if (swept.files) console.log(`Removed ${swept.files} unused attachment file(s), ${Math.round(swept.bytes / 1024 / 1024)} MB.`);
 }
 
+/** Work a locked Mac stays awake for: a run, a schedule that will fire, or a thread waiting out a usage limit. */
+function workAhead() {
+  const state = workspaceRuntime.runtime.getState();
+  return Object.keys(state.activeRuns).length > 0 || state.automations.some((automation) => automation.nextRunAt !== null) || state.threads.some((thread) => thread.limitPause);
+}
+
 function legacyWorktreesRoots(userData: string) {
   return [path.join(userData, "worktrees")].filter((root) => root !== WORKTREES_ROOT);
 }
@@ -438,7 +450,7 @@ const startup = app.whenReady().then(async () => {
   if (app.isPackaged) {
     void refreshCli().catch((error) => console.error("Could not refresh the aic command:", error));
   }
-  if (process.platform === "darwin") lockAwake = startLockAwake(powerMonitor, powerSaveBlocker);
+  if (process.platform === "darwin") lockAwake = startLockAwake(powerMonitor, powerSaveBlocker, workAhead);
   /** Started before the app spawns anything, and awaited before the first thing that needs it. */
   const searchPath = adoptLoginShellPath();
   const userData = app.getPath("userData");
@@ -475,6 +487,7 @@ const startup = app.whenReady().then(async () => {
   if (!app.isPackaged) app.dock?.setIcon(icon);
   keyboard.claimDesktopShortcut();
   await searchPath;
+  workspaceRuntime.runtime.subscribe(() => lockAwake?.update());
   await workspaceRuntime.start();
   runtimeListening = true;
   void flushProjectOpens();
@@ -569,7 +582,7 @@ async function finishShutdown() {
     if (servicesStopped) {
       computerLinks?.start();
       resumeComputerUse();
-      if (process.platform === "darwin") lockAwake = startLockAwake(powerMonitor, powerSaveBlocker);
+      if (process.platform === "darwin") lockAwake = startLockAwake(powerMonitor, powerSaveBlocker, workAhead);
       await automationScheduler?.start().catch((failure) => console.error("Could not restart schedules:", failure));
       await startPhoneBridge();
     }

@@ -23,6 +23,7 @@ import { TimelineRow } from "./TimelineRow";
 import { Elapsed, RevealedMessage } from "./TurnWork";
 import { ThreadCardsContext, type ThreadCardsView } from "./Coordination";
 import { MessageArtifactScope, useMessageLinks } from "./MarkdownMessage";
+import { SweepBand } from "./SweepBand";
 
 export { groupTimeline } from "../timeline/grouping";
 export { formatElapsed } from "./TurnWork";
@@ -99,7 +100,7 @@ function ThinkingRow({ since }: { since: number | undefined }) {
   return (
     <div className="thinking-row" role="status">
       <i aria-hidden="true" /><i aria-hidden="true" /><i aria-hidden="true" />
-      <span className="thinking-label text-sweep">Working</span>
+      <span className="thinking-label text-sweep">Working<SweepBand>Working</SweepBand></span>
       <span className="thinking-elapsed" aria-hidden="true"><Elapsed startedAt={Math.min(since ?? shownAt, shownAt)} endsAt={null} /></span>
     </div>
   );
@@ -111,7 +112,7 @@ function WaitingRow({ wait }: { wait: ThreadWait }) {
   return (
     <div className="waiting-row" role="status" aria-live="polite">
       <FolderSymlink aria-hidden="true" />
-      <span className="text-sweep">{WAIT_LABELS[wait]}</span>
+      <span className="text-sweep">{WAIT_LABELS[wait]}<SweepBand>{WAIT_LABELS[wait]}</SweepBand></span>
       <span className="thinking-elapsed" aria-hidden="true"><Elapsed startedAt={shownAt} endsAt={null} /></span>
     </div>
   );
@@ -220,7 +221,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   }, [rowOfMessage, virtualizer]);
   const flashing = useAnnotationReveal({ reveal: annotationReveal, markers, timelineRef, scrollToMessage });
 
-  if (currentThread?.historySummary) return <div className="empty-state" role="status"><span className="text-sweep">Loading conversation…</span></div>;
+  if (currentThread?.historySummary) return <div className="empty-state" role="status"><span className="text-sweep">Loading conversation…<SweepBand>Loading conversation…</SweepBand></span></div>;
 
   if (!drawn) {
     return <TimelineEmptyState restored={restored} {...(empty ? { empty } : {})} {...(place ? { place } : {})} />;
@@ -255,12 +256,12 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
       {status !== "running" && limitPause && currentThread && <LimitRow pause={limitPause} taskId={currentThread.id} />}
       {status === "running" && compacting && (
         <div className="compacting-row" role="status" aria-live="polite">
-          <span className="text-sweep">Compacting messages…</span>
+          <span className="text-sweep">Compacting messages…<SweepBand>Compacting messages…</SweepBand></span>
         </div>
       )}
       {status === "running" && !compacting && retrying && (
         <div className="retrying-row" role="status" aria-live="polite">
-          <span className="text-sweep">{retryLabel(retrying)}</span>
+          <span className="text-sweep">{retryLabel(retrying)}<SweepBand>{retryLabel(retrying)}</SweepBand></span>
         </div>
       )}
       {status === "running" && !compacting && !retrying && (

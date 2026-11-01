@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { renderMessage, themeMessage, VISUAL_FRAME_URL, visualFrameMessage, type VisualTheme } from "../../domain/visual-frame";
 import { useModalFocus } from "../focus";
 import { shortcutTip } from "./TooltipLayer";
+import { SweepBand } from "./SweepBand";
 
 /** What a visual is styled with, by the names the visualize skill documents, read from the app's own tokens. */
 const COLOR_TOKENS: Array<[string, string]> = [
@@ -223,8 +224,8 @@ export function VisualBlock({ source, pending = false, full = false }: { source:
               data-ready={height === undefined ? undefined : ""}
               onLoad={draw}
             />
-          : <span className="visual-loading">{pending ? <span className="text-sweep">Drawing visual…</span> : null}</span>}
-        {drawing && <span className="visual-loading visual-loading-over"><span className="text-sweep">Drawing visual…</span></span>}
+          : <span className="visual-loading">{pending ? <span className="text-sweep">Drawing visual…<SweepBand>Drawing visual…</SweepBand></span> : null}</span>}
+        {drawing && <span className="visual-loading visual-loading-over"><span className="text-sweep">Drawing visual…<SweepBand>Drawing visual…</SweepBand></span></span>}
         {error ? (
           <BlockError className="visual-error" title="The visual hit an error" error={error} onRetry={retry}>
             <pre><code>{error}</code></pre>

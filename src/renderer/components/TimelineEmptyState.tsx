@@ -1,5 +1,6 @@
 import type { IconType } from "react-icons";
 import { LuMessageCircle } from "react-icons/lu";
+import { SweepBand } from "./SweepBand";
 
 function FolderIcon() {
   return (
@@ -19,7 +20,7 @@ type EmptyStateProps = {
 
 export function TimelineEmptyState({ restored, empty, place }: EmptyStateProps) {
   /** A transcript that has nothing yet because nothing has been read is not a transcript with nothing in it. */
-  if (!restored) return <div className="empty-state" role="status"><span className="empty-loading text-sweep">Loading threads…</span></div>;
+  if (!restored) return <div className="empty-state" role="status"><span className="empty-loading text-sweep">Loading threads…<SweepBand>Loading threads…</SweepBand></span></div>;
   if (empty) {
     const EmptyIcon = empty.icon;
     return (

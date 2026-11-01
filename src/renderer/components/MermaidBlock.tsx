@@ -2,6 +2,7 @@ import { LuMaximize2 as Maximize } from "react-icons/lu";
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { BlockError, BlockViewer, OpenVisual, VisualViewer } from "./VisualBlock";
 import { ZoomControls, useZoom } from "./ZoomView";
+import { SweepBand } from "./SweepBand";
 
 let initialized = false;
 
@@ -269,7 +270,7 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
   return (
     <>
       <div className="mermaid-block" ref={host}>
-        {!current.diagram && !current.error ? <span className="mermaid-loading"><span className="text-sweep">Rendering diagram…</span></span> : null}
+        {!current.diagram && !current.error ? <span className="mermaid-loading"><span className="text-sweep">Rendering diagram…<SweepBand>Rendering diagram…</SweepBand></span></span> : null}
         {drawing && open
           ? <span className="mermaid-open" onClick={() => open({ diagram: current.diagram!, source, room: host.current?.clientWidth ?? 0 })}>{drawing}</span>
           : drawing}

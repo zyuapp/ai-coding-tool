@@ -80,16 +80,37 @@ test("unlock leaves another sleep request active", () => {
   awake.stop();
 });
 
-test("the macOS app starts and stops the lock sleep request", { skip: process.platform !== "darwin" }, async (context) => {
+test("a locked screen with no work left lets the Mac sleep", () => {
+  const monitor = new FakeLockMonitor();
+  const blocker = new FakeSleepBlocker();
+  let working = false;
+  const awake = startLockAwake(monitor, blocker, () => working);
+
+  monitor.emit("lock-screen");
+  assert.deepEqual(blocker.started, []);
+
+  working = true;
+  awake.update();
+  assert.deepEqual(blocker.started, [{ id: 1, type: "prevent-app-suspension" }]);
+
+  working = false;
+  awake.update();
+  assert.deepEqual(blocker.stopped, [1]);
+
+  monitor.emit("unlock-screen");
+  working = true;
+  awake.update();
+  assert.equal(blocker.started.length, 1);
+  awake.stop();
+});
+
+test("the macOS app lets a locked, idle Mac sleep", { skip: process.platform !== "darwin" }, async (context) => {
   const main = await startMainProcess(context, "aicodingtool-lock-awake-");
 
   main.powerMonitor.emit("lock-screen");
-  assert.deepEqual(main.powerBlockerStarts, [{ id: 1, type: "prevent-app-suspension" }]);
+  assert.deepEqual(main.powerBlockerStarts, []);
 
   main.powerMonitor.emit("unlock-screen");
-  assert.deepEqual(main.powerBlockerStops, [1]);
-
-  main.powerMonitor.emit("lock-screen");
   await main.dispose();
-  assert.deepEqual(main.powerBlockerStops, [1, 2]);
+  assert.deepEqual(main.powerBlockerStops, []);
 });

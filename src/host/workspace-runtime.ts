@@ -61,8 +61,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
   let started: Promise<void> | null = null;
   let subscriptions: ReturnType<typeof subscribeWorkspaceRuntime> | null = null;
   const effectsInFlight = new Set<Promise<unknown>>();
-  let refreshTimer: ReturnType<typeof setInterval> | undefined;
-  let refreshInputs: unknown[] = [];
+  const environmentPoll = createEnvironmentPoll(() => void dispatch({ type: "view.refresh-environment" }));
   let generation = 0;
   let disposed = false;
   let badgeCount = -1;
@@ -134,12 +133,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
   function refreshEnvironment() {
     const thread = state.threads.find((item) => item.id === state.currentId);
     const run = state.currentId ? state.activeRuns[state.currentId]?.runId : undefined;
-    const inputs = [state.currentId, state.draftProjectId, thread?.worktreeId, state.projects, run];
-    if (inputs.every((value, index) => value === refreshInputs[index])) return;
-    refreshInputs = inputs;
-    if (refreshTimer !== undefined) clearInterval(refreshTimer);
-    void dispatch({ type: "view.refresh-environment" });
-    refreshTimer = setInterval(() => void dispatch({ type: "view.refresh-environment" }), run ? 2_000 : 15_000);
+    environmentPoll.update([state.currentId, state.draftProjectId, thread?.worktreeId, state.projects, run], run !== undefined);
   }
 
   async function initialize(currentGeneration: number) {
@@ -167,6 +161,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
     execute: inputs.execute,
     dispatch,
     queryThreads: localThreadReader(() => state, history.prepareThreadRequest, () => subscriptions?.flush(), () => disposed),
+    setViewVisible: (visible: boolean) => environmentPoll.setVisible(visible, started !== null),
     /** Reads the stored drafts again, for text that arrived in storage after the start. */
     restoreDrafts: () => drafts.restore(),
     loaded: loaded.promise,
@@ -201,7 +196,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
       loaded.resolve();
       subscriptions?.stop();
       subscriptions = null;
-      if (refreshTimer !== undefined) clearInterval(refreshTimer);
+      environmentPoll.stop();
       drafts.dispose();
       deadlines.dispose(); toastTimers.dispose();
       started = null;
@@ -209,9 +204,44 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
       history.invalidate();
       inputs.reset();
       effectsInFlight.clear();
-      refreshInputs = [];
     },
   };
 }
 
 export type WorkspaceRuntime = ReturnType<typeof createWorkspaceRuntime>;
+
+/**
+ * Asks Git about the checkout in front at once, then on a timer: often during a run, rarely
+ * otherwise. Git is polled only while the window can show the answer; a run's end reads it regardless.
+ */
+function createEnvironmentPoll(refresh: () => void) {
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let inputs: unknown[] = [];
+  let running = false;
+  let visible = true;
+  function restart() {
+    clearInterval(timer);
+    timer = undefined;
+    if (!visible) return;
+    refresh();
+    timer = setInterval(refresh, running ? 2_000 : 15_000);
+  }
+  return {
+    update(next: unknown[], run: boolean) {
+      if (next.length === inputs.length && next.every((value, index) => value === inputs[index])) return;
+      inputs = next;
+      running = run;
+      restart();
+    },
+    setVisible(next: boolean, active: boolean) {
+      if (next === visible) return;
+      visible = next;
+      if (active) restart();
+    },
+    stop() {
+      clearInterval(timer);
+      timer = undefined;
+      inputs = [];
+    },
+  };
+}

@@ -78,6 +78,7 @@ export function createWorkspaceRuntimeHost(options: WorkspaceRuntimeHostOptions)
     publisher,
     dispatch: (input: WorkspaceInput) => request(input),
     start: () => runtime.start(),
+    setViewVisible: (visible: boolean) => runtime.setViewVisible(visible),
     async flush() {
       const result = await publisher.flush();
       if (!result.ok) throw new Error(result.message);

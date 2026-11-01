@@ -5,6 +5,7 @@ import type { WorktreeCommand } from "../../contracts/commands";
 import { WorktreeBulkDeleteDialog, WorktreeDeleteDialog } from "./WorktreeDeleteDialog";
 import { SpinningIcon } from "./SpinningIcon";
 import { CopyButton } from "./CopyButton";
+import { SweepBand } from "./SweepBand";
 
 type Dispatch = (command: WorktreeCommand) => void;
 
@@ -71,7 +72,7 @@ function WorktreeRow({ worktree, expanded, dispatch }: { worktree: WorktreeSetti
         <FolderOpen size={16} aria-hidden="true" />
       </button>}
       {worktree.deleting
-        ? <span className="text-sweep" role="status">{worktree.available ? "Deleting…" : "Forgetting…"}</span>
+        ? <span className="text-sweep" role="status">{worktree.available ? "Deleting…" : "Forgetting…"}<SweepBand>{worktree.available ? "Deleting…" : "Forgetting…"}</SweepBand></span>
         : <button type="button" className="worktree-icon-button worktree-delete" aria-label={worktree.available ? "Delete…" : "Forget…"} data-tip={worktree.busy ? "Wait for the active run to finish" : worktree.available ? "Delete" : "Forget"} aria-disabled={worktree.busy || undefined} aria-describedby={worktree.busy && worktree.available ? statusId : undefined} onClick={() => { if (!worktree.busy) dispatch({ type: "worktree.confirm-delete", root: worktree.root }); }}>
           <Trash size={16} aria-hidden="true" />
         </button>}

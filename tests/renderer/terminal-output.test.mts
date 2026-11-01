@@ -75,3 +75,29 @@ test("a failed snapshot retries without losing queued output and disposal ignore
   reply.resolve(snapshot(5));
   await loading;
 });
+
+test("a suspended view holds output and replays it in order when it resumes", async () => {
+  const writes: string[] = [];
+  const output = new TerminalOutput(async () => snapshot(1), (value) => writes.push(value.data), (data) => writes.push(data));
+  await output.start();
+  output.suspend();
+  output.push({ terminalId: "t", sequence: 2, data: "a" });
+  output.push({ terminalId: "t", sequence: 3, data: "b" });
+  assert.deepEqual(writes, ["snapshot"]);
+  output.resume();
+  output.push({ terminalId: "t", sequence: 4, data: "c" });
+  assert.deepEqual(writes, ["snapshot", "a", "b", "c"]);
+});
+
+test("a suspended view that held too much reloads from a snapshot when it resumes", async () => {
+  let requests = 0;
+  const writes: string[] = [];
+  const output = new TerminalOutput(async () => snapshot(++requests === 1 ? 1 : 40, `snapshot ${requests}`), (value) => writes.push(value.data), (data) => writes.push(data));
+  await output.start();
+  output.suspend();
+  for (let sequence = 2; sequence <= 40; sequence++) output.push({ terminalId: "t", sequence, data: "x".repeat(64 * 1024) });
+  output.resume();
+  output.push({ terminalId: "t", sequence: 41, data: "after" });
+  await output.start();
+  assert.deepEqual(writes, ["snapshot 1", "snapshot 2", "after"]);
+});

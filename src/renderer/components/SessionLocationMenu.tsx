@@ -5,6 +5,7 @@ import { worktreeHue, worktreeName } from "../../domain/worktree";
 import { PopoverMenu, type MenuEntry } from "./PopoverMenu";
 import { WorktreeMenuChoices } from "./WorktreeMenuChoices";
 import "../worktree-menu.css";
+import { SweepBand } from "./SweepBand";
 
 export function SessionLocationMenu({ view, openMenu, dispatch }: { view: WorktreeMenuView; openMenu: string | null; dispatch: (command: AppCommand) => void }) {
   const location = view.location;
@@ -29,7 +30,7 @@ export function SessionLocationMenu({ view, openMenu, dispatch }: { view: Worktr
     <PopoverMenu id={WORKTREE_MENU} openMenu={openMenu} onSetOpenMenu={(menu) => dispatch({ type: "view.set-menu", menu })} label={`${location.kind === "worktree" ? `Worktree ${label}` : label}, thread options`} className="session-row session-location-row" popoverClassName="session-menu-popover" anchored items={entries}>
       <span className={`session-row-icon${view.worktreeId ? ` worktree-mark hue-${worktreeHue(view.worktreeId)}` : ""}`}>{view.worktreeId || working ? <FolderSymlink size={18} /> : <House size={18} />}</span>
       <span className="session-location-name" data-tip={location.kind === "worktree" ? location.worktree.root : undefined}>
-        <em className={working ? "text-sweep" : undefined}>{label}</em>
+        <em className={working ? "text-sweep" : undefined}>{label}{working && <SweepBand>{label}</SweepBand>}</em>
         {view.worktreeId && view.count > 1 && <small>{view.count} threads</small>}
       </span>
     </PopoverMenu>

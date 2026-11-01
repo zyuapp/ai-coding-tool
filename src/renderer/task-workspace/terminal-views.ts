@@ -22,6 +22,8 @@ type TerminalView = {
   search: SearchAddon | null;
   output: TerminalOutput;
   opened: boolean;
+  /** In the panel now; output reaches xterm only while this holds and the window is on screen. */
+  attached: boolean;
   computerId?: string;
   remote?: RemoteTerminalOutput;
 };
@@ -167,7 +169,8 @@ function terminalRecord(terminalId: string, computerId?: string): TerminalView {
       view.terminal?.write(data, size ? () => view.terminal?.resize(size.cols, size.rows) : undefined);
     },
   );
-  const view: TerminalView = { container, terminal: null, fit: null, search: null, output, opened: false, computerId };
+  const view: TerminalView = { container, terminal: null, fit: null, search: null, output, opened: false, attached: false, computerId };
+  view.output.suspend();
   if (computerId) {
     view.remote = new RemoteTerminalOutput(
       (after) => window.desktop.readRemoteTerminal(computerId, terminalId, after),
@@ -217,6 +220,8 @@ export async function showTerminalView(terminalId: string, parent: HTMLElement, 
   if (!stillVisible()) return;
   if (!view.terminal || views.get(terminalId) !== view) return;
   parent.appendChild(view.container);
+  view.attached = true;
+  flow(view);
   view.remote?.start(onStatus);
   if (view.opened) return;
   view.terminal.open(view.container);
@@ -263,7 +268,16 @@ export function focusTerminalView(terminalId: string) {
 export function hideTerminalView(terminalId: string) {
   const view = views.get(terminalId);
   if (view?.remote) { disposeTerminalView(terminalId); return; }
-  view?.container.remove();
+  if (!view) return;
+  view.container.remove();
+  view.attached = false;
+  flow(view);
+}
+
+/** Lets output through to a view someone can see, and holds it for one nobody can. */
+function flow(view: TerminalView) {
+  if (view.attached && document.visibilityState !== "hidden") view.output.resume();
+  else view.output.suspend();
 }
 
 export function disposeTerminalView(terminalId: string) {
@@ -276,14 +290,15 @@ export function disposeTerminalView(terminalId: string) {
   view.terminal?.dispose();
 }
 
-/** Output goes to every view, shown or not, so switching tabs never shows a terminal missing lines. */
+/**
+ * Output is held for a view nobody can see and replayed when it shows, or replaced by main's snapshot
+ * when too much piled up, so switching tabs never shows a terminal missing lines.
+ */
 if (typeof window !== "undefined" && "desktop" in window) {
   window.desktop.onTerminalData((event) => {
     const { terminalId } = event;
     if (views.get(terminalId)?.remote) return;
-    const view = terminalRecord(terminalId);
-    view.output.push(event);
-    /** A failed import or snapshot is retried when the panel is next shown. */
-    void terminalView(terminalId).catch(() => undefined);
+    terminalRecord(terminalId).output.push(event);
   });
+  document.addEventListener("visibilitychange", () => { for (const view of views.values()) flow(view); });
 }
