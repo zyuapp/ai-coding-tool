@@ -165,3 +165,16 @@ test("bulk delete keeps recovery pointers, a failure's error, and its count acro
   assert.equal(done.worktreeManagementError, "Locked");
   assert.equal(done.worktreeSettings.bulk, null);
 });
+
+test("a second bulk delete joins one still running", () => {
+  const [clean, loose] = ["clean", "loose"].map((id) => heldWorktree(id).root);
+  const first = reduce(bulkFixture(), { type: "worktree.delete-safe", roots: [clean] }).state;
+  const none = reduce(first, { type: "worktree.delete-safe", roots: [heldWorktree("dirty").root] }).state;
+  assert.deepEqual(none.worktreeSettings.bulk?.pending, [clean]);
+  const second = reduce(none, { type: "worktree.delete-safe", roots: [loose] }).state;
+  assert.deepEqual(second.worktreeSettings.bulk?.pending, [clean, loose]);
+  const snapshot = { commit: null, shortCommit: null, ref: null };
+  const one = reduce(second, { type: "worktree.deleted", worktreeId: "clean", root: clean, snapshot }).state;
+  const two = reduce(one, { type: "worktree.deleted", worktreeId: "loose", root: loose, snapshot }).state;
+  assert.equal(two.worktreeManagementNotice, "Deleted 2 worktrees.");
+});

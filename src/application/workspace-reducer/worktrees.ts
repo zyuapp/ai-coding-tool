@@ -214,7 +214,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
   }
 }
 
-/** Each checkout is judged again here, so one that changed since the confirmation stays. */
+/** Each checkout is judged again here, so one that changed since the confirmation stays. A bulk still running takes the new roots in. */
 function deleteSafe(state: WorkspaceState, requested: string[]): WorkspaceTransition {
   const views = worktreeSettingsViews(state, threadActivity(state).working) ?? [];
   const safe = new Set(views.filter((view) => view.safe).map((view) => view.root));
@@ -229,7 +229,9 @@ function deleteSafe(state: WorkspaceState, requested: string[]): WorkspaceTransi
     effects.push(...deleted.effects);
     pending.push(root);
   }
-  return settled({ ...next, worktreeSettings: { ...next.worktreeSettings, bulk: pending.length ? { pending, deleted: 0, recover: [] } : null } }, effects);
+  const running = state.worktreeSettings.bulk;
+  const bulk = running ? { ...running, pending: [...running.pending, ...pending] } : pending.length ? { pending, deleted: 0, recover: [] } : null;
+  return settled({ ...next, worktreeSettings: { ...next.worktreeSettings, bulk } }, effects);
 }
 
 type Bulk = NonNullable<WorkspaceState["worktreeSettings"]["bulk"]>;
