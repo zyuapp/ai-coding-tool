@@ -5321,18 +5321,6 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   .model-results { padding-inline: 6px; }
 }
 
-/* ── Unread ──────────────────────────────────────────────────────────────── */
-
-/** The unread count, wearing the same dot as the rows it counts. */
-.unread-switch { position: relative; display: flex; flex: none; }
-.unread-switch-trigger { width: auto; min-width: 28px; display: flex; gap: 6px; padding: 0 8px; }
-.unread-switch-trigger[aria-expanded="true"] { background: var(--wash); color: var(--muted-strong); }
-.unread-switch-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--info); }
-.unread-switch-count { font-size: var(--text-meta); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted-strong); }
-.unread-menu { top: calc(100% + 4px); left: 0; right: auto; min-width: 220px; max-width: min(320px, calc(100vw - 28px)); -webkit-app-region: no-drag; }
-.unread-menu-thread .menu-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: 50%; background: var(--info); vertical-align: middle; }
-.unread-menu-more .menu-label { padding-left: 14px; color: var(--muted); }
-
 /* ── Computers ───────────────────────────────────────────────────────────── */
 
 /** A narrow sidebar shortens the computer's name before the header runs into the traffic lights. */

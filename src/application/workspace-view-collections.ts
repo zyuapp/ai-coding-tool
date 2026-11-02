@@ -1,7 +1,7 @@
 import type { AutomationView } from "../domain/automation.js";
-import { threadActivityAt, type Thread } from "../domain/thread.js";
+import type { Thread } from "../domain/thread.js";
 import type { Worktree } from "../domain/worktree.js";
-import { remoteCollections, type PairedComputer, type RemoteCollections } from "./computers.js";
+import { remoteCollections, type PairedComputer } from "./computers.js";
 import type { Project } from "../domain/project.js";
 import { orderProjects } from "./project-order.js";
 import type { ComputerLink } from "../domain/computers.js";
@@ -38,22 +38,6 @@ function heldSelector<Value>(
     return value;
   };
   return Object.assign(select, { release: () => { held = undefined; } });
-}
-
-const NO_THREADS: Thread[] = [];
-
-function sameThreads(before: Thread[], next: Thread[]) {
-  return before.length === next.length && before.every((thread, index) => thread === next[index]);
-}
-
-/** The rows carrying an unseen mark across the computers the sidebar lists, newest first. */
-function unreadRowThreads(state: WorkspaceState, others: RemoteCollections): Thread[] {
-  const own = state.computers.filter === "all" || state.computers.filter === "this";
-  const rows = new Set([...(own ? threadLists(state).unreadRows : []), ...others.unreadRows]);
-  if (!rows.size) return NO_THREADS;
-  return [...(own ? threadLists(state).visibleThreads : []), ...others.threads]
-    .filter((thread) => rows.has(thread.id))
-    .sort((left, right) => threadActivityAt(right) - threadActivityAt(left));
 }
 
 function sameIds(before: Set<string>, next: Set<string>) {
@@ -182,7 +166,6 @@ function createViewCollections() {
     },
   );
 
-  const unreadThreads = selector((state) => [threadLists(state).unreadRows, remote(state), state.computers.filter], (state) => unreadRowThreads(state, remote(state)), sameThreads);
   /**
    * Every computer's projects, this one's first, for a draft to start in. The sidebar's filter narrows
    * what is listed, never where a thread may begin, so the draft's own project is always among these.
@@ -252,7 +235,7 @@ function createViewCollections() {
       archivedThreads: lists.archivedThreads,
       worktreeThreadIds: everyWorktree(state),
       sideChatAttention: everySideChatAttention(state),
-      unreadCount: lists.unreadCount + remote(state).unreadCount, unreadThreads: unreadThreads(state),
+      unreadCount: lists.unreadCount + remote(state).unreadCount,
       lists: sidebar(state),
       startProjects: startProjects(state),
       busy: busy(state),

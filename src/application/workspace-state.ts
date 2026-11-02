@@ -713,7 +713,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
   return {
     ...engineView(state, currentThread),
     sideChatAttention: collections.sideChatAttention,
-    unreadCount: collections.unreadCount, unreadThreads: collections.unreadThreads,
+    unreadCount: collections.unreadCount,
     ...lists,
     startProjects: collections.startProjects,
     threads: listedThreads,

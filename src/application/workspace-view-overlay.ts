@@ -9,7 +9,7 @@ import type { OverviewFolds } from "../domain/coordination.js";
  * chrome, the settings, and the lists that merge every computer's threads.
  */
 const OWN_VIEW_KEYS = [
-  "unreadCount", "unreadThreads", "sideChatAttention", "threads", "orderedThreads", "threadsByProject", "projects", "startProjects", "activityThreads", "recentThreads", "threadSlots",
+  "unreadCount", "sideChatAttention", "threads", "orderedThreads", "threadsByProject", "projects", "startProjects", "activityThreads", "recentThreads", "threadSlots",
   "runningThreadIds", "monitoringThreadIds", "blockedThreadIds", "stoppableCoordinatorIds", "worktreeThreadIds", "worktreeGroups", "worktreesById", "schedules", "archivedThreads",
   "managedWorktrees", "worktreeSettings", "worktreeManagementError", "worktreeManagementNotice", "worktreeDeleteConfirmation",
   "installedApps", "cli", "planUsage", "computerUsePermissions", "computerUseSetup", "storageError", "hiddenThreads", "restored", "viewingImage", "viewingGallery",
