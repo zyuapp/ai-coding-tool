@@ -13,7 +13,7 @@ const OUTDATED: CliState = { status: { state: "installed", path: "/usr/local/bin
 function general(cli: CliState, onSetCliInstalled: (installed: boolean) => void = () => {}, onReadCli: () => void = () => {}) {
   return React.createElement(GeneralSettings, {
     cli, onReadCli, onSetCliInstalled,
-    chromeBrowser: false, onSetChromeBrowser() {}, idleCompaction: true, onSetIdleCompaction() {}, notifications: false, onSetNotifications() {},
+    chromeBrowser: false, onSetChromeBrowser() {}, notifications: false, onSetNotifications() {},
     onCheckForUpdates() {}, onOpenSourceLicenses() {},
   });
 }

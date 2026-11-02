@@ -20,7 +20,7 @@ export const SETTINGS_INPUTS = [
   "view.set-reading-size", "view.set-terminal-size", "view.set-sidebar-mode", "view.set-activity-project", "view.set-sidebar-open",
   "view.focus-composer", "view.set-shortcut", "view.reset-shortcuts", "view.capture-shortcut", "shortcut.captured", "shortcut.unavailable",
   "view.inspect-subagent", "subagent.activity.loaded", "view.set-capture-options", "view.set-chrome-browser", "view.set-computer-use",
-  "view.set-browser-tools", "view.set-notifications", "view.set-idle-compaction", "view.set-session-panel-open", "view.set-settings-open", "view.set-subagent-group",
+  "view.set-browser-tools", "view.set-notifications", "view.set-session-panel-open", "view.set-settings-open", "view.set-subagent-group",
   "view.set-section-open"
 ] as const;
 type SettingsInput = Extract<WorkspaceInput, { type: (typeof SETTINGS_INPUTS)[number] }>;
@@ -198,8 +198,8 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
     }
 
     case "view.set-chrome-browser":
-    case "view.set-computer-use": case "view.set-browser-tools": case "view.set-notifications": case "view.set-idle-compaction": {
-      const field = { "view.set-chrome-browser": "chromeBrowser", "view.set-computer-use": "computerUse", "view.set-browser-tools": "browserTools", "view.set-notifications": "notifications", "view.set-idle-compaction": "idleCompaction" }[input.type] as "chromeBrowser" | "computerUse" | "browserTools" | "notifications" | "idleCompaction";
+    case "view.set-computer-use": case "view.set-browser-tools": case "view.set-notifications": {
+      const field = { "view.set-chrome-browser": "chromeBrowser", "view.set-computer-use": "computerUse", "view.set-browser-tools": "browserTools", "view.set-notifications": "notifications" }[input.type] as "chromeBrowser" | "computerUse" | "browserTools" | "notifications";
       if (state[field] === input.enabled) return settled(state);
       const next = { ...state, [field]: input.enabled };
       return settled(next, persistView(next));

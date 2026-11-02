@@ -101,8 +101,6 @@ export type RunProvenance = {
   quiet: boolean;
   /** A native thread operation that starts without adding a user message. */
   operation?: "compact" | "review";
-  /** Set on a compaction the app started because the thread sat idle. */
-  idle?: true;
   /**
    * Set on a turn the user's own message started, until a message from anyone else joins it. The
    * user is already there, so its coordinator hears it ended with its next wake rather than by one.
@@ -154,13 +152,6 @@ export type RunTransitionState = {
    */
   subagents: Record<string, Subagent[]>;
 };
-
-function compactedText(event: Extract<RunEvent, { type: "context.compacted" }>, idle: boolean) {
-  const before = event.preTokens.toLocaleString("en-US");
-  const after = event.postTokens?.toLocaleString("en-US");
-  if (idle) return after === undefined ? `Compacted while idle at ${before} tokens.` : `Compacted while idle: ${before} → ${after} tokens.`;
-  return after === undefined ? `Context ${event.trigger}-compacted at ${before} tokens.` : `Context ${event.trigger}-compacted: ${before} → ${after} tokens.`;
-}
 
 function now() {
   return Date.now();
@@ -553,7 +544,12 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     /** A summary may have dropped what the coordinator read of its memory, so its next run reads it again. */
     return updateThread(activeState, event.taskId, (thread) => ({
       ...withMemoryUnheard(thread),
-      messages: appendMessages(thread.messages, [createConversationMessage("system", compactedText(event, active.idle === true))]),
+      messages: appendMessages(thread.messages, [createConversationMessage(
+        "system",
+        event.postTokens === undefined
+          ? `Context ${event.trigger}-compacted at ${event.preTokens.toLocaleString("en-US")} tokens.`
+          : `Context ${event.trigger}-compacted: ${event.preTokens.toLocaleString("en-US")} → ${event.postTokens.toLocaleString("en-US")} tokens.`,
+      )]),
       ...(thread.contextUsage && event.postTokens !== undefined
         ? { contextUsage: { ...thread.contextUsage, tokens: event.postTokens } }
         : {}),

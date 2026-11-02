@@ -84,7 +84,6 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     setComputerUse: (enabled: boolean) => dispatch({ type: "view.set-computer-use", enabled }),
     setBrowserTools: (enabled: boolean) => dispatch({ type: "view.set-browser-tools", enabled }),
     setNotifications: (enabled: boolean) => dispatch({ type: "view.set-notifications", enabled }),
-    setIdleCompaction: (enabled: boolean) => dispatch({ type: "view.set-idle-compaction", enabled }),
     setSidebarOpen: (open: boolean) => dispatch({ type: "view.set-sidebar-open", open }),
     setShortcut: (action: string, binding: string | null) => dispatch({ type: "view.set-shortcut", action, binding }),
     resetShortcuts: () => dispatch({ type: "view.reset-shortcuts" }),

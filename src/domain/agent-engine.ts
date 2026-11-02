@@ -80,11 +80,6 @@ export type EngineCapabilities = {
   subagentMetadata: boolean;
   /** Reviewing the thread's changes is work the engine performs itself, not a prompt it is sent. */
   review: boolean;
-  /**
-   * How long the engine's prompt cache holds an idle thread, where re-reading the thread once the
-   * cache expires costs the plan. Such a thread is compacted shortly before then. Null for none.
-   */
-  idleCompactionCacheMs: number | null;
 };
 
 type EngineSpec = {
@@ -101,14 +96,14 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     models: CLAUDE_MODELS,
     defaultModel: "opus",
     defaultEffort: "high",
-    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false, idleCompactionCacheMs: 60 * 60 * 1_000 },
+    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false },
   },
   codex: {
     label: "Codex",
     models: CODEX_MODELS,
     defaultModel: "gpt-6.1-sol",
     defaultEffort: "high",
-    capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true, idleCompactionCacheMs: null },
+    capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true },
   },
 };
 
@@ -293,7 +288,7 @@ function engineSpec(engine: AgentEngine): EngineSpec | undefined {
   return Object.hasOwn(ENGINES, engine) ? ENGINES[engine] : undefined;
 }
 
-const NO_CAPABILITIES: EngineCapabilities = { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, idleCompactionCacheMs: null };
+const NO_CAPABILITIES: EngineCapabilities = { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false };
 
 export function modelsFor(engine: AgentEngine): readonly ModelSpec[] {
   return engineSpec(engine)?.models ?? [];

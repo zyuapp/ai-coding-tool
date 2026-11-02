@@ -86,7 +86,6 @@ export function pruneDeletedThreads(state: WorkspaceState, removed: Set<string>)
     lastRunIds: withoutThreadKeys(state.lastRunIds, removed),
     activeRuns: withoutThreadKeys(state.activeRuns, removed),
     runStatuses: withoutThreadKeys(state.runStatuses, removed),
-    idleCompactionSeen: withoutThreadKeys(state.idleCompactionSeen, removed),
     approvals: withoutMatchingValues(state.approvals, (approval) => removed.has(approval.taskId)),
     streamingTails: withoutThreadKeys(state.streamingTails, removed),
     backgroundProcesses: withoutThreadKeys(state.backgroundProcesses, removed),

@@ -52,9 +52,6 @@ export const systemEffects = {
   "schedule-snooze-expiry": (effect, host) => {
     host.scheduleSnoozeExpiry(effect.at);
   },
-  "schedule-idle-compaction": (effect, host) => {
-    host.scheduleIdleCompaction(effect.at);
-  },
   "schedule-toast-dismissal": (effect, host) => {
     host.scheduleToastDismissal(effect.id, effect.at);
   },

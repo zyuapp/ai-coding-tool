@@ -41,8 +41,6 @@ export type ViewPreferences = {
   browserTools: boolean;
   /** Whether a thread that needs the user reaches the desktop while the window is behind something else. */
   notifications: boolean;
-  /** Whether a large idle Claude thread is compacted before its prompt cache expires. On when absent. */
-  idleCompaction?: boolean;
   /** Only the bindings that differ from the defaults; an action bound to nothing is stored as null. */
   shortcuts?: ShortcutOverrides;
   /** The pages each thread's dock reopens, keyed by thread id, and the origins a run may reach without asking again. */
