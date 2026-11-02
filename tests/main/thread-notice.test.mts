@@ -94,3 +94,22 @@ test("the app icon carries the count of threads the user has not seen", async ()
   await request({ type: "task.dismiss-all" });
   await waitFor(() => main.badgeCounts.at(-1) === 0, "the mark coming off");
 });
+
+test("the Dock icon's menu marks everything read, and offers nothing while nothing is unread", async () => {
+  type DockItem = { label: string; enabled: boolean; click(): void };
+  const markAllRead = () => (main.dockMenu() as DockItem[])[0]!;
+  await request({ type: "view.set-focused", focused: false });
+  const first = await finishedThread("Mark me read");
+  const second = await finishedThread("Mark me read too");
+  await request({ type: "task.select", taskId: first });
+  await runAgain(second);
+  await waitFor(() => (main.badgeCounts.at(-1) ?? 0) > 0, "a mark on the icon");
+  assert.equal(markAllRead().label, "Mark All as Read");
+  assert.equal(markAllRead().enabled, true);
+  markAllRead().click();
+  await waitFor(() => main.badgeCounts.at(-1) === 0, "the mark coming off");
+  const settled = (await main.runtimeState()).threads.find((thread) => thread.id === second)!;
+  assert.equal(settled.outcomeUnread, undefined);
+  assert.equal(settled.outcome, "finished", "the verdict still ranks the thread");
+  assert.equal(markAllRead().enabled, false);
+});

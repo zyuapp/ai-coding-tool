@@ -23,7 +23,7 @@ import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeById } from "../thread-location.js";
 import { DRAFT_DOCK, dockFor, frontDock, sideChatIds, withDock, type WorkspaceState } from "../workspace-state.js";
 import { threadActivity, threadLists } from "../thread-activity.js";
-import { dismissed, readAttention, wantsAttention } from "../../domain/attention.js";
+import { dismissed, hasUnreadAttention, readAttention, wantsAttention, withAllRead } from "../../domain/attention.js";
 import { readRow } from "../thread-attention.js";
 import { archivePromptView } from "../workspace-dialogs.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
@@ -33,7 +33,7 @@ import { cancelPause } from "../limit-pauses.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
 export const THREAD_COMMAND_INPUTS = [
-  "task.new", "task.select", "task.dismiss", "task.dismiss-all", "task.archive", "task.snooze", "task.unsnooze", "snoozes.elapsed", "task.restore",
+  "task.new", "task.select", "task.dismiss", "task.dismiss-all", "task.read-all", "task.result-collected", "task.archive", "task.snooze", "task.unsnooze", "snoozes.elapsed", "task.restore",
   "task.clear-archive", "task.rename", "task.set-role", "title.suggested", "task.fork", "view.fork-name", "view.archive-prompt", "task.move", "task.set-policy", "task.set-model",
   "task.set-effort", "task.set-fast-mode"
 ] as const;
@@ -153,6 +153,23 @@ function dismissPriority(state: WorkspaceState, localOnly = false, projectId?: s
   return errors.length ? rejected(next, errors.join("\n"), effects) : settled(next, effects);
 }
 
+/** Marks the listed computers' threads read; each host owns its changes and reports them back. */
+function readAll(state: WorkspaceState, localOnly = false): WorkspaceTransition {
+  const own = localOnly || state.computers.filter === "all" || state.computers.filter === "this";
+  const threads = own ? withAllRead(state.threads) : state.threads;
+  const next = threads === state.threads ? state : { ...state, threads };
+  if (localOnly) return settled(next);
+  const command: AppCommand = { type: "task.read-all", localOnly: true };
+  const effects: WorkspaceEffect[] = [];
+  const errors: string[] = [];
+  for (const computer of shownComputers(state.computers)) {
+    if (computer.status !== "connected" || !computer.state?.threads.some(hasUnreadAttention)) continue;
+    if (supportsComputerCommand(computer.capabilities, command)) effects.push({ type: "computer.forward", id: computer.id, inputs: [command] });
+    else errors.push(`${computer.name}: ${REMOTE_UNSUPPORTED}`);
+  }
+  return errors.length ? rejected(next, errors.join("\n"), effects) : settled(next, effects);
+}
+
 /**
  * Archiving a running thread cancels its run; its checkout stays until the user removes it. Its
  * pages give up their views but keep their records, so restoring and showing one reopens it. The
@@ -259,6 +276,15 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
 
     case "task.dismiss-all":
       return dismissPriority(state, input.localOnly, input.projectId);
+
+    case "task.read-all":
+      return readAll(state, input.localOnly);
+
+    /** The verdict reached the user through the thread that waited on it; what a run found stays theirs to read. */
+    case "task.result-collected": {
+      if (!state.threads.some((thread) => thread.id === input.taskId && thread.outcomeUnread)) return settled(state);
+      return settled(updateThread(state, input.taskId, ({ outcomeUnread: _read, ...thread }) => thread));
+    }
 
     case "task.archive":
       return archiveThread(state, input.taskId);

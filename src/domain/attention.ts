@@ -110,6 +110,16 @@ export function readAttention<T extends { threads: Thread[] }>(state: T, threadI
   return { ...state, threads: state.threads.map((thread) => thread === seen ? withReadFindings(rest) : thread) };
 }
 
+/** Takes every unseen mark off, leaving verdicts and findings where they rank. */
+export function withAllRead(threads: Thread[]): Thread[] {
+  if (!threads.some(hasUnreadAttention)) return threads;
+  return threads.map((thread) => {
+    if (!hasUnreadAttention(thread)) return thread;
+    const { outcomeUnread: _read, ...rest } = thread;
+    return withReadFindings(rest);
+  });
+}
+
 /** Retires the named threads' verdicts, leaving the list alone when none of them carry one. */
 export function withoutOutcome(threads: Thread[], dismissing: Set<string>): Thread[] {
   if (!threads.some((thread) => dismissing.has(thread.id) && thread.outcome)) return threads;

@@ -509,10 +509,10 @@ export function remoteCollections(computers: ComputersState): RemoteCollections 
   return gathered;
 }
 
-/** How many threads on every paired computer carry an unseen mark, which the app icon adds to its own. */
+/** How many threads on the paired computers the sidebar shows carry an unseen mark, which the app icon adds to its own. */
 export function remoteUnreadCount(computers: ComputersState): number {
   let count = 0;
-  for (const computer of computers.paired) {
+  for (const computer of shownComputers(computers)) {
     const remote = reachable(computer);
     if (remote) count += threadLists(remote).unreadCount;
   }

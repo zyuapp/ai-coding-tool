@@ -79,7 +79,9 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       const threadId = match.thread.id;
       if (!match.computer) {
         const { state, timedOut } = await waitFor(host, (state) => isWorking(state, threadId), request.timeoutMs);
-        return ok(threadWaitResult(state, threadId, timedOut));
+        const waited = threadWaitResult(state, threadId, timedOut);
+        if (!timedOut && threadId !== request.taskId) await host.dispatch({ type: "task.result-collected", taskId: threadId });
+        return ok(waited);
       }
       /** A paired computer's thread is watched in the state it keeps publishing, which settles it here as it settles there. */
       const computerId = match.computer.id;

@@ -32,6 +32,7 @@ import { createRuntimeDesktop } from "./runtime-desktop.js";
 import { attachmentNames, ORPHAN_ATTACHMENT_MIN_AGE_MS, retireLegacyCodexHome, sweepOrphanAttachments } from "./user-data-sweep.js";
 import { startKeyboardHost } from "./keyboard-host.js";
 import { installAppMenu, setUpdateChecking } from "./app-menu.js";
+import { installDockMenu } from "./dock-menu.js";
 import { registerAppImageProtocol } from "./linux-protocol.js";
 import { adoptLoginShellPath } from "./login-path.js";
 import { startLockAwake, type LockAwake } from "./lock-awake.js";
@@ -519,6 +520,9 @@ const startup = app.whenReady().then(async () => {
   installAppMenu({
     onCheckForUpdates: () => sendMenuCommand("app.check-for-updates"),
     onOpenSourceLicenses: () => sendMenuCommand("app.open-source-licenses"),
+  });
+  installDockMenu(() => {
+    void workspaceRuntime.dispatch({ type: "task.read-all" }).catch((error: unknown) => console.error("Could not mark all as read:", error));
   });
   await windowCreated;
   persistCompileCache();

@@ -147,6 +147,8 @@ export type TaskCommand =
   /** Dismisses Priority in the sidebar's computer filter. Forwarded requests stop at the receiving computer. */
   /** `projectId` narrows it to one project's threads, as a narrowed Priority shows them. */
   | { type: "task.dismiss-all"; localOnly?: boolean; projectId?: string }
+  /** Marks every thread read in the sidebar's computer filter. Forwarded requests stop at the receiving computer. */
+  | { type: "task.read-all"; localOnly?: boolean }
   | { type: "task.move"; taskId: string; target: TaskDropTarget }
   /**
    * Copies a thread into a new one beside it, carrying its conversation and its session. The copy

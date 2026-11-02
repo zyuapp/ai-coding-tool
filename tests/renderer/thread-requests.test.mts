@@ -375,6 +375,36 @@ test("a wait is held open until the thread it names stops working", async () => 
   await workspace.view.unmount();
 });
 
+test("a thread that waits on another and is handed its settled turn takes its unread mark off", async () => {
+  const desktop = fakeDesktop();
+  const workspace = await mountWorkspace(desktop);
+
+  await act(async () => { workspace.get().actions.setPrompt("Review the change"); });
+  await act(async () => { await workspace.get().actions.sendPrompt(); });
+  const reviewer = item(workspace.get().currentThread);
+  const runId = startCommand(desktop.sent.at(-1)).runId;
+  await act(async () => { workspace.get().actions.newThread(); });
+
+  await act(async () => { desktop.askThreads({ type: "thread.request", requestId: "short", taskId: "caller", op: "wait", threadId: reviewer.id, timeoutMs: 1 }); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 5)); });
+  assert.equal(threadWaitResult(desktop.threadAnswers.at(-1)).timedOut, true);
+
+  await act(async () => { desktop.listener({ type: "run.status", taskId: reviewer.id, runId, sequence: 1, status: "succeeded" }); });
+  await settleFrame();
+  const settled = () => item(workspace.get().threads.find((thread) => thread.id === reviewer.id));
+  assert.equal(settled().outcomeUnread, true, "a run that ends off screen is unread until something collects it");
+  assert.equal(workspace.get().unreadCount, 1);
+
+  await act(async () => { desktop.askThreads({ type: "thread.request", requestId: "collect", taskId: "caller", op: "wait", threadId: reviewer.id, timeoutMs: 60_000 }); });
+  await act(async () => {});
+  assert.equal(threadWaitResult(desktop.threadAnswers.at(-1)).timedOut, false);
+  assert.equal(settled().outcomeUnread, undefined);
+  assert.equal(settled().outcome, "finished");
+  assert.equal(workspace.get().unreadCount, 0);
+
+  await workspace.view.unmount();
+});
+
 test("a wait on a thread that is already idle answers at once, and an unknown thread fails", async () => {
   const desktop = fakeDesktop();
   const workspace = await mountWorkspace(desktop);

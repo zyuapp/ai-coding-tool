@@ -3,6 +3,7 @@ import type { ComputerDesktop, RuntimeDesktop } from "../host/runtime-desktop.js
 import type { ComputerLinks } from "./computers/computer-links.mjs" with { "resolution-mode": "import" };
 import { computerUsePermissions, requestComputerUsePermission } from "./computer-use-host.js";
 import { announceThread, type NoticeHost } from "./desktop-notice.js";
+import { setUnreadBadge } from "./dock-menu.js";
 import { downloadImage } from "./image-download.js";
 import type { KeyboardBridge } from "./keyboard-host.js";
 import { openSourceLicenses } from "./license-window.js";
@@ -148,7 +149,7 @@ function windowDesktop(host: RuntimeDesktopHost) {
       if (window?.isFocused()) window.webContents.focus();
     },
     announceThread: (notice) => announceThread(host.notices, notice),
-    setBadgeCount: (count) => app.setBadgeCount(count),
+    setBadgeCount: setUnreadBadge,
   } satisfies Partial<RuntimeDesktop>;
 }
 

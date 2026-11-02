@@ -36,6 +36,8 @@ export type WorkspaceEvent =
   /** Some idle thread's prompt cache is about to expire. */
   | { type: "idle-compaction.due"; at: number }
   | { type: "view.closed" }
+  /** Another thread waited on this one and was handed its settled turn, so its verdict has been delivered. */
+  | { type: "task.result-collected"; taskId: string }
   | { type: "store.loaded"; data: ThreadStoreData; hiddenTasks?: number }
   | { type: "store.thread-loaded"; taskId: string; messages: ConversationMessage[] }
   /** The store has nothing to hand over: a first run, with no threads to restore. */

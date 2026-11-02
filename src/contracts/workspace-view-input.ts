@@ -290,6 +290,7 @@ const commands = {
   "task.unsnooze": { fields: { taskId: text }, at: "thread" },
   /** The reducer itself carries this to the computers shown in the sidebar. */
   "task.dismiss-all": { fields: { localOnly: optionalBoolean, projectId: optionalText }, at: "local" },
+  "task.read-all": { fields: { localOnly: optionalBoolean }, at: "local" },
   "task.move": { fields: { taskId: text, target: dropTarget }, at: "thread" },
   "task.fork": { fields: { taskId: optionalText, worktree: optionalBoolean, title: optional(startTitle) }, at: "thread" },
   "task.set-policy": { fields: { taskId: optionalText, policy: policy }, at: "thread" },

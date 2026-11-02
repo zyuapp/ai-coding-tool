@@ -81,6 +81,7 @@ export function fakeElectron(userData: string) {
   const openedPaths: string[] = [];
   const relaunches: Array<{ args?: string[] }> = [];
   const badgeCounts: number[] = [];
+  let dockMenu: unknown = null;
   const powerBlockerStarts: Array<{ id: number; type: "prevent-app-suspension" | "prevent-display-sleep" }> = [];
   const powerBlockerStops: number[] = [];
   const activePowerBlockers = new Set<number>();
@@ -114,7 +115,7 @@ export function fakeElectron(userData: string) {
   const electron = {
     app: {
       isPackaged: false,
-      dock: { setIcon() {} },
+      dock: { setIcon() {}, setMenu(menu: unknown) { dockMenu = menu; } },
       setBadgeCount(count: number) { badgeCounts.push(count); },
       setName() {},
       getName: () => "AI Coding Tool",
@@ -210,6 +211,7 @@ export function fakeElectron(userData: string) {
     globalShortcuts,
     notifications: Notification.raised,
     badgeCounts,
+    dockMenu: () => dockMenu,
     powerMonitor,
     powerBlockerStarts,
     powerBlockerStops,

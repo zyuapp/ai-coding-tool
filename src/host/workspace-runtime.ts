@@ -91,7 +91,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
     state = next;
     if (next.prompts !== previous.prompts) drafts.changed();
     releaseThreadWaiters(waiters, next);
-    if (badgeCount === -1 || next.threads !== previous.threads || next.sideChats !== previous.sideChats || next.computers.paired !== previous.computers.paired) {
+    if (badgeCount === -1 || next.threads !== previous.threads || next.sideChats !== previous.sideChats || next.computers.paired !== previous.computers.paired || next.computers.filter !== previous.computers.filter) {
       const count = threadLists(next).unreadCount + remoteUnreadCount(next.computers);
       if (count !== badgeCount) desktop.setBadgeCount(count);
       badgeCount = count;
