@@ -42,7 +42,7 @@ export function unreadView(state: { threads: Thread[] } & Pick<DockState, "sideC
   for (const thread of listed) {
     if (hasUnreadAttention(thread) || sideChatAttention.has(thread.id)) rows.add(members.has(thread.id) ? leadIdOf(thread)! : thread.id);
   }
-  return { sideChatAttention, unreadCount: rows.size };
+  return { sideChatAttention, unreadRows: [...rows], unreadCount: rows.size };
 }
 
 /** Landing on a thread reads it, and landing on a coordinator reads the threads under it too, as its row speaks for them. */

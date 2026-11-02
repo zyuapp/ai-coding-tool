@@ -87,6 +87,8 @@ export type ProjectSidebarProps = {
   onUnsnoozeThread: (threadId: string) => void;
   /** Takes the dot off every thread in Priority, or only off those in `projectId`. */
   onDismissAll: (projectId: string | null) => void;
+  /** Rows carrying an unseen mark, newest first. */
+  unreadThreads: Thread[];
   onRenameThread: (threadId: string, title: string) => void;
   onMoveThread: (threadId: string, target: ThreadDropTarget) => void;
   /** Copies the thread into a new one beside it, with a checkout of its own when `worktree`. */
@@ -224,6 +226,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   onDismissThread,
   onSnoozeThread, onUnsnoozeThread,
   onDismissAll,
+  unreadThreads,
   onRenameThread,
   onMoveThread,
   onForkThread,
@@ -283,7 +286,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       inert={inactive || !open}
       style={{ "--row-slots": railSlots } as React.CSSProperties}
     >
-      <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
+      <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} unreadThreads={unreadThreads} threadHosts={threadHosts} onSelectThread={onSelectThread} />
       <NewThreadBar onNewThread={onNewThread} />
 
       <div className="sidebar-scroll">

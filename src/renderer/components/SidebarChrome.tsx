@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LuActivity as ActivityIcon, LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight, LuFolder as Folder, LuMonitor as Monitor, LuMonitorOff as MonitorOff } from "react-icons/lu";
 import { awayStatus, type ComputerFilter, type ComputerLink } from "../../domain/computers";
+import type { Thread } from "../../domain/thread";
+import type { ThreadHost } from "../../application/computers";
 import type { SidebarMode } from "../../domain/sidebar";
 import { useDismissibleLayer } from "../focus";
-import { MenuList, type MenuItem } from "./PopoverMenu";
+import { MenuList, type MenuEntry, type MenuItem } from "./PopoverMenu";
 import { shortcutTip } from "./TooltipLayer";
 
 const BACK_TIP = shortcutTip("Back", "Mod+[");
@@ -77,6 +79,64 @@ function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenM
   );
 }
 
+const UNREAD_MENU = "sidebar:unread";
+/** How many unread rows the menu names before it counts the rest. */
+const UNREAD_SHOWN = 10;
+
+type UnreadSwitchProps = {
+  threads: Thread[];
+  threadHosts: Map<string, ThreadHost>;
+  openMenu: string | null;
+  onSetOpenMenu: (menu: string | null) => void;
+  onSelectThread: (threadId: string) => void;
+};
+
+/** The unread count, opening onto the rows that carry it, wherever they sit in the lists, and a way to clear them all. */
+function UnreadSwitch({ threads, threadHosts, openMenu, onSetOpenMenu, onSelectThread }: UnreadSwitchProps) {
+  const open = openMenu === UNREAD_MENU;
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  useDismissibleLayer(open, [root], () => onSetOpenMenu(null), trigger);
+  const hidden = threads.length - UNREAD_SHOWN;
+  const entries: MenuEntry[] = [
+    ...threads.slice(0, UNREAD_SHOWN).map((thread): MenuItem => ({
+      label: thread.title,
+      className: "unread-menu-thread",
+      detail: threadHosts.get(thread.id)?.name,
+      onSelect: () => onSelectThread(thread.id),
+    })),
+    ...(hidden > 0 ? [{ label: `${hidden} more`, disabled: true, className: "unread-menu-more" }] : []),
+    "separator",
+    { label: "Mark All as Read", command: { type: "task.read-all" } },
+  ];
+  const label = `${threads.length} unread`;
+  return (
+    <div ref={root} className="unread-switch" data-popover-menu onBlur={(event) => {
+      if (open && !event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
+    }}>
+      <button
+        ref={trigger}
+        type="button"
+        className="thread-nav-button unread-switch-trigger"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-tip={label}
+        onClick={() => onSetOpenMenu(open ? null : UNREAD_MENU)}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+          event.preventDefault();
+          onSetOpenMenu(UNREAD_MENU);
+        }}
+      >
+        <span className="unread-switch-dot" aria-hidden="true" />
+        <span className="unread-switch-count">{threads.length}</span>
+      </button>
+      {open && <MenuList entries={entries} onClose={() => onSetOpenMenu(null)} className="unread-menu" />}
+    </div>
+  );
+}
+
 const SIDEBAR_MODES = [
   { value: "projects", label: "Group by project", tip: "Group by project", Icon: Folder },
   { value: "activity", label: "Rank threads by activity", tip: "Rank by activity", Icon: ActivityIcon },
@@ -96,9 +156,13 @@ export type SidebarHeaderProps = {
   onSetMode: (mode: SidebarMode) => void;
   onGoBack: () => void;
   onGoForward: () => void;
+  /** Rows carrying an unseen mark, newest first; the header offers them only while there are some. */
+  unreadThreads: Thread[];
+  threadHosts: Map<string, ThreadHost>;
+  onSelectThread: (threadId: string) => void;
 };
 
-export function SidebarHeader({ mode, canGoBack, canGoForward, computerLinks, computerName, computerFilter, openMenu, onSetComputerFilter, onSetOpenMenu, onSetMode, onGoBack, onGoForward }: SidebarHeaderProps) {
+export function SidebarHeader({ mode, canGoBack, canGoForward, computerLinks, computerName, computerFilter, openMenu, onSetComputerFilter, onSetOpenMenu, onSetMode, onGoBack, onGoForward, unreadThreads, threadHosts, onSelectThread }: SidebarHeaderProps) {
   return (
     <div className="traffic-space">
       <div className="sidebar-modes">
@@ -119,6 +183,7 @@ export function SidebarHeader({ mode, canGoBack, canGoForward, computerLinks, co
           ))}
         </div>
         {computerLinks.length > 0 && <ComputerSwitch links={computerLinks} name={computerName} filter={computerFilter} onSetFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
+        {unreadThreads.length > 0 && <UnreadSwitch threads={unreadThreads} threadHosts={threadHosts} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onSelectThread={onSelectThread} />}
       </div>
       <div className="thread-nav">
         <button className="thread-nav-button" type="button" aria-label="Go back" data-tip={BACK_TIP} disabled={!canGoBack} onClick={onGoBack}>

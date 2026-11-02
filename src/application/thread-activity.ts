@@ -46,7 +46,8 @@ export type ThreadLists = {
   worktreeThreadIds: Set<string>;
   /** Threads holding a side chat with an unseen mark. */
   sideChatAttention: Set<string>;
-  /** Visible threads carrying an unseen mark, their side chats' included. */
+  /** The rows carrying an unseen mark, their side chats' and coordinated threads' included. */
+  unreadRows: readonly string[];
   unreadCount: number;
 };
 
