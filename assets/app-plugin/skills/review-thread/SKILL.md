@@ -21,7 +21,9 @@ The words after `/review-thread`, in any order:
 Before starting the reviewer, settle:
 
 - The base: the commit this thread's work builds on. If this thread made no commits, the base is `HEAD`. If it made commits, the base is the parent of its first commit. Record the SHA with `git rev-parse`.
-- The scope: what was asked, in one or two sentences, and what was deliberately left out.
+- The intent: every message from the user that shapes this work, copied verbatim, oldest first, including later corrections. Keep attachment paths.
+- The exclusions: what was deliberately left out, and why.
+- The evidence: each check you ran with its result, and how you exercised the changed behaviour.
 - The files this thread touched.
 
 Do not edit anything while a review round is running. The reviewer reads the working tree.
@@ -36,10 +38,12 @@ You are the reviewer for another AICodingTool thread's work. Review only; never 
 Work under review
 - Base commit: <sha>
 - Diff: `git diff <sha>` plus untracked files, in this checkout
-- Request: <scope>
+- User's words, verbatim, oldest first. These define the request and outrank the exclusions below:
+  <messages>
 - Out of scope by design: <exclusions>. Do not ask for these to be built; still read them and check how the change interacts with them.
 - Files touched: <list>
 - Focus: <focus or "none">
+- Implementer's evidence: <evidence>
 
 Review vectors, in order of weight
 1. Correctness: the change does what was requested, is secure, and works for every engine the app supports. Open the code that produces each value the change reads and the code that consumes each value it writes, inside the diff or not, and check that it still works. Check state saved before the change, each mode the code runs in, and each setting's default.
@@ -47,12 +51,16 @@ Review vectors, in order of weight
 3. Performance: no avoidable cost on hot paths or large inputs.
 4. Quality: tests cover new and changed behaviour, comments follow the repository's comment rules.
 5. Scope control: nothing requested is missing, nothing beyond the request was added, no unrelated files are in the diff.
+6. Evidence: the implementer's evidence exercises each behaviour change. Raise a finding only when no reported check did.
+7. Simplicity: every added abstraction, branch, option, or file is a cost. Name any that a simpler change could remove while still meeting the request.
 
 Edges: for each comparison, version or range check, threshold, limit, regex, parser, validation, time window, timeout, or retry the change adds or alters, list the inputs at its boundaries and check each against base and head: equal to the limit, just past it, empty, zero, negative, the largest value, an unexpected format, a value with extra parts (prefixes, suffixes, metadata, separators), text that only looks like a match, a reversed or descending range. To settle an unclear boundary, you may write a small probe script under /tmp that copies or imports one function. Never run the change's tests or build, and never install anything.
 
 Do not stop at the first finding. List every one that qualifies, then check each against the code once more and drop any you cannot confirm. Each finding names the input or state that triggers it and the wrong result.
 
-Verdict rule: any finding under 1, 2, or 5 means changes requested. Findings under 3 or 4 mean changes requested only at high severity; otherwise list them as optional.
+User decisions: when the user's words do not settle a finding, or fixing it would change or widen the scope, mark it optional and start its claim with `User decision:`, naming the decision. It never affects the verdict.
+
+Verdict rule: any finding under 1, 2, 5, or 6 means changes requested. Findings under 3, 4, or 7 mean changes requested only at high severity; otherwise list them as optional.
 
 Reply in exactly this shape, and nothing before the first line:
 
@@ -76,7 +84,7 @@ Call `wait_for_thread` with `timeoutSeconds` 900. While it answers "Still workin
 When the verdict arrives:
 
 - `approved`: go to step 5.
-- `changes-requested`: for each finding, decide whether it is real and inside the request's scope. Fix the ones that are. Reject the rest with a one-line reason each. Do not widen the work to satisfy an optional finding.
+- `changes-requested`: for each finding, decide whether it is real and inside the request's scope. Fix the ones that are. Reject the rest with a one-line reason each. Do not widen the work to satisfy an optional finding. Leave each `User decision:` finding open for step 5.
 
 Tell the user, in one short message, which findings you are fixing and which you rejected and why.
 
@@ -86,8 +94,10 @@ Make the fixes and run the checks this repository expects. Record the current `H
 
 ```
 Round <n>.
+New user messages since last round, verbatim: <messages or "none">
 Fixed: <finding> — <what changed>
 Rejected: <finding> — <why>
+Evidence: <checks run on the fixes, with results>
 Delta to review: `git diff <previous sha>` and the working tree.
 Verify the fixes, review the delta and the code it reaches, and reply in the same shape.
 ```
@@ -96,4 +106,4 @@ Return to step 3. Keep going until the reviewer answers `approved`; there is no 
 
 ## 5. Finish
 
-Report to the user in one message: the final verdict, how many rounds ran, what was fixed, and any finding left open with its reason. Then continue the thread's normal finishing steps for the original request, including the commit if the request called for one. Leave the reviewer thread open; the user may want to ask it questions.
+Report to the user in one message: the final verdict, how many rounds ran, what was fixed, and any finding left open with its reason, including each `User decision:` finding. Then continue the thread's normal finishing steps for the original request, including the commit if the request called for one. Leave the reviewer thread open; the user may want to ask it questions.
