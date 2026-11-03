@@ -86,7 +86,7 @@ test("Enter sends only its own field, while Shift+Enter and composition keep the
     await act(async () => { answer.focus(); answer.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Enter", ...extra })); });
   }
   assert.deepEqual(session.effects, []);
-  await act(async () => { message.focus(); message.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" })); });
+  await act(async () => { message.focus(); message.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter", metaKey: true })); });
   assert.equal(session.get().queuedMessages["task-a"][0].text, "Keep this message");
   assert.equal(answer.value, "Blue\nand green");
   await act(async () => { answer.focus(); answer.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" })); });

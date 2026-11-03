@@ -40,6 +40,7 @@ function menuKeyDown(event: KeyboardEvent<HTMLTextAreaElement>, menus: ComposerM
   return false;
 }
 
+/** While a run is going, Enter steers into it and Cmd/Ctrl+Enter queues behind it. */
 export function composerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>, { menus, runActive, sending, stepRecall, submit }: {
   menus: ComposerMenus;
   runActive: boolean;
@@ -60,12 +61,12 @@ export function composerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>, { men
   }
   if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && runActive && !sending) {
     event.preventDefault();
-    void submit(true);
+    void submit();
     return;
   }
   if (event.key === "Enter" && !event.shiftKey && !sending) {
     event.preventDefault();
-    void submit();
+    void submit(runActive);
   }
 }
 
