@@ -471,6 +471,35 @@ test("a pasted image becomes an attachment chip and is saved on send", async () 
   await view.unmount();
 });
 
+test("a staged image stays on the strip until the workspace lets it go, and never blocks the next send", async () => {
+  window.desktop = fakeDesktop();
+  const sends: string[][] = [];
+  const staged = [{ id: "shot", path: "/tmp/aicodingtool-attachments/shot.png", label: "Shot" }];
+  const render = (images: typeof staged, sent: string[]) => renderConversationComposer({
+    prompt: "Look",
+    images,
+    outbox: outbox({ state: { busy: false, error: null, sent }, send: (attachments) => { sends.push(attachments.map((attachment) => attachment.id)); } }),
+  });
+  const send = async () => { await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Send task"]').click(); }); };
+  const chips = () => view.container.querySelectorAll(".attachment-chip").length;
+
+  const view = await mount(render(staged, []));
+  await settleUntil(() => chips() === 1);
+
+  await view.render(render(staged, ["shot"]));
+  assert.equal(chips(), 1, "a run that never starts leaves the image to send again");
+  await send();
+  assert.deepEqual(sends, [["shot"]]);
+  assert.doesNotMatch(view.container.textContent ?? "", /Wait for the screenshots/);
+
+  await view.render(render([], ["shot"]));
+  await settleUntil(() => chips() === 0);
+  await send();
+  assert.deepEqual(sends, [["shot"], []]);
+  assert.doesNotMatch(view.container.textContent ?? "", /Wait for the screenshots/);
+  await view.unmount();
+});
+
 test("a long paste is held aside as a pill, and a short one lands in the draft", async () => {
   window.desktop = fakeDesktop();
   const added: string[] = [];

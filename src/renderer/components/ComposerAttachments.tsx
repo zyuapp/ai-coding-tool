@@ -67,6 +67,8 @@ export function useComposerAttachments(images: StagedImage[], outbox: ComposerOu
   const [note, setNote] = useState<string | null>(null);
   const outgoing = useRef(outbox);
   outgoing.current = outbox;
+  /** Set while marks are drawn into a send, which the workspace cannot yet see has started. */
+  const drawing = useRef(false);
   /** Which staged images have already been read in, so a rerender never reads the same one twice. */
   const takenImages = useRef(new Set<string>());
 
@@ -103,6 +105,7 @@ export function useComposerAttachments(images: StagedImage[], outbox: ComposerOu
   }
 
   function send(steer: boolean) {
+    if (drawing.current) return;
     if (loading || images.some((image) => takenImages.current.has(image.id) && !attachments.some((attachment) => attachment.id === image.id))) {
       setNote("Wait for the screenshots to finish loading.");
       outbox.notice(null);
@@ -113,21 +116,22 @@ export function useComposerAttachments(images: StagedImage[], outbox: ComposerOu
       outbox.send(attachments.map((attachment) => leaving(attachment, attachment.source)), steer);
       return;
     }
+    drawing.current = true;
     void Promise.all(attachments.map(async (attachment, at) => leaving(
       attachment,
       attachment.annotations.length === 0 ? attachment.source : await renderAnnotatedSource(attachment.source, attachment.annotations, markPrefix(at, attachments.length)),
     ))).then(
       (marked) => outgoing.current.send(marked, steer),
       (error: unknown) => outgoing.current.notice(error instanceof Error ? error.message : String(error)),
-    );
+    ).finally(() => { drawing.current = false; });
   }
 
-  /** The images that are on disk and away belong to the message that carried them, not to the strip. */
+  /** A pasted image that has left belongs to its message. A staged one stays until the workspace lets it go. */
   const sent = outbox.state.sent;
   useEffect(() => {
     if (sent.length === 0) return;
     setAttachments((current) => {
-      const kept = current.filter((attachment) => !sent.includes(attachment.id));
+      const kept = current.filter((attachment) => attachment.path !== undefined || !sent.includes(attachment.id));
       return kept.length === current.length ? current : kept;
     });
   }, [sent]);

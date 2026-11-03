@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { attachmentSendFor } from "../../src/application/composer-attachments.ts";
+import { imagesFor } from "../../src/application/composer-drafts.ts";
+import { NEW_THREAD_DRAFT } from "../../src/application/workspace-state.ts";
 import { MAX_ATTACHMENTS, type OutgoingAttachment } from "../../src/domain/conversation.ts";
 import { effectAt, run, workspace } from "./workspace-reducer-fixtures.mts";
 
@@ -29,6 +31,44 @@ test("a send writes the composer's images out before the run that carries them s
   assert.deepEqual(send.sent, ["one", "two"], "the strip is told which images left with the message");
   const started = reduce(written.state, { type: "run.resolved", pendingId: effectAt(written, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   assert.deepEqual(started.state.threads[0].messages[0].attachments, ["/tmp/one.png", "/tmp/shot.png"]);
+});
+
+const projectless = { id: "projectless", kind: "projectless", root: "/tmp" } as const;
+
+function stagedSend(writtenTo: string) {
+  const state = run(drafted(), [{ type: "image.add", path: "/tmp/shot.png", label: "Shot" }]);
+  const id = imagesFor(state, NEW_THREAD_DRAFT)[0]!.id;
+  const sending = reduce(state, { type: "attachments.send", attachments: [image(id, "/tmp/shot.png")] });
+  return reduce(sending.state, { type: "attachments.saved", ids: [id], attachments: [{ path: writtenTo, labels: [] }] });
+}
+
+for (const [kind, writtenTo] of [["unmarked", "/tmp/shot.png"], ["marked", "/tmp/marked-copy.png"]] as const) {
+  test(`a staged ${kind} image leaves the draft once the run that carries it starts`, () => {
+    const written = stagedSend(writtenTo);
+    assert.equal(imagesFor(written.state, NEW_THREAD_DRAFT).length, 1, "the draft holds it until the run starts");
+
+    const started = reduce(written.state, { type: "run.resolved", pendingId: effectAt(written, "resolve-run-workspace").pendingId, workspace: projectless });
+
+    assert.deepEqual(imagesFor(started.state, NEW_THREAD_DRAFT), []);
+    assert.deepEqual(started.state.threads[0].messages[0].attachments, [writtenTo]);
+  });
+}
+
+test("a staged image stays in the draft when its run cannot start", () => {
+  const written = stagedSend("/tmp/marked-copy.png");
+
+  const dropped = reduce(written.state, { type: "run.unresolved", pendingId: effectAt(written, "resolve-run-workspace").pendingId, message: "No folder." });
+
+  assert.deepEqual(imagesFor(dropped.state, NEW_THREAD_DRAFT).map((item) => item.path), ["/tmp/marked-copy.png"]);
+});
+
+test("a second send cannot start while the first is waiting on its run", () => {
+  const written = stagedSend("/tmp/marked-copy.png");
+
+  const again = reduce(written.state, { type: "attachments.send", attachments: [image("two")] });
+
+  assert.equal(again.state, written.state);
+  assert.deepEqual(again.effects, []);
 });
 
 test("a send with no images of its own starts the run without writing anything out", () => {

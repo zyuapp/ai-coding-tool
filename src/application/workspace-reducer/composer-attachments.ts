@@ -3,7 +3,8 @@ import { reduceSending } from "./sending.js";
 import { settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { attachmentSendFor, MAIN_COMPOSER, type AttachmentSendState } from "../composer-attachments.js";
-import type { WorkspaceState } from "../workspace-state.js";
+import { imagesFor, withImages } from "../composer-drafts.js";
+import { promptKey, type WorkspaceState } from "../workspace-state.js";
 import { MAX_ATTACHMENTS, type RunAttachment } from "../../domain/conversation.js";
 
 export const ATTACHMENT_INPUTS = ["attachments.send", "attachments.saved", "attachments.failed", "attachments.notice"] as const;
@@ -11,6 +12,15 @@ type AttachmentInput = Extract<WorkspaceInput, { type: (typeof ATTACHMENT_INPUTS
 
 function withSend(state: WorkspaceState, taskId: string | undefined, send: AttachmentSendState): WorkspaceState {
   return { ...state, attachmentSends: { ...state.attachmentSends, [taskId ?? MAIN_COMPOSER]: send } };
+}
+
+/** A marked image leaves as a new file, so its draft follows that file until the run that carries it starts. */
+function withWrittenImages(state: WorkspaceState, { taskId, ids, attachments }: Extract<AttachmentInput, { type: "attachments.saved" }>): WorkspaceState {
+  const key = taskId ?? promptKey(state);
+  return withImages(state, key, imagesFor(state, key).map((image) => {
+    const at = ids.indexOf(image.id);
+    return at < 0 ? image : { ...image, path: attachments[at]!.path };
+  }));
 }
 
 function sent(state: WorkspaceState, input: AttachmentInput, attachments: RunAttachment[], steer?: boolean): WorkspaceTransition {
@@ -26,8 +36,9 @@ export function reduceComposerAttachments(state: WorkspaceState, input: Attachme
   const send = attachmentSendFor(state.attachmentSends, input.taskId);
   switch (input.type) {
     case "attachments.send": {
-      /** One send writes the whole strip out, so a second cannot start while the first is writing. */
-      if (send.busy) return settled(state);
+      /** One send carries the whole strip, so a second cannot start until the first has written and started. */
+      const key = input.taskId ?? promptKey(state);
+      if (send.busy || Object.values(state.pendingRuns).some((pending) => pending.draftKey === key)) return settled(state);
       /** Pasting and grabbing fill the same strip from different sides, so the total is checked once here. */
       if (input.attachments.length > MAX_ATTACHMENTS) {
         return settled(withSend(state, input.taskId, { ...send, error: `You can attach up to ${MAX_ATTACHMENTS} images.` }), [], { ok: false, message: `You can attach up to ${MAX_ATTACHMENTS} images.` });
@@ -45,7 +56,7 @@ export function reduceComposerAttachments(state: WorkspaceState, input: Attachme
     }
 
     case "attachments.saved":
-      return sent(withSend(state, input.taskId, { busy: false, error: null, sent: input.ids }), input, input.attachments, input.steer);
+      return sent(withSend(withWrittenImages(state, input), input.taskId, { busy: false, error: null, sent: input.ids }), input, input.attachments, input.steer);
 
     case "attachments.failed":
       return settled(withSend(state, input.taskId, { ...send, busy: false, error: input.message }), [], { ok: false, message: input.message });

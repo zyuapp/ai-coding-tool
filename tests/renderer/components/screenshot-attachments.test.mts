@@ -45,6 +45,20 @@ test("annotating and recalling a screenshot preserves its context and original c
   await view.unmount();
 });
 
+test("sending again while the marks are being drawn sends the image once", async () => {
+  const saved: string[] = [];
+  window.desktop = fakeDesktop({ saveAttachment: async (data) => { saved.push(data); return "/tmp/annotated.png"; } });
+  let controller: ComposerAttachments;
+  const images = [{ id: "shot", path: "/tmp/shot.png", label: "Editor" }];
+  function Harness() { controller = useComposerAttachments(images, useSavingOutbox(() => {})); return null; }
+  const view = await mount(React.createElement(Harness));
+  await settleUntil(() => controller.items.length === 1);
+  await act(async () => controller.applyAnnotations("shot", [{ kind: "box", x: 0.1, y: 0.1, width: 0.3, height: 0.2, text: "" }], "data:image/png;base64,AQID"));
+  await act(async () => { controller.send(false); controller.send(false); controller.send(false); });
+  assert.equal(saved.length, 1);
+  await view.unmount();
+});
+
 test("an unavailable metadata read never prevents attaching or sending the image", async () => {
   window.desktop = fakeDesktop({ readAttachmentContext: async () => { throw new Error("Unavailable"); } });
   let controller: ComposerAttachments;
