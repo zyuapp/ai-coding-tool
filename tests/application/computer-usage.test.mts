@@ -23,7 +23,7 @@ test("a read from the Usage page asks every connected computer that knows how, a
     paired("old", { capabilities: ["command:task.send"] }),
   ]);
   const { effects } = reduce(state, { type: "usage.read", everywhere: true });
-  assert.deepEqual(effects.filter((effect) => effect.type === "read-plan-usage").map((effect) => effect.engine), ["claude", "codex"]);
+  assert.deepEqual(effects.filter((effect) => effect.type === "read-plan-usage").map((effect) => effect.engine), ["claude", "codex", "opencode"]);
   assert.deepEqual(effects.filter((effect) => effect.type === "computer.forward"), [{ type: "computer.forward", id: "mac", inputs: [{ type: "usage.read" }] }]);
 });
 

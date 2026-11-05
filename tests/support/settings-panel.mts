@@ -49,7 +49,7 @@ export function renderSettingsPanel(overrides: SettingsTestOverrides) {
     allowedOrigins: [],
     chromeBrowser: false, computerUse: true, browserTools: true, notifications: true,
     agentSettingsReload: "idle", onReloadAgentSettings() {},
-    engineAccess: { claude: { access: "ready" }, codex: { access: "ready" } }, engineChecking: false, engineUpdating: null,
+    engineAccess: { claude: { access: "ready" }, codex: { access: "ready" }, opencode: { access: "ready" } }, engineChecking: false, engineUpdating: null,
     remoteChecking: false,
     shortcuts: [],
     capturingShortcut: null,

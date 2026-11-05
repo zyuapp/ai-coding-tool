@@ -10,7 +10,7 @@ import type { ComputerUsePermission, ComputerUsePermissions } from "../../domain
 import type { PlanUsage } from "../../domain/plan-usage.js";
 import type { AgentEvent, AnswerQuestionCommand, ApprovalDecisionCommand, ArchiveThreadCommand, AutomationAck, AutomationFire, BrowserPageEvent, CancelRunCommand, ChangedFilesResult, CreatedWorktree, DiffSummaryResult, LabelThreadCommand, RunEvent, StartRunCommand, SteerRunCommand, StopProcessCommand, ThreadEvent, ThreadNotice, ThreadRoleCommand, WorktreeSnapshotResult } from "../../contracts/ipc.js";
 import type { ViewPreferences } from "../../contracts/preferences.js";
-import type { AgentEngine } from "../../domain/agent-engine.js";
+import type { AgentEngine, AgentModel } from "../../domain/agent-engine.js";
 import type { AppBuild, AppUpdate } from "../../domain/app-update.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { BrowserAction, BrowserPermissions } from "../../domain/browser.js";
@@ -171,7 +171,7 @@ type WorkspaceWork =
   | { type: "read-diff"; owner: string; workspaceId: string; range: DiffRange; ignoreWhitespace: boolean }
   /** Moves a checkout onto a branch, making it at that checkout's HEAD first when `create`. */
   | { type: "checkout-branch"; workspaceId: string; branch: string; create?: boolean }
-  | { type: "suggest-title"; taskId: string; engine: AgentEngine; text: string; attachments: string[] }
+  | { type: "suggest-title"; taskId: string; engine: AgentEngine; model: AgentModel; text: string; attachments: string[] }
   | { type: "preserve-message-images"; text: string; root: string; messageId: string }
   | { type: "image.download"; source: string }
   | { type: "load-subagent-activity"; taskId: string; subagentId: string }

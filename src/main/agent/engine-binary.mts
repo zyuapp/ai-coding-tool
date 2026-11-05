@@ -32,6 +32,12 @@ const ENGINE_COMMANDS: Record<AgentEngine, { command: string; packageName: strin
     install: "brew install --cask codex",
     isNative: (realPath) => realPath.includes("/packages/standalone/"),
   },
+  opencode: {
+    command: "opencode",
+    packageName: "@opencode/cli",
+    install: "curl -fsSL https://opencode.ai/v2/install | bash",
+    isNative: (realPath) => realPath.includes("/.opencode/bin/"),
+  },
 };
 
 function isExecutable(candidate: string) {

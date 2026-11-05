@@ -24,7 +24,7 @@ import { threadBusy, threadToBegin } from "../run-record.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree, RunEvent } from "../../contracts/ipc.js";
-import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineHasEffort, engineHasModel, modelEngine, modelSupportsManualCompaction, unknownModel } from "../../domain/agent-engine.js";
+import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineHasEffort, engineHasModel, modelEngine, modelSupportsManualCompaction, policyFor, unknownModel } from "../../domain/agent-engine.js";
 import { catalogOf } from "../engine-access.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
@@ -315,7 +315,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     id: crypto.randomUUID(),
     title: pending.title ? clampTitle(pending.title) : threadTitleFor(pending.text || pasteTitle(pending.pastes ?? []) || fileTitle(pending.files ?? []), pending.attachments.map((path) => ({ path, labels: [] }))),
     ...(pending.projectId ? { projectId: pending.projectId } : {}),
-    executionPolicy: state.draftPolicy,
+    executionPolicy: policyFor(engine, state.draftPolicy),
     engine,
     model,
     effort,
@@ -352,7 +352,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     ? withQueued(started, thread.id, queuedFor(started, thread.id).filter((message) => !pending.queuedIds!.includes(message.id)))
     : started;
   /** Only a new thread nobody named has a title written for it, read from what its first message says. */
-  const titling: WorkspaceEffect[] = existing || pending.title || (!pending.text && pending.attachments.length === 0) ? [] : [{ type: "suggest-title", taskId: thread.id, engine: thread.engine, text: pending.text, attachments: pending.attachments }];
+  const titling: WorkspaceEffect[] = existing || pending.title || (!pending.text && pending.attachments.length === 0) ? [] : [{ type: "suggest-title", taskId: thread.id, engine: thread.engine, model: thread.model ?? defaultModelFor(thread.engine), text: pending.text, attachments: pending.attachments }];
   const command = {
     ...startRunCommand({ ...state, threads }, updated, pending.runId, prompt, workspace.id),
     ...((entering || inherited) && updated.continuation ? { forkContinuation: true as const } : {}),

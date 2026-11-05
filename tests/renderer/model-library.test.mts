@@ -133,3 +133,50 @@ test("the library lists what the catalogue on screen holds, and a model it does 
   assert.equal(query(view.container, "summary").getAttribute("aria-label"), "Model: openai/gone");
   await view.unmount();
 });
+
+test("an engine that runs many providers' models lists them under each provider, says what is wrong once, and offers only its own modes", async () => {
+  const spec = (id: string, label: string, provider: string) => ({ id, label, description: id.slice(id.indexOf("/") + 1), provider, contextWindow: 1, efforts: [] });
+  const catalog = engineCatalog({ opencode: { access: "ready", catalog: [spec("openrouter/z-ai/glm-5.3-flash", "GLM-5.3-Flash", "OpenRouter"), spec("openrouter/qwen/qwen-4", "Qwen 4", "OpenRouter"), spec("opencode-go/glm-5.3", "GLM-5.3", "OpenCode Go")] } });
+  const chosen: string[] = [];
+  const props = {
+    mode: "allow-edits" as const, engine: "opencode" as const, engineLabel: "OpenCode", engineLocked: true,
+    engineAccess: { ...EVERY_ENGINE_READY, opencode: { access: "ready" as const, version: "2.2.5", required: "2.3.0" } }, model: "openrouter/z-ai/glm-5.3-flash" as AgentModel, effort: "high" as const,
+    onModelChange: (_engine: string, model: string) => { chosen.push(model); },
+    onModeChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onEngineRead() {}, onSignIn() {},
+  };
+  const view = await mount(React.createElement(ModelCatalogProvider, { value: catalog }, React.createElement(ComposerSettings, props)));
+  const chips = [...view.container.querySelectorAll("summary")].map((node) => node.getAttribute("aria-label"));
+  assert.ok(chips.includes("Model: GLM-5.3-Flash"));
+  const mode = [...view.container.querySelectorAll<HTMLElement>("summary")].find((node) => node.getAttribute("aria-label")?.startsWith("Permission mode"))!;
+  await act(async () => { mode.click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  const modes = [...view.container.querySelectorAll(".setting-option strong")].map((node) => node.textContent);
+  assert.ok(!modes.includes("Auto"), "Auto is not offered on an engine with no reviewer to stand on");
+  assert.ok(modes.includes("Edits"));
+  await act(async () => { mode.click(); });
+
+  const model = [...view.container.querySelectorAll<HTMLElement>("summary")].find((node) => node.getAttribute("aria-label")?.startsWith("Model"))!;
+  await act(async () => { model.click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  await act(async () => { [...view.container.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((node) => node.textContent?.includes("All models"))!.click(); });
+  assert.equal(view.container.querySelectorAll(".model-results .setting-readiness").length, 1, "an engine behind the app says so once, not under every provider");
+  await act(async () => { [...view.container.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((node) => node.textContent?.includes("OpenRouter"))!.click(); });
+  const rail = [...view.container.querySelectorAll(".model-provider-rail button")].map((node) => node.textContent);
+  assert.ok(rail.some((text) => text?.startsWith("O") && text.includes("OpenRouter2")), `the rail lists OpenRouter: ${rail.join("|")}`);
+  assert.ok(rail.some((text) => text?.includes("OpenCode Go1")));
+  assert.equal(query(view.container, ".model-results-heading span").textContent, "OpenRouter", "a locked thread opens on the provider of its model");
+  await act(async () => { [...view.container.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((node) => node.textContent?.includes("OpenCode Go"))!.click(); });
+  assert.deepEqual([...view.container.querySelectorAll(".model-choice strong")].map((node) => node.textContent), ["GLM-5.3"]);
+  await act(async () => { query<HTMLButtonElement>(view.container, ".model-choice").click(); });
+  assert.deepEqual(chosen, ["opencode-go/glm-5.3"]);
+  await view.unmount();
+});
+
+test("a thread on a model its provider no longer lists opens the library on its engine's first provider", async () => {
+  const spec = (id: string, provider: string) => ({ id, label: id, description: id, provider, contextWindow: 1, efforts: [] });
+  const catalog = engineCatalog({ opencode: { access: "ready", catalog: [spec("openrouter/a", "OpenRouter"), spec("opencode-go/b", "OpenCode Go")] } });
+  const props = { engine: "opencode" as const, engineLocked: true, engineAccess: EVERY_ENGINE_READY, model: "gone/model" as AgentModel, onChange() {}, onOpen() {}, onSignIn() {} };
+  const view = await mount(React.createElement(ModelCatalogProvider, { value: catalog }, React.createElement(ModelMenu, props)));
+  await act(async () => { query<HTMLElement>(view.container, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  assert.equal(query(view.container, ".model-results-heading span").textContent, "OpenRouter");
+  assert.equal(view.container.querySelectorAll(".model-choice").length, 1);
+  await view.unmount();
+});

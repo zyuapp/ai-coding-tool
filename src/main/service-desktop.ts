@@ -127,12 +127,12 @@ function storeDesktop(host: ServiceDesktopHost) {
       return writeAttachment(data, context);
     },
     preserveMessageImages: (files, root, messageId) => preserveMessageImages(files, root, messageId),
-    suggestTaskTitle: async (text, attachments, engine) => {
+    suggestTaskTitle: async (text, attachments, engine, model) => {
       const images = attachments.map((item) => savedAttachmentPath(item)).filter((file): file is string => file !== null);
       if (!text.trim() && images.length === 0) return null;
       try {
         const { engineServices } = await import("./agent/engine-services.mjs");
-        return await engineServices[engine].suggestTitle(text, images);
+        return await engineServices[engine].suggestTitle(text, images, model);
       } catch {
         return null;
       }

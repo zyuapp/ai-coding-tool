@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { MAX_ID_LENGTH, MAX_PROMPT_LENGTH, MAX_SEARCH_TEXT, MAX_THREAD_WAIT_MS } from "../../contracts/ipc.js";
 import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js";
-import { AGENT_ENGINES, BUILT_IN_MODELS, isAgentEffort, modelDelegable, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
+import { AGENT_ENGINES, BUILT_IN_MODELS, isAgentEffort, isModelId, modelDelegable, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort } from "../../domain/run.js";
 import { THREAD_ROLES, type ThreadRole } from "../../domain/thread-role.js";
 import { DELIVERIES, MAX_BRIEF_FIELD, MAX_PROPOSAL_COMPUTER, MAX_PROPOSAL_PROJECT, MAX_PROPOSAL_TITLE, type CoordinationRole, type Delivery } from "../../domain/coordination.js";
@@ -28,9 +28,14 @@ const projectField = z.string().min(1).max(MAX_PROPOSAL_PROJECT).optional().desc
 
 const modelIds = AGENT_ENGINES.flatMap((engine) => modelsFor(BUILT_IN_MODELS, engine).map((model) => model.id));
 const effortIds = [...new Set(AGENT_ENGINES.flatMap((engine) => modelsFor(BUILT_IN_MODELS, engine).flatMap((model) => model.efforts.map((effort) => effort.id))))];
-const modelFieldOf = (ids: AgentModel[], omitted: string) => z.enum(ids as [AgentModel, ...AgentModel[]]).optional().describe(
-  `Model for the new thread. Omit to ${omitted}`,
-);
+/**
+ * Models an engine names for itself are only known to the window, which refuses one no engine
+ * offers, so any well-formed id is taken here and the built-in ones are named to the caller.
+ */
+const modelFieldOf = (ids: AgentModel[], omitted: string) => z.string().trim().max(256)
+  .refine((id) => isModelId(id) && (ids.includes(id) || !modelIds.includes(id)), "Not a model this thread can start on.").optional().describe(
+    `Model for the new thread: one of ${ids.join(", ")}; an engine (${AGENT_ENGINES.join(", ")}) for that engine's default model; or a model id from the app's model picker, such as openrouter/z-ai/glm-5.3-flash. Omit to ${omitted}`,
+  );
 const modelField = modelFieldOf(modelIds, "inherit the calling thread's model.");
 /** A thread that will work under a coordinator never runs on a model one may not hand work to. */
 const delegableModelField = (omitted: string) => modelFieldOf(modelIds.filter((model) => modelDelegable(BUILT_IN_MODELS, model)), omitted);

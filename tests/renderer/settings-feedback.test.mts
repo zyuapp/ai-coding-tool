@@ -61,7 +61,7 @@ test("a failed reload says why, and engine buttons name their engine", async () 
     initialSection: "engines",
     agentSettingsReload: "failed",
     agentSettingsReloadError: "Worker unavailable",
-    engineAccess: { claude: { access: "signed-out" }, codex: { access: "ready", version: "1.0.0", required: "1.2.0" } },
+    engineAccess: { opencode: { access: "ready" }, claude: { access: "signed-out" }, codex: { access: "ready", version: "1.0.0", required: "1.2.0" } },
   }));
   await act(async () => {});
   assert.equal(query(view.container, ".settings-status.failed").textContent, "Could not reload settings: Worker unavailable");

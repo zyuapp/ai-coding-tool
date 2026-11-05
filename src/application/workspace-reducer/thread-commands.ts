@@ -30,7 +30,7 @@ import { clampTitle, type Thread } from "../../domain/thread.js";
 import { asCoordinator, coordinatorOf, effortRoleOf } from "../../domain/coordination.js";
 import { isSnoozeHours, withoutSnooze } from "../../domain/thread-snooze.js";
 import { cancelPause } from "../limit-pauses.js";
-import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
+import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort, policyFor } from "../../domain/agent-engine.js";
 import { catalogOf } from "../engine-access.js";
 
 export const THREAD_COMMAND_INPUTS = [
@@ -378,6 +378,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
 
     case "task.set-policy": {
       const taskId = targetId(state, input.taskId);
+      if (!capabilitiesFor(state.threads.find((thread) => thread.id === taskId)?.engine ?? state.draftEngine).policies.includes(input.policy)) return settled(state);
       const drafted = input.taskId === undefined ? { ...state, draftPolicy: input.policy } : state;
       return settled(taskId ? updateThread(drafted, taskId, (thread) => ({ ...thread, executionPolicy: input.policy, updatedAt: now() })) : drafted);
     }
@@ -385,12 +386,11 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
     case "task.set-model": {
       const taskId = targetId(state, input.taskId);
       /** A thread keeps the engine it started on, so the model must be one that engine offers too. */
-      const engine = state.threads.find((thread) => thread.id === taskId)?.engine;
-      const catalog = catalogOf(state);
+      const engine = state.threads.find((thread) => thread.id === taskId)?.engine, catalog = catalogOf(state);
       if (!engineHasModel(catalog, input.engine, input.model) || engine && !engineHasModel(catalog, engine, input.model)) return settled(state);
       /** A draft keeps its effort where the new model takes it, and drops to the nearest one below where it does not. */
       const draftEffort = effortForModel(catalog, input.model, state.draftEffort, effortRoleOf(undefined, state.draftRole));
-      const drafted = input.taskId === undefined ? { ...state, draftEngine: input.engine, draftModel: input.model, draftEffort } : state;
+      const drafted = input.taskId === undefined ? { ...state, draftEngine: input.engine, draftModel: input.model, draftEffort, draftPolicy: policyFor(input.engine, state.draftPolicy) } : state;
       return settled(taskId ? updateThread(drafted, taskId, (thread) => ({ ...thread, model: input.model, updatedAt: now() })) : drafted);
     }
 

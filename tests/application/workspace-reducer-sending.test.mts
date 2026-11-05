@@ -253,7 +253,7 @@ test("a new thread asks for a name, and the name the user types outlasts the sug
   const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   const taskId = started.state.threads[0].id;
 
-  assert.deepEqual(started.effects.filter((effect) => effect.type === "suggest-title"), [{ type: "suggest-title", taskId, engine: "claude", text: "Inspect the app", attachments: [] }]);
+  assert.deepEqual(started.effects.filter((effect) => effect.type === "suggest-title"), [{ type: "suggest-title", taskId, engine: "claude", model: "opus", text: "Inspect the app", attachments: [] }]);
   assert.equal(started.state.threads[0].title, "Inspect the app", "the typed message titles the thread until a suggestion lands");
 
   const suggested = reduce(started.state, { type: "title.suggested", taskId, title: "App breakage review" });
@@ -286,7 +286,7 @@ test("only a thread the send just created is named, from what the user typed and
   assert.equal(fromImage.state.threads[0].title, "Screenshot");
   assert.deepEqual(
     fromImage.effects.filter((effect) => effect.type === "suggest-title"),
-    [{ type: "suggest-title", taskId: fromImage.state.threads[0].id, engine: "claude", text: "", attachments: ["/tmp/shot.png"] }],
+    [{ type: "suggest-title", taskId: fromImage.state.threads[0].id, engine: "claude", model: "opus", text: "", attachments: ["/tmp/shot.png"] }],
     "a screenshot-only thread is named from the screenshot",
   );
 });
@@ -382,11 +382,11 @@ test("only an installed engine the app can upgrade is updated, one at a time", (
 
 test("an engine's access comes from main, and only a signed-out engine can be signed in to", () => {
   const state = workspace();
-  assert.deepEqual(deriveView(state).engineAccess, { claude: { access: "ready" }, codex: { access: "ready" } }, "every engine is ready until main says otherwise");
+  assert.deepEqual(deriveView(state).engineAccess, { claude: { access: "ready" }, codex: { access: "ready" }, opencode: { access: "ready" } }, "every engine is ready until main says otherwise");
   assert.deepEqual(reduce(state, { type: "engine.sign-in", engine: "codex" }).effects, [], "a ready engine has nothing to sign in to");
 
   const signedOut = reduce(state, { type: "engine.status", status: { codex: { access: "signed-out" } } }).state;
-  assert.deepEqual(deriveView(signedOut).engineAccess, { claude: { access: "ready" }, codex: { access: "signed-out" } });
+  assert.deepEqual(deriveView(signedOut).engineAccess, { claude: { access: "ready" }, codex: { access: "signed-out" }, opencode: { access: "ready" } });
   assert.deepEqual(reduce(signedOut, { type: "engine.sign-in", engine: "codex" }).effects, [{ type: "engine.sign-in", engine: "codex" }]);
   assert.deepEqual(reduce(signedOut, { type: "engine.sign-in", engine: "claude" }).effects, []);
 
@@ -400,12 +400,12 @@ test("engine access is asked of main once while every engine is fine, and again 
   assert.deepEqual(asked.effects, [{ type: "engine.read" }]);
   assert.equal(asked.state.engineChecking, true);
   assert.deepEqual(reduce(asked.state, { type: "engine.read" }).effects, [], "a second ask while the first is out asks nothing");
-  assert.deepEqual(deriveView(asked.state).engineAccess, { claude: { access: "ready" }, codex: { access: "ready" } }, "every engine is ready until main answers");
+  assert.deepEqual(deriveView(asked.state).engineAccess, { claude: { access: "ready" }, codex: { access: "ready" }, opencode: { access: "ready" } }, "every engine is ready until main answers");
 
   const answered = reduce(asked.state, { type: "engine.status", status: { codex: { access: "signed-out" } } }).state;
   assert.equal(answered.engineChecking, false);
   assert.deepEqual(reduce(answered, { type: "engine.read" }).effects, [], "an engine that only wants signing in to is not asked about again");
-  assert.deepEqual(deriveView(answered).engineAccess, { claude: { access: "ready" }, codex: { access: "signed-out" } });
+  assert.deepEqual(deriveView(answered).engineAccess, { claude: { access: "ready" }, codex: { access: "signed-out" }, opencode: { access: "ready" } });
 
   const behind = reduce(asked.state, { type: "engine.status", status: { codex: { access: "missing", fix: "brew install --cask codex" } } }).state;
   assert.deepEqual(reduce(behind, { type: "engine.read" }).effects, [{ type: "engine.read", refresh: true }], "an engine the user has to fix is read again on every ask");

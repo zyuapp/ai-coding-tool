@@ -1,5 +1,5 @@
 import type { AvailableCommand } from "../../contracts/ipc.js";
-import { AGENT_ENGINES, engineNeedsAttention, type AgentEngine, type EngineAccess, type EngineReadiness, type EngineStatus } from "../../domain/agent-engine.js";
+import { AGENT_ENGINES, engineNeedsAttention, type AgentEngine, type AgentModel, type EngineAccess, type EngineReadiness, type EngineStatus } from "../../domain/agent-engine.js";
 import type { PlanUsage } from "../../domain/plan-usage.js";
 import type { SubagentMetadata } from "../../domain/run.js";
 
@@ -11,8 +11,8 @@ export type OpenUrl = (url: string) => Promise<void>;
 export type EngineServices = {
   /** The commands the engine offers a composer in the workspace. */
   commands(workspace: Workspace): Promise<AvailableCommand[]>;
-  /** Names a thread from its first message and the screenshots sent with it. */
-  suggestTitle(text: string, images: string[]): Promise<string | null>;
+  /** Names a thread from its first message and the screenshots sent with it; `model` is the one the thread runs on. */
+  suggestTitle(text: string, images: string[], model?: AgentModel): Promise<string | null>;
   /** Reads the plan behind this engine's account without starting a thread. */
   planUsage(): Promise<PlanUsage>;
   /** Whether this engine can take a run on this machine, and what would fix it when it cannot. */
@@ -46,6 +46,13 @@ export const engineServices: Record<AgentEngine, EngineServices> = {
     update: async () => (await import("./engine-binary.mjs")).upgradeEngine("codex"),
     signIn: async (openUrl) => (await import("../codex/codex-account.mjs")).signInToCodex(openUrl),
     subagentMetadata: async (id) => (await import("../codex/codex-subagent-metadata.mjs")).readCodexSubagentMetadata(id),
+  },
+  opencode: {
+    commands: async ({ workspaceRoot }) => (await import("../opencode/opencode-services.mjs")).openCodeServices().commands(workspaceRoot),
+    suggestTitle: async (text, _images, model) => (await import("../opencode/opencode-services.mjs")).openCodeServices().title(text, model),
+    planUsage: async () => (await import("../opencode/opencode-services.mjs")).openCodeServices().planUsage(),
+    readiness: async () => (await import("../opencode/opencode-services.mjs")).readOpenCodeReadiness(),
+    update: async () => (await import("./engine-binary.mjs")).upgradeEngine("opencode"),
   },
 };
 

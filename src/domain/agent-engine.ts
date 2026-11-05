@@ -1,8 +1,8 @@
 import type { CoordinationRole } from "./coordination.js";
-import type { AgentEffort } from "./run.js";
+import type { AgentEffort, ExecutionPolicy } from "./run.js";
 
 /** The backends that can run a task. Each offers its own models, efforts, and context windows. */
-export type AgentEngine = "claude" | "codex";
+export type AgentEngine = "claude" | "codex" | "opencode";
 export const DEFAULT_ENGINE: AgentEngine = "claude";
 
 /**
@@ -23,7 +23,7 @@ const EFFORTS = {
 const EFFORT_ORDER = Object.keys(EFFORTS) as readonly AgentEffort[];
 
 /** The named efforts as specs, always deepest first however they were named. */
-function efforts(...ids: readonly AgentEffort[]): readonly EffortSpec[] {
+export function efforts(...ids: readonly AgentEffort[]): readonly EffortSpec[] {
   return EFFORT_ORDER.filter((id) => ids.includes(id)).map((id) => ({ id, ...EFFORTS[id] }));
 }
 
@@ -80,9 +80,10 @@ export function currentModel(value: unknown): unknown {
  * Runs always request the widest context a model offers, so `contextWindow` is that ceiling. An
  * empty `efforts` is a model that takes no effort at all, which is drawn as no effort control.
  * `manualCompaction` is the model compacting its thread on request, without a user message.
- * `delegable: false` is a model a coordinator may not start a thread on.
+ * `delegable: false` is a model a coordinator may not start a thread on. `provider` names who serves
+ * the model, for an engine that runs models from many, which pickers list it under.
  */
-export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number; efforts: readonly EffortSpec[]; manualCompaction?: boolean; delegable?: false };
+export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number; efforts: readonly EffortSpec[]; manualCompaction?: boolean; delegable?: false; provider?: string };
 
 /** `delegates` is an effort that hands work to the engine's own agents, which a coordinator never takes. */
 export type EffortSpec = { id: AgentEffort; label: string; description?: string; delegates?: true };
@@ -96,11 +97,16 @@ export type EngineCapabilities = {
   subagentMetadata: boolean;
   /** Reviewing the thread's changes is work the engine performs itself, not a prompt it is sent. */
   review: boolean;
+  /** The modes the engine can keep its promise for, in no particular order. */
+  policies: readonly ExecutionPolicy[];
 };
+
+const EVERY_POLICY: readonly ExecutionPolicy[] = ["confirm", "plan", "allow-edits", "autonomous", "bypass"];
 
 type EngineSpec = {
   label: string;
-  defaultModel: AgentModel;
+  /** Absent for an engine whose models are only known once it names them. */
+  defaultModel?: AgentModel;
   defaultEffort: AgentEffort;
   capabilities: EngineCapabilities;
 };
@@ -110,17 +116,23 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     label: "Claude",
     defaultModel: "opus",
     defaultEffort: "high",
-    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false },
+    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false, policies: EVERY_POLICY },
   },
   codex: {
     label: "Codex",
     defaultModel: "gpt-6.1-sol",
     defaultEffort: "high",
-    capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true },
+    capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true, policies: EVERY_POLICY },
+  },
+  opencode: {
+    label: "OpenCode",
+    defaultEffort: "high",
+    /** Auto stands on a reviewer that judges each call, which OpenCode has none of. */
+    capabilities: { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, policies: ["confirm", "plan", "allow-edits", "bypass"] },
   },
 };
 
-export const DEFAULT_MODEL: AgentModel = ENGINES[DEFAULT_ENGINE].defaultModel;
+export const DEFAULT_MODEL: AgentModel = "opus";
 
 /** Every engine, in the order pickers list them. */
 export const AGENT_ENGINES = Object.keys(ENGINES) as readonly AgentEngine[];
@@ -179,6 +191,7 @@ export function engineNotice(engine: AgentEngine, readiness: EngineReadiness): E
   if (readiness.access === "missing") return { blocking: true, message: `${label} is not installed.`, ...fix };
   if (readiness.access === "outdated") return { blocking: true, message: `${named} is too old. Update to ${readiness.required}.`, ...update };
   if (readiness.access === "unavailable") return { blocking: true, message: `${label} is installed but would not start.` };
+  if (readiness.access === "ready" && readiness.catalog?.length === 0) return { blocking: true, message: `${label} has no models. Connect a provider first.`, ...fix };
   /** Ready, but behind: it runs, and the models it never heard of are simply missing from the menu. */
   if (readiness.required) return { blocking: false, message: `${named} is behind ${readiness.required}, so some models are hidden.`, ...update };
   return null;
@@ -245,7 +258,7 @@ export function modelCatalog(lists: Readonly<Record<AgentEngine, readonly ModelS
   return { models, entries };
 }
 
-const BUILT_IN_LISTS: Readonly<Record<AgentEngine, readonly ModelSpec[]>> = { claude: CLAUDE_MODELS, codex: CODEX_MODELS };
+const BUILT_IN_LISTS: Readonly<Record<AgentEngine, readonly ModelSpec[]>> = { claude: CLAUDE_MODELS, codex: CODEX_MODELS, opencode: [] };
 
 /** The models this build ships knowing, which stand for every engine that names none of its own. */
 export const BUILT_IN_MODELS: ModelCatalog = modelCatalog(BUILT_IN_LISTS);
@@ -353,7 +366,7 @@ function engineSpec(engine: AgentEngine): EngineSpec | undefined {
   return Object.hasOwn(ENGINES, engine) ? ENGINES[engine] : undefined;
 }
 
-const NO_CAPABILITIES: EngineCapabilities = { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false };
+const NO_CAPABILITIES: EngineCapabilities = { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, policies: [] };
 
 export function modelsFor(catalog: ModelCatalog, engine: AgentEngine): readonly ModelSpec[] {
   return Object.hasOwn(catalog.models, engine) ? catalog.models[engine] : [];
@@ -374,6 +387,12 @@ export function defaultModelFor(engine: AgentEngine): AgentModel {
   return engineSpec(engine)?.defaultModel ?? DEFAULT_MODEL;
 }
 
+/** The engine's default where the catalogue offers it, else the first model the engine lists; none for an engine that lists none. */
+export function defaultModelIn(catalog: ModelCatalog, engine: AgentEngine): AgentModel | undefined {
+  const fixed = engineSpec(engine)?.defaultModel;
+  return fixed !== undefined && engineHasModel(catalog, engine, fixed) ? fixed : modelsFor(catalog, engine)[0]?.id ?? fixed;
+}
+
 export function defaultEffortFor(engine: AgentEngine): AgentEffort {
   return (engineSpec(engine) ?? ENGINES[DEFAULT_ENGINE]).defaultEffort;
 }
@@ -381,6 +400,13 @@ export function defaultEffortFor(engine: AgentEngine): AgentEffort {
 /** An engine only a newer build knows can do nothing here. */
 export function capabilitiesFor(engine: AgentEngine): EngineCapabilities {
   return engineSpec(engine)?.capabilities ?? NO_CAPABILITIES;
+}
+
+/** The mode a run on this engine gets: the one asked for where the engine offers it, else the nearest that asks more. */
+export function policyFor(engine: AgentEngine, policy: ExecutionPolicy): ExecutionPolicy {
+  const offered = capabilitiesFor(engine).policies;
+  if (offered.includes(policy)) return policy;
+  return policy === "autonomous" && offered.includes("allow-edits") ? "allow-edits" : "confirm";
 }
 
 /** What the engine is called wherever the app speaks of the agent running a thread; one only a newer build knows, by its own id. */
@@ -407,6 +433,7 @@ export function byEngine<T>(build: (engine: AgentEngine) => T): Record<AgentEngi
 export function contextWindowLimit(catalog: ModelCatalog, engine: AgentEngine, model: AgentModel): number {
   if (!engineSpec(engine)) return 0;
   const models = modelsFor(catalog, engine);
-  const defaultModel = defaultModelFor(engine);
+  const defaultModel = defaultModelIn(catalog, engine);
+  if (defaultModel === undefined) return models.find((spec) => spec.id === model)?.contextWindow ?? 0;
   return (models.find((spec) => spec.id === model) ?? models.find((spec) => spec.id === defaultModel))?.contextWindow ?? 0;
 }

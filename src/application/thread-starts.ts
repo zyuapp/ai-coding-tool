@@ -9,7 +9,7 @@ import { namedPlace, projectFor } from "./thread-location.js";
 import type { AppCommand } from "../contracts/commands.js";
 import { coordinatorOf, isCoordinator, remoteLeadOf, threadModelOf, undelegable, type ProposalPlace, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
 import { clampTitle, type Thread } from "../domain/thread.js";
-import { defaultEffortFor, defaultModelFor, effortForModel, modelDelegable, modelEngine, modelHasEffort, modelTakesEffort, unknownModel } from "../domain/agent-engine.js";
+import { defaultEffortFor, defaultModelFor, defaultModelIn, effortForModel, engineLabel, isAgentEngine, type AgentEngine, modelDelegable, modelEngine, modelHasEffort, modelTakesEffort, unknownModel } from "../domain/agent-engine.js";
 import { catalogOf } from "./engine-access.js";
 
 export type NewThreadSend = Extract<AppCommand, { type: "task.send" }>;
@@ -45,7 +45,9 @@ export function newThreadSend(state: WorkspaceState, caller: Thread, command: Ne
   const remote = lead ? undefined : remoteLeadOf(caller);
   const catalog = catalogOf(state);
   const inherited = lead ? threadModelOf(catalog, lead) : { model: caller.model ?? defaultModelFor(caller.engine), effort: caller.effort };
-  const model = command.model ?? inherited.model;
+  /** An engine named for a model means its default one, which an engine that lists no models has none of. */
+  const model = command.model !== undefined && isAgentEngine(command.model) ? defaultModelIn(catalog, command.model) : command.model ?? inherited.model;
+  if (model === undefined) return { error: `${engineLabel(command.model as AgentEngine)} has no models to start a thread on. Connect a provider first.` };
   const engine = modelEngine(catalog, model);
   if (!engine) return { error: unknownModel(model) };
   if ((lead || remote) && !modelDelegable(catalog, model)) return { error: undelegable(model) };
@@ -56,7 +58,7 @@ export function newThreadSend(state: WorkspaceState, caller: Thread, command: Ne
   /** An inherited effort the new model does not take drops to the nearest one it does. */
   const effort = command.effort ?? effortForModel(catalog, model, inherited.effort ?? defaultEffortFor(engine), role);
   /** A brief is what a coordinator hands the threads it starts, so one any other thread passes is dropped. */
-  const { effort: _asked, brief, ...rest } = command;
+  const { effort: _asked, brief, model: _named, ...rest } = command;
   const briefed = lead === caller && brief ? { brief } : {};
   const chosen: NewThreadSend = modelTakesEffort(catalog, model) ? { ...rest, ...briefed, model, effort } : { ...rest, ...briefed, model };
   /** A coordinator's new thread starts from the brief it was handed. */

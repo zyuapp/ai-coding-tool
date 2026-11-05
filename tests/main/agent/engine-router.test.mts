@@ -36,7 +36,7 @@ function engine(name: string, log: string[], holds: string[] = []): EngineProvid
 
 test("a run goes to the engine it names, a stop asks each engine for the thread, and closing closes them all", async () => {
   const log: string[] = [];
-  const router = new EngineRouter({ claude: engine("claude", log), codex: engine("codex", log, ["task-c"]) });
+  const router = new EngineRouter({ claude: engine("claude", log), codex: engine("codex", log, ["task-c"]), opencode: engine("opencode", log) });
 
   assert.deepEqual(await router.execute(input({ engine: "claude", model: "opus", taskId: "task-a" })), { status: "succeeded", message: "claude" });
   assert.deepEqual(await router.execute(input({ engine: "codex", model: "gpt-6.1-sol", taskId: "task-c" })), { status: "succeeded", message: "codex" });
@@ -51,13 +51,15 @@ test("a run goes to the engine it names, a stop asks each engine for the thread,
     "codex:stop:task-c:true",
     "claude:stop:task-z:false",
     "codex:stop:task-z:false",
+    "opencode:stop:task-z:false",
     "claude:closeAll",
     "codex:closeAll",
+    "opencode:closeAll",
   ]);
 });
 
 test("a role change asks every engine, since either may hold the thread's session", () => {
   const log: string[] = [];
-  new EngineRouter({ claude: engine("claude", log), codex: engine("codex", log) }).retireOutOfRole("task-a", "coordinator");
-  assert.deepEqual(log, ["claude:role:task-a:coordinator", "codex:role:task-a:coordinator"]);
+  new EngineRouter({ claude: engine("claude", log), codex: engine("codex", log), opencode: engine("opencode", log) }).retireOutOfRole("task-a", "coordinator");
+  assert.deepEqual(log, ["claude:role:task-a:coordinator", "codex:role:task-a:coordinator", "opencode:role:task-a:coordinator"]);
 });

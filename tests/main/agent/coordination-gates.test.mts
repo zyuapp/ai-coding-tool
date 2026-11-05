@@ -136,6 +136,9 @@ test("a coordinator and its threads are not offered Haiku for a thread they star
   assert.equal(accepts({ coordinationRole: "member", coordination }, "haiku"), false, "a thread one of its threads starts works under the coordinator too");
   assert.equal(accepts({ coordinationRole: "member", coordination }, "sonnet"), true);
   assert.equal(accepts({}, "haiku"), true);
+  assert.equal(accepts({ coordinationRole: "coordinator", coordination }, "openrouter/z-ai/glm-5.3-flash"), true, "a model an engine names for itself is the window's to check");
+  assert.equal(accepts({}, "opencode"), true, "an engine stands for its default model");
+  assert.equal(accepts({}, "two words"), false);
   const said = (sources: Partial<Parameters<typeof runTools>[0]>) => (startModel(sources) as z.ZodType).description ?? "";
   assert.match(said({ coordinationRole: "coordinator", coordination }), /Omit to run it on the model this coordinator's threads run on/);
   assert.match(said({ coordinationRole: "member", coordination }), /Omit to run it on the model your coordinator's threads run on/);

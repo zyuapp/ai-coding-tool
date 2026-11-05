@@ -99,6 +99,7 @@ test("a paired computer's row lists its app and engines, each with where it stan
     app: ["0.7.10", "Up to date", undefined],
     claude: ["2.1.301", "Up to date", undefined],
     codex: [null, "Not installed", undefined],
+    opencode: [null, "Checking…", undefined],
   });
   assert.deepEqual(app({ appUpdate: available }), ["0.7.10", "0.7.11 available", "Update"]);
   assert.deepEqual(app({ appUpdate: available, activeRuns: { a: activeRun("a", "r") }, threads: [task("a")] }), ["0.7.10", "0.7.11 available · waits for 1 thread", "Update"]);

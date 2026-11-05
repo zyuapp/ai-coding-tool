@@ -45,6 +45,17 @@ const NAMING: Record<AgentEngine, ToolNaming> = {
     },
     namingKeys: ["command", "path", "query"],
   },
+  opencode: {
+    families: {
+      shell: "shell",
+      read: "read",
+      write: "write", edit: "write", apply_patch: "write", patch: "write", multiedit: "write",
+      glob: "search", grep: "search", list: "search",
+      webfetch: "web", websearch: "web",
+      subagent: "agent", task: "agent", skill: "agent",
+    },
+    namingKeys: ["command", "filePath", "pattern", "url", "query", "path", "description", "prompt", "name"],
+  },
 };
 
 /**
@@ -97,7 +108,7 @@ export function describeToolCall(engine: AgentEngine, name: string, detail?: str
   const input = parseInput(detail);
   const naming = input && namingValue(namingOf(engine).namingKeys, input);
   if (!naming) return { family, argument: "" };
-  const isPath = naming.key.endsWith("path") || naming.key === "file_path";
+  const isPath = naming.key.toLowerCase().endsWith("path");
   const argument = oneLine(isPath ? shortPath(naming.value) : naming.value);
   /** A search says what it looked for and where, which two rows of the same pattern cannot. */
   const scope = family === "search" && typeof input.path === "string" && input.path.trim() ? ` in ${shortPath(input.path.trim())}` : "";

@@ -160,11 +160,11 @@ test("installing the terminal command holds the row while it runs and reports wh
 test("plan limits keep what each provider said while the next read runs, and drop an overtaken answer", () => {
   const claude: PlanUsage = { status: "available", subscription: "max", windows: [] };
   const reading = reduce(workspace(), { type: "usage.read" });
-  assert.deepEqual(reading.effects, [{ type: "read-plan-usage", engine: "claude", read: 1 }, { type: "read-plan-usage", engine: "codex", read: 1 }]);
-  assert.deepEqual(reading.state.planUsage.reading, ["claude", "codex"]);
+  assert.deepEqual(reading.effects, [{ type: "read-plan-usage", engine: "claude", read: 1 }, { type: "read-plan-usage", engine: "codex", read: 1 }, { type: "read-plan-usage", engine: "opencode", read: 1 }]);
+  assert.deepEqual(reading.state.planUsage.reading, ["claude", "codex", "opencode"]);
 
   const answered = reduce(reading.state, { type: "usage.reported", engine: "claude", read: 1, usage: claude });
-  assert.deepEqual(answered.state.planUsage.reading, ["codex"], "a provider that has answered is no longer being read");
+  assert.deepEqual(answered.state.planUsage.reading, ["codex", "opencode"], "a provider that has answered is no longer being read");
   assert.deepEqual(answered.state.planUsage.reports.claude, claude);
 
   const again = reduce(answered.state, { type: "usage.read" });

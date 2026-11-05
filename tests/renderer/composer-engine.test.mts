@@ -62,7 +62,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
   let reads = 0;
   const view = await mount(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
-    engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: { access: "ready" }, codex: { access: "signed-out" } }, model: "opus", effort: "high", runActive: false,
+    engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { opencode: { access: "ready" }, claude: { access: "ready" }, codex: { access: "signed-out" } }, model: "opus", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, fastMode: false, onFastModeChange() {}, onEngineRead: () => { reads += 1; }, onSignIn: (engine) => signIns.push(engine),
     queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   }));
@@ -83,7 +83,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
 
   await view.render(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
-    engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: { access: "ready" }, codex: { access: "missing", fix: "brew install --cask codex" } }, model: "opus", effort: "high", runActive: false,
+    engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { opencode: { access: "ready" }, claude: { access: "ready" }, codex: { access: "missing", fix: "brew install --cask codex" } }, model: "opus", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn: (engine) => signIns.push(engine),
     queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   }));
@@ -102,7 +102,7 @@ test("an engine too old to speak to is inert, and its hint names both versions a
   const view = await mount(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
-    engineAccess: { claude: { access: "ready" }, codex: { access: "outdated", version: "0.147.0", required: "0.150.1", fix: "brew update && brew upgrade --cask codex" } },
+    engineAccess: { opencode: { access: "ready" }, claude: { access: "ready" }, codex: { access: "outdated", version: "0.147.0", required: "0.150.1", fix: "brew update && brew upgrade --cask codex" } },
     onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn() {},
     queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   }));
@@ -123,7 +123,7 @@ test("a Claude behind the app offers only the models it knows, and says an upgra
   const view = await mount(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
-    engineAccess: { claude: { access: "ready", version: "2.1.100", required: "2.1.250", fix: "claude update", models: ["opus", "sonnet"] }, codex: { access: "ready" } },
+    engineAccess: { opencode: { access: "ready" }, claude: { access: "ready", version: "2.1.100", required: "2.1.250", fix: "claude update", models: ["opus", "sonnet"] }, codex: { access: "ready" } },
     onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn() {},
     queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   }));
@@ -144,7 +144,7 @@ test("the hint about a broken engine opens the Engines page, which is where it i
   const view = await mount(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
-    engineAccess: { claude: { access: "ready" }, codex: { access: "missing", fix: "brew install --cask codex" } },
+    engineAccess: { opencode: { access: "ready" }, claude: { access: "ready" }, codex: { access: "missing", fix: "brew install --cask codex" } },
     onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn() {},
     onOpenEngineSettings: () => { opened += 1; },
     queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},

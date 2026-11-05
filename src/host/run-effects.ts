@@ -43,7 +43,7 @@ export const runEffects = {
   /** A title costs a model turn, so it lands on its own rather than holding back the send that asked for it. */
   "suggest-title": (effect, { dispatch, desktop }) => {
     void (async () => {
-      const title = await desktop.suggestTaskTitle(effect.text, effect.attachments, effect.engine).catch(() => null);
+      const title = await desktop.suggestTaskTitle(effect.text, effect.attachments, effect.engine, effect.model).catch(() => null);
       if (title) await dispatch({ type: "title.suggested", taskId: effect.taskId, title });
     })();
   },

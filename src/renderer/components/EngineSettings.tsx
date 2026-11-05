@@ -55,7 +55,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
     <main className="settings-main">
       <div className="settings-page-heading">
         <h2>Engines</h2>
-        <p>AI Coding Tool runs the Claude Code and Codex commands installed on this computer.</p>
+        <p>AI Coding Tool runs the engines installed on this computer.</p>
       </div>
 
       <SettingGroup setting="engines.installed" aria-labelledby="engines-heading" aria-live="polite">
@@ -106,7 +106,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
         <div className="settings-group-heading">
           <div>
             <h3 id="agent-settings-heading">{settingControl("engines.agent-settings").label}</h3>
-            <p>Apply changes to Claude Code and Codex settings. Busy agents reload when their work finishes.</p>
+            <p>Apply changes to your engines' settings. Busy agents reload when their work finishes.</p>
             <p role="status" className={`settings-status ${RELOAD_TONE[reloadStatus]}`}>{reloadLine(reloadStatus, reloadError)}</p>
           </div>
           <div className="settings-group-action">

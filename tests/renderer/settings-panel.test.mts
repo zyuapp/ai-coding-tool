@@ -170,6 +170,7 @@ test("the engines page says what is wrong with each engine, and checks again on 
     engineAccess: {
       claude: { access: "ready", version: "2.1.100", required: "2.1.250", fix: "claude update" },
       codex: { access: "missing", fix: "brew install --cask codex" },
+      opencode: { access: "ready" },
     },
     onRefreshEngines: () => { checks += 1; },
     onUpdateEngine: (engine) => { updates.push(engine); },
@@ -177,7 +178,7 @@ test("the engines page says what is wrong with each engine, and checks again on 
   await act(async () => {});
 
   const rows = view.container.querySelectorAll<HTMLElement>(".engine-setting-row");
-  assert.equal(rows.length, 2);
+  assert.equal(rows.length, 3);
   assert.match(item(rows[0]).textContent, /Claude 2.1.100 is behind 2.1.250, so some models are hidden./);
   assert.doesNotMatch(item(rows[0]).textContent, /claude update/, "an engine the app can update offers the button rather than the command");
   await act(async () => { query<HTMLButtonElement>(item(rows[0]), ".setting-row-action button").click(); });
@@ -197,7 +198,7 @@ test("an engine that only wants signing in to offers the button rather than a co
   const signIns: AgentEngine[] = [];
   const view = await mount(renderSettingsPanel({
     initialSection: "engines",
-    engineAccess: { claude: { access: "ready", version: "2.1.250" }, codex: { access: "signed-out", version: "0.150.1" } },
+    engineAccess: { claude: { access: "ready", version: "2.1.250" }, codex: { access: "signed-out", version: "0.150.1" }, opencode: { access: "ready" } },
     onSignInEngine: (engine) => { signIns.push(engine); },
   }));
   await act(async () => {});
@@ -225,6 +226,7 @@ test("the usage section draws every provider and reports one that cannot answer"
       subscription: "pro",
       windows: [{ id: "codex:primary", label: "Current session", utilization: 23, resetsAt: null }],
     },
+    opencode: { status: "not-applicable" },
   };
   window.desktop = fakeDesktop({ planUsage: async (engine) => answer[engine] });
   const view = await mount(React.createElement(App));
@@ -247,6 +249,7 @@ test("the usage section draws every provider and reports one that cannot answer"
   answer = {
     claude: { status: "unavailable", message: "This build of the Claude SDK does not report plan usage." },
     codex: { status: "not-applicable" },
+    opencode: { status: "not-applicable" },
   };
   await act(async () => { query<HTMLButtonElement>(view.container, ".settings-group-action button").click(); });
   assert.equal(view.container.querySelectorAll(".usage-window-fill").length, 0);

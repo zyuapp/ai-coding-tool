@@ -124,7 +124,7 @@ test("an answer with every engine in place is kept, and one with an engine missi
     return answers.shift() ?? { access: "ready" };
   };
   const host = new EngineAccessHost(
-    { claude: { readiness: async () => ({ access: "ready" }) }, codex: { readiness } },
+    { claude: { readiness: async () => ({ access: "ready" }) }, opencode: { readiness: async () => ({ access: "ready" }) }, codex: { readiness } },
     async () => { paths += 1; },
   );
 
@@ -145,7 +145,7 @@ test("two asks at once run the engine commands once", async () => {
   let reads = 0;
   const host = new EngineAccessHost(
     {
-      claude: { readiness: async () => ({ access: "ready" }) },
+      claude: { readiness: async () => ({ access: "ready" }) }, opencode: { readiness: async () => ({ access: "ready" }) },
       codex: {
         readiness: async () => {
           reads += 1;
@@ -169,7 +169,7 @@ test("an update runs the engine's own upgrade, then reads every engine from scra
   let paths = 0;
   const host = new EngineAccessHost(
     {
-      claude: { readiness: async () => ({ access: "ready" }) },
+      claude: { readiness: async () => ({ access: "ready" }) }, opencode: { readiness: async () => ({ access: "ready" }) },
       codex: {
         readiness: async () => (version === "0.147.0" ? { access: "outdated", version, required: "0.150.1" } : { access: "ready", version }),
         update: async () => {

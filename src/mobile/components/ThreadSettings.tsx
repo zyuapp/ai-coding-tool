@@ -7,7 +7,8 @@ import { POLICIES, POLICY_CHOICES, type AgentEffort, type ExecutionPolicy } from
 
 type Choice<T extends string> = { value: T; label: string; description?: string };
 
-const MODES: Choice<ExecutionPolicy>[] = POLICY_CHOICES.map((policy) => ({ value: policy, ...POLICIES[policy] }));
+/** The modes each engine offers, in the picker's own order. */
+const modesOf = byEngine((engine): Choice<ExecutionPolicy>[] => POLICY_CHOICES.filter((policy) => capabilitiesFor(engine).policies.includes(policy)).map((policy) => ({ value: policy, ...POLICIES[policy] })));
 
 /** The phone offers the models this build ships knowing. */
 const catalog = BUILT_IN_MODELS;
@@ -18,8 +19,8 @@ const specs = [...catalog.entries.values()].map((entry) => entry.spec);
 const effortsOf = new Map(specs.map((spec) => [spec.id, effortChoices(spec.efforts)]));
 const coordinatorEffortsOf = new Map(specs.map((spec) => [spec.id, effortChoices(effortsFor(catalog, spec.id, "coordinator"))]));
 
-/** One model list headed by engine, so choosing a model is how an engine is chosen. */
-const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(engine), choices: modelsOf[engine] }));
+/** One model list headed by engine, so choosing a model is how an engine is chosen. An engine the phone knows no models of is left out. */
+const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(engine), choices: modelsOf[engine] })).filter((group) => group.choices.length > 0);
 
 /** A group's one Tab stop is its chosen option, or its first when none is; the arrow keys move focus, and Space or Enter makes the choice. */
 function OptionButton<T extends string>({ choice, selected, stop, onSelect }: { choice: Choice<T>; selected: boolean; stop: boolean; onSelect: () => void }) {
@@ -146,7 +147,7 @@ export function ThreadSettings({ settings: given, live, locked, onNewWith, onClo
   const efforts = (settings.coordinating ? coordinatorEffortsOf : effortsOf).get(settings.model) ?? NO_EFFORTS;
   return (
     <Sheet title="Settings" label="Thread settings" onClose={onClose}>
-      <Group heading="Mode" choices={MODES} value={settings.policy} refused={refused.has("policy")} onChange={(policy) => { choose({ policy }); onPolicy(policy); }} />
+      <Group heading="Mode" choices={modesOf[settings.engine] ?? []} value={settings.policy} refused={refused.has("policy")} onChange={(policy) => { choose({ policy }); onPolicy(policy); }} />
       <ModelGroup engine={settings.engine} model={settings.model} locked={locked} refused={refused.has("model") || refused.has("engine")} onNewWith={onNewWith} onModel={(engine, model) => { choose({ engine, model }); onModel(engine, model); }} />
       {efforts.length > 0 && <Group heading="Effort" choices={efforts} value={effortForModel(catalog, settings.model, settings.effort, settings.coordinating ? "coordinator" : undefined)} refused={refused.has("effort")} onChange={(effort) => { choose({ effort }); onEffort(settings.engine, effort); }} />}
       {capabilitiesFor(settings.engine).fastMode && <button type="button" className="sheet-option fast-mode-switch" role="switch" aria-label="Fast mode" aria-checked={settings.fastMode ?? false} onClick={() => { const fastMode = !settings.fastMode; choose({ fastMode }); onFastMode(fastMode); }}>

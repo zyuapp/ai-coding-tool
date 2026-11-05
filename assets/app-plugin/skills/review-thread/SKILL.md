@@ -1,7 +1,7 @@
 ---
 name: review-thread
 description: Start a companion thread that reviews this thread's work, fix the real findings, and loop until the reviewer approves. Arguments name the reviewer's engine or model, its effort, and any review focus. Use when the user asks for a review thread, often with a model or effort, such as "review thread with sol xhigh".
-argument-hint: "[claude|codex|<model>] [<effort>] [focus]"
+argument-hint: "[claude|codex|opencode|<model>] [<effort>] [focus]"
 ---
 
 # Review thread
@@ -12,7 +12,7 @@ Run a review loop with a separate AICodingTool thread. The reviewer reads and ju
 
 The words after `/review-thread`, in any order:
 
-- An engine (`claude`, `codex`) or a model id (`fable`, `opus`, `sonnet`, `haiku`, `gpt-6-astra`, `gpt-6.1-sol`, `gpt-5.6-terra`, `gpt-6-luna`). An engine alone means that engine's default model. Omitted: the reviewer inherits this thread's model.
+- An engine (`claude`, `codex`, `opencode`) or a model id (`fable`, `opus`, `sonnet`, `haiku`, `gpt-6-astra`, `gpt-6.1-sol`, `gpt-5.6-terra`, `gpt-6-luna`, or an OpenCode model as the model picker names it, such as `openrouter/z-ai/glm-5.3-flash`). Pass an engine alone as the `model` of `start_thread`; it means that engine's default model. Omitted: the reviewer inherits this thread's model.
 - An effort (`low`, `medium`, `high`, `xhigh`, `max`, `ultra`). Omitted: the reviewer inherits this thread's effort.
 - Everything else is review focus, passed to the reviewer verbatim.
 

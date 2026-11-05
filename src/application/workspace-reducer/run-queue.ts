@@ -16,7 +16,7 @@ import { coordinationRole, GROUP_OF, undeliveredNote } from "../coordination.js"
 import { withTurnBegun } from "../outstanding-stops.js";
 import { QUEUED_NOT_YOURS, QUEUED_SENT } from "../computers.js";
 import { isCoordinator, withCoordinationNote, withoutAnswer, withoutReport } from "../../domain/coordination.js";
-import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel } from "../../domain/agent-engine.js";
+import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, policyFor } from "../../domain/agent-engine.js";
 import { catalogOf } from "../engine-access.js";
 import { createSentMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
 import type { Project } from "../../domain/project.js";
@@ -118,7 +118,7 @@ export function startRunCommand(state: WorkspaceState, thread: Thread, runId: st
     runId,
     prompt: sideChatPrompt(state, thread.id, prompt),
     workspaceId,
-    policy,
+    policy: policyFor(thread.engine, policy),
     engine: thread.engine,
     model: thread.model ?? defaultModelFor(thread.engine),
     effort: effortForModel(catalogOf(state), thread.model ?? defaultModelFor(thread.engine), thread.effort ?? defaultEffortFor(thread.engine), coordination),

@@ -10,7 +10,7 @@ const signedOut: Script = { "account/read": () => ({ account: null, requiresOpen
 /** The host over Claude, which is always ready, and a Codex whose app servers are scripted fakes. */
 function hostOver(connect: AccountConnect) {
   return new EngineAccessHost({
-    claude: { readiness: async () => ({ access: "ready" }) },
+    claude: { readiness: async () => ({ access: "ready" }) }, opencode: { readiness: async () => ({ access: "ready" }) },
     codex: { readiness: async () => ({ access: await readCodexAccess(connect) }), signIn: (openUrl) => signInToCodex(openUrl, connect) },
   });
 }
@@ -27,24 +27,24 @@ function host(script: Script, handshake?: () => Promise<never>) {
 
 test("Codex is ready with an account, signed out without one, and asked once per process", async () => {
   const ready = host(signedIn);
-  assert.deepEqual(await ready.access.read(), { claude: { access: "ready" }, codex: { access: "ready" } });
-  assert.deepEqual(await ready.access.read(), { claude: { access: "ready" }, codex: { access: "ready" } });
+  assert.deepEqual(await ready.access.read(), { claude: { access: "ready" }, codex: { access: "ready" }, opencode: { access: "ready" } });
+  assert.deepEqual(await ready.access.read(), { claude: { access: "ready" }, codex: { access: "ready" }, opencode: { access: "ready" } });
   assert.equal(ready.clients.length, 1, "the answer is kept rather than asked again");
   assert.deepEqual(ready.clients[0].sent.map((call) => call.method), ["initialize", "account/read"]);
   assert.deepEqual(ready.clients[0].command.args.slice(0, 3), ["app-server", "--listen", "stdio://"]);
   assert.equal(ready.clients[0].closed, true, "the server only lives for the question");
 
   const out = host(signedOut);
-  assert.deepEqual(await out.access.read(), { claude: { access: "ready" }, codex: { access: "signed-out" } });
+  assert.deepEqual(await out.access.read(), { claude: { access: "ready" }, codex: { access: "signed-out" }, opencode: { access: "ready" } });
 });
 
 test("a Codex that will not start, or cannot be found, is unavailable rather than an error", async () => {
   const stopped = host(signedIn, () => Promise.reject(new Error("spawn ENOENT")));
-  assert.deepEqual(await stopped.access.read(), { claude: { access: "ready" }, codex: { access: "unavailable" } });
+  assert.deepEqual(await stopped.access.read(), { claude: { access: "ready" }, codex: { access: "unavailable" }, opencode: { access: "ready" } });
   assert.equal(stopped.clients[0].closed, true);
 
   const missing = hostOver(() => { throw new Error("Codex is not bundled for linux x64."); });
-  assert.deepEqual(await missing.read(), { claude: { access: "ready" }, codex: { access: "unavailable" } });
+  assert.deepEqual(await missing.read(), { claude: { access: "ready" }, codex: { access: "unavailable" }, opencode: { access: "ready" } });
 });
 
 test("signing in opens the URL Codex hands back, waits for the browser to return, and reads the account again", async () => {
@@ -53,7 +53,7 @@ test("signing in opens the URL Codex hands back, waits for the browser to return
     "account/read": () => ({ account, requiresOpenaiAuth: true }),
     "account/login/start": () => ({ type: "chatgpt", loginId: "login-1", authUrl: "https://auth.example/authorize?x=1" }),
   });
-  assert.deepEqual(await access.read(), { claude: { access: "ready" }, codex: { access: "signed-out" } });
+  assert.deepEqual(await access.read(), { claude: { access: "ready" }, codex: { access: "signed-out" }, opencode: { access: "ready" } });
 
   const opened: string[] = [];
   const signingIn = access.signIn("codex", async (url) => { opened.push(url); });
@@ -71,12 +71,12 @@ test("signing in opens the URL Codex hands back, waits for the browser to return
 
   account = { type: "chatgpt", email: "dev@example.com", planType: "pro" };
   client.notify("account/login/completed", { loginId: "login-1", success: true, error: null, onboardingEntrypoint: null });
-  assert.deepEqual(await signingIn, { claude: { access: "ready" }, codex: { access: "ready" } });
+  assert.deepEqual(await signingIn, { claude: { access: "ready" }, codex: { access: "ready" }, opencode: { access: "ready" } });
   assert.equal(client.closed, true);
-  assert.deepEqual(await access.read(), { claude: { access: "ready" }, codex: { access: "ready" } }, "the status is what the sign-in found");
+  assert.deepEqual(await access.read(), { claude: { access: "ready" }, codex: { access: "ready" }, opencode: { access: "ready" } }, "the status is what the sign-in found");
   assert.equal(clients.length, 2, "reading after a sign-in asks nothing new");
 
-  assert.deepEqual(await access.signIn("claude", async () => {}), { claude: { access: "ready" }, codex: { access: "ready" } }, "an engine with no sign-in of its own answers with the status as it stands");
+  assert.deepEqual(await access.signIn("claude", async () => {}), { claude: { access: "ready" }, codex: { access: "ready" }, opencode: { access: "ready" } }, "an engine with no sign-in of its own answers with the status as it stands");
 });
 
 test("a sign-in the browser brings back as failed, or a server that dies under it, is reported and leaves the status alone", async () => {
@@ -84,12 +84,12 @@ test("a sign-in the browser brings back as failed, or a server that dies under i
     "account/read": () => ({ account: null, requiresOpenaiAuth: true }),
     "account/login/start": () => ({ type: "chatgpt", loginId: "login-1", authUrl: "https://auth.example/authorize" }),
   });
-  assert.deepEqual(await failing.access.read(), { claude: { access: "ready" }, codex: { access: "signed-out" } });
+  assert.deepEqual(await failing.access.read(), { claude: { access: "ready" }, codex: { access: "signed-out" }, opencode: { access: "ready" } });
   const failed = failing.access.signIn("codex", async () => {});
   for (let waited = 0; failing.clients.length < 2 || failing.clients[1].calls("account/login/start").length === 0; waited += 1) await tick();
   failing.clients[1].notify("account/login/completed", { loginId: "login-1", success: false, error: "The browser was closed.", onboardingEntrypoint: null });
   await assert.rejects(failed, /The browser was closed/);
-  assert.deepEqual(await failing.access.read(), { claude: { access: "ready" }, codex: { access: "signed-out" } });
+  assert.deepEqual(await failing.access.read(), { claude: { access: "ready" }, codex: { access: "signed-out" }, opencode: { access: "ready" } });
 
   const dying = host({
     "account/read": () => ({ account: null, requiresOpenaiAuth: true }),

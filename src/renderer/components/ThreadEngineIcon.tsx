@@ -1,11 +1,13 @@
 import type { IconType } from "react-icons";
 import { BsClaude, BsOpenai } from "react-icons/bs";
 import { LuMessageSquare as MessageSquare } from "react-icons/lu";
+import { SiOpencode } from "react-icons/si";
 import { engineLabel, isAgentEngine, type AgentEngine } from "../../domain/agent-engine";
 
 const ENGINE_ICONS: Record<AgentEngine, IconType> = {
   claude: BsClaude,
   codex: BsOpenai,
+  opencode: SiOpencode,
 };
 
 /** A thread's provider mark, or a plain thread's for an engine this build does not know. */
