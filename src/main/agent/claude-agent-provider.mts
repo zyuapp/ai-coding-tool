@@ -13,6 +13,7 @@ import { SessionPool } from "./session-pool.mjs";
 import { APP_PLUGIN_NAME, appPluginRoot, unqualifiedSkillName } from "../app-plugin.mjs";
 
 type QueryFactory = typeof query;
+const CLAUDE_ENTRYPOINT = "aicodingtool";
 const CLAUDE_DIALECT: BriefDialect = {
   nativeWork: "Claude background tasks, sessions, or agents; native TaskOutput, Agent, and SendMessage cannot access them",
   nativeWorktree: "the Agent tool's worktree isolation",
@@ -42,7 +43,7 @@ export async function discoverClaudeCommands(workspaceRoot: string, projectless:
     prompt: idlePrompt(),
     options: {
       cwd: workspaceRoot,
-      pathToClaudeCodeExecutable: claudeExecutable(),
+      ...claudeProcess(),
       settingSources: projectless ? ["user"] : ["user", "project", "local"],
       skills: "all",
       ...appPlugins(),
@@ -63,6 +64,11 @@ export function claudeExecutable() {
   return engineBinaryPath("claude");
 }
 
+/** How every Claude process is started: the command, and this app's name on its requests in place of any inherited one. */
+export function claudeProcess() {
+  return { pathToClaudeCodeExecutable: claudeExecutable(), env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: CLAUDE_ENTRYPOINT } };
+}
+
 /**
  * Which catalogue models the installed Claude Code can actually run, asked of the command itself so
  * no version number has to be written down per model. Nothing means it runs all of them, which is
@@ -71,7 +77,7 @@ export function claudeExecutable() {
 export async function discoverClaudeModels(queryFactory: QueryFactory = query): Promise<AgentModel[] | undefined> {
   let session: Query | undefined;
   try {
-    session = queryFactory({ prompt: idlePrompt(), options: { pathToClaudeCodeExecutable: claudeExecutable() } });
+    session = queryFactory({ prompt: idlePrompt(), options: claudeProcess() });
     const offered = (await session.supportedModels()).flatMap(modelNames);
     const supported = modelsFor("claude").map((spec) => spec.id).filter((id) => offered.some((name) => name === id || name.startsWith(`claude-${id}-`)));
     return supported.length > 0 ? supported : undefined;
@@ -153,7 +159,7 @@ export class ClaudeAgentProvider implements AgentProvider {
       prompt,
       options: {
         cwd: input.workspaceRoot,
-        pathToClaudeCodeExecutable: claudeExecutable(),
+        ...claudeProcess(),
         ...(input.coordinationRole === "coordinator" ? { tools: COORDINATOR_TOOLS } : {}),
         disallowedTools: withheldTools(input.channel),
         resume: continuation,

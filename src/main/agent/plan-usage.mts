@@ -1,7 +1,7 @@
 import { query, type Query } from "@anthropic-ai/claude-agent-sdk";
 import { tmpdir } from "node:os";
 import type { PlanUsage, UsageWindow } from "../../domain/plan-usage.js";
-import { claudeExecutable } from "./claude-agent-provider.mjs";
+import { claudeProcess } from "./claude-agent-provider.mjs";
 
 type QueryFactory = typeof query;
 const READ_TIMEOUT_MS = 20_000;
@@ -95,7 +95,7 @@ export async function readPlanUsage(queryFactory: QueryFactory = query, timeoutM
       prompt: idlePrompt(),
       options: {
         cwd: tmpdir(),
-        pathToClaudeCodeExecutable: claudeExecutable(),
+        ...claudeProcess(),
         settingSources: [],
         tools: [],
       },
