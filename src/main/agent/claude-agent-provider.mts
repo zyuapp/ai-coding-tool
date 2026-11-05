@@ -64,9 +64,9 @@ export function claudeExecutable() {
   return engineBinaryPath("claude");
 }
 
-/** How every Claude process is started: the command, and this app's name on its requests in place of any inherited one. */
+/** How every Claude process is started: the command, this app's name on its requests in place of any inherited one, and no Artifact skills, which the app cannot show. */
 export function claudeProcess() {
-  return { pathToClaudeCodeExecutable: claudeExecutable(), env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: CLAUDE_ENTRYPOINT } };
+  return { pathToClaudeCodeExecutable: claudeExecutable(), env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: CLAUDE_ENTRYPOINT, CLAUDE_CODE_DISABLE_ARTIFACT: "1" } };
 }
 
 /**

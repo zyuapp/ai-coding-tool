@@ -24,6 +24,7 @@ test("every Claude process names this app in place of an inherited name and keep
     assert.equal(seen.length, 5);
     for (const env of seen) {
       assert.equal(env?.CLAUDE_CODE_ENTRYPOINT, "aicodingtool");
+      assert.equal(env?.CLAUDE_CODE_DISABLE_ARTIFACT, "1");
       assert.equal(env?.AICODINGTOOL_ENV_PROBE, "kept");
     }
   } finally {
