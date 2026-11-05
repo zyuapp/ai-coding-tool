@@ -2,7 +2,7 @@ import { backfillProjectSortIndex } from "./project-order.js";
 import { backfillSortIndex } from "./thread-order.js";
 import { restoredThreads, withCutOffTurnsEnded } from "./thread-restore.js";
 import { emptyWorkspaceState, sideChatIds, type WorkspaceState } from "./workspace-state.js";
-import { DEFAULT_ENGINE, DEFAULT_MODEL } from "../domain/agent-engine.js";
+import { DEFAULT_ENGINE, DEFAULT_MODEL, defaultModelFor } from "../domain/agent-engine.js";
 import { coordinatorOf } from "../domain/coordination.js";
 import { legacyProjectId } from "../domain/project.js";
 import { DEFAULT_EFFORT } from "../domain/run.js";
@@ -33,7 +33,7 @@ export function stateFromData(data: ThreadStoreData, storageError: string | null
     draftProjectId: firstProject,
     draftPolicy: firstThread?.executionPolicy ?? "confirm",
     draftEngine: firstThread?.engine ?? DEFAULT_ENGINE,
-    draftModel: firstThread?.model ?? DEFAULT_MODEL,
+    draftModel: firstThread ? firstThread.model ?? defaultModelFor(firstThread.engine) : DEFAULT_MODEL,
     draftEffort: firstThread?.effort ?? DEFAULT_EFFORT,
     draftFastMode: firstThread?.fastMode ?? false,
     expandedProjects: new Set(firstProject ? [firstProject] : []),

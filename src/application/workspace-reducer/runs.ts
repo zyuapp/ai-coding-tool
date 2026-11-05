@@ -24,7 +24,8 @@ import { threadBusy, threadToBegin } from "../run-record.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree, RunEvent } from "../../contracts/ipc.js";
-import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
+import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineHasEffort, engineHasModel, modelEngine, modelSupportsManualCompaction, unknownModel } from "../../domain/agent-engine.js";
+import { catalogOf } from "../engine-access.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
@@ -57,6 +58,8 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       if (adopts) {
         next = { ...next, projects: next.projects.map((item) => item.id === project.id ? { ...item, workspaceId: input.workspace.id } : item) };
       }
+      const gone = modelGone(next, pending);
+      if (gone) return gone;
       if (pending.operation?.type === "compact") return startCompaction(next, pending, input.workspace);
       if (pending.operation?.type === "review") return startReview(next, pending, input.workspace);
       if (pending.operation?.type === "resume") return startResume(next, pending, input.workspace);
@@ -85,7 +88,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
     case "run.compact": {
       const taskId = targetId(state, input.taskId);
       const thread = state.threads.find((item) => item.id === taskId);
-      if (!thread || !modelSupportsManualCompaction(thread.engine, thread.model ?? defaultModelFor(thread.engine)) || thread.continuation?.provider !== thread.engine || !thread.contextUsage || threadBusy(state, thread.id)) return settled(state);
+      if (!thread || !modelSupportsManualCompaction(catalogOf(state), thread.engine, thread.model ?? defaultModelFor(thread.engine)) || thread.continuation?.provider !== thread.engine || !thread.contextUsage || threadBusy(state, thread.id)) return settled(state);
       if (state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
       if (leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
       const project = projectFor(state, thread);
@@ -249,9 +252,18 @@ function turnPullRequestRead(state: WorkspaceState, taskId: string) {
   return thread.brief?.delivers === "pull-request" || thread.pullRequest ? memberPullRequestRead(state, thread) : null;
 }
 
+/** Every run on a thread goes to the thread's model, which its engine must still offer here; a tick that cannot start says so to its automation. */
+function modelGone(state: WorkspaceState, pending: PendingRun): WorkspaceTransition | null {
+  const thread = pending.taskId ? state.threads.find((item) => item.id === pending.taskId) : undefined;
+  if (!thread) return null;
+  const model = thread.model ?? defaultModelFor(thread.engine);
+  if (engineHasModel(catalogOf(state), thread.engine, model)) return null;
+  return pending.origin === "automation" ? settled(state, ack(pending, false)) : rejected(withUnsent(state, pending), unknownModel(model));
+}
+
 function startCompaction(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {
   const thread = pending.taskId ? state.threads.find((item) => item.id === pending.taskId) : undefined;
-  if (!thread || !modelSupportsManualCompaction(thread.engine, thread.model ?? defaultModelFor(thread.engine)) || thread.continuation?.provider !== thread.engine || !thread.contextUsage || state.activeRuns[thread.id]) return settled(state);
+  if (!thread || !modelSupportsManualCompaction(catalogOf(state), thread.engine, thread.model ?? defaultModelFor(thread.engine)) || thread.continuation?.provider !== thread.engine || !thread.contextUsage || state.activeRuns[thread.id]) return settled(state);
   const command = {
     ...startRunCommand(state, thread, pending.runId, "", workspace.id),
     operation: { type: "compact" as const, preTokens: thread.contextUsage.tokens },
@@ -293,9 +305,12 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const arriving = created ?? worktreeFor(state, existing) ?? worktreeById(state, pending.worktreeId);
   /** This thread's own first run inside a checkout forks its session rather than resuming it there. */
   const entering = Boolean(arriving) && existing?.worktreeEnteredAt === undefined;
-  const engine = pending.model ? engineForModel(pending.model) : state.draftEngine;
+  const catalog = catalogOf(state);
+  const engine = pending.model ? modelEngine(catalog, pending.model) : state.draftEngine;
   const model = pending.model ?? state.draftModel;
-  const effort = effortForModel(model, pending.effort ?? (engineHasEffort(engine, state.draftEffort) ? state.draftEffort : defaultEffortFor(engine)), pending.role === "coordinator" ? "coordinator" : undefined);
+  /** The catalogue may have changed while the run found its workspace. */
+  if (!engine || !existing && !engineHasModel(catalog, engine, model)) return rejected(withUnsent(state, pending), unknownModel(model));
+  const effort = effortForModel(catalog, model, pending.effort ?? (engineHasEffort(catalog, engine, state.draftEffort) ? state.draftEffort : defaultEffortFor(engine)), pending.role === "coordinator" ? "coordinator" : undefined);
   const thread: Thread = existing ?? {
     id: crypto.randomUUID(),
     title: pending.title ? clampTitle(pending.title) : threadTitleFor(pending.text || pasteTitle(pending.pastes ?? []) || fileTitle(pending.files ?? []), pending.attachments.map((path) => ({ path, labels: [] }))),

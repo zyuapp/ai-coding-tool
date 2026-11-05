@@ -1,4 +1,4 @@
-import { capabilitiesFor, currentModel, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine } from "./agent-engine.js";
+import { BUILT_IN_MODELS, capabilitiesFor, currentModel, isAgentEffort, isAgentEngine, isModelId, modelEngine, type AgentEngine } from "./agent-engine.js";
 import type { Annotation, AttachedFile, ConversationMessage, ConversationMessageKind, PastedText } from "./conversation.js";
 import { legacyOrigin, type MessageOrigin } from "./message-origin.js";
 import type { AutomationFinding } from "./finding.js";
@@ -378,9 +378,9 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
     isAgentEngine(value.engine) &&
-    (value.model === undefined || isAgentModel(value.model) && engineHasModel(value.engine, value.model)) &&
+    (value.model === undefined || isModelId(value.model) && (modelEngine(BUILT_IN_MODELS, value.model) ?? value.engine) === value.engine) &&
     (value.fastMode === undefined || capabilitiesFor(value.engine).fastMode && typeof value.fastMode === "boolean") &&
-    (value.effort === undefined || isAgentEffort(value.effort) && engineHasEffort(value.engine, value.effort)) &&
+    (value.effort === undefined || isAgentEffort(value.effort)) &&
     (value.contextUsage === undefined || isContextUsage(value.contextUsage)) &&
     Array.isArray(value.messages) &&
     value.messages.every(isConversationMessage) &&
@@ -480,17 +480,17 @@ function renamedFields(value: unknown) {
 }
 
 /**
- * What a thread spent, counted toward the model each spend is now known as. A model this build does
- * not know, such as one a newer build ran, cannot be told apart from a mistake, so its count is dropped.
+ * What a thread spent, counted toward the model each spend is now known as. A model the catalogue
+ * does not hold, such as one an engine named for itself, keeps its count; only a malformed id is dropped.
  */
 function currentUsage(value: unknown) {
   if (!isRecord(value)) return value;
   const entries = Object.entries(value);
-  if (entries.every(([model]) => isAgentModel(model))) return value;
+  if (entries.every(([model]) => isModelId(model) && currentModel(model) === model)) return value;
   const usage: Record<string, unknown> = {};
   for (const [recorded, tokens] of entries) {
     const model = currentModel(recorded);
-    if (!isAgentModel(model)) continue;
+    if (!isModelId(model)) continue;
     const counted = usage[model];
     usage[model] = typeof counted === "number" && typeof tokens === "number" ? counted + tokens : tokens;
   }

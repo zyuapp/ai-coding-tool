@@ -478,7 +478,12 @@ test("v2 hides a task with invalid model or usage values", () => {
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
   const mutations: ((value: Record<string, unknown>) => void)[] = [
-    (value) => { value.model = "future"; },
+    (value) => { value.model = "two words"; },
+    (value) => { value.model = "constructor"; },
+    (value) => { value.engine = "claude"; value.model = "gpt-6.1-sol"; },
+    (value) => { value.model = ""; },
+    (value) => { value.model = 7; },
+    (value) => { value.effort = "galaxy"; },
     (value) => { value.contextUsage = { tokens: -1, limit: 200_000, model: "claude" }; },
     (value) => { value.contextUsage = { tokens: 1, limit: 0, model: "claude" }; },
     (value) => { value.contextUsage = { tokens: 1, limit: 200_000, model: "" }; },
@@ -493,6 +498,22 @@ test("v2 hides a task with invalid model or usage values", () => {
     if (!parsed.ok) return;
     assert.deepEqual(parsed.data.tasks, []);
     assert.equal(parsed.hiddenTasks, 1);
+  }
+});
+
+test("v2 keeps a thread on a model or effort the catalogue does not hold", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  for (const fields of [{ engine: "codex", model: "openai/gpt-9" }, { engine: "claude", model: "future" }, { engine: "claude", model: "opus", effort: "ultra" }]) {
+    const serialized = serializeThreadStore(migrated.data);
+    const tasks = JSON.parse(serialized.tasks!);
+    Object.assign(tasks.value[0], fields);
+    const parsed = parseThreadStore({ ...serialized, tasks: JSON.stringify(tasks) });
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) return;
+    assert.equal(parsed.hiddenTasks, 0, JSON.stringify(fields));
+    assert.deepEqual({ engine: parsed.data.tasks[0].engine, model: parsed.data.tasks[0].model, ...("effort" in fields ? { effort: parsed.data.tasks[0].effort } : {}) }, fields);
   }
 });
 
@@ -522,10 +543,10 @@ test("what a thread spent survives a reload, counted toward a replaced model's s
   if (!parsed.ok) return;
   assert.deepEqual(parsed.data.tasks[0].usage, { opus: 3_104_220, "gpt-6.1-sol": 12 });
 
-  const renamed = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...spent, usage: { "gpt-5.6-sol": 100, "gpt-6-sol": 20, "gpt-6.1-sol": 3, "gpt-9-future": 7 } }] }));
+  const renamed = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...spent, usage: { "gpt-5.6-sol": 100, "gpt-6-sol": 20, "gpt-6.1-sol": 3, "gpt-9-future": 7, "bad id": 9 } }] }));
   assert.equal(renamed.ok, true);
   if (!renamed.ok) return;
-  assert.deepEqual(renamed.data.tasks[0].usage, { "gpt-6.1-sol": 123 }, "a model this build does not know is dropped while the rest load");
+  assert.deepEqual(renamed.data.tasks[0].usage, { "gpt-6.1-sol": 123, "gpt-9-future": 7 }, "a model this build does not know keeps its count, and only a malformed id is dropped");
 
   for (const usage of [{ opus: -1 }, { opus: 1.5 }, { opus: "12" }, [12], 12]) {
     const broken = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...spent, usage }] }));

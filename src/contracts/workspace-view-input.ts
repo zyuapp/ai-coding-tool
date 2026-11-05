@@ -6,7 +6,7 @@ import { isNextStep, isOverviewSection, isThreadBrief, MAX_MEMORY_PROMPT, MAX_PR
 import type { WorkspaceEvent } from "../application/workspace-reducer.js";
 import { isBrowserAction, isString, MAX_PROMPT_LENGTH, MAX_URL_LENGTH } from "./ipc.js";
 import type { ExternalCommand } from "./threads.js";
-import { isAgentEffort, isAgentEngine, isAgentModel } from "../domain/agent-engine.js";
+import { isAgentEffort, isAgentEngine, isModelId } from "../domain/agent-engine.js";
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationFields } from "../domain/automation.js";
 import { isImportSite, isImportSourceId } from "../domain/browser-import.js";
 import { isCaptureOptions } from "../domain/capture.js";
@@ -275,7 +275,7 @@ const commands = {
   "task.resolve": { fields: { taskId: text }, at: "thread" },
   "task.reopen": { fields: { taskId: text }, at: "thread" },
   "decision.answer": { fields: { taskId: text, decisionId: text, answer: text }, at: "thread" },
-  "coordination.set-thread-model": { fields: { taskId: text, model: isAgentModel, effort: optional(isAgentEffort) }, at: "thread" },
+  "coordination.set-thread-model": { fields: { taskId: text, model: isModelId, effort: optional(isAgentEffort) }, at: "thread" },
   "coordination.set-muted": { fields: { taskId: text, muted: boolean }, at: "thread" },
   "coordination.stop-all": { fields: { taskId: text }, at: "thread" },
   "memory.set-purpose": { fields: { taskId: text, purpose: nullableText }, at: "thread" },
@@ -294,7 +294,7 @@ const commands = {
   "task.move": { fields: { taskId: text, target: dropTarget }, at: "thread" },
   "task.fork": { fields: { taskId: optionalText, worktree: optionalBoolean, title: optional(startTitle) }, at: "thread" },
   "task.set-policy": { fields: { taskId: optionalText, policy: policy }, at: "thread" },
-  "task.set-model": { fields: { taskId: optionalText, engine: isAgentEngine, model: isAgentModel }, at: "thread" },
+  "task.set-model": { fields: { taskId: optionalText, engine: isAgentEngine, model: isModelId }, at: "thread" },
   "task.set-fast-mode": { fields: { taskId: optionalText, fastMode: boolean }, at: "thread" },
   "task.set-effort": { fields: { taskId: optionalText, engine: isAgentEngine, effort: isAgentEffort }, at: "thread" },
   "task.set-worktree": { fields: { taskId: optionalText, worktree: boolean }, at: "thread" },
@@ -303,7 +303,7 @@ const commands = {
   "task.checkout-branch": { fields: { taskId: optionalText, branch: text, create: optionalBoolean }, at: "thread" },
   "attachments.send": { fields: { taskId: optionalText, steer: optionalBoolean, attachments: array(outgoingAttachment) }, at: "own" },
   "attachments.notice": { fields: { taskId: optionalText, message: nullableText }, at: "local" },
-  "task.send": { fields: { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isAgentModel), effort: optional(isAgentEffort), role: optional(isThreadRole), coordinatorId: optionalText, brief: optional(isThreadBrief), title: optional(startTitle), from: optionalText, sender: optional(remoteSender), lead: optional(remoteLead), memory: optional(memoryText) }, at: "own", agent: agentSend },
+  "task.send": { fields: { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isModelId), effort: optional(isAgentEffort), role: optional(isThreadRole), coordinatorId: optionalText, brief: optional(isThreadBrief), title: optional(startTitle), from: optionalText, sender: optional(remoteSender), lead: optional(remoteLead), memory: optional(memoryText) }, at: "own", agent: agentSend },
   "task.steer-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread" },
   "task.drop-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread" },
   "task.edit-queued": { fields: { taskId: optionalText, messageId: text }, at: "own" },
@@ -432,7 +432,7 @@ const commands = {
   "view.set-section-open": { fields: { section: isSidebarSection, open: boolean }, at: "local" },
   "view.set-subagent-group": { fields: { group: isSubagentGroup, open: boolean }, at: "local" },
   "view.set-overview-group": { fields: { taskId: text, group: isOverviewSection, open: optionalBoolean, all: optionalBoolean }, at: "local" },
-  "view.set-model-favorite": { fields: { model: isAgentModel, favorite: boolean }, at: "local" },
+  "view.set-model-favorite": { fields: { model: isModelId, favorite: boolean }, at: "local" },
   "view.remember-project": { fields: { projectId: text }, at: "local" },
   "view.set-theme": { fields: { theme: text }, at: "local" },
   "view.set-theme-family": { fields: { family: text, systemDark: boolean }, at: "local" },

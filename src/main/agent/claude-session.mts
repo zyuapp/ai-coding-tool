@@ -1,5 +1,5 @@
 import type { CanUseTool, HookCallback, Options, Query, SDKActiveGoalMessage, SDKAPIRetryMessage, SDKMessage, SDKRateLimitInfo, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import { claudeEffort, contextWindowLimit, modelTakesEffort, type AgentModel, type ClaudeEffort } from "../../domain/agent-engine.js";
+import { BUILT_IN_MODELS, claudeEffort, contextWindowLimit, modelTakesEffort, type AgentModel, type ClaudeEffort } from "../../domain/agent-engine.js";
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, SubagentMetadata, SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { WorkflowReport } from "../../contracts/ipc.js";
 import type { UsageLimit } from "../../domain/usage-limit.js";
@@ -61,7 +61,7 @@ function backgroundProcesses(tasks: { task_id: string; task_type: string; descri
 
 /** The effort a run asks the SDK to hold, or null to clear it for a model that takes none. */
 function effortFlag(input: { model: AgentModel; effort: AgentEffort }): ClaudeEffort | null {
-  return modelTakesEffort(input.model) ? claudeEffort(input.effort) : null;
+  return modelTakesEffort(BUILT_IN_MODELS, input.model) ? claudeEffort(input.effort) : null;
 }
 
 export function claudePermissionMode(policy: ExecutionPolicy) {
@@ -477,7 +477,7 @@ export class ClaudeSession {
         stream.emit({
           type: "usage",
           tokens: usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0),
-          limit: contextWindowLimit("claude", stream.model),
+          limit: contextWindowLimit(BUILT_IN_MODELS, "claude", stream.model),
           model: message.message.model,
         });
       }

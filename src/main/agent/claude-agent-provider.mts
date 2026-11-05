@@ -1,5 +1,5 @@
 import { query, type CanUseTool, type McpServerConfig, type ModelInfo, type Options, type Query, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
-import { claudeEffort, modelTakesEffort, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
+import { BUILT_IN_MODELS, claudeEffort, modelTakesEffort, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import type { CoordinationRole } from "../../domain/coordination.js";
 import { engineBinaryPath } from "./engine-binary.mjs";
 import { continuationOf, type AgentProvider, type ProviderResult, type ProviderRunInput } from "./agent-provider.mjs";
@@ -79,7 +79,7 @@ export async function discoverClaudeModels(queryFactory: QueryFactory = query): 
   try {
     session = queryFactory({ prompt: idlePrompt(), options: claudeProcess() });
     const offered = (await session.supportedModels()).flatMap(modelNames);
-    const supported = modelsFor("claude").map((spec) => spec.id).filter((id) => offered.some((name) => name === id || name.startsWith(`claude-${id}-`)));
+    const supported = modelsFor(BUILT_IN_MODELS, "claude").map((spec) => spec.id).filter((id) => offered.some((name) => name === id || name.startsWith(`claude-${id}-`)));
     return supported.length > 0 ? supported : undefined;
   } catch {
     return undefined;
@@ -167,7 +167,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         permissionMode: claudePermissionMode(input.policy),
         ...(grantsTool("workspace", input) ? { allowDangerouslySkipPermissions: true } : {}),
         model: input.model,
-        ...(modelTakesEffort(input.model) ? { effort: claudeEffort(input.effort) } : {}),
+        ...(modelTakesEffort(BUILT_IN_MODELS, input.model) ? { effort: claudeEffort(input.effort) } : {}),
         betas: ["context-1m-2025-08-07" as const],
         ...(drivesChrome(input) ? { extraArgs: { chrome: null } } : {}),
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),

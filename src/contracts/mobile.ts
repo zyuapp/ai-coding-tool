@@ -1,7 +1,7 @@
 import type { PendingQuestion } from "../domain/agent-question.js";
 import type { AppCommand } from "./commands.js";
 import type { MobilePairingOffer, MobileServerState } from "../domain/mobile.js";
-import { engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine, type AgentModel } from "../domain/agent-engine.js";
+import { isAgentEffort, isAgentEngine, isModelId, type AgentEngine, type AgentModel } from "../domain/agent-engine.js";
 import type { AgentEffort, ExecutionPolicy } from "../domain/run.js";
 import type { Annotation, AnnotationAnchor, PastedText } from "../domain/conversation.js";
 import { isDiffRange, type DiffRange } from "../domain/diff.js";
@@ -374,11 +374,11 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
     case "task.set-policy":
       return named && isPolicy(command.policy);
     case "task.set-model":
-      return named && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model);
+      return named && isAgentEngine(command.engine) && isModelId(command.model);
     case "task.set-fast-mode":
       return named && typeof command.fastMode === "boolean";
     case "task.set-effort":
-      return named && isAgentEngine(command.engine) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort);
+      return named && isAgentEngine(command.engine) && isAgentEffort(command.effort);
     case "task.set-worktree":
       return named && typeof command.worktree === "boolean";
     /** Only an agent moving its own thread waits for its run to end or says what it goes on with, and only the link names a thread elsewhere that asked: the host says each, never the caller. */

@@ -84,8 +84,10 @@ test("mobile command guard rejects wrong shapes and oversized text", () => {
   assert.equal(isMobileCommand({ type: "task.send", text: "x".repeat(1_000_001) }), false);
   assert.equal(isMobileCommand({ type: "task.send", attachments: [] }), false, "a phone carries no files");
   assert.equal(isMobileCommand({ type: "task.set-policy", policy: "yolo" }), false);
-  assert.equal(isMobileCommand({ type: "task.set-model", engine: "claude", model: "gpt" }), false);
-  assert.equal(isMobileCommand({ type: "task.set-effort", engine: "claude", effort: "ultra" }), false, "ultra is Codex's alone");
+  assert.equal(isMobileCommand({ type: "task.set-model", engine: "claude", model: "two words" }), false);
+  assert.equal(isMobileCommand({ type: "task.set-model", engine: "claude", model: "gpt" }), true, "which models an engine offers is the reducer's to decide");
+  assert.equal(isMobileCommand({ type: "task.set-effort", engine: "claude", effort: "galaxy" }), false);
+  assert.equal(isMobileCommand({ type: "task.set-effort", engine: "claude", effort: "ultra" }), true, "which efforts a model takes is the reducer's to decide");
   assert.equal(isMobileCommand({ type: "task.set-effort", effort: "high" }), false, "an effort names its engine");
   assert.equal(isMobileCommand({ type: "run.decide" }), false);
   assert.equal(isMobileCommand({ type: "run.decide", allow: "yes" }), false);

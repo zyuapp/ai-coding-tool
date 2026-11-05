@@ -2,7 +2,8 @@ import { CommandGate, CommandButton, useCommandControls } from "./CommandControl
 import type { IconType } from "react-icons";
 import { LuSearch as Search, LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuCheck as Check, LuChevronDown as ChevronDown, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
-import { AGENT_ENGINES, capabilitiesFor, byEngine, effortForModel, effortsFor, engineLabel, engineNotice, isAgentModel, modelsFor, type AgentEngine, type AgentModel, type EffortSpec, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
+import { AGENT_ENGINES, capabilitiesFor, byEngine, catalogHasModel, effortForModel, effortsFor, engineLabel, engineNotice, modelsFor, type AgentEngine, type AgentModel, type ModelCatalog, type EffortSpec, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
+import { useModelCatalog } from "../model-catalog";
 import { POLICIES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 import { CopyButton } from "./CopyButton";
@@ -16,12 +17,25 @@ const modes: Choice<ExecutionPolicy>[] = [
   { value: "confirm", ...POLICIES.confirm, icon: Hand },
 ];
 
-const modelIcons: Record<AgentModel, IconType> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather, "gpt-6-astra": Brain, "gpt-6.1-sol": Sparkles, "gpt-5.6-terra": Gauge, "gpt-6-luna": Moon };
+const modelIcons: Partial<Record<AgentModel, IconType>> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather, "gpt-6-astra": Brain, "gpt-6.1-sol": Sparkles, "gpt-5.6-terra": Gauge, "gpt-6-luna": Moon };
 
-const modelsOf = byEngine((engine): Choice<AgentModel>[] => modelsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, description: spec.description, icon: modelIcons[spec.id] })));
+type ModelGroup = { engine: AgentEngine; label: string; choices: Choice<AgentModel>[] };
 
-/** Provider filters and search share the same catalog. */
-const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(engine), choices: modelsOf[engine] }));
+const pickerGroups = new WeakMap<ModelCatalog, ModelGroup[]>();
+
+/** Each engine's models as the library lists them, built once per catalogue. Provider filters and search share it. */
+function modelGroupsOf(catalog: ModelCatalog): ModelGroup[] {
+  let groups = pickerGroups.get(catalog);
+  if (!groups) {
+    groups = AGENT_ENGINES.map((engine) => ({
+      engine,
+      label: engineLabel(engine),
+      choices: modelsFor(catalog, engine).map((spec) => ({ value: spec.id, label: spec.label, description: spec.description, icon: (Object.hasOwn(modelIcons, spec.id) ? modelIcons[spec.id] : undefined) ?? Brain })),
+    }));
+    pickerGroups.set(catalog, groups);
+  }
+  return groups;
+}
 
 export const EVERY_ENGINE_READY = byEngine((): EngineReadiness => ({ access: "ready" }));
 
@@ -113,9 +127,9 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
 export type EffortControl = { value: AgentEffort; coordinating?: boolean; onChange: (effort: AgentEffort) => void };
 
 /** The efforts a model offers, shallowest first, and the one a run on it gets. */
-function effortSteps(model: AgentModel, effort: EffortControl) {
+function effortSteps(catalog: ModelCatalog, model: AgentModel, effort: EffortControl) {
   const role = effort.coordinating ? "coordinator" : undefined;
-  return { steps: [...effortsFor(model, role)].reverse(), value: effortForModel(model, effort.value, role) };
+  return { steps: [...effortsFor(catalog, model, role)].reverse(), value: effortForModel(catalog, model, effort.value, role) };
 }
 
 /** The efforts on a track the knob slides along freely while dragged, settling on the nearest effort when let go. */
@@ -197,7 +211,7 @@ function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]
 
 /** The effort for the model in the library, pinned under the list so it stays in reach however long the list grows. */
 function EffortStrip({ model, modelLabel, effort }: { model: AgentModel; modelLabel: string; effort: EffortControl }) {
-  const { steps, value } = effortSteps(model, effort);
+  const { steps, value } = effortSteps(useModelCatalog(), model, effort);
   return <div className="effort-strip">
     <span className="effort-strip-axis">Effort<small>{modelLabel}</small></span>
     {steps.length
@@ -231,7 +245,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
   const results = useRef<HTMLDivElement>(null);
   const favorites = new Set(favoriteModels);
   const search = query.trim().toLocaleLowerCase();
-  const available = modelGroups.map((group) => {
+  const available = modelGroupsOf(useModelCatalog()).map((group) => {
     const readiness = engineAccess[group.engine];
     return { ...group, choices: group.choices.filter((item) => (!readiness.models || readiness.models.includes(item.value)) && (!models || models(item.value))) };
   });
@@ -317,11 +331,12 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
 /** The model chip and the library it opens, with the effort beside the model where `effort` is set. `onOpen` asks after the engines, so the library can say which it can pick. */
 export function ModelMenu({ onOpen, ...props }: ModelLibraryProps & { onOpen: () => void }) {
   /** A model this build does not know, as a newer computer may run, is named as it is sent. */
-  const offered = modelsOf[props.engine] ?? [];
-  const selected = offered.find((item) => item.value === props.model) ?? (isAgentModel(props.model) ? offered[0] : undefined);
+  const catalog = useModelCatalog();
+  const offered = modelGroupsOf(catalog).find((group) => group.engine === props.engine)?.choices ?? [];
+  const selected = offered.find((item) => item.value === props.model) ?? (catalogHasModel(catalog, props.model) ? offered[0] : undefined);
   const modelLabel = selected?.label ?? props.model;
   const { effort } = props;
-  const { steps, value } = effort ? effortSteps(props.model, effort) : { steps: [], value: undefined };
+  const { steps, value } = effort ? effortSteps(catalog, props.model, effort) : { steps: [], value: undefined };
   const shown = steps.find((spec) => spec.id === value);
   /** Left and right step the effort from anywhere in the library but a search being typed. */
   const stepEffort = (event: KeyboardEvent<HTMLElement>) => {

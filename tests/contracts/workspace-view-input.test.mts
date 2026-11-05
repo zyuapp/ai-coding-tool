@@ -71,7 +71,7 @@ test("malformed fields and nested values are rejected before reaching the reduce
     { type: "task.send", attachments: new Array(2) },
     { type: "question.answer", taskId: "thread", runId: "run", requestId: "request" },
     { type: "question.set-answer", taskId: "thread", runId: "run", requestId: "request", questionId: "question", text: null },
-    { type: "task.set-model", engine: "codex", model: "invented" },
+    { type: "task.set-model", engine: "codex", model: "two words" },
     { type: "task.set-effort", engine: "claude", effort: "invented" },
     { type: "task.set-policy", policy: "unrestricted" },
     { type: "task.set-role", taskId: "thread", role: "manager" },

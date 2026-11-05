@@ -6,6 +6,7 @@ import { checkoutAnswer, coordinatedThreadStatus, coordinationMembers, GROUP_OF,
 import { coordinationDecisions, coordinatorOf, isCoordinator, openDecisions, remoteLeadOf, threadModelOf, waitingOnUser, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadModelChoice, type ThreadProposal, type WaitingOnUser } from "../domain/coordination.js";
 import { threadCreatedAt, type Thread } from "../domain/thread.js";
 import { currentModel } from "../domain/agent-engine.js";
+import { catalogOf } from "./engine-access.js";
 import type { Project } from "../domain/project.js";
 
 /** One thread under a coordinator as its Overview row and its card in the coordinator's conversation show it. */
@@ -150,7 +151,7 @@ const NO_PROPOSALS: readonly ProposalView[] = [];
  * A thread on a paired computer stands, and waits on approvals, as that computer last said.
  */
 export function coordinationView(
-  state: Pick<WorkspaceState, "threads" | "computers" | "projects" | "worktrees" | "memberPullRequests" | "startingProposals">,
+  state: Pick<WorkspaceState, "threads" | "computers" | "projects" | "worktrees" | "memberPullRequests" | "startingProposals" | "engineStatus">,
   thread: Thread | undefined,
   busy: Set<string>,
   blocked: Set<string>,
@@ -177,7 +178,7 @@ export function coordinationView(
     const proposals = proposalViews(previous?.proposals, thread.proposals ?? [], state.startingProposals, state.computers.paired);
     const usage = sameUsage(previous?.usage, coordinationUsage(coordinated, thread));
     const waiting = sameWaiting(previous?.waiting, waitingOnUser(thread, coordinated.map((member) => member.thread), state.startingProposals));
-    return { ...NO_COORDINATION, coordinator: true, threadModel: threadModelOf(thread), memory, members, starts, approvals, decisions, proposals, usage, brief: thread.brief ?? null, waiting };
+    return { ...NO_COORDINATION, coordinator: true, threadModel: threadModelOf(catalogOf(state), thread), memory, members, starts, approvals, decisions, proposals, usage, brief: thread.brief ?? null, waiting };
   }
   const lead = coordinatorOf(threads, thread) ?? null;
   const remote = lead ? undefined : remoteLeadOf(thread);

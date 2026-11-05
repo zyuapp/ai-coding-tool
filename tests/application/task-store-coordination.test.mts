@@ -28,7 +28,12 @@ test("what a coordinator's threads run on survives a reload, on a replaced model
   if (!retired.ok) return;
   assert.deepEqual(retired.data.tasks[0].threadModel, { model: "gpt-6-luna", effort: "max" });
 
-  for (const threadModel of [{ model: "gpt-0" }, { model: "opus", effort: "furious" }, "opus"]) {
+  const named = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...lead, threadModel: { model: "openai/gpt-9", effort: "high" } }] }));
+  assert.equal(named.ok, true);
+  if (!named.ok) return;
+  assert.deepEqual(named.data.tasks[0].threadModel, { model: "openai/gpt-9", effort: "high" }, "a model an engine named for itself is kept");
+
+  for (const threadModel of [{ model: "gpt 0" }, { model: "" }, { model: "opus", effort: "furious" }, "opus"]) {
     const broken = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...lead, threadModel }] }));
     assert.equal(broken.ok, true);
     if (!broken.ok) return;
@@ -105,11 +110,11 @@ test("a coordinator's suggested threads survive a reload, on a replaced model's 
   if (!retired.ok) return;
   assert.equal(retired.data.tasks[0].proposals?.[0]?.model, "gpt-6-luna");
 
-  const broken = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...lead, proposals: [{ ...suggested, brief: "fix it" }, plain, { ...plain, id: "p3", model: "gpt-0" }] }] }));
+  const broken = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...lead, proposals: [{ ...suggested, brief: "fix it" }, plain, { ...plain, id: "p3", model: "gpt 0" }, { ...plain, id: "p4", model: "openai/gpt-9" }] }] }));
   assert.equal(broken.ok, true);
   if (!broken.ok) return;
   assert.equal(broken.hiddenTasks, 0, "the thread still loads");
-  assert.deepEqual(broken.data.tasks[0].proposals, [plain], "only the suggestions it cannot read are dropped");
+  assert.deepEqual(broken.data.tasks[0].proposals, [plain, { ...plain, id: "p4", model: "openai/gpt-9" }], "only the suggestions it cannot read are dropped");
   assert.deepEqual(broken.data.tasks[0].messages, lead.messages);
 
   const unreadable = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...lead, proposals: "none" }] }));

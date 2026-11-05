@@ -1,4 +1,4 @@
-import { contextWindowLimit } from "../../../src/domain/agent-engine.ts";
+import { BUILT_IN_MODELS, contextWindowLimit } from "../../../src/domain/agent-engine.ts";
 import assert from "node:assert/strict";
 import { test, expect, vi } from "vitest";
 import { AppServerError, AppServerExited } from "../../../src/main/codex/app-server-client.mts";
@@ -376,7 +376,7 @@ test.each([
   expect(request).toMatchObject({ model, effort });
   assert.deepEqual(emitted.filter((event) => event.type !== "continuation"), [
     { type: "spend", tokens: 15_707 },
-    { type: "usage", tokens: 15_707, limit: contextWindowLimit("codex", model), model },
+    { type: "usage", tokens: 15_707, limit: contextWindowLimit(BUILT_IN_MODELS, "codex", model), model },
     { type: "usage", tokens: 15_707, limit, model },
     { type: "compaction-status", compacting: true },
     { type: "compaction", trigger: "auto", preTokens: 15_707 },

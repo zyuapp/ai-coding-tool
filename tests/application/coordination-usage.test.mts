@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { coordinationMembers } from "../../src/application/coordination.ts";
 import { coordinationUsage, coordinationView } from "../../src/application/coordination-view.ts";
-import { modelLabel } from "../../src/domain/agent-engine.ts";
+import { BUILT_IN_MODELS, modelLabel } from "../../src/domain/agent-engine.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import { task, workspace } from "./workspace-reducer-fixtures.mts";
 
@@ -66,5 +66,5 @@ test("a thread on a paired computer counts toward the name its model goes by her
     { model: "gpt-7-nova", tokens: 500 },
     { model: "gpt-6.1-sol", tokens: 300 },
   ], "a retired name counts toward its successor");
-  assert.deepEqual(usage?.byModel.map(({ model }) => modelLabel(model)), ["Opus", "gpt-7-nova", "Sol"]);
+  assert.deepEqual(usage?.byModel.map(({ model }) => modelLabel(BUILT_IN_MODELS, model)), ["Opus", "gpt-7-nova", "Sol"]);
 });

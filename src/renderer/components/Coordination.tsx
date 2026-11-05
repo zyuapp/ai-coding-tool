@@ -2,6 +2,7 @@ import { createContext, memo, useContext, useEffect, useId, useMemo, useRef, use
 import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuCircleCheck as Resolved, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuPencil as Pencil, LuTrash2 as Trash, LuUndo2 as Reopen, LuX as X } from "react-icons/lu";
 import { deliveryLabel, MAX_MEMORY_NOTE, MAX_MEMORY_NOTES, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
 import { modelDelegable, modelEngine, modelLabel, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
+import { useModelCatalog } from "../model-catalog";
 import type { AgentEffort } from "../../domain/run";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
 import type { PullRequestState } from "../../domain/pull-request";
@@ -342,6 +343,7 @@ function shareOf(tokens: number, total: number): number {
 function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: CoordinationUsage; fold: OverviewFold; onSetFold: FoldChange; onSelect: (threadId: string) => void }) {
   const open = fold.open ?? false;
   const { total, coordinator, byModel, byThread } = usage;
+  const catalog = useModelCatalog();
   const shown = fold.all ? byThread : byThread.slice(0, OVERVIEW_LIMIT);
   const own = shareOf(coordinator, total);
   return (
@@ -352,7 +354,7 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
         <h4>By model</h4>
         {byModel.map(({ model, tokens }) => (
           <div key={model} className="coordination-usage-model" data-tip={`${tokens.toLocaleString("en-US")} tokens`}>
-            <span>{modelLabel(model)}</span>
+            <span>{modelLabel(catalog, model)}</span>
             <span className="coordination-usage-track" aria-hidden="true"><span className="coordination-usage-fill" style={{ width: `${shareOf(tokens, total)}%` }} /></span>
             <span className="coordination-usage-tokens">{compactTokens(tokens)}</span>
           </div>
@@ -391,7 +393,8 @@ function StopAllButton({ taskId, stoppable }: { taskId: string; stoppable: boole
 /** What the coordinator's new threads run on, picked with the composer's own chips. */
 export function OverviewHeader({ taskId, threadModel, engineAccess, favoriteModels, onModelFavorite, onSetThreadModel, onEngineRead, onSignIn, onOpenEngineSettings }: OverviewHeaderProps) {
   const { model, effort } = threadModel;
-  const engine = modelEngine(model);
+  const catalog = useModelCatalog();
+  const engine = modelEngine(catalog, model);
   return (
     <div className="coordination-overview-header">
       <span className="coordination-overview-label">Threads run on</span>
@@ -404,7 +407,7 @@ export function OverviewHeader({ taskId, threadModel, engineAccess, favoriteMode
             engineLocked={false}
             engineAccess={engineAccess}
             model={model}
-            models={modelDelegable}
+            models={(candidate) => modelDelegable(catalog, candidate)}
             favoriteModels={favoriteModels}
             onModelFavorite={onModelFavorite}
             onChange={(_engine, next) => onSetThreadModel(next)}

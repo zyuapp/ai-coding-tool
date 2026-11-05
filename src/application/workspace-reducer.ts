@@ -19,7 +19,7 @@ import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, keyboardThreadId
 import type { AppCommand } from "../contracts/commands.js";
 import type { AgentEvent } from "../contracts/ipc.js";
 import { slotShortcutIndex, type ShortcutSurface } from "../domain/shortcuts.js";
-import { defaultEffortFor, defaultModelFor, effortForModel, effortsFor } from "../domain/agent-engine.js";
+import { defaultEffortFor, defaultModelFor, effortForModel, effortsFor, engineCatalog } from "../domain/agent-engine.js";
 import { effortRoleOf } from "../domain/coordination.js";
 
 export type { CoordinationAnswer, WorkspaceCommandResult, WorkspaceEffect, WorkspaceEvent, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
@@ -224,8 +224,9 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
       const model = thread ? thread.model ?? defaultModelFor(engine) : source.draftModel;
       const effort = thread ? thread.effort ?? defaultEffortFor(engine) : source.draftEffort;
       const role = effortRoleOf(thread, source.draftRole);
-      const choices = effortsFor(model, role);
-      const index = choices.findIndex((choice) => choice.id === effortForModel(model, effort, role));
+      const catalog = engineCatalog(source.engineStatus);
+      const choices = effortsFor(catalog, model, role);
+      const index = choices.findIndex((choice) => choice.id === effortForModel(catalog, model, effort, role));
       const next = choices[index + (action === "effort.increase" ? -1 : 1)];
       if (index < 0 || !next) return [];
       const command: AppCommand = { type: "task.set-effort", engine, effort: next.id };

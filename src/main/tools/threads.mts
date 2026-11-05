@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { MAX_ID_LENGTH, MAX_PROMPT_LENGTH, MAX_SEARCH_TEXT, MAX_THREAD_WAIT_MS } from "../../contracts/ipc.js";
 import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js";
-import { AGENT_ENGINES, isAgentEffort, isAgentModel, modelDelegable, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
+import { AGENT_ENGINES, BUILT_IN_MODELS, isAgentEffort, modelDelegable, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort } from "../../domain/run.js";
 import { THREAD_ROLES, type ThreadRole } from "../../domain/thread-role.js";
 import { DELIVERIES, MAX_BRIEF_FIELD, MAX_PROPOSAL_COMPUTER, MAX_PROPOSAL_PROJECT, MAX_PROPOSAL_TITLE, type CoordinationRole, type Delivery } from "../../domain/coordination.js";
@@ -26,14 +26,14 @@ const projectField = z.string().min(1).max(MAX_PROPOSAL_PROJECT).optional().desc
   "\"current\" (the default) for the project this thread belongs to, \"all\" for every project, or a project named by its folder name or its path.",
 );
 
-const modelIds = AGENT_ENGINES.flatMap((engine) => modelsFor(engine).map((model) => model.id));
-const effortIds = [...new Set(AGENT_ENGINES.flatMap((engine) => modelsFor(engine).flatMap((model) => model.efforts.map((effort) => effort.id))))];
-const modelFieldOf = (ids: AgentModel[], omitted: string) => z.enum(ids as [AgentModel, ...AgentModel[]]).refine(isAgentModel).optional().describe(
+const modelIds = AGENT_ENGINES.flatMap((engine) => modelsFor(BUILT_IN_MODELS, engine).map((model) => model.id));
+const effortIds = [...new Set(AGENT_ENGINES.flatMap((engine) => modelsFor(BUILT_IN_MODELS, engine).flatMap((model) => model.efforts.map((effort) => effort.id))))];
+const modelFieldOf = (ids: AgentModel[], omitted: string) => z.enum(ids as [AgentModel, ...AgentModel[]]).optional().describe(
   `Model for the new thread. Omit to ${omitted}`,
 );
 const modelField = modelFieldOf(modelIds, "inherit the calling thread's model.");
 /** A thread that will work under a coordinator never runs on a model one may not hand work to. */
-const delegableModelField = (omitted: string) => modelFieldOf(modelIds.filter(modelDelegable), omitted);
+const delegableModelField = (omitted: string) => modelFieldOf(modelIds.filter((model) => modelDelegable(BUILT_IN_MODELS, model)), omitted);
 const roleIds = THREAD_ROLES.map((option) => option.role);
 const roleField = z.enum(roleIds as [ThreadRole, ...ThreadRole[]]).optional().describe(
   "The part the new thread plays beside the others: coordinator, implementer, reviewer, or researcher. Set reviewer for review threads; they stay in Threads unless awaiting the user's approval.",

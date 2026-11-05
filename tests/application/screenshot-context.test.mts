@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { defaultModelFor } from "../../src/domain/agent-engine.ts";
 import { test } from "vitest";
 import { promptWithAttachments } from "../../src/application/attachments.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
@@ -20,7 +21,7 @@ test("each screenshot's metadata stays beside its own path and numbered annotati
 test("Claude and Codex receive the same screenshot context through run resolution", () => {
   const prompts: string[] = [];
   for (const engine of ["claude", "codex"] as const) {
-    const sending = reduce(workspace({ draftEngine: engine }), { type: "task.send", text: "Explain", attachments });
+    const sending = reduce(workspace({ draftEngine: engine, draftModel: defaultModelFor(engine) }), { type: "task.send", text: "Explain", attachments });
     const started = reduce(sending.state, {
       type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId,
       workspace: { id: "scratch", kind: "projectless", root: "/tmp" },

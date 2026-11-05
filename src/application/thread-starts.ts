@@ -9,7 +9,8 @@ import { namedPlace, projectFor } from "./thread-location.js";
 import type { AppCommand } from "../contracts/commands.js";
 import { coordinatorOf, isCoordinator, remoteLeadOf, threadModelOf, undelegable, type ProposalPlace, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
 import { clampTitle, type Thread } from "../domain/thread.js";
-import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../domain/agent-engine.js";
+import { defaultEffortFor, defaultModelFor, effortForModel, modelDelegable, modelEngine, modelHasEffort, modelTakesEffort, unknownModel } from "../domain/agent-engine.js";
+import { catalogOf } from "./engine-access.js";
 
 export type NewThreadSend = Extract<AppCommand, { type: "task.send" }>;
 
@@ -42,19 +43,22 @@ export const BRIEF_REQUIRED = "A coordinator hands every thread it starts a brie
 export function newThreadSend(state: WorkspaceState, caller: Thread, command: NewThreadSend, asked?: PairedComputer | null): NewThreadStart {
   const lead = isCoordinator(caller) ? caller : coordinatorOf(state.threads, caller);
   const remote = lead ? undefined : remoteLeadOf(caller);
-  const inherited = lead ? threadModelOf(lead) : { model: caller.model ?? defaultModelFor(caller.engine), effort: caller.effort };
+  const catalog = catalogOf(state);
+  const inherited = lead ? threadModelOf(catalog, lead) : { model: caller.model ?? defaultModelFor(caller.engine), effort: caller.effort };
   const model = command.model ?? inherited.model;
-  if ((lead || remote) && !modelDelegable(model)) return { error: undelegable(model) };
+  const engine = modelEngine(catalog, model);
+  if (!engine) return { error: unknownModel(model) };
+  if ((lead || remote) && !modelDelegable(catalog, model)) return { error: undelegable(model) };
   /** A thread started as a coordinator takes only the efforts a coordinator does. */
   const role = command.role === "coordinator" ? "coordinator" : undefined;
   if (role && (command.worktree || command.worktreeId !== undefined)) return { error: COORDINATOR_WORKTREE_START };
-  if (command.effort && !modelHasEffort(model, command.effort, role)) return { error: `The ${model} model does not support ${command.effort} effort${role ? " for a coordinator" : ""}.` };
+  if (command.effort && !modelHasEffort(catalog, model, command.effort, role)) return { error: `The ${model} model does not support ${command.effort} effort${role ? " for a coordinator" : ""}.` };
   /** An inherited effort the new model does not take drops to the nearest one it does. */
-  const effort = command.effort ?? effortForModel(model, inherited.effort ?? defaultEffortFor(engineForModel(model)), role);
+  const effort = command.effort ?? effortForModel(catalog, model, inherited.effort ?? defaultEffortFor(engine), role);
   /** A brief is what a coordinator hands the threads it starts, so one any other thread passes is dropped. */
   const { effort: _asked, brief, ...rest } = command;
   const briefed = lead === caller && brief ? { brief } : {};
-  const chosen: NewThreadSend = modelTakesEffort(model) ? { ...rest, ...briefed, model, effort } : { ...rest, ...briefed, model };
+  const chosen: NewThreadSend = modelTakesEffort(catalog, model) ? { ...rest, ...briefed, model, effort } : { ...rest, ...briefed, model };
   /** A coordinator's new thread starts from the brief it was handed. */
   if (lead === caller && !chosen.brief) return { error: BRIEF_REQUIRED };
 

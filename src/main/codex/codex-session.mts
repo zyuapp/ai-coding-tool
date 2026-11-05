@@ -1,5 +1,5 @@
 import { CodexQuestions } from "./codex-questions.mjs";
-import { contextWindowLimit } from "../../domain/agent-engine.js";
+import { BUILT_IN_MODELS, contextWindowLimit } from "../../domain/agent-engine.js";
 import type { BackgroundProcess, ToolIntent } from "../../domain/run.js";
 import { continuationOf, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { grantsTool } from "../agent/approval-grant.mjs";
@@ -628,7 +628,7 @@ export class CodexSession {
     const turn = this.turn;
     if (!turn) return;
     this.lastTokens = tokens;
-    turn.input.emit({ type: "usage", tokens, limit: contextWindow ?? contextWindowLimit("codex", turn.input.model), model: turn.input.model });
+    turn.input.emit({ type: "usage", tokens, limit: contextWindow ?? contextWindowLimit(BUILT_IN_MODELS, "codex", turn.input.model), model: turn.input.model });
   }
 
   private receiveTurnCompleted(completed: NotificationParams<"turn/completed">["turn"]) {

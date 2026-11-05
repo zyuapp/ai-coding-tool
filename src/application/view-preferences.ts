@@ -1,4 +1,4 @@
-import { currentModel, isAgentModel } from "../domain/agent-engine.js";
+import { currentModel, isModelId } from "../domain/agent-engine.js";
 import { isBrowserImportMemory } from "../domain/browser-import.js";
 import type { KeyValueStorage } from "./task-store.js";
 import { DRAFT_DOCK, type WorkspaceState } from "./workspace-state.js";
@@ -85,7 +85,7 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
     const folds = sidebarSections(value.sections);
     const reading = sizeById(READING_SIZE, value.readingSize);
     const terminal = sizeById(TERMINAL_SIZE, value.terminalSize);
-    const favoriteModels = Array.isArray(value.favoriteModels) ? [...new Set(value.favoriteModels.map(currentModel).filter(isAgentModel))] : [];
+    const favoriteModels = Array.isArray(value.favoriteModels) ? [...new Set(value.favoriteModels.map(currentModel).filter(isModelId))] : [];
     return {
       favoriteModels,
       ...(themeById(value.theme) ? { theme: value.theme as string } : {}),

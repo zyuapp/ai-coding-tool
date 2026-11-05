@@ -31,6 +31,7 @@ import { asCoordinator, coordinatorOf, effortRoleOf } from "../../domain/coordin
 import { isSnoozeHours, withoutSnooze } from "../../domain/thread-snooze.js";
 import { cancelPause } from "../limit-pauses.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
+import { catalogOf } from "../engine-access.js";
 
 export const THREAD_COMMAND_INPUTS = [
   "task.new", "task.select", "task.dismiss", "task.dismiss-all", "task.read-all", "task.result-collected", "task.archive", "task.snooze", "task.unsnooze", "snoozes.elapsed", "task.restore",
@@ -337,7 +338,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
        * its mute, so the next time is fresh.
        */
       return settled(updateThread(state, thread.id, ({ role: _previous, threadModel: _choice, proposals: _suggested, muted: _muted, ...item }) => {
-        if (input.role === "coordinator") return { ...asCoordinator(item), updatedAt: now() };
+        if (input.role === "coordinator") return { ...asCoordinator(catalogOf(state), item), updatedAt: now() };
         return { ...item, ...(input.role ? { role: input.role } : {}), updatedAt: now() };
       }));
     }
@@ -385,9 +386,10 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const taskId = targetId(state, input.taskId);
       /** A thread keeps the engine it started on, so the model must be one that engine offers too. */
       const engine = state.threads.find((thread) => thread.id === taskId)?.engine;
-      if (!engineHasModel(input.engine, input.model) || engine && !engineHasModel(engine, input.model)) return settled(state);
+      const catalog = catalogOf(state);
+      if (!engineHasModel(catalog, input.engine, input.model) || engine && !engineHasModel(catalog, engine, input.model)) return settled(state);
       /** A draft keeps its effort where the new model takes it, and drops to the nearest one below where it does not. */
-      const draftEffort = effortForModel(input.model, state.draftEffort, effortRoleOf(undefined, state.draftRole));
+      const draftEffort = effortForModel(catalog, input.model, state.draftEffort, effortRoleOf(undefined, state.draftRole));
       const drafted = input.taskId === undefined ? { ...state, draftEngine: input.engine, draftModel: input.model, draftEffort } : state;
       return settled(taskId ? updateThread(drafted, taskId, (thread) => ({ ...thread, model: input.model, updatedAt: now() })) : drafted);
     }
@@ -404,8 +406,8 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const taskId = targetId(state, input.taskId);
       const thread = state.threads.find((item) => item.id === taskId);
       /** Effort belongs to the model, and to the part the thread plays, so only one the target takes can be set on it. */
-      if (thread && !modelHasEffort(thread.model ?? defaultModelFor(thread.engine), input.effort, effortRoleOf(thread, null))) return settled(state);
-      const draftTakes = modelHasEffort(state.draftModel, input.effort, effortRoleOf(undefined, state.draftRole));
+      if (thread && !modelHasEffort(catalogOf(state), thread.model ?? defaultModelFor(thread.engine), input.effort, effortRoleOf(thread, null))) return settled(state);
+      const draftTakes = modelHasEffort(catalogOf(state), state.draftModel, input.effort, effortRoleOf(undefined, state.draftRole));
       if (!thread && !draftTakes) return settled(state);
       /** The draft keeps its own model, so it takes the effort only where that model offers it. */
       const drafted = input.taskId === undefined && draftTakes ? { ...state, draftEffort: input.effort } : state;

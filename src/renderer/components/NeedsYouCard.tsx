@@ -3,6 +3,7 @@ import { LuArrowUpRight as ArrowUpRight, LuChevronLeft as ChevronLeft, LuChevron
 import type { AppCommand } from "../../contracts/commands";
 import type { ThreadModelChoice } from "../../domain/coordination";
 import { modelLabel } from "../../domain/agent-engine";
+import { useModelCatalog } from "../model-catalog";
 import { projectName } from "../../domain/project";
 import type { Thread } from "../../domain/thread";
 import type { CoordinationApprovalView, CoordinationDecisionView, ElsewhereView, ProposalView } from "../../application/coordination-view";
@@ -228,6 +229,7 @@ function SuggestionsForm({ suggestions, position, onStep }: { suggestions: Sugge
 /** One suggestion: what it is for, and anything about where or on what it runs that differs from the rest. */
 function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadModel: ThreadModelChoice | null; view: ProposalView }) {
   const { proposal, starting } = view;
+  const catalog = useModelCatalog();
   const model = proposal.model && proposal.model !== threadModel?.model ? proposal.model : null;
   const worktree = proposal.place.worktree === true || proposal.place.worktreeId !== undefined;
   return (
@@ -237,7 +239,7 @@ function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadMo
         <small title={proposal.brief?.intent ?? proposal.prompt}>{proposal.brief?.intent ?? proposal.prompt}</small>
         {proposal.error && !starting && <small className="suggestion-error" role="alert">{proposal.error}</small>}
       </span>
-      {model && <span className="suggestion-chip">{modelLabel(model)}</span>}
+      {model && <span className="suggestion-chip">{modelLabel(catalog, model)}</span>}
       {worktree && <span className="suggestion-chip">Worktree</span>}
       {!starting && <span className="suggestion-dismiss-slot" data-action="dismiss">
         <ConfirmCommand

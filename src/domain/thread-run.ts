@@ -1,4 +1,4 @@
-import { isAgentModel, type AgentModel } from "./agent-engine.js";
+import { isModelId, type AgentModel } from "./agent-engine.js";
 import type { RunStatus } from "./run.js";
 
 export type ChangeSnapshot = {
@@ -32,8 +32,8 @@ export type ContextUsage = {
  */
 export type ThreadUsage = Partial<Record<AgentModel, number>>;
 
-/** Shape only: models this build knows, each with a whole, non-negative count. */
+/** Shape only: well-formed model ids, each with a whole, non-negative count. */
 export function isThreadUsage(value: unknown): value is ThreadUsage {
   return typeof value === "object" && value !== null && !Array.isArray(value)
-    && Object.entries(value).every(([model, tokens]) => isAgentModel(model) && Number.isSafeInteger(tokens) && (tokens as number) >= 0);
+    && Object.entries(value).every(([model, tokens]) => isModelId(model) && Number.isSafeInteger(tokens) && (tokens as number) >= 0);
 }

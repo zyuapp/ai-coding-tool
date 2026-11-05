@@ -1,6 +1,6 @@
 import type { AgentSettingsReloadEvent } from "../contracts/ipc.js";
 import type { EngineCommand } from "../contracts/commands.js";
-import { AGENT_ENGINES, engineIsBlocked, engineLabel, engineNeedsAttention, engineUpdate, type AgentEngine, type EngineAccess, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
+import { AGENT_ENGINES, engineCatalog, engineIsBlocked, engineLabel, engineNeedsAttention, engineUpdate, type AgentEngine, type ModelCatalog, type EngineAccess, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
 import type { Toast } from "../domain/toast.js";
 import { withToast, type ToastEffect } from "./toasts.js";
 import type { WorkspaceState } from "./workspace-state.js";
@@ -30,6 +30,11 @@ export function isEngineInput(input: { type: string }): input is EngineInput {
 /** An engine main has said nothing about is taken as ready; only main can say otherwise. */
 export function engineReadinessOf(state: Pick<WorkspaceState, "engineStatus">, engine: AgentEngine): EngineReadiness {
   return state.engineStatus?.[engine] ?? { access: "ready" };
+}
+
+/** The models this machine's engines offer, as main last named them. */
+export function catalogOf(state: Pick<WorkspaceState, "engineStatus">): ModelCatalog {
+  return engineCatalog(state.engineStatus);
 }
 
 export function engineAccessOf(state: Pick<WorkspaceState, "engineStatus">, engine: AgentEngine): EngineAccess {

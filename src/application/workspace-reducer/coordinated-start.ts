@@ -7,6 +7,7 @@ import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import { createConversationMessage, type ConversationMessage } from "../../domain/conversation.js";
 import { asCoordinator, isCoordinator, wantsFreshSession, withCoordinationNote, withMemoryHeard, withoutCoordinationNotes, withoutProposals } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
+import { catalogOf } from "../engine-access.js";
 
 /** A thread as its run starts under a coordinator, what it is told first, and what the run is sent. */
 export type CoordinatedStart = { thread: Thread; notice: ConversationMessage[]; prompt: string; fresh: boolean };
@@ -25,7 +26,7 @@ export type CoordinatedStart = { thread: Thread; notice: ConversationMessage[]; 
 export function coordinatedStart(state: WorkspaceState, pending: PendingRun, located: Thread, existing: Thread | undefined): CoordinatedStart {
   const lead = existing || pending.role === "coordinator" ? undefined : state.threads.find((item) => item.id === pending.coordination?.coordinatorId);
   const remoteLead = existing || pending.role === "coordinator" ? undefined : pending.coordination?.lead;
-  const opened = !existing && pending.role === "coordinator" ? asCoordinator(located) : located;
+  const opened = !existing && pending.role === "coordinator" ? asCoordinator(catalogOf(state), located) : located;
   const joined = lead ? { ...opened, parentId: lead.id } : remoteLead ? { ...opened, remoteLead } : opened;
   const coordinating = isCoordinator(joined);
   const fresh = !pending.warming && wantsFreshSession(joined, sessionHoldsWork(state, joined.id));
