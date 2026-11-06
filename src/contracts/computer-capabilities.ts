@@ -35,10 +35,6 @@ export function supportsComputerCommand(capabilities: ComputerCapabilities, comm
   return supports(capabilities, requirements(`command:${command.type}`, command, "type"));
 }
 
-export function supportsComputerAction(capabilities: ComputerCapabilities, type: AppCommand["type"]): boolean {
-  return supports(capabilities, [`command:${type}`]);
-}
-
 export function supportsComputerQuery(capabilities: ComputerCapabilities, query: ComputerQuery): boolean {
   return supports(capabilities, requirements(`query:${query.kind}`, query, "kind"));
 }

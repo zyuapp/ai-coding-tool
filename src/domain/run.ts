@@ -113,10 +113,3 @@ export type BackgroundProcess = {
   /** Set from the moment a stop is asked for until the run stops reporting the process. */
   stopping?: boolean;
 };
-
-export type Run = {
-  taskId: string;
-  runId: string;
-  status: RunStatus;
-  sequence: number;
-};

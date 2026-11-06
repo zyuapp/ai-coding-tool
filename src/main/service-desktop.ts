@@ -175,5 +175,3 @@ function terminalDesktop(host: ServiceDesktopHost) {
 export function serviceDesktop(host: ServiceDesktopHost) {
   return { ...workspaceDesktop(host), ...storeDesktop(host), ...terminalDesktop(host) };
 }
-
-export type ServiceDesktop = ReturnType<typeof serviceDesktop>;

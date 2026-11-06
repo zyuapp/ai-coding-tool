@@ -45,10 +45,6 @@ export type ComputerFilter = "all" | "this" | string;
 /** What a computer calls itself to the others: the machine's own name, which is how its rows are tagged. */
 export const MAX_COMPUTER_NAME = 128;
 
-export function isComputerStatus(value: unknown): value is ComputerStatus {
-  return value === "connecting" || value === "connected" || value === "offline";
-}
-
 /** What a paired computer that is not connected is doing: dialling again, or between tries. */
 export function awayStatus(status: ComputerStatus): "reconnecting" | "offline" {
   return status === "connecting" ? "reconnecting" : "offline";

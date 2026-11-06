@@ -91,5 +91,3 @@ export function createWorkspaceRuntimeHost(options: WorkspaceRuntimeHostOptions)
     },
   };
 }
-
-export type WorkspaceRuntimeHost = ReturnType<typeof createWorkspaceRuntimeHost>;

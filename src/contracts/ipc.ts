@@ -23,7 +23,7 @@ import type { CoordinationRole } from "../domain/coordination.js";
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RetryNotice, RunStatus, SubagentActivity, SubagentReport, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
-import { shortcutAction, shortcutProblem, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
+import type { ShortcutOverrides, ShortcutSurface } from "../domain/shortcuts.js";
 import type { WorkflowAgent, WorkflowAgentState, WorkflowPhase, WorkflowStatus } from "../domain/workflow.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { ManagedWorktree, Worktree, WorktreeRelease } from "../domain/worktree.js";
@@ -420,18 +420,6 @@ export type DesktopShortcutRefusal = { binding: string; reason: "taken" } | { bi
 
 /** What a thread wants in front of the user: the thread a click lands on, the name it is shown under, and the line itself. */
 export type ThreadNotice = { taskId: string; title: string; headline: string };
-
-/** How many bindings a window may send. Far more than the app has actions, and still bounded. */
-const MAX_SHORTCUTS = 200;
-
-/** Bindings arrive from the window like any other outside command, so main reads them defensively. */
-export function isShortcutOverrides(value: unknown): value is ShortcutOverrides {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const entries = Object.entries(value as Record<string, unknown>);
-  if (entries.length > MAX_SHORTCUTS) return false;
-  return entries.every(([action, binding]) => Boolean(shortcutAction(action))
-    && (binding === null || (typeof binding === "string" && !shortcutProblem(binding))));
-}
 
 /** What a page did, pushed from main so the reducer stays the only writer of the tab record. */
 export type BrowserPageEvent = {
