@@ -57,7 +57,7 @@ test("a Claude coordinator never drives the user's Chrome, while a thread under 
   const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }), remember: async () => ({ note: "" }), propose: async () => ({ note: "" }) };
   const optionsFor = async (coordinationRole: "coordinator" | "member") => {
     const capture: QueryCapture = {};
-    await new ClaudeAgentProvider({ queryFactory: queryFactory([], capture) }).execute(input({ coordinationRole, coordination, claude: { chromeBrowser: true } }));
+    await new ClaudeAgentProvider({ queryFactory: queryFactory([], capture) }).execute(input({ coordinationRole, coordination, chromeBrowser: true }));
     return optionsOf(capture);
   };
   const lead = await optionsFor("coordinator");

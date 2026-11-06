@@ -99,10 +99,10 @@ function modelNames(info: ModelInfo): string[] {
 
 /**
  * Whether the run drives the user's own Chrome. A coordinator changes nothing itself, so it never
- * does, as it never drives the browser panel; Codex reaches no Chrome at all.
+ * does, as it never drives the browser panel.
  */
 function drivesChrome(input: ProviderRunInput) {
-  return Boolean(input.claude?.chromeBrowser) && input.coordinationRole !== "coordinator";
+  return input.chromeBrowser === true && input.coordinationRole !== "coordinator";
 }
 
 /** Everything a session is built with. A run that disagrees with any of it needs a session of its own. */

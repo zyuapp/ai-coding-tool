@@ -10,7 +10,7 @@ import { ATTENDED_RUN, threadMark, updateThread, withActiveRun, withBackgroundPr
 import { projectFor, worktreeFor } from "../thread-location.js";
 import { runOf, runStatus, threadBusy } from "../run-record.js";
 import { withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "../workspace-state.js";
-import type { ClaudeRunSettings, StartRunCommand } from "../../contracts/ipc.js";
+import type { StartRunCommand } from "../../contracts/ipc.js";
 import { withoutOutcome } from "../../domain/attention.js";
 import { coordinationRole, GROUP_OF, undeliveredNote } from "../coordination.js";
 import { withTurnBegun } from "../outstanding-stops.js";
@@ -97,13 +97,6 @@ export function withoutStartedDraft(state: WorkspaceState, draftKey: string, pen
   return withFiles(imaged, draftKey, filesFor(state, draftKey).filter((file) => !pending.files?.some((sent) => sent.path === file.path)));
 }
 
-function claudeRunSettings(state: WorkspaceState): ClaudeRunSettings | undefined {
-  const settings = {
-    ...(state.chromeBrowser ? { chromeBrowser: true as const } : {}),
-  };
-  return Object.keys(settings).length > 0 ? settings : undefined;
-}
-
 /** The model a run on this thread goes to, for a thread its start has already found one for. */
 export function runModelOf(state: WorkspaceState, thread: Thread): AgentModel {
   const model = threadModel(catalogOf(state), thread);
@@ -112,7 +105,6 @@ export function runModelOf(state: WorkspaceState, thread: Thread): AgentModel {
 }
 
 export function startRunCommand(state: WorkspaceState, thread: Thread, runId: string, prompt: string, workspaceId: string, policy = thread.executionPolicy): StartRunCommand {
-  const claude = claudeRunSettings(state);
   const model = runModelOf(state, thread);
   const coordination = coordinationRole(state.threads, thread);
   /** A member running anywhere but its project's checkout is told that checkout, which stays the user's. */
@@ -131,7 +123,7 @@ export function startRunCommand(state: WorkspaceState, thread: Thread, runId: st
     model,
     effort: effortForModel(catalogOf(state), thread.engine, model, thread.effort ?? defaultEffortFor(thread.engine), coordination),
     ...(capabilitiesFor(thread.engine).fastMode ? { fastMode: thread.fastMode ?? false } : {}),
-    ...(claude ? { claude } : {}),
+    ...(state.chromeBrowser && capabilitiesFor(thread.engine).chromeBrowser ? { chromeBrowser: true as const } : {}),
     ...(state.computerUse ? {} : { computerUseTools: false as const }), ...(state.browserTools ? {} : { browserTools: false as const }),
     ...(thread.continuation ? { continuation: thread.continuation } : {}),
     ...(thread.continuation && thread.inheritedContinuation ? { forkContinuation: true as const } : {}),

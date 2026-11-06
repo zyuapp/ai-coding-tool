@@ -74,11 +74,11 @@ test("start commands require a bounded thread title", () => {
   assert.equal(isRunCommand({ ...command, title: "x".repeat(64) }), true);
 });
 
-test("start commands carry the Claude engine's settings as one object", () => {
-  assert.equal(isRunCommand({ ...command, claude: {} }), true);
-  assert.equal(isRunCommand({ ...command, claude: { chromeBrowser: true } }), true);
-  assert.equal(isRunCommand({ ...command, claude: { chromeBrowser: false } }), false);
-  assert.equal(isRunCommand({ ...command, claude: "Plain" }), false);
+test("a start reaches the user's Chrome only on an engine that can drive it", () => {
+  assert.equal(isRunCommand({ ...command, chromeBrowser: true }), true);
+  assert.equal(isRunCommand({ ...command, chromeBrowser: false }), false);
+  assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-6.1-sol", chromeBrowser: true }), false);
+  assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-6.1-sol" }), true);
 });
 
 test("manual compaction is a validated thread operation", () => {

@@ -163,7 +163,7 @@ export class RunCoordinator {
         effort: command.effort,
         ...(capabilitiesFor(command.engine).fastMode ? { fastMode: command.fastMode ?? false } : {}),
         operation: command.operation,
-        claude: command.claude,
+        ...(command.chromeBrowser ? { chromeBrowser: true as const } : {}),
         continuation: command.continuation,
         forkContinuation: command.forkContinuation,
         ...(command.freshSession ? { freshSession: true as const } : {}),

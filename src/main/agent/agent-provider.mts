@@ -1,5 +1,5 @@
 import type { QuestionAnswers, QuestionRequest } from "../../domain/agent-question.js";
-import type { BackgroundReport, ClaudeRunSettings, ComputerUseRunConfig, RunChannel, RunOperation, WorkflowReport } from "../../contracts/ipc.js";
+import type { BackgroundReport, ComputerUseRunConfig, RunChannel, RunOperation, WorkflowReport } from "../../contracts/ipc.js";
 import type { CoordinationRole, CoordinationState, DecisionRequest, MemoryChange, ProposalRequest } from "../../domain/coordination.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
@@ -120,8 +120,8 @@ export type ProviderRunInput = {
   /** Read only by an engine whose capabilities include fast mode. Absent means standard speed. */
   fastMode?: boolean;
   operation?: RunOperation;
-  /** Read by the Claude engine alone; any other engine leaves it unopened. */
-  claude?: ClaudeRunSettings;
+  /** Read only by an engine whose capabilities include driving Chrome. */
+  chromeBrowser?: true;
   continuation?: Continuation;
   forkContinuation?: boolean;
   /** The run starts a session of its own even where the thread has a warm one it could take. */

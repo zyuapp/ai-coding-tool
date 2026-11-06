@@ -54,12 +54,6 @@ export type InstalledApp = ExternalApp & {
 export type WorkspaceId = string;
 export type RunChannel = "main" | "side";
 
-/** What only the Claude engine can be told. Another engine ignores the whole object. */
-export type ClaudeRunSettings = {
-  /** Set when the user turned Claude in Chrome on: the run also reaches their own Chrome. */
-  chromeBrowser?: true;
-};
-
 /** Work a run performs without sending its prompt as a model turn. */
 export type RunOperation =
   | { type: "compact"; preTokens: number }
@@ -80,7 +74,8 @@ export type StartRunCommand = {
   /** Read only by an engine whose capabilities include fast mode. Absent means standard speed. */
   fastMode?: boolean;
   operation?: RunOperation;
-  claude?: ClaudeRunSettings;
+  /** Set when the user turned Chrome on and the engine can drive it: the run also reaches their own Chrome. */
+  chromeBrowser?: true;
   /** Set when the user turned computer use off: the run gets no computer-use tools. */
   computerUseTools?: false;
   /** Set when the user turned browser use off: the run gets no browser-panel tools. */
@@ -670,12 +665,6 @@ export function isInternalRunCommand(value: unknown): value is InternalRunComman
   return isRunCommand(value);
 }
 
-function isClaudeRunSettings(value: unknown): value is ClaudeRunSettings {
-  if (!value || typeof value !== "object") return false;
-  const settings = value as Record<string, unknown>;
-  return settings.chromeBrowser === undefined || settings.chromeBrowser === true;
-}
-
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {
   if (!isString(command.title, MAX_TITLE_LENGTH)) return false;
   const operation = command.operation as Record<string, unknown> | undefined;
@@ -691,7 +680,7 @@ function isStartCommand(command: Record<string, unknown>, internal: boolean) {
     && isContinuation(command.continuation) && command.continuation.provider === command.engine
     && (command.forkContinuation === undefined || command.forkContinuation === true);
   const operationOnly = compact || review;
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isModelId(command.model) && isAgentEffort(command.effort) && (command.operation === undefined || operationOnly) && (command.claude === undefined || isClaudeRunSettings(command.claude)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.freshSession === undefined || (command.freshSession === true && command.continuation === undefined && command.forkContinuation === undefined)) && (command.unattended === undefined || command.unattended === true) && (command.coordinationRole === undefined || command.coordinationRole === "coordinator" || command.coordinationRole === "member") && (command.projectWorkspaceId === undefined || (command.coordinationRole === "member" && isString(command.projectWorkspaceId)));
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isModelId(command.model) && isAgentEffort(command.effort) && (command.operation === undefined || operationOnly) && (command.chromeBrowser === undefined || (command.chromeBrowser === true && capabilitiesFor(command.engine).chromeBrowser)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.freshSession === undefined || (command.freshSession === true && command.continuation === undefined && command.forkContinuation === undefined)) && (command.unattended === undefined || command.unattended === true) && (command.coordinationRole === undefined || command.coordinationRole === "coordinator" || command.coordinationRole === "member") && (command.projectWorkspaceId === undefined || (command.coordinationRole === "member" && isString(command.projectWorkspaceId)));
   if (!base || !(command.fastMode === undefined || isAgentEngine(command.engine) && capabilitiesFor(command.engine).fastMode && typeof command.fastMode === "boolean")) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "projectRoot", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse) && (command.projectRoot === undefined || isString(command.projectRoot, 4_096));

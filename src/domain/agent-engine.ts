@@ -104,6 +104,8 @@ export type EngineCapabilities = {
   subagentMetadata: boolean;
   /** Reviewing the thread's changes is work the engine performs itself, not a prompt it is sent. */
   review: boolean;
+  /** Can drive the user's own Chrome through its extension, when they turned that on. */
+  chromeBrowser: boolean;
   /** The modes the engine can keep its promise for, in no particular order. */
   policies: readonly ExecutionPolicy[];
   /** The mode a run nobody watches gets, such as a reviewer's, so it never waits on an approval. */
@@ -136,20 +138,20 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     label: "Claude",
     models: { kind: "built-in", list: CLAUDE_MODELS, default: DEFAULT_MODEL },
     defaultEffort: "high",
-    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false, policies: EVERY_POLICY, unattendedPolicy: "autonomous" },
+    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false, chromeBrowser: true, policies: EVERY_POLICY, unattendedPolicy: "autonomous" },
   },
   codex: {
     label: "Codex",
     models: { kind: "built-in", list: CODEX_MODELS, default: "gpt-6.1-sol" },
     defaultEffort: "high",
-    capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true, policies: EVERY_POLICY, unattendedPolicy: "autonomous" },
+    capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true, chromeBrowser: false, policies: EVERY_POLICY, unattendedPolicy: "autonomous" },
   },
   opencode: {
     label: "OpenCode",
     models: { kind: "discovered" },
     defaultEffort: "high",
     /** Auto stands on a reviewer that judges each call, which OpenCode has none of. */
-    capabilities: { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, policies: ["confirm", "plan", "allow-edits", "bypass"], unattendedPolicy: "bypass" },
+    capabilities: { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, chromeBrowser: false, policies: ["confirm", "plan", "allow-edits", "bypass"], unattendedPolicy: "bypass" },
   },
 };
 
@@ -477,7 +479,7 @@ function engineSpec(engine: EngineId): EngineSpec | undefined {
   return isAgentEngine(engine) ? ENGINES[engine] : undefined;
 }
 
-const NO_CAPABILITIES: EngineCapabilities = { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, policies: [], unattendedPolicy: "confirm" };
+const NO_CAPABILITIES: EngineCapabilities = { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, chromeBrowser: false, policies: [], unattendedPolicy: "confirm" };
 
 export function modelsFor(catalog: ModelCatalog, engine: EngineId): readonly ModelSpec[] {
   return isAgentEngine(engine) ? catalog.models[engine] : [];
