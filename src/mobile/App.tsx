@@ -2,6 +2,7 @@ import { LuChevronLeft as ChevronLeft, LuCloudOff as CloudOff, LuEllipsis as Ell
 import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import type { MobileCommand, MobileDraftView, MobileProjectGroup, MobileThreadEntry, MobileThreadView } from "../contracts/mobile";
 import type { AgentEngine } from "../domain/agent-engine";
+import { mobileEngineView, type MobileEngineView } from "../application/mobile-projection";
 import { SETTINGS_PAGE_LABELS, settingControl } from "../domain/settings-catalog";
 import { PAIRING_CODE_LENGTH, type MobileConnectionState } from "../domain/mobile";
 import { useMobileClient } from "./client/useMobileClient";
@@ -282,6 +283,7 @@ export function App() {
   const now = useNow();
   const thread = state.view.thread;
   const draft = state.view.draft;
+  const engines = mobileEngineView(state.view.engines);
   /** Commands only wait on the line while it is down; on a live one they are simply on their way. */
   const live = state.connection === "live";
   const waiting = live ? 0 : state.outbox.length;
@@ -405,7 +407,7 @@ export function App() {
         ? <Changes thread={thread} live={live} query={query} />
         : reading
           ? thread && !pending
-            ? <ThreadBody thread={thread} live={live} waiting={waiting} returned={state.returned} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => enter("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onNewWith={(engine) => {
+            ? <ThreadBody thread={thread} engines={engines} live={live} waiting={waiting} returned={state.returned} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => enter("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onNewWith={(engine) => {
               newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined);
               send({ type: "task.set-model", engine });
             }} onArchive={() => {
@@ -414,7 +416,7 @@ export function App() {
               archive(id);
             }} />
             : draft && !pending
-              ? <DraftBody draft={draft} groups={state.view.groups} live={live} waiting={waiting} send={send} sheet={sheet} onSheet={setSheet} onProject={newThread} onStartIn={(worktreeId) => newThread(draft.projectId, draft.projectName, worktreeId)} />
+              ? <DraftBody draft={draft} engines={engines} groups={state.view.groups} live={live} waiting={waiting} send={send} sheet={sheet} onSheet={setSheet} onProject={newThread} onStartIn={(worktreeId) => newThread(draft.projectId, draft.projectName, worktreeId)} />
               : missed
                 ? <div className="empty">
                   <p>Couldn't open the thread</p>
@@ -514,8 +516,9 @@ function returnedTo(returned: ReturnedCommand | null, taskId: string): ReturnedT
   return null;
 }
 
-function ThreadBody({ thread, live, waiting, returned, send, sheet, onSheet, onChanges, onNewHere, onNewWith, onArchive }: {
+function ThreadBody({ thread, engines, live, waiting, returned, send, sheet, onSheet, onChanges, onNewHere, onNewWith, onArchive }: {
   thread: MobileThreadView;
+  engines: MobileEngineView;
   live: boolean;
   waiting: number;
   returned: ReturnedCommand | null;
@@ -544,6 +547,7 @@ function ThreadBody({ thread, live, waiting, returned, send, sheet, onSheet, onC
         waiting={waiting}
         returned={returnedTo(returned, thread.id)}
         settings={thread.settings}
+        catalog={engines.catalog}
         question={thread.question}
         onAnswerQuestion={(question, text) => send({ type: "question.answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, text })}
         onSend={(text) => send({ type: "task.send", taskId: thread.id, text })}
@@ -553,6 +557,7 @@ function ThreadBody({ thread, live, waiting, returned, send, sheet, onSheet, onC
       />
       {sheet === "settings" && <ThreadSettings
         settings={thread.settings}
+        engines={engines}
         live={live}
         locked
         onNewWith={onNewWith}
@@ -584,8 +589,9 @@ function ThreadBody({ thread, live, waiting, returned, send, sheet, onSheet, onC
  * that starts it, and it starts one from its own draft, so the text is put in the draft and then
  * sent. The screen it turns into arrives as the thread the Mac has open.
  */
-function DraftBody({ draft, groups, live, waiting, send, sheet, onSheet, onProject, onStartIn }: {
+function DraftBody({ draft, engines, groups, live, waiting, send, sheet, onSheet, onProject, onStartIn }: {
   draft: MobileDraftView;
+  engines: MobileEngineView;
   groups: MobileProjectGroup[];
   live: boolean;
   waiting: number;
@@ -604,6 +610,7 @@ function DraftBody({ draft, groups, live, waiting, send, sheet, onSheet, onProje
         running={false}
         waiting={waiting}
         settings={draft.settings}
+        catalog={engines.catalog}
         onSend={(text) => {
           send({ type: "view.set-prompt", prompt: text });
           send({ type: "task.send" });
@@ -614,6 +621,7 @@ function DraftBody({ draft, groups, live, waiting, send, sheet, onSheet, onProje
       </Composer>
       {sheet === "settings" && <ThreadSettings
         settings={draft.settings}
+        engines={engines}
         live={live}
         locked={false}
         onClose={() => onSheet(null)}

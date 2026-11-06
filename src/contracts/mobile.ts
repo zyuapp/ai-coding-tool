@@ -1,7 +1,7 @@
 import type { PendingQuestion } from "../domain/agent-question.js";
 import type { AppCommand } from "./commands.js";
 import type { MobilePairingOffer, MobileServerState } from "../domain/mobile.js";
-import { isAgentEffort, isAgentEngine, isModelId, type AgentEngine, type AgentModel, type EngineId } from "../domain/agent-engine.js";
+import { isAgentEffort, isAgentEngine, isModelId, type AgentEngine, type AgentModel, type EngineAccess, type EngineId } from "../domain/agent-engine.js";
 import type { AgentEffort, ExecutionPolicy } from "../domain/run.js";
 import type { Annotation, AnnotationAnchor, PastedText } from "../domain/conversation.js";
 import { isDiffRange, type DiffRange } from "../domain/diff.js";
@@ -144,6 +144,18 @@ export type MobileThreadSettings = {
   coordinating?: true;
 };
 
+/** A model an engine on the computer names for itself, carrying only what a phone's picker reads. */
+export type MobileModel = { id: AgentModel; label: string; description: string; provider?: string; efforts: AgentEffort[] };
+
+/**
+ * What a phone knows of an engine on the computer: whether it runs, which models its installed
+ * command runs, and the models it names for itself. An engine left out is ready on the models this
+ * build ships knowing, which the phone page, served by the same build, knows too.
+ */
+export type MobileEngine = { access: EngineAccess; models?: AgentModel[]; catalog?: MobileModel[] };
+
+export type MobileEngines = Partial<Record<AgentEngine, MobileEngine>>;
+
 export type MobileThreadView = {
   loading?: boolean;
   id: string;
@@ -213,6 +225,8 @@ export type MobileView = {
   groups: MobileProjectGroup[];
   activity: MobileActivity;
   theme: MobileTheme;
+  /** The computer's engines, which say the models a thread or draft may pick. */
+  engines: MobileEngines;
   /** The thread the phone has open, which is the thread the desktop has open. */
   thread: MobileThreadView | null;
   /** Where the desktop stands with no thread open. Null whenever `thread` is not. */
@@ -249,6 +263,7 @@ export type MobilePatch = {
   groups?: MobileProjectGroup[];
   activity?: MobileActivity;
   theme?: MobileTheme;
+  engines?: MobileEngines;
   thread?:
     | { kind: "closed" }
     | { kind: "opened"; thread: MobileThreadView }

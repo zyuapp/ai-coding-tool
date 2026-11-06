@@ -1,4 +1,4 @@
-import { AGENT_ENGINES, byEngine, engineLabel, engineNotice, isFavorite, modelsFor, type AgentEngine, type AgentModel, type EngineModel, type EngineNotice, type EngineReadiness, type ModelCatalog, type ModelSpec } from "./agent-engine.js";
+import { AGENT_ENGINES, byEngine, engineLabel, engineNotice, isFavorite, modelsFor, type AgentEngine, type AgentModel, type EngineId, type EngineModel, type EngineNotice, type EngineReadiness, type ModelCatalog, type ModelSpec } from "./agent-engine.js";
 
 /** Every engine taken as ready, as a picker reads them before main has said otherwise. */
 export const EVERY_ENGINE_READY: Readonly<Record<AgentEngine, EngineReadiness>> = byEngine((): EngineReadiness => ({ access: "ready" }));
@@ -31,8 +31,8 @@ export type LibraryGroup = {
 export type LibraryFilter = "favorites" | "all" | (string & {});
 
 export type LibraryOptions = {
-  /** The thread's engine, or the draft's. */
-  engine: AgentEngine;
+  /** The thread's engine, or the draft's. One only a newer build knows leaves every heading locked when locked. */
+  engine: EngineId;
   /** Set once the thread has an engine for good. */
   locked: boolean;
   favorites?: readonly EngineModel[];

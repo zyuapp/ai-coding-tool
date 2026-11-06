@@ -4,6 +4,7 @@ import { test, vi } from "vitest";
 import { act } from "react";
 import { MOBILE_PROTOCOL_VERSION, type MobileView } from "../../src/contracts/mobile.ts";
 import { MOBILE_FOLDED_KEY } from "../../src/mobile/client/storage.ts";
+import { BUILT_IN_MODELS } from "../../src/domain/agent-engine.ts";
 import { groupMark, settingsSummary } from "../../src/mobile/format.ts";
 import { ensureLanguage } from "../../src/renderer/diff/highlight.ts";
 import { BUILD, CODE, TOKEN, click, clickButton, clickRow, dom, lastCommand, live, openPhone, patchView, queries, typeInto, view, type FakeSocket } from "../support/mobile-phone.mts";
@@ -81,6 +82,44 @@ test("a thread on an engine only a newer build knows offers none of its settings
   click(".composer-settings");
   assert.equal(document.querySelectorAll(".sheet-option").length, 0, "no mode, model or effort to pick");
   assert.deepEqual([...document.querySelectorAll(".sheet-new-engine strong")].map((node) => node.textContent), ["New thread with Claude", "New thread with Codex"]);
+});
+
+/** A computer whose OpenCode names two providers' models, and whose Claude runs only some of its own. */
+const ENGINES = {
+  claude: { access: "ready" as const, models: ["opus", "sonnet"] },
+  opencode: { access: "ready" as const, catalog: [
+    { id: "openrouter/qwen-4", label: "Qwen 4", description: "qwen-4", provider: "OpenRouter", efforts: ["high" as const, "low" as const] },
+    { id: "anthropic/opus", label: "Opus", description: "opus", provider: "Anthropic", efforts: [] },
+  ] },
+};
+
+test("a draft offers the models the computer's engines name, under the headings the desktop's library uses", () => {
+  const line = openPhone({ paired: true });
+  live(line, { ...view(), engines: ENGINES });
+  click(".group-header .section-action");
+  patchView(line, 2, { thread: { kind: "closed" }, draft: { projectId: "p", projectName: "App", settings: { engine: "claude", model: "opus", effort: "high", policy: "confirm" }, worktree: false, worktreeName: null, worktrees: [], canWorktree: true } });
+  click(".composer-settings");
+  assert.deepEqual([...document.querySelectorAll(".sheet-subheading")].map((node) => node.textContent), ["Claude", "Codex", "OpenRouter", "Anthropic"]);
+  const models = () => [...document.querySelectorAll('[aria-labelledby] .sheet-option strong')].map((node) => node.textContent);
+  assert.deepEqual(models().slice(0, 2), ["Opus", "Sonnet"], "only the Claude models its installed command runs");
+  clickButton("Qwen 4qwen-4");
+  assert.deepEqual(lastCommand(line), { type: "task.set-model", engine: "opencode", model: "openrouter/qwen-4" });
+});
+
+test("a thread on an engine that names its own models offers them, their efforts, and names its model in the summary", () => {
+  const line = openPhone({ paired: true });
+  const thread = view();
+  thread.thread = { ...thread.thread!, settings: { engine: "opencode", model: "openrouter/qwen-4", effort: "xhigh", policy: "bypass" } };
+  live(line, { ...thread, engines: ENGINES });
+  click(".thread-row .thread-open");
+  assert.equal(document.querySelector(".composer-settings")?.textContent, "ModeBypassModelQwen 4EffortHigh", "the model by its name and the effort it gets, not as sent");
+  click(".composer-settings");
+  assert.deepEqual([...document.querySelectorAll('.sheet-group[aria-label="Mode"] .sheet-option strong')].map((node) => node.textContent), ["Bypass", "Edits", "Confirm"], "OpenCode's modes, in the order every picker lists them");
+  assert.deepEqual([...document.querySelectorAll('.sheet [role="radiogroup"] .sheet-subheading')].map((node) => node.textContent), ["OpenRouter", "Anthropic"]);
+  assert.deepEqual([...document.querySelectorAll(".sheet-new-engine strong")].map((node) => node.textContent), ["New thread with Claude", "New thread with Codex"]);
+  assert.deepEqual([...document.querySelectorAll('.sheet-group[aria-label="Effort"] .sheet-option strong')].map((node) => node.textContent), ["High", "Low"]);
+  clickButton("Low");
+  assert.deepEqual(lastCommand(line), { type: "task.set-effort", taskId: "t1", engine: "opencode", effort: "low" });
 });
 
 test("a tapped setting the Mac never echoes goes back to what it is", () => {
@@ -306,7 +345,7 @@ test("a group folds shut and stays shut across a reload", () => {
 test("a Mac with no threads still shows a group to start one in", () => {
   const line = openPhone({ paired: true });
   act(() => line.onopen?.());
-  const bare: MobileView = { groups: [{ projectId: null, name: "Recents", threads: [] }], activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, thread: null, draft: null, error: null };
+  const bare: MobileView = { groups: [{ projectId: null, name: "Recents", threads: [] }], activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, engines: {}, thread: null, draft: null, error: null };
   act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 1, sessionId: "s6", build: BUILD, view: bare }) }));
   assert.ok(document.querySelector(".group-header .section-action"), "the empty group still offers New");
   assert.equal(document.querySelector(".group-empty"), null, "one empty line for the whole list, not one per group");
@@ -509,9 +548,9 @@ test("the phone wears the theme the Mac sends and remembers it for the next visi
 });
 
 test("the phone names a mode, model or effort only a newer build knows as it was sent", () => {
-  assert.deepEqual(settingsSummary({ engine: "claude", model: "opus-next" as never, effort: "galaxy" as never, policy: "yolo" as never }), { mode: "yolo", model: "opus-next", effort: "galaxy" });
-  assert.deepEqual(settingsSummary({ engine: "claude", model: "opus", effort: "high", policy: "confirm" }).effort, "High");
-  assert.deepEqual(settingsSummary({ engine: "gemini", model: "opus", effort: "high", policy: "confirm" }), { mode: "Confirm", model: "opus", effort: "high" }, "an engine it does not know offers none of this build's models");
+  assert.deepEqual(settingsSummary({ engine: "claude", model: "opus-next" as never, effort: "galaxy" as never, policy: "yolo" as never }, BUILT_IN_MODELS), { mode: "yolo", model: "opus-next", effort: "galaxy" });
+  assert.deepEqual(settingsSummary({ engine: "claude", model: "opus", effort: "high", policy: "confirm" }, BUILT_IN_MODELS).effort, "High");
+  assert.deepEqual(settingsSummary({ engine: "gemini", model: "opus", effort: "high", policy: "confirm" }, BUILT_IN_MODELS), { mode: "Confirm", model: "opus", effort: "high" }, "an engine it does not know offers none of this build's models");
 });
 
 function frameOf(line: FakeSocket, type: string) {

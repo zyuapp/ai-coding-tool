@@ -4,6 +4,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { typeInto } from "../support/mobile-phone.mts";
 import { Composer } from "../../src/mobile/components/Composer.tsx";
+import { BUILT_IN_MODELS } from "../../src/domain/agent-engine.ts";
 import type { MobileThreadSettings } from "../../src/contracts/mobile.ts";
 
 const settings: MobileThreadSettings = { engine: "claude", model: "opus", effort: "high", policy: "confirm" };
@@ -14,7 +15,7 @@ function mount(): { root: Root; render: (props: Partial<React.ComponentProps<typ
   const root = createRoot(host);
   return {
     root,
-    render: (props) => act(() => root.render(React.createElement(Composer, { running: false, waiting: 0, settings, onSend: () => {}, onOpenSettings: () => {}, ...props }))),
+    render: (props) => act(() => root.render(React.createElement(Composer, { running: false, waiting: 0, settings, catalog: BUILT_IN_MODELS, onSend: () => {}, onOpenSettings: () => {}, ...props }))),
   };
 }
 

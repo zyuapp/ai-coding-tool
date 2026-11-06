@@ -49,7 +49,7 @@ Object.defineProperty(globalThis, "WebSocket", { configurable: true, value: Fake
 export function view(): MobileView {
   return {
     groups: [{ projectId: "p", name: "App", threads: [{ id: "t1", title: "Fix the parser", projectId: "p", projectName: "App", attention: false, status: "awaiting-approval", lastActivityAt: Date.now(), unread: true }] }],
-    activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" },
+    activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, engines: {},
     thread: {
       id: "t1",
       title: "Fix the parser",

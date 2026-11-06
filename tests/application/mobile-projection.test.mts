@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { applyMobilePatch, diffMobileView, emptyMobileView, MOBILE_TRANSCRIPT_MESSAGES, projectMobileView } from "../../src/application/mobile-projection.ts";
+import { applyMobilePatch, diffMobileView, emptyMobileView, mobileEngineView, MOBILE_TRANSCRIPT_MESSAGES, projectMobileView } from "../../src/application/mobile-projection.ts";
+import { BUILT_IN_MODELS, efforts, effortsFor, modelLabel, modelsFor, type EngineStatus } from "../../src/domain/agent-engine.ts";
 import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { workspaceViewCollections } from "../../src/application/workspace-view-collections.ts";
 import type { ActiveRun, ApprovalView } from "../../src/application/thread-run-state.ts";
@@ -434,6 +435,33 @@ test("the phone wears the desktop's theme family in both faces, and follows the 
   const after = projectMobileView(workspace([], { theme: "nord-snow", themeMode: "light" }), NOW);
   assert.deepEqual(diffMobileView(before, after), { theme: { dark: "nord", light: "nord-snow", mode: "light" } });
   assert.deepEqual(applyMobilePatch(before, diffMobileView(before, after)!), after);
+});
+
+test("the phone is told the models the computer's engines name, leanly, and only again when they move", () => {
+  const status: EngineStatus = {
+    claude: { access: "ready", version: "2.1.0", fix: "claude update", models: ["opus", "sonnet"] },
+    opencode: { access: "ready", version: "2.3.0", catalog: [{ id: "openrouter/qwen-4", label: "Qwen 4", description: "qwen-4", provider: "OpenRouter", contextWindow: 128_000, efforts: efforts("high", "low"), manualCompaction: true }] },
+  };
+  const before = projectMobileView(workspace([]), NOW);
+  const read = projectMobileView(workspace([], { engineStatus: status }), NOW);
+  assert.deepEqual(read.engines, {
+    claude: { access: "ready", models: ["opus", "sonnet"] },
+    opencode: { access: "ready", catalog: [{ id: "openrouter/qwen-4", label: "Qwen 4", description: "qwen-4", provider: "OpenRouter", efforts: ["high", "low"] }] },
+  }, "only what a picker reads travels");
+  assert.equal(projectMobileView(workspace([], { engineStatus: status, theme: "nord" }), NOW).engines, read.engines, "a view that did not read the engines again carries the same ones");
+  assert.deepEqual(diffMobileView(before, read), { engines: read.engines });
+  assert.equal(diffMobileView(read, projectMobileView(workspace([], { engineStatus: { ...status } }), NOW)), null, "engines read again the same send nothing");
+  const applied = applyMobilePatch(before, diffMobileView(before, read)!)!;
+  assert.deepEqual(applied, read);
+
+  const phone = mobileEngineView(JSON.parse(JSON.stringify(applied.engines)));
+  assert.deepEqual(modelsFor(phone.catalog, "opencode").map((spec) => spec.id), ["openrouter/qwen-4"]);
+  assert.equal(modelLabel(phone.catalog, "opencode", "openrouter/qwen-4"), "Qwen 4");
+  assert.deepEqual(effortsFor(phone.catalog, "opencode", "openrouter/qwen-4").map((spec) => spec.label), ["High", "Low"]);
+  assert.deepEqual(modelsFor(phone.catalog, "codex"), modelsFor(BUILT_IN_MODELS, "codex"), "an engine naming none keeps the models this build ships");
+  assert.deepEqual(phone.access.claude, { access: "ready", models: ["opus", "sonnet"] });
+  assert.deepEqual(phone.access.codex, { access: "ready" });
+  assert.equal(mobileEngineView(undefined).catalog, BUILT_IN_MODELS, "an older computer names no engines");
 });
 
 test("the open thread says where it works, where it could move, and what its checkout holds", () => {

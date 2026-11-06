@@ -4,7 +4,7 @@ import { useQuestionAnswer } from "../client/useQuestionAnswer";
 import { LuArrowUp as ArrowUp, LuChevronDown as ChevronDown, LuCloudOff as CloudOff, LuCornerDownRight as CornerDownRight, LuZap as Zap } from "react-icons/lu";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MobileThreadSettings } from "../../contracts/mobile";
-import { engineLabel } from "../../domain/agent-engine";
+import { engineLabel, type ModelCatalog } from "../../domain/agent-engine";
 import { settingsSummary } from "../format";
 
 const MAX_ROWS_PX = 168;
@@ -34,7 +34,7 @@ function keep(key: string | undefined, text: string) {
 /** A command of this thread's the computer turned down: a message's words, or the question it answered. */
 export type ReturnedToComposer = { id: string; text?: string; answer?: string };
 
-export function Composer({ draftKey, running, waiting, returned, settings, question, onAnswerQuestion, onSend, onSteer, onStop, onOpenSettings, onEditWaiting, children }: {
+export function Composer({ draftKey, running, waiting, returned, settings, catalog, question, onAnswerQuestion, onSend, onSteer, onStop, onOpenSettings, onEditWaiting, children }: {
   /** The thread the words belong to, so leaving it and coming back finds them where they were. */
   draftKey?: string;
   running: boolean;
@@ -47,6 +47,8 @@ export function Composer({ draftKey, running, waiting, returned, settings, quest
   /** Takes the held messages back out of the outbox and into the field. */
   onEditWaiting?: () => void;
   settings: MobileThreadSettings;
+  /** The computer's models, which name the thread's. */
+  catalog: ModelCatalog;
   /** While a run is going this queues the message behind it. */
   onSend: (text: string) => void;
   /** Pushes the message into the run that is going, which only a thread that exists can have. */
@@ -74,7 +76,7 @@ export function Composer({ draftKey, running, waiting, returned, settings, quest
     if (!draft.trim()) setDraft(returned.text);
   }
   const field = useRef<HTMLTextAreaElement>(null);
-  const { mode, model, effort } = settingsSummary(settings);
+  const { mode, model, effort } = settingsSummary(settings, catalog);
 
   useEffect(() => {
     const take = (text: string) => setDraftState((current) => {

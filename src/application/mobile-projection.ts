@@ -12,10 +12,13 @@ import type { ThreadActivity } from "./thread-activity.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
 import { diffFor } from "./workspace-diff.js";
 import { workspaceViewCollections } from "./workspace-view-collections.js";
+import { AGENT_ENGINES, byEngine, efforts, engineCatalog, type AgentEngine, type EngineReadiness, type EngineStatus, type ModelCatalog } from "../domain/agent-engine.js";
 import type {
   MobileActivity,
   MobileChanges,
   MobileDraftView,
+  MobileEngine,
+  MobileEngines,
   MobileLocation,
   MobileMessage,
   MobilePatch,
@@ -48,10 +51,59 @@ export function emptyMobileView(): MobileView {
     groups: [],
     activity: { priority: [], running: [], threads: [], snoozed: [] },
     theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" },
+    engines: NO_ENGINES,
     thread: null,
     draft: null,
     error: null,
   };
+}
+
+const NO_ENGINES: MobileEngines = {};
+
+const projectedEngines = new WeakMap<EngineStatus, MobileEngines>();
+
+/** The engines as a phone reads them, kept per status so a view that did not read the engines again carries the same ones. */
+export function projectMobileEngines(status: EngineStatus | null): MobileEngines {
+  if (!status) return NO_ENGINES;
+  let engines = projectedEngines.get(status);
+  if (!engines) {
+    engines = {};
+    for (const engine of AGENT_ENGINES) {
+      const readiness = status[engine];
+      if (!readiness) continue;
+      const projected: MobileEngine = { access: readiness.access };
+      if (readiness.models) projected.models = [...readiness.models];
+      if (readiness.catalog) projected.catalog = readiness.catalog.map((spec) => ({ id: spec.id, label: spec.label, description: spec.description, ...(spec.provider ? { provider: spec.provider } : {}), efforts: spec.efforts.map((effort) => effort.id) }));
+      engines[engine] = projected;
+    }
+    projectedEngines.set(status, engines);
+  }
+  return engines;
+}
+
+/** The computer's engines as a phone's pickers read them: the models they offer, and each engine's readiness. */
+export type MobileEngineView = { catalog: ModelCatalog; access: Readonly<Record<AgentEngine, EngineReadiness>> };
+
+const engineViews = new WeakMap<MobileEngines, MobileEngineView>();
+
+/** The other half of {@link projectMobileEngines}, kept per engines so a picker reads one stable catalogue. */
+export function mobileEngineView(engines: MobileEngines | undefined): MobileEngineView {
+  const given = engines ?? NO_ENGINES;
+  let read = engineViews.get(given);
+  if (!read) {
+    /** A phone never measures a model's context, so a model it is sent carries none. */
+    const access = byEngine((engine): EngineReadiness => {
+      const sent = given[engine];
+      return {
+        access: sent?.access ?? "ready",
+        ...(sent?.models ? { models: sent.models } : {}),
+        ...(sent?.catalog ? { catalog: sent.catalog.map((model) => ({ id: model.id, label: model.label, description: model.description, ...(model.provider ? { provider: model.provider } : {}), contextWindow: 0, efforts: efforts(...model.efforts) })) } : {}),
+      };
+    });
+    read = { catalog: engineCatalog(access), access };
+    engineViews.set(given, read);
+  }
+  return read;
 }
 
 /** Everything a phone reads, derived from workspace state alone. */
@@ -104,6 +156,7 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
     groups,
     activity: projectMobileActivity(state, here, entriesById),
     theme: projectMobileTheme(state),
+    engines: projectMobileEngines(state.engineStatus),
     thread,
     draft: thread ? null : projectMobileDraft(state, view),
     error: state.actionError,
@@ -245,6 +298,7 @@ export function diffMobileView(previous: MobileView, next: MobileView): MobilePa
   if (!sameGroups(previous.groups, next.groups)) patch.groups = next.groups;
   if (!sameActivity(previous.activity, next.activity)) patch.activity = next.activity;
   if (!same(previous.theme, next.theme)) patch.theme = next.theme;
+  if (previous.engines !== next.engines && !same(previous.engines, next.engines)) patch.engines = next.engines;
   const thread = diffMobileThread(previous.thread, next.thread);
   if (thread) patch.thread = thread;
   if (!same(previous.draft, next.draft)) patch.draft = next.draft;
@@ -339,6 +393,7 @@ export function applyMobilePatch(view: MobileView, patch: MobilePatch): MobileVi
     groups: patch.groups ?? view.groups,
     activity: patch.activity ?? view.activity,
     theme: patch.theme ?? view.theme,
+    engines: patch.engines ?? view.engines,
     draft: "draft" in patch ? patch.draft ?? null : view.draft,
     error: "error" in patch ? patch.error ?? null : view.error,
   };
