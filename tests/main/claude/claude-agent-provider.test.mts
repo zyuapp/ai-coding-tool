@@ -107,7 +107,7 @@ test("Claude query options follow run policy and workspace settings", async () =
   ] satisfies { policy: ExecutionPolicy; permissionMode: PermissionMode; bypass: boolean }[];
   for (const { policy, permissionMode, bypass } of cases) {
     const capture: QueryCapture = {};
-    const provider = new ClaudeAgentProvider(queryFactory([], capture));
+    const provider = new ClaudeAgentProvider({ queryFactory: queryFactory([], capture) });
     assert.deepEqual(await provider.execute(input({ policy })), { status: "succeeded" });
     assert.equal(optionsOf(capture).permissionMode, permissionMode);
     assert.equal(optionsOf(capture).allowDangerouslySkipPermissions, bypass ? true : undefined);
@@ -115,7 +115,7 @@ test("Claude query options follow run policy and workspace settings", async () =
   }
 
   const capture: QueryCapture = {};
-  const provider = new ClaudeAgentProvider(queryFactory([], capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: queryFactory([], capture) });
   await provider.execute(input({
     projectless: true,
     model: "opus",
@@ -146,7 +146,7 @@ test("Claude streams only complete Markdown blocks and does not repeat final tex
     event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },
   });
   const fullText = "## First\n\nParagraph with **bold**.\n\n```ts\nconst x = 1;\n\n```\n";
-  const provider = new ClaudeAgentProvider(queryFactory([
+  const provider = new ClaudeAgentProvider({ queryFactory: queryFactory([
     { type: "stream_event", uuid: crypto.randomUUID(), parent_tool_use_id: null, event: { type: "message_start", message: { id: messageId } } },
     delta("## Fi"),
     delta("rst\n\nParagraph with **bo"),
@@ -158,7 +158,7 @@ test("Claude streams only complete Markdown blocks and does not repeat final tex
       parent_tool_use_id: null,
       message: { id: messageId, model: "claude-sonnet", usage: { input_tokens: 1 }, content: [{ type: "text", text: fullText }] },
     },
-  ]));
+  ]) });
 
   assert.deepEqual(await provider.execute(input({ emit: (event) => emitted.push(event) })), { status: "succeeded" });
   assert.deepEqual(emitted, [
@@ -176,10 +176,10 @@ test("Claude streams only complete Markdown blocks and does not repeat final tex
 
 test("Claude reports its native goal as thread state", async () => {
   const goals: GoalReport[] = [];
-  const provider = new ClaudeAgentProvider(queryFactory([
+  const provider = new ClaudeAgentProvider({ queryFactory: queryFactory([
     { type: "active_goal", uuid: "goal-1", session_id: "session-1", value: { condition: "All checks pass", iterations: 2, set_at: 1, tokens_at_start: 10, last_reason: "One check still fails" } },
     { type: "active_goal", uuid: "goal-2", session_id: "session-1", value: null },
-  ]));
+  ]) });
 
   await provider.execute(input({ reportGoal: (report) => goals.push(report) }));
 
@@ -200,7 +200,7 @@ test("reported context usage tracks the widest window the chosen model offers", 
   const cases = [["fable", 1_000_000], ["opus", 1_000_000], ["sonnet", 1_000_000], ["haiku", 200_000]] satisfies [AgentModel, number][];
   for (const [model, limit] of cases) {
     const emitted: ProviderEvent[] = [];
-    const provider = new ClaudeAgentProvider(queryFactory([assistant]));
+    const provider = new ClaudeAgentProvider({ queryFactory: queryFactory([assistant]) });
     await provider.execute(input({ model, emit: (event) => emitted.push(event) }));
     assert.deepEqual(emitted.filter((event) => event.type === "usage"), [{ type: "usage", tokens: 1, limit, model: "claude-model" }]);
   }
@@ -208,7 +208,7 @@ test("reported context usage tracks the widest window the chosen model offers", 
 
 test("a synthetic reply leaves the reported context usage alone", async () => {
   const emitted: ProviderEvent[] = [];
-  const provider = new ClaudeAgentProvider(queryFactory([
+  const provider = new ClaudeAgentProvider({ queryFactory: queryFactory([
     {
       type: "assistant",
       uuid: crypto.randomUUID(),
@@ -226,7 +226,7 @@ test("a synthetic reply leaves the reported context usage alone", async () => {
         content: [{ type: "text", text: "6 MCP server(s): 2 connected." }],
       },
     },
-  ]));
+  ]) });
   await provider.execute(input({ emit: (event) => emitted.push(event) }));
 
   assert.deepEqual(emitted.filter((event) => event.type === "usage"), [
@@ -286,7 +286,7 @@ test("Claude keeps complex Markdown fences intact across adversarial chunk bound
       { type: "assistant", uuid: crypto.randomUUID(), parent_tool_use_id: null, message: { id: messageId, model: "claude-sonnet", usage: { input_tokens: 1 }, content: [{ type: "text", text: fullText }] } },
     ];
 
-    const provider = new ClaudeAgentProvider(queryFactory(messages));
+    const provider = new ClaudeAgentProvider({ queryFactory: queryFactory(messages) });
     await provider.execute(input({ emit: (event) => { track(event); emitted.push(event); } }));
     assert.deepEqual(emitted.filter((event) => event.type === "assistant").map((event) => event.text), scenario.expected, scenario.name);
     assert.equal(chunk, scenario.chunks.length, `${scenario.name} reports a tail for every chunk`);
@@ -298,9 +298,9 @@ test("the channel tool table is the only thing a side chat is short of", async (
   const threads = { list: async () => [], read: async () => null, start: async () => ({}), message: async () => ({}), wait: async () => ({}), stop: async () => true, archive: async () => true } as unknown as ThreadBridge;
 
   const main: QueryCapture = {};
-  await new ClaudeAgentProvider(queryFactory([], main)).execute(input({ automations, threads }));
+  await new ClaudeAgentProvider({ queryFactory: queryFactory([], main) }).execute(input({ automations, threads }));
   const side: QueryCapture = {};
-  await new ClaudeAgentProvider(queryFactory([], side)).execute(input({ channel: "side", automations, threads }));
+  await new ClaudeAgentProvider({ queryFactory: queryFactory([], side) }).execute(input({ channel: "side", automations, threads }));
 
   assert.deepEqual(optionsOf(main).disallowedTools, ["AskUserQuestion", "EnterWorktree", "ExitWorktree"], "a thread's checkout changes only through the app");
   assert.deepEqual(optionsOf(side).disallowedTools, [
@@ -330,7 +330,7 @@ test("side chats receive their own task boundary on start, fork, and resume whil
   ];
   for (const continuation of cases) {
     const capture: QueryCapture = {};
-    const provider = new ClaudeAgentProvider(queryFactory([], capture));
+    const provider = new ClaudeAgentProvider({ queryFactory: queryFactory([], capture) });
     await provider.execute(input({ channel: "side", policy: "autonomous", ...continuation }));
 
     const options = optionsOf(capture);
@@ -344,7 +344,7 @@ test("side chats receive their own task boundary on start, fork, and resume whil
 
 test("Claude receives bundled computer-use MCP or the internal setup tool", async () => {
   const availableCapture: QueryCapture = {};
-  await new ClaudeAgentProvider(queryFactory([], availableCapture)).execute(input({
+  await new ClaudeAgentProvider({ queryFactory: queryFactory([], availableCapture) }).execute(input({
     computerUse: { status: "available", mcp: { command: "/app/cua-driver", args: ["mcp", "--embedded"], env: { CUA_DRIVER_EMBEDDED: "1" } } },
   }));
   assert.deepEqual(optionsOf(availableCapture).mcpServers?.["cua-driver"], {
@@ -390,7 +390,7 @@ test("bypass runs allow every tool without consulting the approval gate", async 
 test("Claude messages translate to provider events and normalized tool intents", async () => {
   const emitted: ProviderEvent[] = [];
   const capture: QueryCapture = {};
-  const provider = new ClaudeAgentProvider(queryFactory([
+  const provider = new ClaudeAgentProvider({ queryFactory: queryFactory([
     { type: "system", subtype: "init", session_id: "session-2" },
     { type: "system", subtype: "compact_boundary", compact_metadata: { trigger: "auto", pre_tokens: 190_000, post_tokens: 40_000 } },
     { type: "system", subtype: "status", status: "compacting" },
@@ -409,7 +409,7 @@ test("Claude messages translate to provider events and normalized tool intents",
       },
     },
     { type: "result", subtype: "success", is_error: false, result: "done" },
-  ], capture));
+  ], capture) });
 
   assert.deepEqual(await provider.execute(input({ emit: (event) => emitted.push(event) })), { status: "succeeded" });
   assert.deepEqual(emitted, [
@@ -438,7 +438,7 @@ test("Claude messages translate to provider events and normalized tool intents",
 
 test("a skill invocation is named after the skill it runs", async () => {
   const emitted: ProviderEvent[] = [];
-  const provider = new ClaudeAgentProvider(queryFactory([
+  const provider = new ClaudeAgentProvider({ queryFactory: queryFactory([
     {
       type: "assistant",
       uuid: "message-1",
@@ -452,7 +452,7 @@ test("a skill invocation is named after the skill it runs", async () => {
       },
     },
     { type: "result", subtype: "success", is_error: false, result: "done" },
-  ]));
+  ]) });
 
   await provider.execute(input({ emit: (event) => emitted.push(event) }));
   assert.deepEqual(emitted.filter((event) => event.type === "tool").map((event) => event.intent.name), ["Skill: quality-check", "Skill"]);
@@ -475,21 +475,21 @@ test("automation tools bypass approval so a scheduled run can stop itself unatte
 
 test("Claude failures, exceptions, and aborts close the query", async () => {
   const failureCapture: QueryCapture = {};
-  const failure = new ClaudeAgentProvider(queryFactory([{ type: "result", subtype: "error_during_execution", is_error: true, errors: ["one", "two"] }], failureCapture));
+  const failure = new ClaudeAgentProvider({ queryFactory: queryFactory([{ type: "result", subtype: "error_during_execution", is_error: true, errors: ["one", "two"] }], failureCapture) });
   assert.deepEqual(await failure.execute(input()), { status: "failed", message: "one\ntwo" });
   assert.equal(failureCapture.closed, true);
 
   let exceptionClosed = false;
-  const exception = new ClaudeAgentProvider(() => ({
+  const exception = new ClaudeAgentProvider({ queryFactory: () => ({
     async *[Symbol.asyncIterator]() { throw new Error("stream broke"); },
     close() { exceptionClosed = true; },
-  } as unknown as Query));
+  } as unknown as Query) });
   assert.deepEqual(await exception.execute(input()), { status: "failed", message: "stream broke" });
   assert.equal(exceptionClosed, true);
 
   const abortController = new AbortController();
   abortController.abort();
-  const aborted = new ClaudeAgentProvider(queryFactory([]));
+  const aborted = new ClaudeAgentProvider({ queryFactory: queryFactory([]) });
   assert.deepEqual(await aborted.execute(input({ abortController })), { status: "cancelled" });
 });
 
@@ -528,7 +528,7 @@ test("a steered message joins the run's input stream and only then counts as del
   const emitted: ProviderEvent[] = [];
   const steered = [{ messageId: "message-1", prompt: "check the tests too" }];
   const steering = { next: async () => steered.shift() ?? null };
-  const provider = new ClaudeAgentProvider(streamingQueryFactory([], capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: streamingQueryFactory([], capture) });
 
   assert.deepEqual(await provider.execute(input({ steering, emit: (event) => emitted.push(event) })), { status: "succeeded" });
   assert.deepEqual(capture.sent, ["inspect the app", "check the tests too"]);
@@ -545,24 +545,24 @@ test("a run steered into ends on the turn that answers the steering, not the one
   const steered = [{ messageId: "message-1", prompt: "stop and say BANANA" }];
   const steering = { next: async () => steered.shift() ?? null };
   /** Folding a message in ends the turn it interrupted, so the agent reports one result for each. */
-  const provider = new ClaudeAgentProvider(streamingQueryFactory([
+  const provider = new ClaudeAgentProvider({ queryFactory: streamingQueryFactory([
     { type: "result", subtype: "error_during_execution", is_error: true, errors: ["[ede_diagnostic] result_type=user"] },
     { type: "result", subtype: "success", is_error: false, result: "BANANA" },
-  ]));
+  ]) });
 
   assert.deepEqual(await provider.execute(input({ steering, emit: (event) => emitted.push(event) })), { status: "succeeded" });
   assert.deepEqual(emitted.filter((event) => event.type === "steered"), [{ type: "steered", messageId: "message-1" }]);
 });
 
 test("a run ends on its turn's result even though its input stream stays open", async () => {
-  const provider = new ClaudeAgentProvider(streamingQueryFactory([{ type: "result", subtype: "success", is_error: false, result: "done" }]));
+  const provider = new ClaudeAgentProvider({ queryFactory: streamingQueryFactory([{ type: "result", subtype: "success", is_error: false, result: "done" }]) });
 
   assert.deepEqual(await provider.execute(input()), { status: "succeeded" });
 });
 
 test("a second turn keeps the session the first one warmed, and takes its settings as changes", async () => {
   const capture = liveCapture();
-  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
 
   const first = await turn(capture, provider.execute(input()), { type: "system", subtype: "init", session_id: "session-1" });
   assert.deepEqual(first, { status: "succeeded" });
@@ -581,7 +581,7 @@ test("a second turn keeps the session the first one warmed, and takes its settin
 
 test("a session is only reused for the thread and the conversation it belongs to", async () => {
   const capture = liveCapture();
-  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
   const continuation = { provider: "claude", value: "session-1" } as const;
   await turn(capture, provider.execute(input()), { type: "system", subtype: "init", session_id: "session-1" });
 
@@ -601,7 +601,7 @@ test("a session is only reused for the thread and the conversation it belongs to
 
 test("cancelling a turn interrupts it and leaves the session alive", async () => {
   const capture = liveCapture();
-  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
   const abortController = new AbortController();
   const running = provider.execute(input({ abortController }));
 
@@ -633,7 +633,7 @@ test("reading other threads needs no approval, but starting or stopping one does
 
 test("a workflow keeps reporting between the turns of the session it runs under", async () => {
   const capture = liveCapture();
-  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
   const reported: WorkflowReport[] = [];
   const reportWorkflow = (report: WorkflowReport) => { reported.push(report); };
 
@@ -675,7 +675,7 @@ test("a workflow keeps reporting between the turns of the session it runs under"
 
 test("a session closing under a workflow reports the workflow stopped", async () => {
   const capture = liveCapture();
-  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
   const reported: WorkflowReport[] = [];
 
   await turn(capture, provider.execute(input({ reportWorkflow: (report) => reported.push(report) })),
@@ -690,7 +690,7 @@ test("a session closing under a workflow reports the workflow stopped", async ()
 
 test("a background process is stopped through the thread's session, after its run has ended", async () => {
   const capture = liveCapture();
-  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
 
   assert.equal(provider.stopProcess("task-1", "bash-1"), false, "no session, nothing to stop");
   await turn(capture, provider.execute(input()));
@@ -712,7 +712,7 @@ test("a session with work still running outlives the idle deadline, and is let g
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   t.onTestFinished(() => { vi.useRealTimers(); });
   const capture = poolCapture();
-  const provider = new ClaudeAgentProvider(poolQueryFactory(capture), new SessionPool(5));
+  const provider = new ClaudeAgentProvider({ queryFactory: poolQueryFactory(capture), pool: new SessionPool(5) });
 
   const { session } = await poolTurn(provider, capture, {}, running("wf-1"));
   await vi.advanceTimersByTimeAsync(60);
@@ -725,7 +725,7 @@ test("a session with work still running outlives the idle deadline, and is let g
 
 test("a session with work still running is passed over when the pool has to let one go", async () => {
   const capture = poolCapture();
-  const provider = new ClaudeAgentProvider(poolQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: poolQueryFactory(capture) });
 
   await poolTurn(provider, capture, {}, running("wf-1"));
   for (const taskId of ["task-2", "task-3", "task-4", "task-5"]) await poolTurn(provider, capture, { taskId });
@@ -741,7 +741,7 @@ test("work outstanding when a run is cancelled holds the session no longer than 
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   t.onTestFinished(() => { vi.useRealTimers(); });
   const capture = poolCapture();
-  const provider = new ClaudeAgentProvider(poolQueryFactory(capture), new SessionPool(5));
+  const provider = new ClaudeAgentProvider({ queryFactory: poolQueryFactory(capture), pool: new SessionPool(5) });
   const abortController = new AbortController();
 
   const cancelled = provider.execute(input({ abortController }));
@@ -763,7 +763,7 @@ test("work outstanding when a run is cancelled holds the session no longer than 
 
 test("a turn that fails gives its session up even with work outstanding", async () => {
   const capture = poolCapture();
-  const provider = new ClaudeAgentProvider(poolQueryFactory(capture), new SessionPool(5));
+  const provider = new ClaudeAgentProvider({ queryFactory: poolQueryFactory(capture), pool: new SessionPool(5) });
 
   const failing = provider.execute(input());
   await tick();
@@ -781,7 +781,7 @@ test("a turn that fails gives its session up even with work outstanding", async 
 
 test("quitting closes a session that still has work running", async () => {
   const capture = poolCapture();
-  const provider = new ClaudeAgentProvider(poolQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: poolQueryFactory(capture) });
 
   const { session } = await poolTurn(provider, capture, {}, running("wf-1"));
   provider.closeAll();

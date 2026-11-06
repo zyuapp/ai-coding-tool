@@ -6,7 +6,7 @@ import { harness, turn as codexTurn } from "../../support/codex-client.mjs";
 
 test("a fresh Claude run opens a session that resumes nothing, even with one warm for the thread", async () => {
   const capture: LiveQueryCapture = { opens: 0, sent: [] };
-  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
   await turn(capture, provider.execute(input()), { type: "system", subtype: "init", session_id: "session-1" });
 
   const fresh = await turn(capture, provider.execute(input({ freshSession: true, prompt: "start over" })), { type: "system", subtype: "init", session_id: "session-2" });

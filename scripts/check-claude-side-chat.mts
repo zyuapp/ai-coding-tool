@@ -103,13 +103,13 @@ async function trial(number: number, scenario: Check[]) {
       (["Read", "Edit", "Write"].includes(event.tool_name) && args.file_path !== undefined && path.resolve(cwd, args.file_path) === path.join(cwd, fixtureName));
     return allowed ? {} : { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: "The check permits only the disposable sorter fixture and simulated thread tools." } };
   };
-  const provider = new ClaudeAgentProvider((options) => query({ ...options, options: { ...options.options,
+  const provider = new ClaudeAgentProvider({ queryFactory: (options) => query({ ...options, options: { ...options.options,
     sessionStore: {
       async load(key) { return sessions.get(key.sessionId) ?? null; },
       async append(key, rows) { sessions.set(key.sessionId, [...(sessions.get(key.sessionId) ?? []), ...rows]); },
     },
     hooks: { PreToolUse: [{ hooks: [guard] }] },
-  } }));
+  } }) });
   let continuation: Continuation | undefined;
   try {
     for (const check of scenario) {

@@ -28,7 +28,7 @@ afterEach(async () => {
 
 async function claudeBrief(settings: Settings): Promise<Brief> {
   const capture: QueryCapture = {};
-  await new ClaudeAgentProvider(queryFactory([], capture)).execute(claudeInput(settings));
+  await new ClaudeAgentProvider({ queryFactory: queryFactory([], capture) }).execute(claudeInput(settings));
   const options = capture.options?.options;
   assert.ok(options);
   const prompt = options.systemPrompt;
@@ -215,7 +215,7 @@ const briefChanges: [string, Settings][] = [
 for (const [name, change] of briefChanges) {
   test(`turning ${name} on opens a new session on Claude and GPT alike`, async () => {
     const capture: LiveQueryCapture = { opens: 0, sent: [] };
-    const claude = new ClaudeAgentProvider(liveQueryFactory(capture));
+    const claude = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
     const continuation = { provider: "claude", value: "session-1" } as const;
     await claudeTurn(capture, claude.execute(claudeInput()), { type: "system", subtype: "init", session_id: "session-1" });
     await claudeTurn(capture, claude.execute(claudeInput({ continuation })));

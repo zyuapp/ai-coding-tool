@@ -110,8 +110,21 @@ function sessionKey(input: ProviderRunInput, brief: RunBrief) {
   return JSON.stringify([...brief.identity, grantsTool("workspace", input), drivesChrome(input)]);
 }
 
+export type ClaudeProviderOptions = {
+  /** Starts a Claude session; a test hands it a scripted one. */
+  queryFactory?: QueryFactory;
+  /** The sessions this engine's threads keep warm; shared with the other engines of its channel. */
+  pool?: SessionPool;
+};
+
 export class ClaudeAgentProvider implements AgentProvider {
-  constructor(private readonly queryFactory: QueryFactory = query, private readonly pool = new SessionPool()) {}
+  private readonly queryFactory: QueryFactory;
+  private readonly pool: SessionPool;
+
+  constructor(options: ClaudeProviderOptions = {}) {
+    this.queryFactory = options.queryFactory ?? query;
+    this.pool = options.pool ?? new SessionPool();
+  }
 
   execute(input: ProviderRunInput): Promise<ProviderResult> {
     const brief = runBrief(input, CLAUDE_DIALECT);
@@ -122,7 +135,6 @@ export class ClaudeAgentProvider implements AgentProvider {
     });
   }
 
-  /** Reaches the thread's own session, so work that outlived the run that started it can still be stopped. */
   /** Claude keeps no record of its own to name, so the title stays the app's. */
   labelThread() {
     return false;
@@ -137,6 +149,7 @@ export class ClaudeAgentProvider implements AgentProvider {
     void this.pool.retireOutOfRole(taskId, role);
   }
 
+  /** Reaches the thread's own session, so work that outlived the run that started it can still be stopped. */
   stopProcess(taskId: string, processId: string) {
     const session = this.pool.liveSession(taskId);
     if (!(session instanceof ClaudeSession)) return false;

@@ -24,7 +24,7 @@ export function runTools(input: ToolSources): ServedToolSet[] {
   if (input.automations) {
     sets.push({ server: AUTOMATION_SERVER_NAME, tools: [...automationTools(input.automations, input.coordinationRole), ...(input.findings ? findingTools(input.findings) : [])] });
   }
-  /** A native review is already isolated in its own Codex thread. App thread tools would create sidebar tasks instead. */
+  /** A native review is already isolated in a thread of the engine's own. App thread tools would create sidebar tasks instead. */
   if (input.threads && input.operation?.type !== "review") {
     sets.push({ server: THREAD_SERVER_NAME, tools: threadTools(input.threads, Date.now, input.coordinationRole) });
   }

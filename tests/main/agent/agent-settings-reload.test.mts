@@ -23,7 +23,7 @@ test("Codex reload closes the old app server and resumes its conversation in a f
 test("Claude reload waits for background work and resumes the conversation with fresh options", async () => {
   const pool = new SessionPool();
   const capture: PoolCapture = { sessions: [] };
-  const provider = new ClaudeAgentProvider(poolQueryFactory(capture), pool);
+  const provider = new ClaudeAgentProvider({ queryFactory: poolQueryFactory(capture), pool: pool });
   try {
     const { session } = await poolTurn(provider, capture, {},
       { type: "system", subtype: "init", session_id: "existing-claude" },

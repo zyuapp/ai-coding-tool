@@ -155,6 +155,11 @@ function engineAccessHost() {
   return engineAccess ??= import("./agent/engine-services.mjs").then(({ EngineAccessHost }) => new EngineAccessHost());
 }
 
+/** Stops what the engines started to answer outside a run, such as OpenCode's services server. */
+async function stopEngineServices() {
+  await (await import("./agent/engine-services.mjs")).closeEngineServices().catch((error) => console.error("Could not stop engine services:", error));
+}
+
 /** What this computer calls itself until the user picks a name: the machine's own. */
 const machineName = () => hostname().replace(/\.local$/, "");
 
@@ -579,6 +584,7 @@ async function finishShutdown() {
     automationScheduler?.stop();
     runs.clearPendingStarts();
     runs.killAgent();
+    await stopEngineServices();
     computerLinks?.stop();
     await stopMobileBridge().catch((error) => console.error("Could not stop the phone bridge:", error));
     await stopComputerUse().catch((error) => console.error("Could not stop computer use:", error));

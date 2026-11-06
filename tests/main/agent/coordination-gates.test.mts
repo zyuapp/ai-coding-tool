@@ -23,9 +23,9 @@ function systemAppend(options: Options): string {
 test("a coordinator runs without file edits, shell, or subagents, and with the coordination tools for its part", async () => {
   const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }), remember: async () => ({ note: "" }), propose: async () => ({ note: "" }) };
   const coordinator: QueryCapture = {};
-  await new ClaudeAgentProvider(queryFactory([], coordinator)).execute(input({ coordinationRole: "coordinator", coordination }));
+  await new ClaudeAgentProvider({ queryFactory: queryFactory([], coordinator) }).execute(input({ coordinationRole: "coordinator", coordination }));
   const member: QueryCapture = {};
-  await new ClaudeAgentProvider(queryFactory([], member)).execute(input({ coordinationRole: "member", coordination }));
+  await new ClaudeAgentProvider({ queryFactory: queryFactory([], member) }).execute(input({ coordinationRole: "member", coordination }));
 
   assert.deepEqual(optionsOf(coordinator).tools, ["Read", "Grep", "Glob", "LSP", "WebSearch", "WebFetch", "Skill", "ToolSearch", "ListMcpResourcesTool", "ReadMcpResourceTool", "EnterPlanMode", "ExitPlanMode"]);
   assert.deepEqual(optionsOf(coordinator).disallowedTools, ["AskUserQuestion", "EnterWorktree", "ExitWorktree"]);
@@ -41,7 +41,7 @@ test("a coordinator runs without file edits, shell, or subagents, and with the c
 test("a Claude coordinator is offered only the tools it is named, so a tool a newer Claude Code adds never reaches it", async () => {
   const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }), remember: async () => ({ note: "" }), propose: async () => ({ note: "" }) };
   const capture: QueryCapture = {};
-  await new ClaudeAgentProvider(queryFactory([], capture)).execute(input({ coordinationRole: "coordinator", coordination, policy: "bypass" }));
+  await new ClaudeAgentProvider({ queryFactory: queryFactory([], capture) }).execute(input({ coordinationRole: "coordinator", coordination, policy: "bypass" }));
   const named = optionsOf(capture).tools;
   assert.ok(Array.isArray(named), "a coordinator's own tools are a list, never Claude Code's whole preset");
   const builtIn: readonly string[] = BUILTIN_TOOL_NAMES;
@@ -57,7 +57,7 @@ test("a Claude coordinator never drives the user's Chrome, while a thread under 
   const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }), remember: async () => ({ note: "" }), propose: async () => ({ note: "" }) };
   const optionsFor = async (coordinationRole: "coordinator" | "member") => {
     const capture: QueryCapture = {};
-    await new ClaudeAgentProvider(queryFactory([], capture)).execute(input({ coordinationRole, coordination, claude: { chromeBrowser: true } }));
+    await new ClaudeAgentProvider({ queryFactory: queryFactory([], capture) }).execute(input({ coordinationRole, coordination, claude: { chromeBrowser: true } }));
     return optionsOf(capture);
   };
   const lead = await optionsFor("coordinator");
@@ -175,7 +175,7 @@ test("a coordinator can read automations but not schedule, change, or stop one",
   assert.ok(automationToolNames({}).includes("schedule"));
 
   const capture: QueryCapture = {};
-  await new ClaudeAgentProvider(queryFactory([], capture)).execute(input({ coordinationRole: "coordinator", coordination, automations }));
+  await new ClaudeAgentProvider({ queryFactory: queryFactory([], capture) }).execute(input({ coordinationRole: "coordinator", coordination, automations }));
   assert.doesNotMatch(systemAppend(optionsOf(capture)), /This task can schedule itself/);
   assert.match(systemAppend(optionsOf(capture)), /You cannot schedule automations/);
 });

@@ -76,7 +76,7 @@ const threads = { list: async () => [], read: async () => null, wait: async () =
 /** The tools Claude would be offered for a run, by bare name, once its disallow list is applied. */
 async function claudeToolNames(run: ProviderRunInput) {
   const capture: QueryCapture = {};
-  await new ClaudeAgentProvider(queryFactory([], capture)).execute(run);
+  await new ClaudeAgentProvider({ queryFactory: queryFactory([], capture) }).execute(run);
   const options = capture.options?.options;
   assert.ok(options);
   const disallowed = new Set(options.disallowedTools ?? []);

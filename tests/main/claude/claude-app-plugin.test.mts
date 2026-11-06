@@ -31,14 +31,14 @@ test("the app's plugin rides every Claude session, and its skills are offered by
     assert.deepEqual(optionsOf(capture).plugins, [{ type: "local", path: "/app/resources/app-plugin" }]);
 
     const run: QueryCapture = {};
-    await new ClaudeAgentProvider(queryFactory([], run)).execute(input());
+    await new ClaudeAgentProvider({ queryFactory: queryFactory([], run) }).execute(input());
     assert.deepEqual(optionsOf(run).plugins, [{ type: "local", path: "/app/resources/app-plugin" }]);
   } finally {
     setAppPluginRoot(undefined);
   }
 
   const capture: QueryCapture = {};
-  await new ClaudeAgentProvider(queryFactory([], capture)).execute(input());
+  await new ClaudeAgentProvider({ queryFactory: queryFactory([], capture) }).execute(input());
   assert.equal(optionsOf(capture).plugins, undefined, "without a plugin root, Claude is offered no plugin at all");
 });
 

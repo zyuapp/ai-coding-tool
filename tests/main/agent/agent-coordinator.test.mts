@@ -317,7 +317,7 @@ test("write-path policy denies outside paths before creating an approval", async
 
 test("Claude subagent events reach correlated renderer state", async () => {
   let closed = false;
-  const provider = new ClaudeAgentProvider(() => ({
+  const provider = new ClaudeAgentProvider({ queryFactory: () => ({
     async *[Symbol.asyncIterator]() {
       yield { type: "system", subtype: "init", session_id: "session-1" };
       yield { type: "system", subtype: "task_started", task_id: "agent-1", tool_use_id: "parent-tool", subagent_type: "Explore", description: "Inspect the renderer" };
@@ -337,7 +337,7 @@ test("Claude subagent events reach correlated renderer state", async () => {
     close() {
       closed = true;
     },
-  }) as unknown as Query);
+  }) as unknown as Query });
   const events: AgentEvent[] = [];
   let resolveTerminal: (() => void) | undefined;
   const terminal = new Promise<void>((resolve) => { resolveTerminal = resolve; });

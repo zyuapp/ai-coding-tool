@@ -7,7 +7,7 @@ import { input, liveQueryFactory, turn, type LiveQueryCapture } from "../../supp
 test("Claude separates inherited history in the first question without an extra turn or resetting follow-ups", async () => {
   for (const fork of [false, true]) {
     const capture: LiveQueryCapture = { opens: 0, sent: [] };
-    const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+    const provider = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
     const prompt = "Why are those tests needed?";
     const continuation = { provider: "claude", value: "side-session" } as const;
     try {

@@ -2,6 +2,7 @@ import type { AvailableCommand } from "../../contracts/ipc.js";
 import { AGENT_ENGINES, engineNeedsAttention, type AgentEngine, type AgentModel, type EngineAccess, type EngineReadiness, type EngineStatus } from "../../domain/agent-engine.js";
 import type { PlanUsage } from "../../domain/plan-usage.js";
 import type { SubagentMetadata } from "../../domain/run.js";
+import { ENGINE_MODULES } from "./engines.mjs";
 
 type Workspace = { workspaceRoot: string; projectless: boolean };
 
@@ -21,40 +22,16 @@ export type EngineServices = {
   signIn?(openUrl: OpenUrl): Promise<EngineAccess>;
   /** Upgrades the installed command the way the user installed it. */
   update?(): Promise<void>;
+  /** Stops anything the engine started to answer these, as the app quits. */
+  close?(): Promise<void>;
 };
 
-export const engineServices: Record<AgentEngine, EngineServices> = {
-  claude: {
-    subagentMetadata: async (id, sessionId) => (await import("../claude/claude-subagent-metadata.mjs")).readClaudeSubagentMetadata(id, sessionId),
-    commands: async ({ workspaceRoot, projectless }) => (await import("../claude/claude-agent-provider.mjs")).discoverClaudeCommands(workspaceRoot, projectless),
-    suggestTitle: async (text, images) => (await import("../claude/claude-title-writer.mjs")).suggestTaskTitle(text, images),
-    planUsage: async () => (await import("../claude/claude-plan-usage.mjs")).readPlanUsage(),
-    readiness: async () => (await import("./engine-readiness.mjs")).readClaudeReadiness(),
-    update: async () => (await import("./engine-binary.mjs")).upgradeEngine("claude"),
-  },
-  codex: {
-    commands: async (workspace) => {
-      const { discoverCodexCommands } = await import("../codex/codex-skills.mjs");
-      return [
-        { name: "goal", description: "Set a goal — keep working until the condition is met", argumentHint: "condition" },
-        ...await discoverCodexCommands(workspace.workspaceRoot),
-      ];
-    },
-    suggestTitle: async (text, images) => (await import("../codex/codex-title-writer.mjs")).suggestCodexTitle(text, images),
-    planUsage: async () => (await import("../codex/codex-plan-usage.mjs")).readCodexPlanUsage(),
-    readiness: async () => (await import("./engine-readiness.mjs")).readCodexReadiness(),
-    update: async () => (await import("./engine-binary.mjs")).upgradeEngine("codex"),
-    signIn: async (openUrl) => (await import("../codex/codex-account.mjs")).signInToCodex(openUrl),
-    subagentMetadata: async (id) => (await import("../codex/codex-subagent-metadata.mjs")).readCodexSubagentMetadata(id),
-  },
-  opencode: {
-    commands: async ({ workspaceRoot }) => (await import("../opencode/opencode-services.mjs")).openCodeServices().commands(workspaceRoot),
-    suggestTitle: async (text, _images, model) => (await import("../opencode/opencode-services.mjs")).openCodeServices().title(text, model),
-    planUsage: async () => (await import("../opencode/opencode-services.mjs")).openCodeServices().planUsage(),
-    readiness: async () => (await import("../opencode/opencode-services.mjs")).readOpenCodeReadiness(),
-    update: async () => (await import("./engine-binary.mjs")).upgradeEngine("opencode"),
-  },
-};
+export const engineServices = Object.fromEntries(AGENT_ENGINES.map((engine) => [engine, ENGINE_MODULES[engine].services])) as Record<AgentEngine, EngineServices>;
+
+/** Stops whatever an engine keeps running to answer outside a run. */
+export async function closeEngineServices() {
+  await Promise.all(AGENT_ENGINES.map((engine) => engineServices[engine].close?.()));
+}
 
 /** Reads the user's shell again, so a command installed after the app started is on the search path. */
 async function readSearchPathAgain() {

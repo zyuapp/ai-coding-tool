@@ -10,6 +10,7 @@ const ready = { claude: { access: "ready" }, codex: { access: "ready" } };
 const services = { commands: async () => [], suggestTitle: async () => null, planUsage: async () => ({ status: "unavailable", message: "Not in a test." }) };
 export const engineServices = { claude: services, codex: services };
 export class EngineAccessHost { async read() { return ready; } async signIn() { return ready; } }
+export async function closeEngineServices() {}
 `;
 
 /** The desktop main hands its runtime, kept where a test can call it as the runtime does. */

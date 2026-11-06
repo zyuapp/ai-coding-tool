@@ -1,11 +1,8 @@
 import { isAutomationResponse, isInternalRunCommand, isThreadResponse, type AgentEvent, type AutomationRequest, type InternalRunCommand } from "../contracts/ipc.js";
 import type { ThreadRequest } from "../contracts/threads.js";
-import { ClaudeAgentProvider } from "./claude/claude-agent-provider.mjs";
 import { AutomationChannel } from "./agent/automation-channel.mjs";
 import { EngineRouter } from "./agent/engine-router.mjs";
-import { CodexAgentProvider } from "./codex/codex-agent-provider.mjs";
-import { OpenCodeAgentProvider } from "./opencode/opencode-agent-provider.mjs";
-import { codexImageOutput } from "./codex/codex-images.mjs";
+import { engineProviders } from "./agent/engines.mjs";
 import { SessionPool } from "./agent/session-pool.mjs";
 import { ThreadChannel } from "./agent/thread-channel.mjs";
 import { RunCoordinator } from "./agent/run-coordinator.mjs";
@@ -36,19 +33,16 @@ const coordinatorOptions = {
   terminal: (taskId: string) => threads.terminalFor(taskId),
 };
 setAppPluginRoot(process.argv[3] || undefined);
-/** One tool service for the whole worker; every Codex session gets a token of its own on it. */
+/** One tool service for the whole worker; every session that reaches it over HTTP gets a token of its own. */
 const toolHost = new McpHttpHost();
 /** A channel's engines share one pool, so the warm sessions of a channel are capped together. */
 const pools: SessionPool[] = [];
-const engines = () => {
+const engines = async () => {
   const pool = new SessionPool();
   pools.push(pool);
-  return new EngineRouter({ claude: new ClaudeAgentProvider(undefined, pool), codex: new CodexAgentProvider({
-    host: toolHost, pool,
-    imageOutput: (item, root) => codexImageOutput(item, root, process.argv[2]),
-  }), opencode: new OpenCodeAgentProvider({ host: toolHost, pool }) });
+  return new EngineRouter(await engineProviders({ host: toolHost, pool, generatedImages: process.argv[2] }));
 };
-const providers = { main: engines(), side: engines() };
+const providers = { main: await engines(), side: await engines() };
 const coordinators = {
   main: new RunCoordinator(providers.main, (event) => parentPort.postMessage(event), coordinatorOptions),
   side: new RunCoordinator(providers.side, (event) => parentPort.postMessage(event), coordinatorOptions),

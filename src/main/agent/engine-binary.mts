@@ -4,6 +4,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { AgentEngine } from "../../domain/agent-engine.js";
 import { readVersion } from "../../domain/engine-version.js";
+import { ENGINE_MODULES } from "./engines.mjs";
 
 const run = promisify(execFile);
 
@@ -17,28 +18,6 @@ const UPGRADE_TIMEOUT_MS = 10 * 60_000;
 const LATEST_TTL_MS = 60 * 60_000;
 const LATEST_TIMEOUT_MS = 4_000;
 const HOMEBREW_INFO_TIMEOUT_MS = 10_000;
-
-/** The command each engine is installed as, the npm package it is published as, and how to install it. */
-const ENGINE_COMMANDS: Record<AgentEngine, { command: string; packageName: string; install: string; isNative: (realPath: string) => boolean }> = {
-  claude: {
-    command: "claude",
-    packageName: "@anthropic-ai/claude-code",
-    install: "curl -fsSL https://claude.ai/install.sh | bash",
-    isNative: (realPath) => realPath.endsWith("/.local/bin/claude") || realPath.includes("/.local/share/claude/"),
-  },
-  codex: {
-    command: "codex",
-    packageName: "@openai/codex",
-    install: "brew install --cask codex",
-    isNative: (realPath) => realPath.includes("/packages/standalone/"),
-  },
-  opencode: {
-    command: "opencode",
-    packageName: "@opencode/cli",
-    install: "curl -fsSL https://opencode.ai/v2/install | bash",
-    isNative: (realPath) => realPath.includes("/.opencode/bin/"),
-  },
-};
 
 function isExecutable(candidate: string) {
   try {
@@ -55,7 +34,7 @@ function isExecutable(candidate: string) {
  * would get by typing the name.
  */
 export function engineBinaryPath(engine: AgentEngine): string | undefined {
-  const { command } = ENGINE_COMMANDS[engine];
+  const { command } = ENGINE_MODULES[engine].binary;
   for (const folder of (process.env.PATH ?? "").split(path.delimiter)) {
     if (!folder) continue;
     const candidate = path.join(folder, command);
@@ -119,7 +98,7 @@ function besideOrOnPath(prefix: string, tool: string) {
  * does not place inside a package manager or a version manager.
  */
 function updaterFor(engine: AgentEngine, binaryPath: string, realPath: string): EngineUpdater | null {
-  const { command, packageName, isNative } = ENGINE_COMMANDS[engine];
+  const { command, packageName, isNative } = ENGINE_MODULES[engine].binary;
   const native = { command: `${command} update`, file: binaryPath, args: ["update"] };
   /** A mise launcher can sit where the native install would, so it is ruled out first. */
   if (isMiseLauncher(realPath)) return null;
@@ -164,7 +143,7 @@ export async function installedEngine(engine: AgentEngine): Promise<InstalledEng
 
 /** What to tell a user who has no such command at all. */
 export function installCommand(engine: AgentEngine): string {
-  return ENGINE_COMMANDS[engine].install;
+  return ENGINE_MODULES[engine].binary.install;
 }
 
 const STABLE_VERSION = /^\d+\.\d+\.\d+$/;
@@ -204,7 +183,7 @@ async function homebrewLatest(keg: HomebrewKeg): Promise<string | null> {
 export function latestEngineVersion(engine: AgentEngine, installed: InstalledEngine): Promise<string | null> {
   const { keg } = installed;
   if (keg) return cachedLatest(`brew:${keg.name}`, () => homebrewLatest(keg));
-  const { packageName } = ENGINE_COMMANDS[engine];
+  const { packageName } = ENGINE_MODULES[engine].binary;
   return cachedLatest(`npm:${packageName}`, () => npmLatest(packageName));
 }
 
@@ -214,7 +193,7 @@ export function latestEngineVersion(engine: AgentEngine, installed: InstalledEng
  */
 export async function upgradeEngine(engine: AgentEngine): Promise<void> {
   const installed = await installedEngine(engine);
-  if (!installed) throw new Error(`${ENGINE_COMMANDS[engine].command} is not installed.`);
+  if (!installed) throw new Error(`${ENGINE_MODULES[engine].binary.command} is not installed.`);
   if (!installed.update) throw new Error("The app cannot tell how it was installed. Update it the way you installed it.");
   try {
     await run(installed.update.file, installed.update.args, { timeout: UPGRADE_TIMEOUT_MS });

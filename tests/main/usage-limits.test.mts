@@ -10,7 +10,7 @@ const at = { threadId: "thread-1", turnId: "turn-1" };
 test("a turn the plan's usage limit stops says when the limit lifts, and extra usage is no limit", async () => {
   const rejected = (info: Record<string, unknown>) => ({ type: "rate_limit_event", uuid: "limit-1", session_id: "session-1", rate_limit_info: { status: "rejected", resetsAt: 1_900_000_000, ...info } });
   const failed = { type: "result", subtype: "success", is_error: true, result: "You've hit your limit" };
-  const run = (messages: unknown[]) => new ClaudeAgentProvider(queryFactory(messages as SDKMessage[])).execute(claudeInput());
+  const run = (messages: unknown[]) => new ClaudeAgentProvider({ queryFactory: queryFactory(messages as SDKMessage[]) }).execute(claudeInput());
   assert.deepEqual(await run([rejected({ rateLimitType: "five_hour" }), failed]), { status: "failed", message: "You've hit your limit", limit: { resetsAt: 1_900_000_000_000, window: "session" } });
   assert.deepEqual(await run([rejected({ rateLimitType: "seven_day" }), failed]), { status: "failed", message: "You've hit your limit", limit: { resetsAt: 1_900_000_000_000, window: "weekly" } });
   assert.deepEqual(await run([rejected({ rateLimitType: "five_hour", overageStatus: "allowed" }), failed]), { status: "failed", message: "You've hit your limit" });
@@ -20,7 +20,7 @@ test("a turn the plan's usage limit stops says when the limit lifts, and extra u
 test("the limit's synthetic reply is left to the run's failure rather than written as an answer", async () => {
   const synthetic = { type: "assistant", uuid: "reply-1", parent_tool_use_id: null, error: "rate_limit", message: { id: "reply-1", model: "<synthetic>", content: [{ type: "text", text: "You've hit your limit" }] } };
   const emitted: string[] = [];
-  await new ClaudeAgentProvider(queryFactory([synthetic] as SDKMessage[])).execute(claudeInput({ emit: (event) => emitted.push(event.type) }));
+  await new ClaudeAgentProvider({ queryFactory: queryFactory([synthetic] as SDKMessage[]) }).execute(claudeInput({ emit: (event) => emitted.push(event.type) }));
   assert.equal(emitted.includes("assistant"), false);
 });
 

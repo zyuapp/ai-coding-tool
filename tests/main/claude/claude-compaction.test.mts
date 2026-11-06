@@ -6,7 +6,7 @@ import { input, liveQueryFactory, turn, type LiveQueryCapture } from "../../supp
 
 test("compacting a Claude thread sends Claude Code's own command instead of the run's prompt", async () => {
   const capture: LiveQueryCapture = { opens: 0, sent: [] };
-  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
   const continuation = { provider: "claude", value: "session-1" } as const;
   const emitted: ProviderEvent[] = [];
   const compacted = await turn(capture, provider.execute(input({ continuation, prompt: "", operation: { type: "compact", preTokens: 400_000 }, emit: (event) => emitted.push(event) })),

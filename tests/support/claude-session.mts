@@ -113,7 +113,7 @@ export function liveQueryFactory(capture: LiveQueryCapture = { opens: 0, sent: [
 /** Opens a live session and holds its turn, so the tool gate can be asked the way the agent process asks it. */
 export async function liveTurn(overrides: Partial<ProviderRunInput> = {}) {
   const capture: LiveQueryCapture = { opens: 0, sent: [] };
-  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
   const running = provider.execute(input(overrides));
   await tick();
   const options = capture.options?.options;

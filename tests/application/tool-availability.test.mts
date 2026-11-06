@@ -57,7 +57,7 @@ test("a stored choice survives the store loading", () => {
 
 test("a run with computer use unavailable is told nothing about operating other applications", async () => {
   const capture: QueryCapture = {};
-  await new ClaudeAgentProvider(queryFactory([], capture)).execute(input({ computerUse: { status: "unavailable", message: "Computer use is turned off in Settings." } }));
+  await new ClaudeAgentProvider({ queryFactory: queryFactory([], capture) }).execute(input({ computerUse: { status: "unavailable", message: "Computer use is turned off in Settings." } }));
   assert.equal(capture.options?.options?.mcpServers, undefined);
   assert.doesNotMatch(systemAppend(capture), /Never invoke a separately installed cua-driver through Bash/);
 });

@@ -26,7 +26,7 @@ test("each model response is counted once, subagents included", async () => {
     parent_tool_use_id: parent,
     event: { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { input_tokens: null, cache_creation_input_tokens: null, cache_read_input_tokens: null, ...read, output_tokens: output } },
   });
-  const provider = new ClaudeAgentProvider(queryFactory([
+  const provider = new ClaudeAgentProvider({ queryFactory: queryFactory([
     start("response-1", "claude-sonnet", opened),
     start("child-response", "claude-haiku", childOpened, "launch"),
     block("response-1", "claude-sonnet", opened),
@@ -36,7 +36,7 @@ test("each model response is counted once, subagents included", async () => {
     delta(40),
     block("response-2", "<synthetic>", { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 }),
     { type: "result", subtype: "success", is_error: false, result: "done" },
-  ]));
+  ]) });
 
   assert.deepEqual(await provider.execute(input({ emit: (event) => emitted.push(event) })), { status: "succeeded" });
   assert.deepEqual(emitted.filter((event) => event.type === "spend"), [
@@ -51,7 +51,7 @@ test("a workflow's spend is what its running total grew by while a run was attac
   const emitted: ProviderEvent[] = [];
   const emit = (event: ProviderEvent) => { emitted.push(event); };
   const capture: LiveQueryCapture = { opens: 0, sent: [] };
-  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
   const progress = (total: number) => ({ type: "system", subtype: "task_progress", task_id: "workflow-1", description: "Review", usage: { total_tokens: total, tool_uses: 0, duration_ms: 0 } });
 
   await turn(capture, provider.execute(input({ emit })),

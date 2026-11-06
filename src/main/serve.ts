@@ -202,6 +202,7 @@ export async function startServe(options: { userData: string; packaged: boolean;
       scheduler?.stop();
       runs.clearPendingStarts();
       runs.killAgent();
+      await (await import("./agent/engine-services.mjs")).closeEngineServices().catch(() => undefined);
       await stopPairingSocket().catch(() => undefined);
       await mobile.stopMobileHost();
       await publisher.flush().catch(() => undefined);

@@ -15,7 +15,7 @@ const running = (type: string, ...ids: string[]) => ({
 
 test("only background tasks that are processes of their own are reported, and the whole set each time", async () => {
   const reported: BackgroundReport[] = [];
-  const provider = new ClaudeAgentProvider(queryFactory([
+  const provider = new ClaudeAgentProvider({ queryFactory: queryFactory([
     {
       type: "system",
       subtype: "background_tasks_changed",
@@ -27,7 +27,7 @@ test("only background tasks that are processes of their own are reported, and th
     },
     running("local_bash", "bash-1"),
     { type: "result", subtype: "success", is_error: false, result: "done" },
-  ]));
+  ]) });
 
   await provider.execute(input({ reportBackground: (report) => reported.push(report) }));
   assert.deepEqual(reported.map((report) => report.processes), [
@@ -40,7 +40,7 @@ test("only background tasks that are processes of their own are reported, and th
 
 test("a background process keeps reporting between the turns of the session it runs under", async () => {
   const capture = liveCapture();
-  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
   const reported: BackgroundReport[] = [];
   const reportBackground = (report: BackgroundReport) => { reported.push(report); };
   const ids = () => reported.at(-1)?.processes.map((process) => process.id);

@@ -48,7 +48,7 @@ test("a stored setting survives the store loading", () => {
 
 test("a run the setting is on for enables the integration and says which browser the user means", async () => {
   const capture: QueryCapture = {};
-  const provider = new ClaudeAgentProvider(queryFactory([], capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: queryFactory([], capture) });
   await provider.execute(input({ claude: { chromeBrowser: true } }));
   assert.deepEqual(capture.options?.options?.extraArgs, { chrome: null });
   assert.match(systemAppend(capture.options), /mcp__claude-in-chrome__/);
@@ -56,7 +56,7 @@ test("a run the setting is on for enables the integration and says which browser
 
 test("a run the setting is off for leaves the user's own Chrome alone", async () => {
   const capture: QueryCapture = {};
-  const provider = new ClaudeAgentProvider(queryFactory([], capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: queryFactory([], capture) });
   await provider.execute(input({}));
   assert.equal(capture.options?.options?.extraArgs, undefined);
   assert.doesNotMatch(systemAppend(capture.options), /mcp__claude-in-chrome__/);
@@ -64,7 +64,7 @@ test("a run the setting is off for leaves the user's own Chrome alone", async ()
 
 test("turning the setting on gives the thread a session of its own rather than reusing the warm one", async () => {
   const capture: PoolCapture = { sessions: [] };
-  const provider = new ClaudeAgentProvider(poolQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: poolQueryFactory(capture) });
 
   await poolTurn(provider, capture, {});
   await poolTurn(provider, capture, {});

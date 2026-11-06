@@ -20,7 +20,7 @@ function workspace(overrides: Partial<WorkspaceState> = {}): WorkspaceState {
 
 test("what the agent says between runs opens a turn of its own", async () => {
   const capture: LiveQueryCapture = { opens: 0, sent: [] };
-  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
   const emitted: ProviderEvent[] = [];
   const turns: ProviderResult[] = [];
   const agentTurn = {
@@ -42,7 +42,7 @@ test("what the agent says between runs opens a turn of its own", async () => {
 
 test("a session that has ended opens no turn for a message the agent had already sent", async () => {
   const capture: LiveQueryCapture = { opens: 0, sent: [] };
-  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
   let opened = 0;
   const agentTurn = { emit: () => {}, authorize: async () => "allow", steering: { next: async () => null }, end: () => {} } satisfies AgentTurn;
 
@@ -101,7 +101,7 @@ test("a turn the agent starts itself is taken on by the thread, and read there",
 test("a session built for a role the thread no longer has goes, its work with it, and one for the role it has stays", async () => {
   const capture: LiveQueryCapture = { opens: 0, sent: [] };
   const events: AgentEvent[] = [];
-  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const provider = new ClaudeAgentProvider({ queryFactory: liveQueryFactory(capture) });
   const coordinator = new RunCoordinator(provider, (event) => events.push(event));
   const start: InternalStartRunCommand = {
     type: "start", channel: "main", taskId: "task-r", title: "Do the work", runId: "run-r", prompt: "do the work", workspaceId: "workspace-test",

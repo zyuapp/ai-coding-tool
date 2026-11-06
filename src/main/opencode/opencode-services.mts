@@ -122,6 +122,11 @@ export function openCodeServices() {
   return shared ??= new OpenCodeServices();
 }
 
+/** Stops the services server, when one was ever made. */
+export async function closeOpenCodeServices() {
+  await shared?.close();
+}
+
 /**
  * OpenCode serves a version of its API; the app speaks 2.x, so a 1.x install is too old however it
  * was installed. A ready install names the models its connected providers offer.

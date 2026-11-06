@@ -19,7 +19,7 @@ test("every Claude process names this app in place of an inherited name and keep
     await discoverClaudeModels(factory);
     await suggestTaskTitle("name this", [], factory);
     await readPlanUsage(factory);
-    await new ClaudeAgentProvider(factory).execute(input({}));
+    await new ClaudeAgentProvider({ queryFactory: factory }).execute(input({}));
 
     assert.equal(seen.length, 5);
     for (const env of seen) {
