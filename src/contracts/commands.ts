@@ -114,8 +114,11 @@ export type TaskCommand =
   | { type: "task.reopen"; taskId: string }
   /** Answers a choice a thread put to the user. The answer reaches that thread as a message. */
   | { type: "decision.answer"; taskId: string; decisionId: string; answer: string }
-  /** What a coordinator's new threads run on unless it names another. An effort the model lacks moves to the nearest it takes. */
-  | { type: "coordination.set-thread-model"; taskId: string; model: AgentModel; effort?: AgentEffort }
+  /**
+   * What a coordinator's new threads run on unless it names another. An effort the model lacks moves to
+   * the nearest it takes. An older computer names no engine, so the model's is read from the catalogue.
+   */
+  | { type: "coordination.set-thread-model"; taskId: string; engine?: AgentEngine; model: AgentModel; effort?: AgentEffort }
   /** Keeps every desktop notice from a coordinator and its threads back, or lets them through again. */
   | { type: "coordination.set-muted"; taskId: string; muted: boolean }
   /** Stops a coordinator and every thread under it, none of which wakes it to carry on. */
@@ -189,7 +192,7 @@ export type TaskCommand =
    * always starts a new task, in `project` — its folder name, its path, or its id. `worktree` starts
    * that new task in a checkout of its own; `worktreeId` starts it in one the project already has,
    * and names the project itself, so a `project` that disagrees with it is refused. Naming one takes
-   * precedence over asking for a new one. `model`, `effort` and `role` apply only to a new task and leave
+   * precedence over asking for a new one. `model`, the `engine` it runs on, `effort` and `role` apply only to a new task and leave
    * the shared draft settings alone, as do `coordinatorId`, which starts it under that coordinator, and
    * the `brief` it is handed, and `title`, which names it in place of a title written from its first
    * message. `from` names the thread that sent the message, which both the agent and the user are
@@ -197,7 +200,7 @@ export type TaskCommand =
    * keeps as the thread reads it; a lead naming a suggestion of its already started here names that
    * thread back instead.
    */
-  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort; role?: ThreadRole; coordinatorId?: string; brief?: ThreadBrief; title?: string; from?: string; sender?: RemoteSender; lead?: RemoteLead; memory?: string }
+  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; engine?: AgentEngine; effort?: AgentEffort; role?: ThreadRole; coordinatorId?: string; brief?: ThreadBrief; title?: string; from?: string; sender?: RemoteSender; lead?: RemoteLead; memory?: string }
   /**
    * Sends the composer's message with the images in its strip, which are written out to disk first:
    * the run is started only once they are all there, and a failure to write one stops the send.

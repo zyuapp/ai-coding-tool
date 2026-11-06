@@ -403,6 +403,21 @@ test("a thread named at its start keeps that name on a paired computer, and one 
   assert.equal(older.linux.state().threads.find((item) => item.id === started?.id)?.title, "Run the GPU tests");
 });
 
+test("a start names the engine its model runs on to a paired computer whose build takes one, and leaves it for an older one to read from the model", async () => {
+  const { host, linux } = pair();
+  await answer<ThreadCommandResult>(host, command({ type: "task.send", text: "Run the GPU tests", model: "sonnet" }, "Linux"));
+  const sent = linux.inputs.find((input) => input.type === "task.send");
+  assert.ok(sent?.type === "task.send");
+  assert.deepEqual([sent.engine, sent.model], ["claude", "sonnet"]);
+
+  const older = pair({ capabilities: COMPUTER_CAPABILITIES.filter((name) => name !== "command:task.send:engine") });
+  const { thread } = await answer<ThreadCommandResult>(older.host, command({ type: "task.send", text: "Run the GPU tests", model: "sonnet" }, "Linux"));
+  const unnamed = older.linux.inputs.find((input) => input.type === "task.send");
+  assert.ok(unnamed?.type === "task.send");
+  assert.equal("engine" in unnamed, false, "the start goes without the engine rather than being refused");
+  assert.equal(older.linux.state().threads.find((item) => item.id === thread?.id)?.model, "sonnet");
+});
+
 test("a computer whose build predates signed messages refuses them rather than passing them off as the user's", async () => {
   for (const capabilities of [COMPUTER_CAPABILITIES.filter((name) => name !== "command:task.send:sender"), undefined]) {
     const { host, linux } = pair({ capabilities });

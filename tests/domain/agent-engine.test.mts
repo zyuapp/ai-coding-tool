@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { BUILT_IN_MODELS, capabilitiesFor, catalogHasModel, contextWindowLimit, defaultEffortFor, defaultModelFor, effortForModel, effortsFor, engineCatalog, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isModelId, modelDelegable, modelEngine, modelLabel, modelSupportsManualCompaction, modelTakesEffort, modelsFor, type AgentEngine, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.js";
+import { BUILT_IN_MODELS, capabilitiesFor, catalogHasModel, contextWindowLimit, defaultEffortFor, defaultModelFor, effortForModel, effortsFor, engineCatalog, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isModelId, modelDelegable, modelEngine, modelLabel, modelSupportsManualCompaction, modelTakesEffort, modelsFor, resolveModel, type AgentEngine, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.js";
 
 const catalog = BUILT_IN_MODELS;
 
@@ -12,7 +12,7 @@ test("every engine defaults to a model and an effort it offers", () => {
     assert.ok(engineHasModel(catalog, engine, defaultModelFor(engine)!));
     assert.ok(engineHasEffort(catalog, engine, defaultEffortFor(engine)));
     for (const model of modelsFor(catalog, engine)) {
-      for (const spec of effortsFor(catalog, model.id)) assert.ok(isAgentEffort(spec.id));
+      for (const spec of effortsFor(catalog, engine, model.id)) assert.ok(isAgentEffort(spec.id));
     }
   }
 });
@@ -85,15 +85,15 @@ test("an engine that names its own models replaces only its own list", () => {
   assert.equal(modelEngine(own, "gpt-6.1-sol"), undefined);
   assert.equal(engineHasModel(own, "codex", "openai/gpt-9"), true);
   assert.equal(engineHasModel(own, "claude", "openai/gpt-9"), false);
-  assert.equal(modelLabel(own, "openai/gpt-9"), "GPT-9");
-  assert.equal(modelLabel(own, "gpt-6.1-sol"), "gpt-6.1-sol");
+  assert.equal(modelLabel(own, "codex", "openai/gpt-9"), "GPT-9");
+  assert.equal(modelLabel(own, "codex", "gpt-6.1-sol"), "gpt-6.1-sol");
   assert.equal(contextWindowLimit(own, "codex", "openai/gpt-9"), 400_000);
   assert.equal(modelSupportsManualCompaction(own, "codex", "openai/gpt-9"), true);
   assert.equal(modelSupportsManualCompaction(own, "codex", "local/tiny"), false);
-  assert.equal(modelDelegable(own, "local/tiny"), false);
-  assert.equal(modelTakesEffort(own, "local/tiny"), false);
-  assert.equal(effortForModel(own, "openai/gpt-9", "max"), "high");
-  assert.equal(effortForModel(own, "openai/gpt-9", "medium"), "low");
+  assert.equal(modelDelegable(own, "codex", "local/tiny"), false);
+  assert.equal(modelTakesEffort(own, "codex", "local/tiny"), false);
+  assert.equal(effortForModel(own, "codex", "openai/gpt-9", "max"), "high");
+  assert.equal(effortForModel(own, "codex", "openai/gpt-9", "medium"), "low");
   assert.equal(engineHasEffort(own, "codex", "ultra"), false);
 });
 
@@ -103,11 +103,22 @@ test("a status's catalogue is built once, so pickers read a stable one", () => {
   assert.notEqual(engineCatalog({ ...status }), engineCatalog(status));
 });
 
-test("a model two engines name belongs to the one listed first, which alone lists it", () => {
-  const own = engineCatalog({ codex: { access: "ready", catalog: [{ ...named[0]!, id: "opus" }, named[0]!, { ...named[0]!, label: "Again" }] } });
-  assert.equal(modelEngine(own, "opus"), "claude");
-  assert.equal(engineHasModel(own, "codex", "opus"), false);
-  assert.deepEqual(modelsFor(own, "codex").map((spec) => spec.label), ["GPT-9"], "and an id named twice by one engine is listed once");
+test("a model two engines name is each one's own, listed and run where it was picked", () => {
+  const gateway: ModelSpec = { ...named[0]!, id: "opus", label: "Gateway Opus", contextWindow: 64_000, efforts: [low], delegable: false };
+  const own = engineCatalog({ codex: { access: "ready", catalog: [gateway, named[0]!, { ...named[0]!, label: "Again" }] } });
+  assert.deepEqual(modelsFor(own, "codex").map((spec) => spec.label), ["Gateway Opus", "GPT-9"], "an id named twice by one engine is listed once");
+  assert.ok(modelsFor(own, "claude").some((spec) => spec.id === "opus"), "and the engine listed first keeps its own");
+  assert.equal(engineHasModel(own, "claude", "opus"), true);
+  assert.equal(engineHasModel(own, "codex", "opus"), true);
+  assert.deepEqual([modelLabel(own, "claude", "opus"), modelLabel(own, "codex", "opus")], ["Opus", "Gateway Opus"]);
+  assert.deepEqual([contextWindowLimit(own, "claude", "opus"), contextWindowLimit(own, "codex", "opus")], [1_000_000, 64_000]);
+  assert.deepEqual([modelDelegable(own, "claude", "opus"), modelDelegable(own, "codex", "opus")], [true, false]);
+  assert.deepEqual([effortForModel(own, "claude", "opus", "max"), effortForModel(own, "codex", "opus", "max")], ["max", "low"]);
+  assert.equal(modelEngine(own, "opus"), "claude", "a model named without its engine reads as the first engine's, as it did when ids were unique");
+  assert.equal(modelEngine(own, "opus", "codex"), "codex");
+  assert.deepEqual(resolveModel(own, "opus", [], "codex"), { engine: "codex", model: "opus" });
+  assert.deepEqual(resolveModel(own, "opus", ["opus"]), { error: "opus could mean opus on Claude, opus on Codex. Name the engine as well." }, "pinning an id cannot tell two engines apart");
+  assert.deepEqual(resolveModel(own, "gpt-6.1-sol", [], "codex"), { error: "Codex here does not offer the gpt-6.1-sol model. Pick another model." });
 });
 
 test("a spec this build cannot read is left out rather than breaking the catalogue", () => {

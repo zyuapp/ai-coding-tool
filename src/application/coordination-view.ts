@@ -5,7 +5,7 @@ import { ledStartRefusal, threadHostOf, type PairedComputer, type ThreadHost } f
 import { checkoutAnswer, coordinatedThreadStatus, coordinationMembers, GROUP_OF, memberActivity, nextSteps, ownPullRequest, waitingLine, type CoordinatedThreadStanding, type CoordinationMember, type OwnPullRequest } from "./coordination.js";
 import { coordinationDecisions, coordinatorOf, isCoordinator, openDecisions, remoteLeadOf, threadModelOf, waitingOnUser, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadModelChoice, type ThreadProposal, type WaitingOnUser } from "../domain/coordination.js";
 import { threadCreatedAt, type Thread } from "../domain/thread.js";
-import { currentModel } from "../domain/agent-engine.js";
+import { currentModel, type AgentEngine } from "../domain/agent-engine.js";
 import { catalogOf } from "./engine-access.js";
 import type { Project } from "../domain/project.js";
 
@@ -56,8 +56,8 @@ export type CoordinatorMemoryView = {
 export type CoordinationUsage = {
   total: number;
   coordinator: number;
-  /** Each spend under the name its model now goes by; a thread on a paired computer may name one this build does not know. */
-  byModel: readonly { model: string; tokens: number }[];
+  /** Each spend under the engine and the name its model now goes by; a thread on a paired computer may name one this build does not know. */
+  byModel: readonly { engine: AgentEngine; model: string; tokens: number }[];
   /** The threads under it that spent anything; the coordinator's own share is `coordinator`. */
   byThread: readonly { thread: Thread; computer: PairedComputer | null; tokens: number }[];
 };
@@ -67,12 +67,15 @@ export type CoordinationUsage = {
  * has spent anything. Threads archived out from under it no longer count.
  */
 export function coordinationUsage(members: readonly CoordinationMember[], lead: Thread): CoordinationUsage | null {
-  const byModel = new Map<string, number>();
+  const byModel = new Map<string, { engine: AgentEngine; model: string; tokens: number }>();
   const spent = (thread: Thread) => {
     let tokens = 0;
     for (const [recorded, count] of Object.entries(thread.usage ?? {}) as [string, number][]) {
       const model = currentModel(recorded) as string;
-      byModel.set(model, (byModel.get(model) ?? 0) + count);
+      const key = `${thread.engine}\u0000${model}`;
+      const entry = byModel.get(key);
+      if (entry) entry.tokens += count;
+      else byModel.set(key, { engine: thread.engine, model, tokens: count });
       tokens += count;
     }
     return tokens;
@@ -84,7 +87,7 @@ export function coordinationUsage(members: readonly CoordinationMember[], lead: 
   });
   const total = byThread.reduce((sum, { tokens }) => sum + tokens, coordinator);
   if (!total) return null;
-  return { total, coordinator, byModel: mostFirst([...byModel].flatMap(([model, tokens]) => tokens ? [{ model, tokens }] : [])), byThread: mostFirst(byThread) };
+  return { total, coordinator, byModel: mostFirst([...byModel.values()].filter(({ tokens }) => tokens)), byThread: mostFirst(byThread) };
 }
 
 function mostFirst<Entry extends { tokens: number }>(entries: Entry[]): Entry[] {
@@ -98,7 +101,7 @@ function mostFirst<Entry extends { tokens: number }>(entries: Entry[]): Entry[] 
 function sameUsage(before: CoordinationUsage | null | undefined, next: CoordinationUsage | null): CoordinationUsage | null {
   if (!before || !next) return next;
   const same = before.total === next.total && before.coordinator === next.coordinator
-    && before.byModel.length === next.byModel.length && before.byModel.every((entry, index) => entry.model === next.byModel[index]!.model && entry.tokens === next.byModel[index]!.tokens)
+    && before.byModel.length === next.byModel.length && before.byModel.every((entry, index) => entry.engine === next.byModel[index]!.engine && entry.model === next.byModel[index]!.model && entry.tokens === next.byModel[index]!.tokens)
     && before.byThread.length === next.byThread.length && before.byThread.every((entry, index) => {
       const other = next.byThread[index]!;
       return entry.thread.id === other.thread.id && entry.thread.title === other.thread.title && entry.computer === other.computer && entry.tokens === other.tokens;

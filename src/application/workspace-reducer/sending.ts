@@ -98,7 +98,8 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
       }
       /** The run goes to the model the thread, the caller, or the draft names, which its engine must offer here. */
       const catalog = catalogOf(state);
-      const runEngine = thread?.engine ?? (input.model === undefined ? state.draftEngine : modelEngine(catalog, input.model));
+      /** An older computer names a model without its engine, so the catalogue says which one it means. */
+      const runEngine = thread?.engine ?? (input.model === undefined ? state.draftEngine : input.engine ?? modelEngine(catalog, input.model));
       const runModel = thread ? threadModel(catalog, thread) : input.model ?? state.draftModel;
       if (runModel === undefined) return refuse(noModel(thread?.engine ?? state.draftEngine));
       if (!runEngine || !engineOffersModel(state, runEngine, runModel)) return refuse(unknownModel(runModel));
@@ -149,7 +150,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
         ...(thread ? { taskId: thread.id } : {}),
         ...(project ? { projectId: project.id } : {}),
         ...(namedWorktree ? { worktreeId: namedWorktree.id } : {}),
-        ...(thread || input.model === undefined ? {} : { model: input.model }),
+        ...(thread || input.model === undefined ? {} : { model: input.model, engine: runEngine }),
         ...(thread || input.effort === undefined ? {} : { effort: input.effort }),
         ...(role ? { role } : {}),
         ...(thread || input.title === undefined ? {} : { title: input.title }),

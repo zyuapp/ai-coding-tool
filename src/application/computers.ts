@@ -175,7 +175,7 @@ function forwardedSend(state: WorkspaceState, computer: PairedComputer, command:
   const aimed = command.taskId ?? (command.type === "task.send" && command.text !== undefined ? undefined : promptKey(remote));
   const engine = remote.threads.find((thread) => thread.id === aimed)?.engine;
   if (engine !== undefined && !isAgentEngine(engine)) return { kind: "refuse", message: unopenableEngine(engine) };
-  const { attachments: _attachments, ...rest } = command.type === "task.send" ? titledFor(computer, command) : command;
+  const { attachments: _attachments, ...rest } = command.type === "task.send" ? sendFor(computer, command) : command;
   if (rest.type === "task.send" && rest.text !== undefined) return forwarded(computer, [rest]);
   /** The thread the send is for: the one named, else the one that computer has open, else its draft. */
   const key = command.taskId ?? promptKey(remote);
@@ -207,9 +207,14 @@ type Route<C extends AppCommand> = (state: WorkspaceState, input: C, active: Pai
 /**
  * A command as the computer holding its thread can take it: a list of suggestions to start or turn
  * down goes to a build that takes them only one at a time as one command each, which is what Start
- * all and Dismiss all sent before they named the list.
+ * all and Dismiss all sent before they named the list, and a model goes without its engine to a
+ * build that reads the engine from the model.
  */
 function asHolderTakes(holder: PairedComputer, input: AppCommand): WorkspaceInput[] {
+  if (input.type === "coordination.set-thread-model" && input.engine !== undefined && !supportsComputerCommand(holder.capabilities, input)) {
+    const { engine: _engine, ...named } = input;
+    return [named];
+  }
   if ((input.type !== "proposal.start" && input.type !== "proposal.dismiss") || !input.proposalIds || supportsComputerCommand(holder.capabilities, input)) return [input];
   const { proposalIds, ...one } = input;
   return proposalIds.map((proposalId) => ({ ...one, proposalId }));
@@ -284,12 +289,13 @@ export function ledStartRefusal(computer: PairedComputer | undefined): string | 
 
 /**
  * A new thread's name is only a name: a paired computer whose build cannot take one names the
- * thread itself, as its own starts are named, rather than refusing the start over it.
+ * thread itself, as its own starts are named, rather than refusing the start over it. One that
+ * cannot take the engine a model runs on reads it from the model, as it always has.
  */
-export function titledFor(computer: PairedComputer, send: Extract<AppCommand, { type: "task.send" }>): Extract<AppCommand, { type: "task.send" }> {
-  if (send.title === undefined || supportsComputerCommand(computer.capabilities, { type: "task.send", title: send.title })) return send;
-  const { title: _title, ...untitled } = send;
-  return untitled;
+export function sendFor(computer: PairedComputer, send: Extract<AppCommand, { type: "task.send" }>): Extract<AppCommand, { type: "task.send" }> {
+  const { title, engine, ...rest } = send;
+  const takes = (field: Partial<typeof send>) => supportsComputerCommand(computer.capabilities, { type: "task.send", ...field });
+  return { ...rest, ...(title !== undefined && takes({ title }) ? { title } : {}), ...(engine !== undefined && takes({ engine }) ? { engine } : {}) };
 }
 
 /** The paired computer holding a thread's queue, with the thread a command without a `taskId` means there. */

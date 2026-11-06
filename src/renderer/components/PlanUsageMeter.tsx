@@ -1,7 +1,7 @@
 import { useId } from "react";
 import { LuGauge as Gauge, LuX as X } from "react-icons/lu";
 import { barShare, formatReset, NEAR_LIMIT_SHARE, planLabel, sessionAndWeek, tightestWindow, usageWarningKey, windowsFor, windowSpan, type PlanUsage, type UsageWindow } from "../../domain/plan-usage";
-import { modelLabel, type AgentModel } from "../../domain/agent-engine";
+import { modelLabel, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
 import { useModelCatalog } from "../model-catalog";
 import { UsageCard, UsageCardRow } from "./UsageCard";
 
@@ -20,7 +20,7 @@ export type ComposerPlanUsage = {
 };
 
 /** `model` is the one the composer sends to, which picks out the windows only it spends. */
-type PlanUsageProps = { engineLabel: string; model: AgentModel; usage: PlanUsage | undefined };
+type PlanUsageProps = { engine: AgentEngine; engineLabel: string; model: AgentModel; usage: PlanUsage | undefined };
 
 function MeterPart({ window }: { window: UsageWindow & { utilization: number } }) {
   const share = Math.round(barShare(window.utilization));
@@ -37,9 +37,9 @@ function MeterPart({ window }: { window: UsageWindow & { utilization: number } }
  * The composer's plan at a glance: the session and the fullest week the model spends, or the
  * fullest window alone for a plan that names neither. Hover lists every window it spends.
  */
-export function PlanUsageMeter({ engineLabel, model, usage, onOpen }: PlanUsageProps & { onOpen?: () => void }) {
+export function PlanUsageMeter({ engine, engineLabel, model, usage, onOpen }: PlanUsageProps & { onOpen?: () => void }) {
   const cardId = useId();
-  const windows = windowsFor(usage, modelLabel(useModelCatalog(), model));
+  const windows = windowsFor(usage, modelLabel(useModelCatalog(), engine, model));
   const { session, week } = sessionAndWeek(windows);
   const tightest = tightestWindow(windows);
   const rows = session || week ? [session, week].filter((row) => row !== null) : tightest ? [tightest] : [];
@@ -72,8 +72,8 @@ export function PlanUsageMeter({ engineLabel, model, usage, onOpen }: PlanUsageP
 }
 
 /** A line over the composer once a window the next message spends runs low, until the user puts it away. */
-export function PlanUsageWarning({ engine, engineLabel, model, usage, dismissed, limitPaused, onDismiss, onOpen }: PlanUsageProps & ComposerPlanUsage & { engine: string }) {
-  const tightest = tightestWindow(windowsFor(usage, modelLabel(useModelCatalog(), model)));
+export function PlanUsageWarning({ engine, engineLabel, model, usage, dismissed, limitPaused, onDismiss, onOpen }: PlanUsageProps & ComposerPlanUsage) {
+  const tightest = tightestWindow(windowsFor(usage, modelLabel(useModelCatalog(), engine, model)));
   if (limitPaused || !tightest || tightest.utilization < NEAR_LIMIT_SHARE) return null;
   const warning = usageWarningKey(engine, tightest);
   if (dismissed.includes(warning)) return null;

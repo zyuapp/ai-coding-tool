@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import { newThreadSend, threadProposal } from "../../src/application/thread-starts.ts";
-import { BUILT_IN_MODELS, capabilitiesFor, defaultModelFor, defaultModelIn, engineCatalog, engineModelsKnown, engineNotice, policyFor, resolveModel, threadModel, type AgentEngine, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.ts";
+import { BUILT_IN_MODELS, capabilitiesFor, defaultModelFor, defaultModelIn, engineCatalog, engineModelsKnown, engineNotice, modelLabel, policyFor, resolveModel, threadModel, type AgentEngine, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.ts";
 import { threadModelOf } from "../../src/domain/coordination.ts";
 import { describeToolCall } from "../../src/domain/tool-call.ts";
 import { effectAt, run, send, task, workspace } from "./workspace-reducer-fixtures.mts";
@@ -113,7 +113,7 @@ test("a stored OpenCode thread on Auto runs on Edits, and its view shows the mod
   const view = deriveView(state);
   assert.equal(view.engine, "opencode");
   assert.equal(view.engineLabel, "OpenCode");
-  assert.equal(view.models.entries.get("openrouter/z-ai/glm-5.3-flash")?.spec.label, "GLM-5.3-Flash");
+  assert.equal(modelLabel(view.models, "opencode", "openrouter/z-ai/glm-5.3-flash"), "GLM-5.3-Flash");
   const sent = reduce(state, { type: "task.send", taskId: "task-a", text: "Carry on" });
   const resolved = reduce(sent.state, { type: "run.resolved", pendingId: effectAt(sent, "resolve-run-workspace").pendingId, workspace: projectless });
   assert.equal(effectAt(resolved, "start-run").command.policy, "allow-edits");
@@ -146,17 +146,17 @@ const glm = (id: string, label: string, provider: string): ModelSpec => ({ id, l
 const glms = engineCatalog({ opencode: { access: "ready", catalog: [glm("openrouter/z-ai/glm-5.3-flash", "GLM-5.3-Flash", "OpenRouter"), glm("opencode-go/glm-5.3-flash", "GLM-5.3-Flash", "OpenCode Go"), glm("opencode/glm-5.3-flash-free", "GLM-5.3-Flash Free", "OpenCode"), glm("openrouter/qwen/qwen-4", "Qwen 4", "OpenRouter")] } });
 
 test("a model named as people say it resolves to the one model it can mean, and to the pinned one where several can", () => {
-  assert.deepEqual(resolveModel(glms, "opencode-go/glm-5.3-flash", []), { model: "opencode-go/glm-5.3-flash" }, "an id is itself");
-  assert.deepEqual(resolveModel(glms, "qwen-4", []), { model: "openrouter/qwen/qwen-4" });
-  assert.deepEqual(resolveModel(glms, "Qwen 4", []), { model: "openrouter/qwen/qwen-4" }, "a label reads the same with spaces and capitals");
-  assert.deepEqual(resolveModel(glms, "glm-5.3-flash", ["opencode-go/glm-5.3-flash"]), { model: "opencode-go/glm-5.3-flash" });
-  assert.deepEqual(resolveModel(glms, "GLM 5.3 Flash", ["openrouter/z-ai/glm-5.3-flash", "opus"]), { model: "openrouter/z-ai/glm-5.3-flash" });
+  assert.deepEqual(resolveModel(glms, "opencode-go/glm-5.3-flash", []), { engine: "opencode", model: "opencode-go/glm-5.3-flash" }, "an id is itself");
+  assert.deepEqual(resolveModel(glms, "qwen-4", []), { engine: "opencode", model: "openrouter/qwen/qwen-4" });
+  assert.deepEqual(resolveModel(glms, "Qwen 4", []), { engine: "opencode", model: "openrouter/qwen/qwen-4" }, "a label reads the same with spaces and capitals");
+  assert.deepEqual(resolveModel(glms, "glm-5.3-flash", ["opencode-go/glm-5.3-flash"]), { engine: "opencode", model: "opencode-go/glm-5.3-flash" });
+  assert.deepEqual(resolveModel(glms, "GLM 5.3 Flash", ["openrouter/z-ai/glm-5.3-flash", "opus"]), { engine: "opencode", model: "openrouter/z-ai/glm-5.3-flash" });
   assert.deepEqual(resolveModel(glms, "glm-5.3-flash", []), { error: "glm-5.3-flash could mean openrouter/z-ai/glm-5.3-flash, opencode-go/glm-5.3-flash. Name one of them, or pin the one you mean in the model picker." }, "never a guess between providers");
   assert.deepEqual(resolveModel(glms, "glm-5.3-flash", ["openrouter/z-ai/glm-5.3-flash", "opencode-go/glm-5.3-flash"]), { error: "glm-5.3-flash could mean openrouter/z-ai/glm-5.3-flash, opencode-go/glm-5.3-flash. Name one of them, or pin the one you mean in the model picker." }, "two pinned are still two");
-  assert.deepEqual(resolveModel(glms, "glm-5.3-flash-free", []), { model: "opencode/glm-5.3-flash-free" }, "the free one is only the free one");
+  assert.deepEqual(resolveModel(glms, "glm-5.3-flash-free", []), { engine: "opencode", model: "opencode/glm-5.3-flash-free" }, "the free one is only the free one");
   assert.deepEqual(resolveModel(glms, "glm", []), { error: "No engine here offers the glm model. Pick another model." }, "a part of a name is not a name");
   assert.deepEqual(resolveModel(glms, "---", []), { error: "No engine here offers the --- model. Pick another model." });
-  assert.deepEqual(resolveModel(glms, "Sol", []), { model: "gpt-6.1-sol" }, "built-in models answer to their labels too");
+  assert.deepEqual(resolveModel(glms, "Sol", []), { engine: "codex", model: "gpt-6.1-sol" }, "built-in models answer to their labels too");
 });
 
 test("an agent starting a thread by a model's name gets the model the user pinned, or is told which it could mean", () => {

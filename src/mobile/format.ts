@@ -129,6 +129,6 @@ export function settingsSummary(settings: MobileThreadSettings): { mode: string;
     mode: Object.hasOwn(POLICIES, settings.policy) ? POLICIES[settings.policy].label : settings.policy,
     model: `${spec?.label ?? settings.model ?? "No model"}${capabilitiesFor(settings.engine).fastMode && settings.fastMode ? " · Fast" : ""}`,
     effort:
-      spec?.efforts.find((candidate) => candidate.id === effortForModel(BUILT_IN_MODELS, spec.id, settings.effort))?.label ?? (spec && isAgentEffort(settings.effort) ? null : settings.effort),
+      spec?.efforts.find((candidate) => candidate.id === effortForModel(BUILT_IN_MODELS, settings.engine, spec.id, settings.effort))?.label ?? (spec && isAgentEffort(settings.effort) ? null : settings.effort),
   };
 }

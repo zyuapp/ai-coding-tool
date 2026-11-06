@@ -18,7 +18,7 @@ const usage = (session: number, fable = 30): PlanUsage => ({
 const shares = (container: HTMLElement) => [...container.querySelectorAll(".plan-usage-part")].map((part) => part.textContent);
 
 test("the meter shows the session and the week, and lists every window the model spends on hover", async () => {
-  const view = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Claude", model: "opus", usage: usage(64) }));
+  const view = await mount(React.createElement(PlanUsageMeter, { engine: "claude", engineLabel: "Claude", model: "opus", usage: usage(64) }));
   try {
     const meter = view.container.querySelector(".plan-usage")!;
     assert.deepEqual(shares(view.container), ["5h64%", "Weekly20%"]);
@@ -33,7 +33,7 @@ test("the meter shows the session and the week, and lists every window the model
 });
 
 test("a model's own week counts when it is the fuller one, and only its row warns", async () => {
-  const view = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Claude", model: "fable", usage: usage(40, 86) }));
+  const view = await mount(React.createElement(PlanUsageMeter, { engine: "claude", engineLabel: "Claude", model: "fable", usage: usage(40, 86) }));
   try {
     assert.deepEqual(shares(view.container), ["5h40%", "Weekly86%"]);
     assert.deepEqual([...view.container.querySelectorAll(".plan-usage-part")].map((row) => row.classList.contains("near")), [false, true]);
@@ -46,7 +46,7 @@ test("a plan with no session window shows its week alone", async () => {
   const weekly: PlanUsage = { status: "available", subscription: "plus", windows: [
     { id: "codex:primary", label: "Current week", utilization: 30, resetsAt: null, period: "week", minutes: 10_080 },
   ] };
-  const view = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Codex", model: "gpt-6.1-sol", usage: weekly }));
+  const view = await mount(React.createElement(PlanUsageMeter, { engine: "codex", engineLabel: "Codex", model: "gpt-6.1-sol", usage: weekly }));
   try {
     assert.deepEqual(shares(view.container), ["Weekly30%"]);
   } finally {
@@ -59,7 +59,7 @@ test("a plan that names no session or week shows its fullest window alone", asyn
     { id: "a", label: "Current 1-hour window", utilization: 10, resetsAt: null },
     { id: "b", label: "Current 1-day window", utilization: 30, resetsAt: null },
   ] };
-  const view = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Codex", model: "gpt-6.1-sol", usage: unnamed }));
+  const view = await mount(React.createElement(PlanUsageMeter, { engine: "codex", engineLabel: "Codex", model: "gpt-6.1-sol", usage: unnamed }));
   try {
     assert.deepEqual(shares(view.container), ["30%"]);
   } finally {
@@ -68,7 +68,7 @@ test("a plan that names no session or week shows its fullest window alone", asyn
 });
 
 test("an engine without plan limits draws no meter", async () => {
-  const view = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Codex", model: "gpt-6.1-sol", usage: { status: "not-applicable" } }));
+  const view = await mount(React.createElement(PlanUsageMeter, { engine: "codex", engineLabel: "Codex", model: "gpt-6.1-sol", usage: { status: "not-applicable" } }));
   try {
     assert.equal(view.container.querySelector(".plan-usage"), null);
   } finally {
@@ -78,7 +78,7 @@ test("an engine without plan limits draws no meter", async () => {
 
 test("the warning shows once a window runs low, and stays away once put away", async () => {
   const warned: string[] = [];
-  const props = { engine: "claude", engineLabel: "Claude", model: "opus" as const, dismissed: [] as string[], limitPaused: false, onDismiss: (warning: string) => { warned.push(warning); } };
+  const props = { engine: "claude" as const, engineLabel: "Claude", model: "opus" as const, dismissed: [] as string[], limitPaused: false, onDismiss: (warning: string) => { warned.push(warning); } };
   const quiet = await mount(React.createElement(PlanUsageWarning, { ...props, usage: usage(79) }));
   try {
     assert.equal(quiet.container.querySelector(".plan-usage-warning"), null);
@@ -120,7 +120,7 @@ test("the warning shows once a window runs low, and stays away once put away", a
 
 test("a meter that knows where the usage page is opens it, and one that does not stays a readout", async () => {
   let opened = 0;
-  const linked = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Claude", model: "opus", usage: usage(64), onOpen: () => { opened += 1; } }));
+  const linked = await mount(React.createElement(PlanUsageMeter, { engine: "claude", engineLabel: "Claude", model: "opus", usage: usage(64), onOpen: () => { opened += 1; } }));
   try {
     const meter = linked.container.querySelector<HTMLButtonElement>(".plan-usage-meter")!;
     assert.equal(meter.tagName, "BUTTON");
@@ -133,7 +133,7 @@ test("a meter that knows where the usage page is opens it, and one that does not
   } finally {
     await linked.unmount();
   }
-  const readout = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Claude", model: "opus", usage: usage(64) }));
+  const readout = await mount(React.createElement(PlanUsageMeter, { engine: "claude", engineLabel: "Claude", model: "opus", usage: usage(64) }));
   try {
     const meter = readout.container.querySelector<HTMLElement>(".plan-usage-meter")!;
     assert.equal(meter.tagName, "SPAN");

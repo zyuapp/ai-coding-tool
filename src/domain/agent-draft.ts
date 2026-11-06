@@ -15,5 +15,5 @@ export function normalizeDraft(catalog: ModelCatalog, draft: Omit<AgentDraft, "m
   const named = draft.model ?? defaultModelIn(catalog, draft.engine);
   const engine = named === undefined ? DEFAULT_ENGINE : draft.engine;
   const model = named ?? defaultModelIn(catalog, DEFAULT_ENGINE) ?? DEFAULT_MODEL;
-  return { engine, model, effort: effortForModel(catalog, model, draft.effort, role), policy: policyFor(engine, draft.policy), fastMode: draft.fastMode };
+  return { engine, model, effort: effortForModel(catalog, engine, model, draft.effort, role), policy: policyFor(engine, draft.policy), fastMode: draft.fastMode };
 }

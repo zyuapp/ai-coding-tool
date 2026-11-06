@@ -18,7 +18,7 @@ const { CommandControlsProvider } = await import("../../src/renderer/components/
 const { buildDock } = await import("../../src/renderer/components/dock-registry.tsx");
 
 /** What the Overview's header picks from, with every engine ready and nothing chosen yet. */
-const header = { taskId: "lead", threadModel: { model: "opus" as const, effort: "high" as const }, engineAccess: EVERY_ENGINE_READY, onSetThreadModel() {}, onEngineRead() {}, onSignIn() {} };
+const header = { taskId: "lead", threadModel: { engine: "claude" as const, model: "opus" as const, effort: "high" as const }, engineAccess: EVERY_ENGINE_READY, onSetThreadModel() {}, onEngineRead() {}, onSignIn() {} };
 
 /** A coordinator that keeps nothing in memory yet. */
 const memory = { taskId: "lead", purpose: null, notes: [], onSetPurpose() {}, onAdd() {}, onEdit() {} };
@@ -222,7 +222,7 @@ test("the Overview says what a coordinator's threads run on, and picks another w
   const picked: unknown[] = [];
   const overview = (available: boolean) => React.createElement(CommandControlsProvider, { value: { available: (command) => available || command.type !== "coordination.set-thread-model", dispatch() {} } },
     React.createElement(CoordinatorOverview, {
-      header: { ...header, threadModel: { model: "gpt-6-luna", effort: "max" }, onSetThreadModel: (model: string, effort?: string) => { picked.push([model, effort]); } },
+      header: { ...header, threadModel: { engine: "codex", model: "gpt-6-luna", effort: "max" }, onSetThreadModel: (engine: string, model: string, effort?: string) => { picked.push([engine, model, effort]); } },
       memory, members: [], usage: null, worktrees: new Map(), folds: {}, onSetFold() {}, onSelect() {}, stoppable: true,
     }));
   const view = await mount(overview(true));
@@ -240,7 +240,7 @@ test("the Overview says what a coordinator's threads run on, and picks another w
   const slider = query<HTMLElement>(item(model), ".effort-strip [role=slider]");
   assert.deepEqual([...item(model).querySelectorAll<HTMLElement>(".effort-tick")].map((tick) => tick.dataset.label), ["Low", "Medium", "High", "Extra high", "Max"]);
   await act(async () => { slider.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Home", bubbles: true })); });
-  assert.deepEqual(picked, [["opus", undefined], ["gpt-6-luna", "low"]], "a new model keeps the effort for the reducer to fit, and a new effort keeps the model");
+  assert.deepEqual(picked, [["claude", "opus", undefined], ["codex", "gpt-6-luna", "low"]], "a new model keeps the effort for the reducer to fit, and a new effort keeps the model");
 
   await view.render(overview(false));
   assert.equal(view.container.querySelectorAll(".coordination-overview-header .setting-menu").length, 0, "a computer whose build cannot take the choice offers none");
@@ -279,7 +279,7 @@ test("the Overview tab sets what the coordinator in front runs its threads on", 
     [...item(model).querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("All models"))!.click();
   });
   await act(async () => { [...item(model).querySelectorAll<HTMLButtonElement>(".model-choice")].find((button) => button.textContent?.includes("Opus"))!.click(); });
-  assert.deepEqual(dispatched.filter((input) => input.type === "coordination.set-thread-model"), [{ type: "coordination.set-thread-model", taskId: "lead", model: "opus" }], "a model alone leaves the effort for the reducer to fit");
+  assert.deepEqual(dispatched.filter((input) => input.type === "coordination.set-thread-model"), [{ type: "coordination.set-thread-model", taskId: "lead", engine: "claude", model: "opus" }], "a model alone leaves the effort for the reducer to fit");
   await mounted.unmount();
 });
 

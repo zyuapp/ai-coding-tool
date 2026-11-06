@@ -408,7 +408,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const thread = state.threads.find((item) => item.id === taskId);
       /** Effort belongs to the model, and to the part the thread plays, so only one the target takes can be set on it. */
       if (thread && !threadTakesEffort(state, thread, input.effort)) return settled(state);
-      const draftTakes = modelHasEffort(catalogOf(state), state.draftModel, input.effort, effortRoleOf(undefined, state.draftRole));
+      const draftTakes = modelHasEffort(catalogOf(state), state.draftEngine, state.draftModel, input.effort, effortRoleOf(undefined, state.draftRole));
       if (!thread && !draftTakes) return settled(state);
       /** The draft keeps its own model, so it takes the effort only where that model offers it. */
       const drafted = input.taskId === undefined && draftTakes ? withDraft(state, { effort: input.effort }) : state;
@@ -419,5 +419,5 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
 
 function threadTakesEffort(state: WorkspaceState, thread: Thread, effort: AgentEffort) {
   const model = threadModel(catalogOf(state), thread);
-  return model !== undefined && modelHasEffort(catalogOf(state), model, effort, effortRoleOf(thread, null));
+  return model !== undefined && modelHasEffort(catalogOf(state), thread.engine, model, effort, effortRoleOf(thread, null));
 }

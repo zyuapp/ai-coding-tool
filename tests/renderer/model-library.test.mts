@@ -3,7 +3,7 @@ import { test } from "vitest";
 import React, { act } from "react";
 import { mount, query } from "../support/renderer-dom.mts";
 import { readViewPreferences } from "../../src/application/view-preferences.ts";
-import { BUILT_IN_MODELS, engineCatalog, modelDelegable, type AgentModel } from "../../src/domain/agent-engine.ts";
+import { BUILT_IN_MODELS, engineCatalog, modelDelegable, type AgentEngine, type AgentModel } from "../../src/domain/agent-engine.ts";
 const { ModelCatalogProvider } = await import("../../src/renderer/model-catalog.ts");
 const { ComposerSettings, EVERY_ENGINE_READY, ModelMenu } = await import("../../src/renderer/components/ComposerSettings.tsx");
 
@@ -94,7 +94,7 @@ test("a library narrowed to some models offers only those, in its counts as well
     engine: "claude" as const, engineLocked: false, engineAccess: EVERY_ENGINE_READY, model: "opus" as const,
     onChange() {}, onOpen() {}, onSignIn() {},
   };
-  const view = await mount(React.createElement(ModelMenu, { ...props, models: (model: string) => modelDelegable(BUILT_IN_MODELS, model) }));
+  const view = await mount(React.createElement(ModelMenu, { ...props, models: (engine: AgentEngine, model: string) => modelDelegable(BUILT_IN_MODELS, engine, model) }));
   await act(async () => { query<HTMLElement>(view.container, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   const names = () => [...view.container.querySelectorAll(".model-choice strong")].map((node) => node.textContent);
   assert.ok(names().includes("Sonnet"));

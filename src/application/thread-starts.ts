@@ -9,7 +9,7 @@ import { namedPlace, projectFor } from "./thread-location.js";
 import type { AppCommand } from "../contracts/commands.js";
 import { coordinatorOf, isCoordinator, remoteLeadOf, threadModelOf, undelegable, type ProposalPlace, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
 import { clampTitle, type Thread } from "../domain/thread.js";
-import { defaultEffortFor, defaultModelIn, effortForModel, engineLabel, isAgentEngine, modelDelegable, modelEngine, modelHasEffort, modelTakesEffort, resolveModel, threadModel, unknownModel } from "../domain/agent-engine.js";
+import { defaultEffortFor, defaultModelIn, effortForModel, engineHasModel, engineLabel, isAgentEngine, modelDelegable, modelHasEffort, modelTakesEffort, resolveModel, threadModel, unknownModel } from "../domain/agent-engine.js";
 import { catalogOf } from "./engine-access.js";
 
 export type NewThreadSend = Extract<AppCommand, { type: "task.send" }>;
@@ -44,28 +44,29 @@ export function newThreadSend(state: WorkspaceState, caller: Thread, command: Ne
   const lead = isCoordinator(caller) ? caller : coordinatorOf(state.threads, caller);
   const remote = lead ? undefined : remoteLeadOf(caller);
   const catalog = catalogOf(state);
-  const inherited = lead ? threadModelOf(catalog, lead) : { model: threadModel(catalog, caller), effort: caller.effort };
-  /** An engine named for a model means its default one, which an engine that lists no models has none of; any other name means the model it reads as. */
-  const named = command.model === undefined || isAgentEngine(command.model) ? undefined : resolveModel(catalog, command.model, state.favoriteModels);
+  const inherited = lead ? threadModelOf(catalog, lead) : { engine: caller.engine, model: threadModel(catalog, caller), effort: caller.effort };
+  /** An engine named for a model, or named with none, means its default one, which an engine that lists no models has none of; any other name means the model it reads as. */
+  const asEngine = command.model === undefined ? command.engine : isAgentEngine(command.model) ? command.model : undefined;
+  const named = command.model === undefined || asEngine ? undefined : resolveModel(catalog, command.model, state.favoriteModels, command.engine);
   if (named && "error" in named) return { error: named.error };
-  const namedEngine = command.model !== undefined && isAgentEngine(command.model) ? command.model : undefined;
-  const model = namedEngine ? defaultModelIn(catalog, namedEngine) : named?.model ?? inherited?.model;
-  if (model === undefined) {
-    return { error: namedEngine ? `${engineLabel(namedEngine)} has no models to start a thread on. Connect a provider first.` : `Pass a model: ${engineLabel((lead ?? caller).engine)} has yet to name the one this thread runs on.` };
+  const defaulted = asEngine === undefined ? undefined : defaultModelIn(catalog, asEngine);
+  const choice = asEngine ? defaulted === undefined ? undefined : { engine: asEngine, model: defaulted } : named ?? inherited;
+  if (choice?.model === undefined) {
+    return { error: asEngine ? `${engineLabel(asEngine)} has no models to start a thread on. Connect a provider first.` : `Pass a model: ${engineLabel((lead ?? caller).engine)} has yet to name the one this thread runs on.` };
   }
-  const engine = modelEngine(catalog, model);
-  if (!engine) return { error: unknownModel(model) };
-  if ((lead || remote) && !modelDelegable(catalog, model)) return { error: undelegable(model) };
+  const { engine, model } = choice;
+  if (!engine || !engineHasModel(catalog, engine, model)) return { error: unknownModel(model) };
+  if ((lead || remote) && !modelDelegable(catalog, engine, model)) return { error: undelegable(model) };
   /** A thread started as a coordinator takes only the efforts a coordinator does. */
   const role = command.role === "coordinator" ? "coordinator" : undefined;
   if (role && (command.worktree || command.worktreeId !== undefined)) return { error: COORDINATOR_WORKTREE_START };
-  if (command.effort && !modelHasEffort(catalog, model, command.effort, role)) return { error: `The ${model} model does not support ${command.effort} effort${role ? " for a coordinator" : ""}.` };
+  if (command.effort && !modelHasEffort(catalog, engine, model, command.effort, role)) return { error: `The ${model} model does not support ${command.effort} effort${role ? " for a coordinator" : ""}.` };
   /** An inherited effort the new model does not take drops to the nearest one it does. */
-  const effort = command.effort ?? effortForModel(catalog, model, inherited?.effort ?? defaultEffortFor(engine), role);
+  const effort = command.effort ?? effortForModel(catalog, engine, model, inherited?.effort ?? defaultEffortFor(engine), role);
   /** A brief is what a coordinator hands the threads it starts, so one any other thread passes is dropped. */
-  const { effort: _asked, brief, model: _named, ...rest } = command;
+  const { effort: _asked, brief, model: _named, engine: _engine, ...rest } = command;
   const briefed = lead === caller && brief ? { brief } : {};
-  const chosen: NewThreadSend = modelTakesEffort(catalog, model) ? { ...rest, ...briefed, model, effort } : { ...rest, ...briefed, model };
+  const chosen: NewThreadSend = modelTakesEffort(catalog, engine, model) ? { ...rest, ...briefed, engine, model, effort } : { ...rest, ...briefed, engine, model };
   /** A coordinator's new thread starts from the brief it was handed. */
   if (lead === caller && !chosen.brief) return { error: BRIEF_REQUIRED };
 
@@ -106,8 +107,9 @@ export function threadProposal(state: WorkspaceState, caller: Thread, request: O
       ...(title?.trim() ? { title: title.trim(), named: true as const } : { title: clampTitle(prompt) }),
       prompt,
       ...placed,
-      /** A model named by its name is kept as the model it meant when suggested; an engine stays an engine, for its default when started. */
-      ...(request.model ? { model: isAgentEngine(request.model) || !start.command.model ? request.model : start.command.model } : {}),
+      /** A model named by its name is kept as the model and engine it meant when suggested; an engine stays an engine, for its default when started. */
+      ...(request.model && !isAgentEngine(request.model) && start.command.engine && start.command.model ? { engine: start.command.engine, model: start.command.model }
+        : request.model ? { model: request.model } : request.engine ? { engine: request.engine } : {}),
       ...(request.effort ? { effort: request.effort } : {}),
       ...(request.role ? { role: request.role } : {}),
       proposedAt: at,
@@ -162,6 +164,7 @@ export function proposalSend(proposal: ThreadProposal): NewThreadSend {
     ...(place.project === undefined ? {} : { project: place.project }),
     ...(place.worktreeId ? { worktreeId: place.worktreeId } : place.worktree === undefined ? {} : { worktree: place.worktree }),
     ...(proposal.model ? { model: proposal.model } : {}),
+    ...(proposal.engine ? { engine: proposal.engine } : {}),
     ...(proposal.effort ? { effort: proposal.effort } : {}),
     ...(proposal.role ? { role: proposal.role } : {}),
   };

@@ -154,10 +154,10 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
 export type EffortControl = { value: AgentEffort; coordinating?: boolean; onChange: (effort: AgentEffort) => void };
 
 /** The efforts a model offers, shallowest first, and the one a run on it gets. */
-function effortSteps(catalog: ModelCatalog, model: AgentModel | undefined, effort: EffortControl) {
+function effortSteps(catalog: ModelCatalog, engine: AgentEngine, model: AgentModel | undefined, effort: EffortControl) {
   if (model === undefined) return { steps: [], value: effort.value };
   const role = effort.coordinating ? "coordinator" : undefined;
-  return { steps: [...effortsFor(catalog, model, role)].reverse(), value: effortForModel(catalog, model, effort.value, role) };
+  return { steps: [...effortsFor(catalog, engine, model, role)].reverse(), value: effortForModel(catalog, engine, model, effort.value, role) };
 }
 
 /** The efforts on a track the knob slides along freely while dragged, settling on the nearest effort when let go. */
@@ -238,8 +238,8 @@ function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]
 }
 
 /** The effort for the model in the library, pinned under the list so it stays in reach however long the list grows. */
-function EffortStrip({ model, modelLabel, effort }: { model: AgentModel | undefined; modelLabel: string; effort: EffortControl }) {
-  const { steps, value } = effortSteps(useModelCatalog(), model, effort);
+function EffortStrip({ engine, model, modelLabel, effort }: { engine: AgentEngine; model: AgentModel | undefined; modelLabel: string; effort: EffortControl }) {
+  const { steps, value } = effortSteps(useModelCatalog(), engine, model, effort);
   return <div className="effort-strip">
     <span className="effort-strip-axis">Effort<small>{modelLabel}</small></span>
     {steps.length
@@ -259,7 +259,7 @@ type ModelLibraryProps = {
   onSignIn: (engine: AgentEngine) => void;
   onOpenEngineSettings?: () => void;
   /** Narrows the library to the models this choice may take. */
-  models?: (model: AgentModel) => boolean;
+  models?: (engine: AgentEngine, model: AgentModel) => boolean;
   /** Set where the menu picks the effort too. Picking a model then leaves the library open to fit the effort. */
   effort?: EffortControl;
 };
@@ -279,7 +279,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
   const search = query.trim().toLocaleLowerCase();
   const available = modelGroupsOf(catalog).map((group) => {
     const readiness = engineAccess[group.engine];
-    return { ...group, choices: group.choices.filter((item) => (!readiness.models || readiness.models.includes(item.value)) && (!models || models(item.value))) };
+    return { ...group, choices: group.choices.filter((item) => (!readiness.models || readiness.models.includes(item.value)) && (!models || models(group.engine, item.value))) };
   });
   const groups = available.filter((group) => search || filter === "all" || filter === "favorites" || filter === group.key).map((group) => ({
     ...group,
@@ -355,7 +355,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
       </div>
     </div>
     {effort
-      ? <EffortStrip model={model} modelLabel={modelLabel} effort={effort} />
+      ? <EffortStrip engine={engine} model={model} modelLabel={modelLabel} effort={effort} />
       : <div className="model-library-footer">{engineLocked ? `This thread uses ${engineLabel(engine)}.` : "↑ ↓ navigate · Enter select"}<span><Star size={12} /> Pin your go-to models</span></div>}
   </>;
 }
@@ -368,7 +368,7 @@ export function ModelMenu({ onOpen, ...props }: ModelLibraryProps & { onOpen: ()
   const selected = offered.find((item) => item.value === props.model) ?? (props.model !== undefined && catalogHasModel(catalog, props.model) ? offered[0] : undefined);
   const modelLabel = selected?.label ?? props.model ?? "Choose a model";
   const { effort } = props;
-  const { steps, value } = effort ? effortSteps(catalog, props.model, effort) : { steps: [], value: undefined };
+  const { steps, value } = effort ? effortSteps(catalog, props.engine, props.model, effort) : { steps: [], value: undefined };
   const shown = steps.find((spec) => spec.id === value);
   /** Left and right step the effort from anywhere in the library but a search being typed. */
   const stepEffort = (event: KeyboardEvent<HTMLElement>) => {

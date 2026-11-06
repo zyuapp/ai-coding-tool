@@ -28,9 +28,9 @@ test("a coordinator's usage adds up it and every thread under it, resolved ones 
   assert.equal(usage.total, 3_104_220, "archived threads and threads under no coordinator do not count");
   assert.equal(usage.coordinator, 240_000);
   assert.deepEqual(usage.byModel, [
-    { model: "sonnet", tokens: 1_864_220 },
-    { model: "gpt-6.1-sol", tokens: 900_000 },
-    { model: "opus", tokens: 340_000 },
+    { engine: "claude", model: "sonnet", tokens: 1_864_220 },
+    { engine: "codex", model: "gpt-6.1-sol", tokens: 900_000 },
+    { engine: "claude", model: "opus", tokens: 340_000 },
   ]);
   assert.deepEqual(usage.byThread.map(({ thread, computer, tokens }) => [thread.id, computer, tokens]), [
     ["tests", null, 1_600_000],
@@ -62,9 +62,9 @@ test("a thread on a paired computer counts toward the name its model goes by her
   const usage = coordinationUsage([{ thread: far, computer: studio, holder }], lead);
 
   assert.deepEqual(usage?.byModel, [
-    { model: "opus", tokens: 240_000 },
-    { model: "gpt-7-nova", tokens: 500 },
-    { model: "gpt-6.1-sol", tokens: 300 },
+    { engine: "claude", model: "opus", tokens: 240_000 },
+    { engine: "codex", model: "gpt-7-nova", tokens: 500 },
+    { engine: "codex", model: "gpt-6.1-sol", tokens: 300 },
   ], "a retired name counts toward its successor");
-  assert.deepEqual(usage?.byModel.map(({ model }) => modelLabel(BUILT_IN_MODELS, model)), ["Opus", "gpt-7-nova", "Sol"]);
+  assert.deepEqual(usage?.byModel.map(({ engine, model }) => modelLabel(BUILT_IN_MODELS, engine, model)), ["Opus", "gpt-7-nova", "Sol"]);
 });

@@ -5,6 +5,7 @@ import { deriveView } from "../../src/application/workspace-state.ts";
 import { BUILT_IN_MODELS, modelsFor, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.ts";
 import { effectAt, run, send, task, workspace } from "./workspace-reducer-fixtures.mts";
 import { parseThreadStore, serializeThreadStore } from "../../src/domain/thread-storage.ts";
+import { newThreadSend } from "../../src/application/thread-starts.ts";
 
 const named: ModelSpec[] = [
   { id: "openai/gpt-9", label: "GPT-9", description: "Named by the engine", contextWindow: 400_000, efforts: [{ id: "high", label: "High" }, { id: "low", label: "Low" }], manualCompaction: true },
@@ -66,7 +67,7 @@ test("a coordinator's threads cannot be set to run on a model no engine offers, 
   assert.equal(tiny.state.threads[0]?.threadModel, undefined, "a named model can still be one a coordinator may not hand work to");
 
   const gpt9 = reduce(state, { type: "coordination.set-thread-model", taskId: "lead", model: "openai/gpt-9", effort: "max" }).state;
-  assert.deepEqual(gpt9.threads[0]?.threadModel, { model: "openai/gpt-9", effort: "high" });
+  assert.deepEqual(gpt9.threads[0]?.threadModel, { engine: "codex", model: "openai/gpt-9", effort: "high" });
 });
 
 test("a thread on a model no engine here offers still draws, by its id and the effort it was given", () => {
@@ -165,4 +166,26 @@ test("a thread on an engine whose models main has yet to name runs on its model,
 
   const codex = task("task-b", { engine: "codex", model: "gpt-9-future" });
   assert.deepEqual(reduce(workspace({ threads: [codex] }), { type: "task.send", taskId: "task-b", text: "Carry on" }).state.pendingRuns, {}, "an engine that ships knowing its models is held to them from the start");
+});
+
+test("a model two engines name runs on the engine it was picked on, and one named without its engine on the first", () => {
+  const gateway: ModelSpec = { id: "opus", label: "Gateway Opus", description: "Served elsewhere", contextWindow: 64_000, efforts: [{ id: "low", label: "Low" }] };
+  const both = reduce(workspace({ threads: [task("lead", { role: "coordinator" })] }), { type: "engine.status", status: { claude: { access: "ready" }, codex: { access: "ready", catalog: [gateway] } } }).state;
+  const started = (input: { model: string; engine?: "claude" | "codex" }) => {
+    const sending = reduce(both, { type: "task.send", text: "Inspect the app", ...input });
+    const request = effectAt(sending, "resolve-run-workspace");
+    return effectAt(reduce(sending.state, { type: "run.resolved", pendingId: request.pendingId, workspace: projectless }), "start-run").command;
+  };
+  assert.deepEqual([started({ engine: "codex", model: "opus" }).engine, started({ engine: "codex", model: "opus" }).effort], ["codex", "low"]);
+  assert.equal(started({ engine: "claude", model: "opus" }).engine, "claude");
+  assert.equal(started({ model: "opus" }).engine, "claude", "as an older computer names it");
+
+  const chosen = reduce(both, { type: "coordination.set-thread-model", taskId: "lead", engine: "codex", model: "opus" }).state;
+  assert.deepEqual(chosen.threads.find((thread) => thread.id === "lead")?.threadModel, { engine: "codex", model: "opus", effort: "low" });
+
+  const caller = both.threads[0]!;
+  const asked = (input: { model: string; engine?: "codex" }) => newThreadSend(both, { ...caller, role: undefined }, { type: "task.send", text: "Fix it", ...input });
+  assert.deepEqual(asked({ model: "opus" }), { error: "opus could mean opus on Claude, opus on Codex. Name the engine as well." }, "a thread asking names which one it means");
+  const start = asked({ model: "Gateway Opus", engine: "codex" });
+  assert.ok("command" in start && start.command.engine === "codex" && start.command.model === "opus");
 });

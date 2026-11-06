@@ -230,7 +230,8 @@ function SuggestionsForm({ suggestions, position, onStep }: { suggestions: Sugge
 function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadModel: ThreadModelChoice | null; view: ProposalView }) {
   const { proposal, starting } = view;
   const catalog = useModelCatalog();
-  const model = proposal.model && proposal.model !== threadModel?.model ? proposal.model : null;
+  const engine = proposal.engine ?? threadModel?.engine;
+  const model = proposal.model && (proposal.model !== threadModel?.model || engine !== threadModel.engine) ? proposal.model : null;
   const worktree = proposal.place.worktree === true || proposal.place.worktreeId !== undefined;
   return (
     <li className={`suggestion-row${starting ? " starting" : ""}`}>
@@ -239,7 +240,7 @@ function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadMo
         <small title={proposal.brief?.intent ?? proposal.prompt}>{proposal.brief?.intent ?? proposal.prompt}</small>
         {proposal.error && !starting && <small className="suggestion-error" role="alert">{proposal.error}</small>}
       </span>
-      {model && <span className="suggestion-chip">{modelLabel(catalog, model)}</span>}
+      {model && <span className="suggestion-chip">{modelLabel(catalog, engine, model)}</span>}
       {worktree && <span className="suggestion-chip">Worktree</span>}
       {!starting && <span className="suggestion-dismiss-slot" data-action="dismiss">
         <ConfirmCommand

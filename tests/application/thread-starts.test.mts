@@ -41,12 +41,12 @@ test("a thread under a coordinator works under it, from the brief it was handed,
   const state = coordinated();
   assert.equal(refused(newThreadSend(state, thread(state, "lead"), send())), BRIEF_REQUIRED, "a coordinator's thread starts from a brief");
   assert.deepEqual(started(newThreadSend(state, thread(state, "lead"), send({ brief: BRIEF }))), {
-    type: "task.send", text: "Fix it", brief: BRIEF, model: "opus", effort: "high", project: PROJECT.id, worktreeId: "wt-lead", coordinatorId: "lead", from: "lead",
+    type: "task.send", text: "Fix it", brief: BRIEF, engine: "claude", model: "opus", effort: "high", project: PROJECT.id, worktreeId: "wt-lead", coordinatorId: "lead", from: "lead",
   });
 
   /** One of its threads needs no brief, but what it starts joins the coordinator and runs on its threads' model, not the caller's. */
   assert.deepEqual(started(newThreadSend(state, thread(state, "worker"), send({ role: "reviewer" }))), {
-    type: "task.send", text: "Fix it", role: "reviewer", model: "opus", effort: "high", project: PROJECT.id, coordinatorId: "lead", from: "worker",
+    type: "task.send", text: "Fix it", role: "reviewer", engine: "claude", model: "opus", effort: "high", project: PROJECT.id, coordinatorId: "lead", from: "worker",
   });
   /** A brief is the coordinator's to hand out, so a thread one of its threads starts never reads as one the coordinator started. */
   assert.equal(started(newThreadSend(state, thread(state, "worker"), send({ brief: BRIEF }))).brief, undefined);
@@ -56,7 +56,7 @@ test("a thread under a coordinator works under it, from the brief it was handed,
 test("a thread under no coordinator starts on the caller's own model, in the caller's own place", () => {
   const state = coordinated();
   assert.deepEqual(started(newThreadSend(state, thread(state, "solo"), send())), {
-    type: "task.send", text: "Fix it", model: "sonnet", effort: "max", project: PROJECT.id, worktreeId: "wt-solo", from: "solo",
+    type: "task.send", text: "Fix it", engine: "claude", model: "sonnet", effort: "max", project: PROJECT.id, worktreeId: "wt-solo", from: "solo",
   });
   const placed = started(newThreadSend(state, thread(state, "solo"), send({ project: "elsewhere", worktree: true, model: "haiku" })));
   assert.equal(placed.project, "elsewhere", "a place the send names outranks the caller's");
@@ -78,7 +78,7 @@ test("a thread named onto a paired computer starts there, unless the request nam
   const there = newThreadSend(state, thread(state, "solo"), send({ project: remote.id }));
   assert.equal(there.elsewhere, linux);
   assert.ok(!("error" in there));
-  assert.deepEqual(there.command, { type: "task.send", text: "Fix it", project: remote.id, model: "sonnet", effort: "max" }, "it carries none of this computer's places or threads");
+  assert.deepEqual(there.command, { type: "task.send", text: "Fix it", project: remote.id, engine: "claude", model: "sonnet", effort: "max" }, "it carries none of this computer's places or threads");
   assert.equal(newThreadSend(state, thread(state, "solo"), send(), linux).elsewhere, linux, "a computer the request names is where it starts");
 
   assert.equal(refused(newThreadSend(state, thread(state, "solo"), send({ project: remote.id }), null)), 'That project or worktree is on Linux. Pass computer "Linux" to start the thread there.');
@@ -103,6 +103,7 @@ test("a suggestion is checked as its start would be, and kept in the place that 
   assert.deepEqual({ ...plain, id: "" }, { id: "", title: "Fix login", named: true, prompt: "Fix it", brief: BRIEF, place: { project: PROJECT.id, worktreeId: "wt-lead" }, proposedAt: 5 }, "it inherits the coordinator's project and worktree, and names no model of its own");
   const named = kept({ model: "gpt-6-luna", role: "reviewer" });
   assert.equal(named.model, "gpt-6-luna");
+  assert.equal(named.engine, "codex", "and the engine it runs on");
   assert.equal(named.role, "reviewer");
   assert.equal(named.effort, undefined, "an effort the coordinator did not name is left to what its threads run on then");
   assert.deepEqual(kept({ project: "/other", worktree: true }).place, { project: other.id, worktree: true }, "a project named by its path is kept by its id");
@@ -117,7 +118,7 @@ test("a suggestion is checked as its start would be, and kept in the place that 
 
   /** Starting it later asks for exactly what it was suggested with, in the place it was suggested for, under the name it was suggested by. */
   assert.deepEqual(proposalSend(kept({ model: "gpt-6-luna", effort: "low", role: "reviewer" })), {
-    type: "task.send", text: "Fix it", title: "Fix login", brief: BRIEF, project: PROJECT.id, worktreeId: "wt-lead", model: "gpt-6-luna", effort: "low", role: "reviewer",
+    type: "task.send", text: "Fix it", title: "Fix login", brief: BRIEF, project: PROJECT.id, worktreeId: "wt-lead", engine: "codex", model: "gpt-6-luna", effort: "low", role: "reviewer",
   });
   assert.deepEqual(started(newThreadSend(state, lead, proposalSend(plain), null)), started(newThreadSend(state, lead, send({ brief: BRIEF, title: "Fix login" }))), "a suggestion starts as the coordinator would have started it");
 
@@ -155,7 +156,7 @@ test("a thread under a coordinator on another computer starts its threads under 
   const lead = { threadId: "lead-there", title: "Lead", computer: "Laptop" };
   const state = workspace({ projects: [PROJECT], threads: [task("member", { remoteLead: lead, model: "sonnet", effort: "low", projectId: PROJECT.id })] });
   const command = started(newThreadSend(state, thread(state, "member"), send()));
-  assert.deepEqual(command, { type: "task.send", text: "Fix it", model: "sonnet", effort: "low", project: PROJECT.id, lead, from: "member" }, "on its own model, with no memory of the coordinator's");
+  assert.deepEqual(command, { type: "task.send", text: "Fix it", engine: "claude", model: "sonnet", effort: "low", project: PROJECT.id, lead, from: "member" }, "on its own model, with no memory of the coordinator's");
   const allowed = { ...state, threads: [{ ...thread(state, "member"), remoteLead: { ...lead, proposalId: "p1" } }] };
   assert.deepEqual(started(newThreadSend(allowed, thread(allowed, "member"), send())).lead, lead, "the suggestion it was is its own, not its threads'");
   assert.equal(refused(newThreadSend(state, thread(state, "member"), send({ model: "haiku" }))), "Threads under a coordinator cannot run on the haiku model. Pick another model.");

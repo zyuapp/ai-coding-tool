@@ -20,6 +20,7 @@ const SEND_REACH: { readonly [Field in keyof Omit<TaskSend, "type">]-?: SendReac
   worktree: "anyone",
   worktreeId: "anyone",
   model: "starting",
+  engine: "starting",
   effort: "starting",
   role: "starting",
   brief: "starting",

@@ -245,13 +245,25 @@ const EFFORT_IDS = new Set<string>(EFFORT_ORDER);
 type CatalogEntry = { engine: AgentEngine; spec: ModelSpec; efforts: readonly EffortSpec[]; coordinatorEfforts: readonly EffortSpec[] };
 
 /**
- * The models each engine offers, and what each of them takes. Ids are unique across the catalogue;
- * where two engines name the same one, the engine listed first owns it and the other does not list it.
+ * The models each engine offers, and what each of them takes. A model is its engine and its id
+ * together, since two engines may name the same id: each lists its own, and an id one engine names
+ * twice is listed once.
  */
 export type ModelCatalog = {
   readonly models: Readonly<Record<AgentEngine, readonly ModelSpec[]>>;
+  /** By `catalogKey`. */
   readonly entries: ReadonlyMap<string, CatalogEntry>;
+  /** Every engine's entry for an id, in the order engines are listed. */
+  readonly byId: ReadonlyMap<string, readonly CatalogEntry[]>;
 };
+
+function catalogKey(engine: AgentEngine, model: AgentModel) {
+  return `${engine}\u0000${model}`;
+}
+
+function entryOf(catalog: ModelCatalog, engine: AgentEngine, model: AgentModel): CatalogEntry | undefined {
+  return catalog.entries.get(catalogKey(engine, model));
+}
 
 /** A spec a newer build or an engine sent is only listed when it is one this build can read. */
 function isReadableSpec(value: unknown): value is ModelSpec {
@@ -262,12 +274,19 @@ function isReadableSpec(value: unknown): value is ModelSpec {
 
 export function modelCatalog(lists: Readonly<Record<AgentEngine, readonly ModelSpec[]>>): ModelCatalog {
   const entries = new Map<string, CatalogEntry>();
+  const byId = new Map<string, CatalogEntry[]>();
   const models = byEngine((engine) => lists[engine].filter((spec) => {
-    if (!isReadableSpec(spec) || entries.has(spec.id)) return false;
-    entries.set(spec.id, { engine, spec, efforts: spec.efforts, coordinatorEfforts: spec.efforts.filter((effort) => !effort.delegates) });
+    if (!isReadableSpec(spec)) return false;
+    const key = catalogKey(engine, spec.id);
+    if (entries.has(key)) return false;
+    const entry = { engine, spec, efforts: spec.efforts, coordinatorEfforts: spec.efforts.filter((effort) => !effort.delegates) };
+    entries.set(key, entry);
+    const named = byId.get(spec.id);
+    if (named) named.push(entry);
+    else byId.set(spec.id, [entry]);
     return true;
   }));
-  return { models, entries };
+  return { models, entries, byId };
 }
 
 const BUILT_IN_LISTS: Readonly<Record<AgentEngine, readonly ModelSpec[]>> = byEngine((engine) => {
@@ -296,11 +315,6 @@ export function isAgentEngine(value: unknown): value is AgentEngine {
   return typeof value === "string" && Object.hasOwn(ENGINES, value);
 }
 
-/** True for a model the catalogue offers on any engine; use `engineHasModel` to ask about one engine. */
-export function catalogHasModel(catalog: ModelCatalog, model: AgentModel): boolean {
-  return catalog.entries.has(model);
-}
-
 export function isAgentEffort(value: unknown): value is AgentEffort {
   return typeof value === "string" && EFFORT_IDS.has(value);
 }
@@ -310,8 +324,16 @@ export function effortLabel(value: string) {
   return isAgentEffort(value) ? EFFORTS[value].label : value;
 }
 
+/** True for a model the catalogue offers on any engine; use `engineHasModel` to ask about one engine. */
+export function catalogHasModel(catalog: ModelCatalog, model: AgentModel): boolean {
+  return catalog.byId.has(model);
+}
+
+/** A model as the engine that runs it offers it. */
+export type EngineModel = { engine: AgentEngine; model: AgentModel };
+
 export function engineHasModel(catalog: ModelCatalog, engine: AgentEngine, model: AgentModel) {
-  return catalog.entries.get(model)?.engine === engine;
+  return catalog.entries.has(catalogKey(engine, model));
 }
 
 /** True once an engine's models are known: it ships knowing them, or main has named them. One only a newer build knows offers none here, which is known. */
@@ -319,21 +341,19 @@ export function engineModelsKnown(status: EngineStatus | null | undefined, engin
   return engineSpec(engine)?.models.kind !== "discovered" || Array.isArray(status?.[engine]?.catalog);
 }
 
-/** The engine that offers a model, or none for one the catalogue does not hold, as a newer computer may send. */
-export function modelEngine(catalog: ModelCatalog, model: AgentModel): AgentEngine | undefined {
-  return catalog.entries.get(model)?.engine;
+/**
+ * The engine for a model named without one, as a choice saved before engines travelled with models
+ * or an older computer's request names it: `preferred` where it offers the model, else the first
+ * engine listed that does. None for a model the catalogue does not hold.
+ */
+export function modelEngine(catalog: ModelCatalog, model: AgentModel, preferred?: AgentEngine): AgentEngine | undefined {
+  const entries = catalog.byId.get(model);
+  return entries?.find((entry) => entry.engine === preferred)?.engine ?? entries?.[0]?.engine;
 }
 
-/** The engine that offers a model the caller already knows the catalogue holds. */
-export function engineForModel(catalog: ModelCatalog, model: AgentModel): AgentEngine {
-  const engine = modelEngine(catalog, model);
-  if (!engine) throw new Error(`No engine offers the ${model} model.`);
-  return engine;
-}
-
-/** Why a model the catalogue does not hold cannot be picked. */
-export function unknownModel(model: AgentModel): string {
-  return `No engine here offers the ${model} model. Pick another model.`;
+/** Why a model the catalogue does not hold, or that the named engine does not offer, cannot be picked. */
+export function unknownModel(model: AgentModel, engine?: AgentEngine): string {
+  return engine === undefined ? `No engine here offers the ${model} model. Pick another model.` : `${engineLabel(engine)} here does not offer the ${model} model. Pick another model.`;
 }
 
 /** Why a thread that names no model cannot run while its engine has yet to name one. */
@@ -347,29 +367,34 @@ function plainName(name: string) {
 }
 
 /**
- * The model a name means: the id itself, else the one model whose own id or label reads the same.
- * Where several do, the pinned one wins; otherwise the name is refused with the ones it could mean,
- * since the same model from two providers differs in price and limits.
+ * The model a name means, on `engine` when one is named: the id itself, else the one model whose own
+ * id or label reads the same. Where several do, the pinned one wins; otherwise the name is refused with
+ * the ones it could mean, since the same model from two providers or two engines differs in price and limits.
  */
-export function resolveModel(catalog: ModelCatalog, name: AgentModel, favorites: readonly AgentModel[]): { model: AgentModel } | { error: string } {
-  if (catalog.entries.has(name)) return { model: name };
+export function resolveModel(catalog: ModelCatalog, name: AgentModel, favorites: readonly AgentModel[], engine?: AgentEngine): EngineModel | { error: string } {
+  const on = (entries: readonly CatalogEntry[]) => engine === undefined ? entries : entries.filter((entry) => entry.engine === engine);
+  const exact = on(catalog.byId.get(name) ?? []);
   const plain = plainName(name);
-  const matches = plain ? [...catalog.entries.values()].filter(({ spec }) => plainName(spec.id.slice(spec.id.lastIndexOf("/") + 1)) === plain || plainName(spec.label) === plain).map(({ spec }) => spec.id) : [];
-  const pinned = matches.filter((model) => favorites.includes(model));
+  const matches = exact.length || !plain ? exact : on([...catalog.entries.values()]).filter(({ spec }) => plainName(spec.id.slice(spec.id.lastIndexOf("/") + 1)) === plain || plainName(spec.label) === plain);
+  const pinned = matches.filter(({ spec }) => favorites.includes(spec.id));
   const meant = pinned.length ? pinned : matches;
-  if (meant.length === 1) return { model: meant[0]! };
-  if (meant.length > 1) return { error: `${name} could mean ${meant.join(", ")}. Name one of them, or pin the one you mean in the model picker.` };
-  return { error: unknownModel(name) };
+  if (meant.length === 1) return { engine: meant[0]!.engine, model: meant[0]!.spec.id };
+  if (meant.length > 1) {
+    /** Two engines naming one id tell apart only by engine, which pinning an id cannot. */
+    const shared = new Set(meant.map(({ spec }) => spec.id)).size < meant.length;
+    const named = meant.map(({ engine: offering, spec }) => shared ? `${spec.id} on ${engineLabel(offering)}` : spec.id);
+    return { error: `${name} could mean ${named.join(", ")}. ${shared ? "Name the engine as well." : "Name one of them, or pin the one you mean in the model picker."}` };
+  }
+  return { error: unknownModel(name, engine) };
 }
 
 /** Manual context compaction belongs to the model, so an engine that does not offer it cannot ask. */
 export function modelSupportsManualCompaction(catalog: ModelCatalog, engine: AgentEngine, model: AgentModel) {
-  const entry = catalog.entries.get(model);
-  return entry?.engine === engine && entry.spec.manualCompaction === true;
+  return entryOf(catalog, engine, model)?.spec.manualCompaction === true;
 }
 
-export function modelDelegable(catalog: ModelCatalog, model: AgentModel) {
-  return catalog.entries.get(model)?.spec.delegable !== false;
+export function modelDelegable(catalog: ModelCatalog, engine: AgentEngine, model: AgentModel) {
+  return entryOf(catalog, engine, model)?.spec.delegable !== false;
 }
 
 /** An effort Claude does not offer lands on its default, so a foreign one never reaches the SDK. */
@@ -382,23 +407,23 @@ export function engineHasEffort(catalog: ModelCatalog, engine: AgentEngine, effo
   return modelsFor(catalog, engine).some((model) => model.efforts.some((spec) => spec.id === effort));
 }
 
-export function modelHasEffort(catalog: ModelCatalog, model: AgentModel, effort: AgentEffort, role?: CoordinationRole) {
-  return effortsFor(catalog, model, role).some((spec) => spec.id === effort);
+export function modelHasEffort(catalog: ModelCatalog, engine: AgentEngine, model: AgentModel, effort: AgentEffort, role?: CoordinationRole) {
+  return effortsFor(catalog, engine, model, role).some((spec) => spec.id === effort);
 }
 
 /** False for a model that reasons at one depth, whose threads are run and drawn without an effort. */
-export function modelTakesEffort(catalog: ModelCatalog, model: AgentModel) {
-  return effortsFor(catalog, model).length > 0;
+export function modelTakesEffort(catalog: ModelCatalog, engine: AgentEngine, model: AgentModel) {
+  return effortsFor(catalog, engine, model).length > 0;
 }
 
 /**
  * The effort a run on this model actually gets: the one asked for where the model takes it, else the
  * nearest one below. A model that takes no effort keeps what it was given, since nothing reads it.
  */
-export function effortForModel(catalog: ModelCatalog, model: AgentModel, effort: AgentEffort, role?: CoordinationRole): AgentEffort {
+export function effortForModel(catalog: ModelCatalog, engine: AgentEngine, model: AgentModel, effort: AgentEffort, role?: CoordinationRole): AgentEffort {
   /** An effort only a newer build knows is kept as it is, as nothing here can say what it is nearest. */
   if (!isAgentEffort(effort)) return effort;
-  const offered = effortsFor(catalog, model, role);
+  const offered = effortsFor(catalog, engine, model, role);
   if (offered.length === 0 || offered.some((spec) => spec.id === effort)) return effort;
   const asked = EFFORT_ORDER.indexOf(effort);
   return (offered.find((spec) => EFFORT_ORDER.indexOf(spec.id) >= asked) ?? offered[offered.length - 1]!).id;
@@ -423,8 +448,8 @@ export function modelsFor(catalog: ModelCatalog, engine: AgentEngine): readonly 
  * work only to threads the user can see, never to the engine's own agents, so it takes none of the
  * efforts that would, whichever engine it runs on.
  */
-export function effortsFor(catalog: ModelCatalog, model: AgentModel, role?: CoordinationRole): readonly EffortSpec[] {
-  const entry = catalog.entries.get(model);
+export function effortsFor(catalog: ModelCatalog, engine: AgentEngine, model: AgentModel, role?: CoordinationRole): readonly EffortSpec[] {
+  const entry = entryOf(catalog, engine, model);
   if (!entry) return [];
   return role === "coordinator" ? entry.coordinatorEfforts : entry.efforts;
 }
@@ -473,9 +498,12 @@ export function unopenableEngine(engine: string): string {
   return `Runs on ${engine}, which this version can't open. Update to work in it here.`;
 }
 
-/** A model by the name the composer gives it, or by its id for one the catalogue does not hold, such as one a paired computer's newer build ran. */
-export function modelLabel(catalog: ModelCatalog, model: string): string {
-  return catalog.entries.get(model)?.spec.label ?? model;
+/**
+ * A model by the name the composer gives it, or by its id for one the catalogue does not hold, such as
+ * one a paired computer's newer build ran. With no engine named, it is the name the first engine offering it gives it.
+ */
+export function modelLabel(catalog: ModelCatalog, engine: AgentEngine | undefined, model: string): string {
+  return (engine === undefined ? catalog.byId.get(model)?.[0] : entryOf(catalog, engine, model))?.spec.label ?? model;
 }
 
 /** One value per engine, built now so a picker reads a stable list instead of building one per render. */
@@ -485,9 +513,8 @@ export function byEngine<T>(build: (engine: AgentEngine) => T): Record<AgentEngi
 
 /** A model the engine does not offer is measured against the engine's default model. */
 export function contextWindowLimit(catalog: ModelCatalog, engine: AgentEngine, model: AgentModel): number {
-  if (!engineSpec(engine)) return 0;
-  const models = modelsFor(catalog, engine);
+  const offered = entryOf(catalog, engine, model);
+  if (offered) return offered.spec.contextWindow;
   const defaultModel = defaultModelIn(catalog, engine);
-  if (defaultModel === undefined) return models.find((spec) => spec.id === model)?.contextWindow ?? 0;
-  return (models.find((spec) => spec.id === model) ?? models.find((spec) => spec.id === defaultModel))?.contextWindow ?? 0;
+  return defaultModel === undefined ? 0 : entryOf(catalog, engine, defaultModel)?.spec.contextWindow ?? 0;
 }

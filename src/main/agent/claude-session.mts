@@ -61,7 +61,7 @@ function backgroundProcesses(tasks: { task_id: string; task_type: string; descri
 
 /** The effort a run asks the SDK to hold, or null to clear it for a model that takes none. */
 function effortFlag(input: { model: AgentModel; effort: AgentEffort }): ClaudeEffort | null {
-  return modelTakesEffort(BUILT_IN_MODELS, input.model) ? claudeEffort(input.effort) : null;
+  return modelTakesEffort(BUILT_IN_MODELS, "claude", input.model) ? claudeEffort(input.effort) : null;
 }
 
 export function claudePermissionMode(policy: ExecutionPolicy) {

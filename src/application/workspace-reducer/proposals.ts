@@ -7,7 +7,7 @@ import { announced } from "../notices.js";
 import { caughtStartComputer, catchesStart, withoutCaughtStart, withStartLanded } from "../outstanding-stops.js";
 import { updateThread } from "../thread-run-state.js";
 import { newThreadSend, proposalSend } from "../thread-starts.js";
-import { ledStartRefusal, titledFor, type PairedComputer } from "../computers.js";
+import { ledStartRefusal, sendFor, type PairedComputer } from "../computers.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
@@ -176,12 +176,13 @@ function startElsewhere(state: WorkspaceState, leadId: string, proposalId: strin
   const { command } = start;
   const name = retried.computers.name || "another computer";
   const memory = memoryPrompt(lead.memory);
-  const send = titledFor(computer, {
+  const send = sendFor(computer, {
     type: "task.send",
     text: proposal.prompt,
     project,
     worktree: place.worktree,
     ...(command.model ? { model: command.model } : {}),
+    ...(command.engine ? { engine: command.engine } : {}),
     ...(command.effort ? { effort: command.effort } : {}),
     ...(command.role ? { role: command.role } : {}),
     ...(command.brief ? { brief: command.brief } : {}),

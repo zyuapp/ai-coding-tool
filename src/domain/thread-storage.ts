@@ -378,7 +378,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
     isAgentEngine(value.engine) &&
-    (value.model === undefined || isModelId(value.model) && (modelEngine(BUILT_IN_MODELS, value.model) ?? value.engine) === value.engine) &&
+    (value.model === undefined || isModelId(value.model) && (modelEngine(BUILT_IN_MODELS, value.model, value.engine) ?? value.engine) === value.engine) &&
     (value.fastMode === undefined || capabilitiesFor(value.engine).fastMode && typeof value.fastMode === "boolean") &&
     (value.effort === undefined || isAgentEffort(value.effort)) &&
     (value.contextUsage === undefined || isContextUsage(value.contextUsage)) &&

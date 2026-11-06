@@ -17,7 +17,7 @@ import { threadBusy } from "../run-record.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import { canJoinCoordinator, coordinatorOf, decisionsFull, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
-import { defaultEffortFor, effortForModel, modelDelegable, modelEngine, modelHasEffort, modelTakesEffort, unknownModel } from "../../domain/agent-engine.js";
+import { defaultEffortFor, effortForModel, engineHasModel, modelDelegable, modelEngine, modelHasEffort, modelTakesEffort, unknownModel } from "../../domain/agent-engine.js";
 import { catalogOf } from "../engine-access.js";
 import type { Thread } from "../../domain/thread.js";
 import { dismissed } from "../../domain/attention.js";
@@ -125,15 +125,15 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       const lead = state.threads.find((item) => item.id === input.taskId);
       if (!lead || !isCoordinator(lead)) return rejected(state, "Only a coordinator chooses what its threads run on.");
       const catalog = catalogOf(state);
-      const engine = modelEngine(catalog, input.model);
-      if (!engine) return rejected(state, unknownModel(input.model));
-      if (!modelDelegable(catalog, input.model)) return rejected(state, undelegable(input.model));
+      const engine = input.engine ?? modelEngine(catalog, input.model, lead.engine);
+      if (!engine || !engineHasModel(catalog, engine, input.model)) return rejected(state, unknownModel(input.model, input.engine));
+      if (!modelDelegable(catalog, engine, input.model)) return rejected(state, undelegable(input.model));
       /** An effort the model lacks, or none, keeps the depth the threads run at as near as that model allows. */
-      const effort = input.effort && modelHasEffort(catalog, input.model, input.effort)
+      const effort = input.effort && modelHasEffort(catalog, engine, input.model, input.effort)
         ? input.effort
-        : effortForModel(catalog, input.model, threadModelOf(catalog, lead)?.effort ?? defaultEffortFor(engine));
-      const threadModel = modelTakesEffort(catalog, input.model) ? { model: input.model, effort } : { model: input.model };
-      if (lead.threadModel?.model === threadModel.model && lead.threadModel.effort === threadModel.effort) return settled(state);
+        : effortForModel(catalog, engine, input.model, threadModelOf(catalog, lead)?.effort ?? defaultEffortFor(engine));
+      const threadModel = modelTakesEffort(catalog, engine, input.model) ? { engine, model: input.model, effort } : { engine, model: input.model };
+      if (lead.threadModel?.engine === engine && lead.threadModel.model === threadModel.model && lead.threadModel.effort === threadModel.effort) return settled(state);
       return settled(updateThread(state, lead.id, (item) => ({ ...item, threadModel, updatedAt: now() })));
     }
 

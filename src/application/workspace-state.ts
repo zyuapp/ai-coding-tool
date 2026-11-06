@@ -102,8 +102,9 @@ export type PendingRun = Pick<HeldMessage, "usersOwn"> & {
   projectId?: string;
   /** The checkout the run was told to happen in, for a thread that does not exist yet to claim. */
   worktreeId?: string;
-  /** Agent choices carried atomically by a new thread request instead of changing the shared draft. */
+  /** Agent choices carried atomically by a new thread request instead of changing the shared draft. `engine` is set with `model`. */
   model?: AgentModel;
+  engine?: AgentEngine;
   effort?: AgentEffort;
   role?: ThreadRole;
   coordination?: CoordinationSend;
@@ -672,10 +673,11 @@ function engineView(state: WorkspaceState, currentThread: Thread | undefined) {
 
 /** The model in front and the effort a run on it gets, which for a coordinator is never one that hands work to the engine's agents. */
 function modelView(state: WorkspaceState, currentThread: Thread | undefined) {
+  const engine = currentThread?.engine ?? state.draftEngine;
   const model = currentThread ? threadModel(catalogOf(state), currentThread) : state.draftModel;
   const role = effortRoleOf(currentThread, state.draftRole);
-  const effort = currentThread ? currentThread.effort ?? defaultEffortFor(currentThread.engine) : state.draftEffort;
-  return { model, coordinating: role === "coordinator", effort: model === undefined ? effort : effortForModel(catalogOf(state), model, effort, role) };
+  const effort = currentThread ? currentThread.effort ?? defaultEffortFor(engine) : state.draftEffort;
+  return { model, coordinating: role === "coordinator", effort: model === undefined ? effort : effortForModel(catalogOf(state), engine, model, effort, role) };
 }
 
 /**

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { MAX_ID_LENGTH, MAX_PROMPT_LENGTH, MAX_SEARCH_TEXT, MAX_THREAD_WAIT_MS } from "../../contracts/ipc.js";
 import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js";
-import { AGENT_ENGINES, BUILT_IN_MODELS, isAgentEffort, isModelId, modelDelegable, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
+import { AGENT_ENGINES, BUILT_IN_MODELS, isAgentEffort, isModelId, modelDelegable, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort } from "../../domain/run.js";
 import { THREAD_ROLES, type ThreadRole } from "../../domain/thread-role.js";
 import { DELIVERIES, MAX_BRIEF_FIELD, MAX_PROPOSAL_COMPUTER, MAX_PROPOSAL_PROJECT, MAX_PROPOSAL_TITLE, type CoordinationRole, type Delivery } from "../../domain/coordination.js";
@@ -26,7 +26,8 @@ const projectField = z.string().min(1).max(MAX_PROPOSAL_PROJECT).optional().desc
   "\"current\" (the default) for the project this thread belongs to, \"all\" for every project, or a project named by its folder name or its path.",
 );
 
-const modelIds = AGENT_ENGINES.flatMap((engine) => modelsFor(BUILT_IN_MODELS, engine).map((model) => model.id));
+const builtIn = AGENT_ENGINES.flatMap((engine) => modelsFor(BUILT_IN_MODELS, engine).map((model) => ({ engine, model: model.id })));
+const modelIds = [...new Set(builtIn.map(({ model }) => model))];
 const effortIds = [...new Set(AGENT_ENGINES.flatMap((engine) => modelsFor(BUILT_IN_MODELS, engine).flatMap((model) => model.efforts.map((effort) => effort.id))))];
 /**
  * Models an engine names for itself are only known to the window, which refuses one no engine
@@ -39,7 +40,8 @@ const modelFieldOf = (ids: AgentModel[], omitted: string) => z.string().trim().m
   );
 const modelField = modelFieldOf(modelIds, "inherit the calling thread's model.");
 /** A thread that will work under a coordinator never runs on a model one may not hand work to. */
-const delegableModelField = (omitted: string) => modelFieldOf(modelIds.filter((model) => modelDelegable(BUILT_IN_MODELS, model)), omitted);
+const delegableModelField = (omitted: string) => modelFieldOf([...new Set(builtIn.filter(({ engine, model }) => modelDelegable(BUILT_IN_MODELS, engine, model)).map(({ model }) => model))], omitted);
+const engineField = z.enum(AGENT_ENGINES as [AgentEngine, ...AgentEngine[]]).optional().describe("The engine to run model on, needed only when more than one engine offers it.");
 const roleIds = THREAD_ROLES.map((option) => option.role);
 const roleField = z.enum(roleIds as [ThreadRole, ...ThreadRole[]]).optional().describe(
   "The part the new thread plays beside the others: coordinator, implementer, reviewer, or researcher. Set reviewer for review threads; a reviewer starts on Auto, or on Bypass where its engine has no Auto, and stays in Threads unless it needs the user's approval.",
@@ -69,6 +71,7 @@ const NEW_THREAD_INPUT = {
   worktree: z.boolean().optional().describe("Run the new thread in its own new git worktree, detached at whatever the project has checked out, so its edits never touch this thread's checkout. Name files in its prompt relative to the project, never by this checkout's absolute path, which would send it back here."),
   worktreeId: z.string().trim().max(MAX_ID_LENGTH).optional().describe("Start the thread in another worktree that already exists, as list_threads reports it, on the computer it starts on. Omit both worktree fields to share this thread's checkout. Takes precedence over worktree."),
   model: modelField,
+  engine: engineField,
   effort: effortField,
   role: roleField,
   intent: z.string().trim().max(MAX_BRIEF_FIELD).optional().describe("Part of the brief a coordinator must give: the user's own words for this piece of work."),
@@ -99,6 +102,7 @@ type NewThreadArgs = {
   worktree?: boolean | undefined;
   worktreeId?: string | undefined;
   model?: AgentModel | undefined;
+  engine?: AgentEngine | undefined;
   effort?: AgentEffort | undefined;
   role?: ThreadRole | undefined;
 };
@@ -112,6 +116,7 @@ export function newThreadFields(args: NewThreadArgs) {
     ...(args.project ? { project: args.project } : {}),
     ...(args.worktreeId ? { worktreeId: args.worktreeId } : args.worktree ? { worktree: true } : {}),
     ...(args.model ? { model: args.model } : {}),
+    ...(args.engine ? { engine: args.engine } : {}),
     ...(args.effort ? { effort: args.effort } : {}),
     ...(args.role ? { role: args.role } : {}),
   };

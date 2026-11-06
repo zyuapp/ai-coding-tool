@@ -11,7 +11,7 @@ import { wantsAttention } from "./attention.js";
 import type { AgentEffort } from "./run.js";
 import type { ThreadOutcome } from "./thread-run.js";
 import { isThreadRole, type ThreadRole } from "./thread-role.js";
-import { catalogHasModel, defaultEffortFor, defaultModelIn, effortForModel, engineForModel, isAgentEffort, isModelId, modelDelegable, modelTakesEffort, threadModel, type AgentModel, type ModelCatalog } from "./agent-engine.js";
+import { defaultEffortFor, defaultModelIn, effortForModel, engineHasModel, isAgentEffort, isAgentEngine, isModelId, modelDelegable, modelEngine, modelTakesEffort, threadModel, type AgentEngine, type AgentModel, type ModelCatalog } from "./agent-engine.js";
 
 /** A coordinator's run delegates and changes no files; a thread under one reports back to it. */
 export type CoordinationRole = "coordinator" | "member";
@@ -168,6 +168,8 @@ export type ProposalRequest = {
   project?: string;
   worktree?: boolean;
   worktreeId?: string;
+  /** The engine to run `model` on, for a model more than one engine offers. */
+  engine?: AgentEngine;
   model?: AgentModel;
   effort?: AgentEffort;
   role?: ThreadRole;
@@ -196,6 +198,8 @@ export type ThreadProposal = {
   prompt: string;
   brief?: ThreadBrief;
   place: ProposalPlace;
+  /** The engine `model` runs on, when it was resolved to one. */
+  engine?: AgentEngine;
   model?: AgentModel;
   effort?: AgentEffort;
   role?: ThreadRole;
@@ -265,8 +269,8 @@ export function wantsFreshSession(thread: Thread, sessionHolds: boolean): boolea
   return isCoordinator(thread) && thread.continuation !== undefined && (thread.contextUsage?.tokens ?? 0) >= COORDINATOR_CONTEXT_TOKENS && !sessionHolds;
 }
 
-/** What a coordinator's threads run on unless one is started on something else. */
-export type ThreadModelChoice = { model: AgentModel; effort?: AgentEffort };
+/** What a coordinator's threads run on unless one is started on something else. A choice saved before engines travelled with models names none. */
+export type ThreadModelChoice = { engine?: AgentEngine; model: AgentModel; effort?: AgentEffort };
 
 /**
  * What a coordinator's threads run on: the user's choice, else what the coordinator runs on itself,
@@ -275,19 +279,26 @@ export type ThreadModelChoice = { model: AgentModel; effort?: AgentEffort };
  * no model and its engine has yet to name one.
  */
 export function threadModelOf(catalog: ModelCatalog, lead: Thread): ThreadModelChoice | undefined {
+  const saved = lead.threadModel;
+  const chosen = saved && { engine: saved.engine ?? modelEngine(catalog, saved.model, lead.engine), model: saved.model };
+  const ownModel = threadModel(catalog, lead);
+  const own = ownModel === undefined ? undefined : { engine: lead.engine, model: ownModel };
+  const fallback = defaultModelIn(catalog, lead.engine);
   /**
    * A model the catalogue does not hold, such as one only a newer build on a paired computer knows, is
    * kept as it was chosen, for the window to name and leave alone; nothing here can say it may not be delegated.
    */
-  const known = (model: AgentModel) => catalogHasModel(catalog, model);
-  const chosen = lead.threadModel?.model;
-  const own = threadModel(catalog, lead);
-  const model = chosen && (!known(chosen) || modelDelegable(catalog, chosen)) ? chosen : own !== undefined && (!known(own) || modelDelegable(catalog, own)) ? own : defaultModelIn(catalog, lead.engine);
-  if (model === undefined) return undefined;
-  if (!known(model)) return { model, ...(lead.threadModel?.model === model && lead.threadModel.effort ? { effort: lead.threadModel.effort } : {}) };
-  if (!modelTakesEffort(catalog, model)) return { model };
-  return { model, effort: effortForModel(catalog, model, lead.threadModel?.effort ?? lead.effort ?? defaultEffortFor(engineForModel(catalog, model))) };
+  const known = (choice: { engine: AgentEngine | undefined; model: AgentModel }): choice is EngineChoice => choice.engine !== undefined && engineHasModel(catalog, choice.engine, choice.model);
+  const fits = (choice: { engine: AgentEngine | undefined; model: AgentModel } | undefined) => choice !== undefined && (!known(choice) || modelDelegable(catalog, choice.engine, choice.model));
+  const choice = fits(chosen) ? chosen! : fits(own) ? own! : fallback === undefined ? undefined : { engine: lead.engine, model: fallback };
+  if (choice === undefined) return undefined;
+  if (!known(choice)) return { ...(choice.engine ? { engine: choice.engine } : {}), model: choice.model, ...(saved?.model === choice.model && saved.effort ? { effort: saved.effort } : {}) };
+  const { engine, model } = choice;
+  if (!modelTakesEffort(catalog, engine, model)) return { engine, model };
+  return { engine, model, effort: effortForModel(catalog, engine, model, saved?.effort ?? lead.effort ?? defaultEffortFor(engine)) };
 }
+
+type EngineChoice = { engine: AgentEngine; model: AgentModel };
 
 /** Why a thread under a coordinator, started or chosen for, may not run on `model`. */
 export function undelegable(model: AgentModel): string {
@@ -694,7 +705,7 @@ export function isThreadBrief(value: unknown): value is ThreadBrief {
 
 /** Shape only: whether the model may run a coordinator's threads, and takes the effort, is decided where it is read. */
 export function isThreadModelChoice(value: unknown): value is ThreadModelChoice {
-  return isRecord(value) && isModelId(value.model) && (value.effort === undefined || isAgentEffort(value.effort));
+  return isRecord(value) && (value.engine === undefined || isAgentEngine(value.engine)) && isModelId(value.model) && (value.effort === undefined || isAgentEffort(value.effort));
 }
 
 function isMemoryNote(value: unknown): value is MemoryNote {
@@ -737,6 +748,7 @@ export function isProposalRequest(value: unknown): value is ProposalRequest {
     && optionalText(value.project, MAX_PROPOSAL_PROJECT)
     && (value.worktree === undefined || typeof value.worktree === "boolean")
     && (value.worktreeId === undefined || typeof value.worktreeId === "string" && value.worktreeId.trim().length > 0)
+    && (value.engine === undefined || isAgentEngine(value.engine))
     && (value.model === undefined || isModelId(value.model))
     && (value.effort === undefined || isAgentEffort(value.effort))
     && (value.role === undefined || isThreadRole(value.role))
@@ -756,6 +768,7 @@ export function isThreadProposal(value: unknown): value is ThreadProposal {
   return isRecord(value) && text(value.id, 200) && typeof value.title === "string" && (value.named === undefined || value.named === true)
     && typeof value.prompt === "string"
     && (value.brief === undefined || isThreadBrief(value.brief)) && isProposalPlace(value.place)
+    && (value.engine === undefined || isAgentEngine(value.engine))
     && (value.model === undefined || isModelId(value.model))
     && (value.effort === undefined || isAgentEffort(value.effort))
     && (value.role === undefined || isThreadRole(value.role))

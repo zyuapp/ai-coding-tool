@@ -62,24 +62,24 @@ test("a member in a worktree of its own names its project's checkout to keep out
 test("becoming a coordinator keeps what it ran on for its threads", () => {
   const state = workspace({ threads: [task("planner", { model: "sonnet", effort: "low" }), task("light", { model: "haiku" })], currentId: "planner" });
   const made = reduce(state, { type: "task.set-role", taskId: "planner", role: "coordinator" }).state;
-  assert.deepEqual(made.threads[0].threadModel, { model: "sonnet", effort: "low" });
-  assert.deepEqual(deriveView(made).coordination.threadModel, { model: "sonnet", effort: "low" }, "its Overview says so before any thread starts");
+  assert.deepEqual(made.threads[0].threadModel, { engine: "claude", model: "sonnet", effort: "low" });
+  assert.deepEqual(deriveView(made).coordination.threadModel, { engine: "claude", model: "sonnet", effort: "low" }, "its Overview says so before any thread starts");
 
   const moved = reduce(reduce(made, { type: "task.set-model", taskId: "planner", engine: "claude", model: "opus" }).state, { type: "task.set-effort", taskId: "planner", engine: "claude", effort: "max" }).state;
   assert.equal(moved.threads[0].model, "opus");
-  assert.deepEqual(moved.threads[0].threadModel, { model: "sonnet", effort: "low" }, "the coordinator's own model and effort no longer reach its threads");
+  assert.deepEqual(moved.threads[0].threadModel, { engine: "claude", model: "sonnet", effort: "low" }, "the coordinator's own model and effort no longer reach its threads");
   const dropped = reduce(moved, { type: "task.set-role", taskId: "planner", role: null }).state;
   assert.equal(dropped.threads[0].threadModel, undefined, "a thread that stops coordinating forgets the choice");
   const again = reduce(dropped, { type: "task.set-role", taskId: "planner", role: "coordinator" }).state;
-  assert.deepEqual(again.threads[0].threadModel, { model: "opus", effort: "max" }, "becoming one again snapshots what it runs on now");
+  assert.deepEqual(again.threads[0].threadModel, { engine: "claude", model: "opus", effort: "max" }, "becoming one again snapshots what it runs on now");
 
   const light = reduce(state, { type: "task.set-role", taskId: "light", role: "coordinator" }).state;
-  assert.deepEqual(light.threads[1].threadModel, { model: "opus", effort: "high" }, "a Haiku thread's threads run on its engine's default");
+  assert.deepEqual(light.threads[1].threadModel, { engine: "claude", model: "opus", effort: "high" }, "a Haiku thread's threads run on its engine's default");
 
   const drafted = reduce(reduce(reduce(reduce(workspace(), { type: "task.set-model", engine: "codex", model: "gpt-6-luna" }).state, { type: "task.set-effort", engine: "codex", effort: "low" }).state, { type: "task.set-role", role: "coordinator" }).state, { type: "view.set-prompt", prompt: "Split this work up" }).state;
   const sending = reduce(drafted, { type: "task.send" });
   const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
-  assert.deepEqual(started.state.threads[0].threadModel, { model: "gpt-6-luna", effort: "low" }, "a draft made a coordinator snapshots its first run's model");
+  assert.deepEqual(started.state.threads[0].threadModel, { engine: "codex", model: "gpt-6-luna", effort: "low" }, "a draft made a coordinator snapshots its first run's model");
 });
 
 test("a coordinator's threads cannot run on Haiku or an effort their model lacks", () => {
@@ -89,11 +89,11 @@ test("a coordinator's threads cannot run on Haiku or an effort their model lacks
   assert.equal(haiku.state.threads, state.threads);
 
   const luna = reduce(state, { type: "coordination.set-thread-model", taskId: "lead", model: "gpt-6-luna" }).state;
-  assert.deepEqual(luna.threads[0].threadModel, { model: "gpt-6-luna", effort: "max" }, "an effort the new model lacks moves to the nearest it takes");
+  assert.deepEqual(luna.threads[0].threadModel, { engine: "codex", model: "gpt-6-luna", effort: "max" }, "an effort the new model lacks moves to the nearest it takes");
   const mapped = reduce(luna, { type: "coordination.set-thread-model", taskId: "lead", model: "opus", effort: "ultra" }).state;
-  assert.deepEqual(mapped.threads[0].threadModel, { model: "opus", effort: "max" });
+  assert.deepEqual(mapped.threads[0].threadModel, { engine: "claude", model: "opus", effort: "max" });
   const low = reduce(mapped, { type: "coordination.set-thread-model", taskId: "lead", model: "opus", effort: "low" }).state;
-  assert.deepEqual(low.threads[0].threadModel, { model: "opus", effort: "low" });
+  assert.deepEqual(low.threads[0].threadModel, { engine: "claude", model: "opus", effort: "low" });
   assert.equal(reduce(low, { type: "coordination.set-thread-model", taskId: "lead", model: "opus", effort: "low" }).state.threads, low.threads, "an unchanged choice writes nothing");
 
   const solo = reduce(state, { type: "coordination.set-thread-model", taskId: "solo", model: "opus" });
@@ -118,9 +118,9 @@ test("only a coordinator is muted, and it forgets the mute once it stops being o
 
 test("a coordinator made before it chose what its threads run on reads what it runs on itself", () => {
   const legacy = workspace({ threads: [lead("lead", { model: "sonnet", effort: "medium" })], currentId: "lead" });
-  assert.deepEqual(deriveView(legacy).coordination.threadModel, { model: "sonnet", effort: "medium" });
+  assert.deepEqual(deriveView(legacy).coordination.threadModel, { engine: "claude", model: "sonnet", effort: "medium" });
   const gone = workspace({ threads: [lead("lead", { model: "haiku", threadModel: { model: "haiku" } })], currentId: "lead" });
-  assert.deepEqual(deriveView(gone).coordination.threadModel, { model: "opus", effort: "high" }, "a choice its threads can no longer run on falls back to the engine's default");
+  assert.deepEqual(deriveView(gone).coordination.threadModel, { engine: "claude", model: "opus", effort: "high" }, "a choice its threads can no longer run on falls back to the engine's default");
 });
 
 test("a thread started with a brief but no coordinator keeps neither", () => {

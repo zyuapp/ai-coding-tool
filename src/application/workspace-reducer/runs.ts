@@ -24,7 +24,7 @@ import { threadBusy, threadToBegin } from "../run-record.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, draftOf, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree, RunEvent } from "../../contracts/ipc.js";
-import { capabilitiesFor, modelEngine, modelSupportsManualCompaction, noModel, threadModel, unknownModel } from "../../domain/agent-engine.js";
+import { capabilitiesFor, modelSupportsManualCompaction, noModel, threadModel, unknownModel } from "../../domain/agent-engine.js";
 import { normalizeDraft } from "../../domain/agent-draft.js";
 import { catalogOf, engineOffersModel } from "../engine-access.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
@@ -312,10 +312,10 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   /** This thread's own first run inside a checkout forks its session rather than resuming it there. */
   const entering = Boolean(arriving) && existing?.worktreeEnteredAt === undefined;
   const catalog = catalogOf(state);
-  const engine = pending.model ? modelEngine(catalog, pending.model) : state.draftEngine;
+  const engine = pending.engine ?? state.draftEngine;
   const model = pending.model ?? state.draftModel;
   /** The catalogue may have changed while the run found its workspace. */
-  if (!engine || !existing && !engineOffersModel(state, engine, model)) return rejected(withUnsent(state, pending), unknownModel(model));
+  if (!existing && !engineOffersModel(state, engine, model)) return rejected(withUnsent(state, pending), unknownModel(model));
   /** A reviewer runs on the mode its engine gives a run nobody watches, so its round never waits on an approval. */
   const choice = normalizeDraft(catalog, {
     ...draftOf(state),

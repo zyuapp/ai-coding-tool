@@ -226,8 +226,8 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
       const effort = thread ? thread.effort ?? defaultEffortFor(engine) : source.draftEffort;
       const role = effortRoleOf(thread, source.draftRole);
       if (model === undefined) return [];
-      const choices = effortsFor(catalog, model, role);
-      const index = choices.findIndex((choice) => choice.id === effortForModel(catalog, model, effort, role));
+      const choices = effortsFor(catalog, engine, model, role);
+      const index = choices.findIndex((choice) => choice.id === effortForModel(catalog, engine, model, effort, role));
       const next = choices[index + (action === "effort.increase" ? -1 : 1)];
       if (index < 0 || !next) return [];
       const command: AppCommand = { type: "task.set-effort", engine, effort: next.id };

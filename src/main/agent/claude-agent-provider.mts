@@ -167,7 +167,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         permissionMode: claudePermissionMode(input.policy),
         ...(grantsTool("workspace", input) ? { allowDangerouslySkipPermissions: true } : {}),
         model: input.model,
-        ...(modelTakesEffort(BUILT_IN_MODELS, input.model) ? { effort: claudeEffort(input.effort) } : {}),
+        ...(modelTakesEffort(BUILT_IN_MODELS, "claude", input.model) ? { effort: claudeEffort(input.effort) } : {}),
         betas: ["context-1m-2025-08-07" as const],
         ...(drivesChrome(input) ? { extraArgs: { chrome: null } } : {}),
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),

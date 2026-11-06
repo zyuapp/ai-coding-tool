@@ -1,7 +1,7 @@
 import { createContext, memo, useContext, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuCircleCheck as Resolved, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuPencil as Pencil, LuTrash2 as Trash, LuUndo2 as Reopen, LuX as X } from "react-icons/lu";
 import { deliveryLabel, MAX_MEMORY_NOTE, MAX_MEMORY_NOTES, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
-import { modelDelegable, modelEngine, modelLabel, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
+import { engineHasModel, modelDelegable, modelLabel, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
 import { useModelCatalog } from "../model-catalog";
 import type { AgentEffort } from "../../domain/run";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
@@ -63,7 +63,7 @@ export type OverviewHeaderProps = {
   engineAccess: Record<AgentEngine, EngineReadiness>;
   favoriteModels?: AgentModel[];
   onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
-  onSetThreadModel: (model: AgentModel, effort?: AgentEffort) => void;
+  onSetThreadModel: (engine: AgentEngine, model: AgentModel, effort?: AgentEffort) => void;
   onEngineRead: () => void;
   onSignIn: (engine: AgentEngine) => void;
   onOpenEngineSettings?: () => void;
@@ -353,9 +353,9 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
       {open && <div className="coordination-usage-body">
         <p className="coordination-usage-own">This coordinator <strong>{compactTokens(coordinator)}</strong> · {own > 0 && own < 1 ? "<1" : Math.round(own)}%</p>
         <h4>By model</h4>
-        {byModel.map(({ model, tokens }) => (
-          <div key={model} className="coordination-usage-model" data-tip={`${tokens.toLocaleString("en-US")} tokens`}>
-            <span>{modelLabel(catalog, model)}</span>
+        {byModel.map(({ engine, model, tokens }) => (
+          <div key={`${engine}:${model}`} className="coordination-usage-model" data-tip={`${tokens.toLocaleString("en-US")} tokens`}>
+            <span>{modelLabel(catalog, engine, model)}</span>
             <span className="coordination-usage-track" aria-hidden="true"><span className="coordination-usage-fill" style={{ width: `${shareOf(tokens, total)}%` }} /></span>
             <span className="coordination-usage-tokens">{compactTokens(tokens)}</span>
           </div>
@@ -396,26 +396,26 @@ export function OverviewHeader({ taskId, threadModel, engineAccess, favoriteMode
   const catalog = useModelCatalog();
   if (!threadModel) return null;
   const { model, effort } = threadModel;
-  const engine = modelEngine(catalog, model);
+  const engine = threadModel.engine !== undefined && engineHasModel(catalog, threadModel.engine, model) ? threadModel.engine : undefined;
   return (
     <div className="coordination-overview-header">
       <span className="coordination-overview-label">Threads run on</span>
       {/** A model this build does not know, as a newer computer may run, is named and left for that computer to change. */}
       {!engine && <span className="coordination-overview-model">{model}</span>}
-      {engine && <CommandGate command={{ type: "coordination.set-thread-model", taskId, model, ...(effort ? { effort } : {}) }}>
+      {engine && <CommandGate command={{ type: "coordination.set-thread-model", taskId, engine, model, ...(effort ? { effort } : {}) }}>
         <div className="coordination-thread-model">
           <ModelMenu
             engine={engine}
             engineLocked={false}
             engineAccess={engineAccess}
             model={model}
-            models={(candidate) => modelDelegable(catalog, candidate)}
+            models={(offering, candidate) => modelDelegable(catalog, offering, candidate)}
             favoriteModels={favoriteModels}
             onModelFavorite={onModelFavorite}
-            onChange={(_engine, next) => onSetThreadModel(next)}
+            onChange={(offering, next) => onSetThreadModel(offering, next)}
             onOpen={onEngineRead}
             onSignIn={onSignIn}
-            {...(effort ? { effort: { value: effort, onChange: (next: AgentEffort) => onSetThreadModel(model, next) } } : {})}
+            {...(effort ? { effort: { value: effort, onChange: (next: AgentEffort) => onSetThreadModel(engine, model, next) } } : {})}
             {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})}
           />
         </div>
