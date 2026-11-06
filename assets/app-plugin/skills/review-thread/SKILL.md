@@ -12,7 +12,8 @@ Run a review loop with a separate AICodingTool thread. The reviewer reads and ju
 
 The words after `/review-thread`, in any order:
 
-- An engine or a model: any that `start_thread`'s `model` field names, or any model in the app's model picker, by its id or by the name the picker shows. Pass the user's word as `model` unchanged: a name several providers offer resolves to the one the user pinned, and is refused with its candidates otherwise, which you then put to the user. Pass an engine alone as the `model` of `start_thread`; it means that engine's default model. Omitted: the reviewer inherits this thread's model.
+- An engine or a model: any that `start_thread`'s `model` field names, or any model in the app's model picker, by its id or by the name the picker shows. Pass the user's word as `model` unchanged first: a name several providers offer resolves to the one the user pinned, and is refused with its candidates otherwise, which you then put to the user. Pass an engine alone as the `model` of `start_thread`; it means that engine's default model. Omitted: the reviewer inherits this thread's model.
+- Users name models loosely: shorthand, typos, a missing `v` or vendor, a provider word, a dropped suffix. "synthetic deepsek 4.1" means `synthetic/hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`. When `start_thread` answers that no engine offers the model, do not ask the user yet. Gather the models on offer: those `start_thread`'s `model` field lists, plus `opencode models` for OpenCode's providers. Keep the ones that match every part of the user's word, ignoring case, punctuation, typos and the extra parts of the id. One match: start on its full id and name it in your reply. Several: ask the user, listing them. None: ask, listing the closest.
 - An effort, one of those `start_thread`'s `effort` field takes. Omitted: the reviewer inherits this thread's effort.
 - Everything else is review focus, passed to the reviewer verbatim.
 
