@@ -1,5 +1,5 @@
 import type { ThreadDropTarget } from "../domain/project.js";
-import { threadActivityAt, type Thread } from "../domain/thread.js";
+import { threadRankAt, type Thread } from "../domain/thread.js";
 import { wantsAttention } from "../domain/attention.js";
 import { coordinatedThreadIds } from "../domain/coordination.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
@@ -30,16 +30,17 @@ export function activitySections(threads: Thread[], busy: Set<string>, blocked: 
   const settled: RankedThread[] = [];
   const snoozed: Thread[] = [];
   for (const thread of threads) {
+    const ranked = () => ({ thread, activity: threadRankAt(thread, busy.has(thread.id) || blocked.has(thread.id)) });
     if (thread.snoozedUntil !== undefined) {
       snoozed.push(thread);
     } else if (blocked.has(thread.id)) {
-      priority.push({ thread, activity: threadActivityAt(thread) });
+      priority.push(ranked());
     } else if (thread.role === "reviewer") {
-      settled.push({ thread, activity: threadActivityAt(thread) });
+      settled.push(ranked());
     } else if (busy.has(thread.id)) {
       running.push(thread);
     } else {
-      (wantsAttention(thread) ? priority : settled).push({ thread, activity: threadActivityAt(thread) });
+      (wantsAttention(thread) ? priority : settled).push(ranked());
     }
   }
   return {

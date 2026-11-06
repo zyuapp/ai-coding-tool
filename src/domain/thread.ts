@@ -204,6 +204,23 @@ export function threadActivityAt(thread: Thread): number {
   return Math.max(threadCreatedAt(thread), lastAudibleAt(thread), thread.runEndedAt ?? 0);
 }
 
+/**
+ * When a list ranks the thread. A run moves it when it starts and again when it ends, never while it
+ * speaks, so a working thread holds its place.
+ */
+export function threadRankAt(thread: Thread, running: boolean): number {
+  if (!running || thread.historySummary) return threadActivityAt(thread);
+  return Math.max(threadCreatedAt(thread), lastPromptAt(thread), thread.runEndedAt ?? 0);
+}
+
+function lastPromptAt(thread: Thread): number {
+  for (let index = thread.messages.length - 1; index >= 0; index -= 1) {
+    const message = thread.messages[index]!;
+    if (message.kind === "user" && !message.withdrawn) return message.at;
+  }
+  return 0;
+}
+
 function lastAudibleAt(thread: Thread): number {
   if (thread.historySummary) return thread.historySummary.lastAudibleAt ?? 0;
   for (let index = thread.messages.length - 1; index >= 0; index -= 1) {
