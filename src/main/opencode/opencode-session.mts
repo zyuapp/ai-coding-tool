@@ -569,7 +569,8 @@ export class OpenCodeSession {
     const client = this.client;
     const turn = this.turn;
     if (!client || typeof request.id !== "string" || typeof request.sessionID !== "string") return;
-    const reply = (decision: "once" | "reject") => client.request("POST", `/api/session/${request.sessionID}/permission/${request.id}/reply`, { decision }).catch(() => {});
+    /** A rejection carries the denial's wording, when it has any, as the reason the call was refused. */
+    const reply = (decision: "once" | "reject", message?: string) => client.request("POST", `/api/session/${request.sessionID}/permission/${request.id}/reply`, { decision, ...(message ? { message } : {}) }).catch(() => {});
     if (!turn) {
       void reply("reject");
       return;
@@ -580,7 +581,7 @@ export class OpenCodeSession {
     const input = isRecord(metadata.input) ? metadata.input : { resources: request.resources };
     /** The call the rules asked about, as it was shown, says more than the rule's own name for it. */
     const intent = turn.intents.get(text(source.id) ?? "") ?? intentOf(text(source.id) ?? request.id, action, input, turn.input.workspaceRoot);
-    void turn.input.authorize(intent).then((decision) => reply(decision === "allow" ? "once" : "reject"), () => reply("reject"));
+    void turn.input.authorize(intent).then((decision) => decision === "allow" ? reply("once") : reply("reject", typeof decision === "object" ? decision.deny : undefined), () => reply("reject"));
   }
 
   /** A form goes to the user as the composer's questions; one nobody answers is withdrawn. */

@@ -706,7 +706,16 @@ export class CodexSession {
     if (!turn) return false;
     if (workspace && turn.input.coordinationRole === "coordinator") return false;
     if (grantsTool("workspace", turn.input)) return true;
-    return await turn.input.authorize(intent) === "allow";
+    const decision = await turn.input.authorize(intent);
+    if (typeof decision === "object") this.explainDenial(turn, decision.deny);
+    return decision === "allow";
+  }
+
+  /** A decline carries no wording on the wire, so a denial that says why is steered into the turn it stopped. */
+  private explainDenial(turn: Turn, reason: string) {
+    const client = this.client;
+    if (this.turn !== turn || !client || !this.threadId || !turn.turnId) return;
+    void client.request("turn/steer", { threadId: this.threadId, input: [{ type: "text", text: reason, text_elements: [] }], expectedTurnId: turn.turnId }).catch(() => {});
   }
 
   /** The pending item addressed by a server request, kept separate across concurrent threads. */

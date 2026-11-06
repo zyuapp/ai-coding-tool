@@ -223,6 +223,13 @@ test("a tool call is shown as it was made, and the approval the rules ask for is
   assert.equal((asked[1] as { name: string }).name, "start_thread", "the app's own tools are named as the app names them");
 });
 
+test("a denial that says why is rejected with its reason", async () => {
+  const { server } = await started({ authorize: async () => ({ deny: "Nobody is watching this scheduled run." }) });
+  server().emit("permission.asked", { id: "per_r", sessionID: "ses_new", action: "shell", resources: ["rm -rf build"] });
+  await until(() => server().sent("POST", "/reply").length === 1, "the reply");
+  assert.deepEqual(server().sent("POST", "/reply")[0]!.body, { decision: "reject", message: "Nobody is watching this scheduled run." });
+});
+
 test("a subagent's session is answered for too, and a stranger's is left alone", async () => {
   const { server } = await started();
   server().emit("session.created", { sessionID: "ses_child", parentID: "ses_new" });
