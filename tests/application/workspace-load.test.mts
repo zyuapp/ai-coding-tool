@@ -35,10 +35,19 @@ test("a store answer opens on its first thread", () => {
 
 test("a reviewer's own mode never becomes the new-thread draft", () => {
   const reviewer: Thread = { ...task("review"), role: "reviewer", executionPolicy: "bypass" };
-  const state = stateFromData(data([reviewer, task("older")]));
+  const older: Thread = { ...task("older"), executionPolicy: "plan" };
+  const state = stateFromData(data([reviewer, older]));
   assert.equal(state.currentId, "review", "the app still opens on the newest thread");
-  assert.equal(state.draftPolicy, "confirm", "but the draft keeps the mode the user chose on the thread before it");
+  assert.equal(state.draftPolicy, "plan", "but the draft keeps the mode the user chose on the thread before it");
   assert.equal(stateFromData(data([reviewer])).draftPolicy, "confirm", "and a store holding only a reviewer falls back");
+});
+
+test("the draft's mode is held to the draft's engine when a reviewer runs on another", () => {
+  const reviewer: Thread = { ...task("review"), engine: "opencode", executionPolicy: "bypass", role: "reviewer" };
+  const older: Thread = { ...task("older"), executionPolicy: "autonomous" };
+  const state = stateFromData(data([reviewer, older]));
+  assert.equal(state.draftEngine, "opencode", "the draft still takes the newest thread's engine");
+  assert.equal(state.draftPolicy, "allow-edits", "and holds Auto to the nearest mode OpenCode has");
 });
 
 test("a last folder no project holds comes back as a project", () => {
