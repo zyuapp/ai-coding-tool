@@ -1,6 +1,6 @@
 import type { Continuation } from "../../domain/run.js";
-import type { CoordinationRole } from "../../domain/coordination.js";
 import { handleFor, type AgentProvider, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
+import { PooledProvider } from "../agent/pooled-provider.mjs";
 import { SessionPool } from "../agent/session-pool.mjs";
 import { McpHttpHost, type ToolHost } from "../tools/mcp-http-host.mjs";
 import { openCodeBrief } from "./opencode-instructions.mjs";
@@ -24,23 +24,19 @@ export type OpenCodeProviderOptions = {
   idleMs?: number;
 };
 
-export class OpenCodeAgentProvider implements AgentProvider {
+export class OpenCodeAgentProvider extends PooledProvider<OpenCodeSession> implements AgentProvider {
   private readonly connect: OpenCodeConnect;
   private readonly host: ToolHost;
-  private readonly pool: SessionPool;
-  private readonly filings = new Map<string, Promise<void>>();
 
   constructor(options: OpenCodeProviderOptions = {}) {
+    super(options.pool ?? new SessionPool(options.idleMs), OpenCodeSession);
     this.connect = options.connect ?? startOpenCodeServer;
     this.host = options.host ?? new McpHttpHost();
-    this.pool = options.pool ?? new SessionPool(options.idleMs);
   }
 
-  async execute(input: ProviderRunInput): Promise<ProviderResult> {
-    /** A thread still being filed away or brought back is held by that filing until it lands. */
-    await this.filings.get(input.taskId);
+  execute(input: ProviderRunInput): Promise<ProviderResult> {
     const key = sessionKey(input);
-    return this.pool.execute(input, key, { open: ({ ended, rested }) => new OpenCodeSession(key, this.connect, this.host, ended, rested) });
+    return this.run(input, key, { open: ({ ended, rested }) => new OpenCodeSession(key, this.connect, this.host, ended, rested) });
   }
 
   /** OpenCode's own shells are not listed to the app, so there is nothing of theirs to stop. */
@@ -49,14 +45,9 @@ export class OpenCodeAgentProvider implements AgentProvider {
   }
 
   labelThread(taskId: string, title: string) {
-    const session = this.pool.liveSession(taskId);
-    if (!(session instanceof OpenCodeSession)) return false;
-    session.label(title);
-    return true;
-  }
-
-  retireOutOfRole(taskId: string, role: CoordinationRole | undefined) {
-    void this.pool.retireOutOfRole(taskId, role);
+    const session = this.session(taskId);
+    session?.label(title);
+    return Boolean(session);
   }
 
   /**
@@ -67,30 +58,20 @@ export class OpenCodeAgentProvider implements AgentProvider {
   archiveThread(taskId: string, continuation: Continuation | undefined, archived: boolean) {
     const handle = handleFor(continuation, "opencode");
     if (continuation && !handle) return false;
-    const live = this.pool.liveSession(taskId);
-    const session = live instanceof OpenCodeSession ? live : undefined;
+    const session = this.session(taskId);
     const sessionId = handle ?? session?.sessionId;
     if (!sessionId) return false;
-    const previous = this.filings.get(taskId) ?? Promise.resolve();
-    const filing = previous
-      .then(async () => {
-        if (!await session?.file(sessionId, archived)) {
-          const client = await this.connect({ cwd: process.cwd() });
-          try {
-            await client.request("PATCH", `/api/session/${sessionId}`, { archived });
-          } finally {
-            await client.close();
-          }
+    this.file(taskId, async () => {
+      if (!await session?.file(sessionId, archived)) {
+        const client = await this.connect({ cwd: process.cwd() });
+        try {
+          await client.request("PATCH", `/api/session/${sessionId}`, { archived });
+        } finally {
+          await client.close();
         }
-        if (archived) await this.pool.retire(taskId);
-      })
-      .catch(() => {})
-      .finally(() => { if (this.filings.get(taskId) === filing) this.filings.delete(taskId); });
-    this.filings.set(taskId, filing);
+      }
+      if (archived) await this.pool.retire(taskId);
+    });
     return true;
-  }
-
-  closeAll() {
-    this.pool.closeAll();
   }
 }

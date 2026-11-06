@@ -1,7 +1,7 @@
 import type { Continuation } from "../../domain/run.js";
-import type { CoordinationRole } from "../../domain/coordination.js";
 import { handleFor, type AgentProvider, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { grantsTool } from "../agent/approval-grant.mjs";
+import { PooledProvider } from "../agent/pooled-provider.mjs";
 import { SessionPool } from "../agent/session-pool.mjs";
 import { McpHttpHost, type ToolHost } from "../tools/mcp-http-host.mjs";
 import { connectAppServer } from "./app-server-client.mjs";
@@ -48,48 +48,37 @@ export type CodexProviderOptions = {
   idleMs?: number;
 };
 
-export class CodexAgentProvider implements AgentProvider {
+export class CodexAgentProvider extends PooledProvider<CodexSession> implements AgentProvider {
   private readonly connect: CodexConnect;
   private readonly host: ToolHost;
-  private readonly pool: SessionPool;
   private readonly readOrigin: ReadOrigin;
   private readonly imageOutput: ImageOutput;
-  /** The last filing asked of each thread, so an archive and a restore land in the order given and a run waits for both. */
-  private readonly filings = new Map<string, Promise<void>>();
 
   constructor(options: CodexProviderOptions = {}) {
+    super(options.pool ?? new SessionPool(options.idleMs), CodexSession);
     this.connect = options.connect ?? connectAppServer;
     this.readOrigin = options.readOrigin ?? readOrigin;
     this.imageOutput = options.imageOutput ?? codexImageOutput;
     this.host = options.host ?? new McpHttpHost();
-    this.pool = options.pool ?? new SessionPool(options.idleMs);
   }
 
-  async execute(input: ProviderRunInput): Promise<ProviderResult> {
-    /** A thread still being filed away or brought back is held by that filing until it lands. */
-    await this.filings.get(input.taskId);
+  execute(input: ProviderRunInput): Promise<ProviderResult> {
     const key = sessionKey(input);
-    return this.pool.execute(input, key, { open: ({ ended, rested }) => new CodexSession(key, this.connect, this.host, ended, rested, this.readOrigin, this.imageOutput) });
+    return this.run(input, key, { open: ({ ended, rested }) => new CodexSession(key, this.connect, this.host, ended, rested, this.readOrigin, this.imageOutput) });
   }
 
   /** Reaches the thread's own session, so work that outlived the turn that started it can still be stopped. */
   stopProcess(taskId: string, processId: string) {
-    const session = this.pool.liveSession(taskId);
-    if (!(session instanceof CodexSession)) return false;
-    session.stopProcess(processId);
-    return true;
+    const session = this.session(taskId);
+    session?.stopProcess(processId);
+    return Boolean(session);
   }
 
   /** Names the thread in Codex's own history, so it reads there as it reads here. */
   labelThread(taskId: string, title: string) {
-    const session = this.pool.liveSession(taskId);
-    if (!(session instanceof CodexSession)) return false;
-    session.label(title);
-    return true;
-  }
-
-  retireOutOfRole(taskId: string, role: CoordinationRole | undefined) {
-    void this.pool.retireOutOfRole(taskId, role);
+    const session = this.session(taskId);
+    session?.label(title);
+    return Boolean(session);
   }
 
   /**
@@ -100,22 +89,13 @@ export class CodexAgentProvider implements AgentProvider {
   archiveThread(taskId: string, continuation: Continuation | undefined, archived: boolean) {
     const handle = handleFor(continuation, "codex");
     if (continuation && !handle) return false;
-    const session = this.pool.liveSession(taskId);
-    if (!handle && !(archived && session instanceof CodexSession)) return false;
-    const previous = this.filings.get(taskId) ?? Promise.resolve();
-    const filing = previous
-      .then(() => archived ? this.pool.retire(taskId) : undefined)
-      .then(() => {
-        const threadId = handle ?? (session as CodexSession).threadId;
-        return threadId ? fileThread(this.connect, threadId, archived) : undefined;
-      })
-      .catch(() => {})
-      .finally(() => { if (this.filings.get(taskId) === filing) this.filings.delete(taskId); });
-    this.filings.set(taskId, filing);
+    const session = this.session(taskId);
+    if (!handle && !(archived && session)) return false;
+    this.file(taskId, async () => {
+      if (archived) await this.pool.retire(taskId);
+      const threadId = handle ?? session?.threadId;
+      if (threadId) await fileThread(this.connect, threadId, archived);
+    });
     return true;
-  }
-
-  closeAll() {
-    this.pool.closeAll();
   }
 }

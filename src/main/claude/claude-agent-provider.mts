@@ -1,6 +1,5 @@
 import { query, type CanUseTool, type McpServerConfig, type ModelInfo, type Options, type Query, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
 import { BUILT_IN_MODELS, claudeEffort, modelTakesEffort, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
-import type { CoordinationRole } from "../../domain/coordination.js";
 import { engineBinaryPath } from "../agent/engine-binary.mjs";
 import { continuationOf, type AgentProvider, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { withheldTools } from "../agent/channel-tools.mjs";
@@ -9,6 +8,7 @@ import { claudePermissionMode, ClaudeSession } from "./claude-session.mjs";
 import { grantsTool } from "../agent/approval-grant.mjs";
 import { runBrief, type BriefDialect, type RunBrief } from "../agent/run-brief.mjs";
 import { COORDINATOR_TOOLS } from "../agent/coordination-instructions.mjs";
+import { PooledProvider } from "../agent/pooled-provider.mjs";
 import { SessionPool } from "../agent/session-pool.mjs";
 import { APP_PLUGIN_NAME, appPluginRoot, unqualifiedSkillName } from "../app-plugin.mjs";
 
@@ -117,19 +117,18 @@ export type ClaudeProviderOptions = {
   pool?: SessionPool;
 };
 
-export class ClaudeAgentProvider implements AgentProvider {
+export class ClaudeAgentProvider extends PooledProvider<ClaudeSession> implements AgentProvider {
   private readonly queryFactory: QueryFactory;
-  private readonly pool: SessionPool;
 
   constructor(options: ClaudeProviderOptions = {}) {
+    super(options.pool ?? new SessionPool(), ClaudeSession);
     this.queryFactory = options.queryFactory ?? query;
-    this.pool = options.pool ?? new SessionPool();
   }
 
   execute(input: ProviderRunInput): Promise<ProviderResult> {
     const brief = runBrief(input, CLAUDE_DIALECT);
     const key = sessionKey(input, brief);
-    return this.pool.execute(input, key, {
+    return this.run(input, key, {
       open: ({ ended, rested }) => new ClaudeSession(key, ended, rested),
       start: (session) => session.open((prompt, canUseTool, hooks) => this.queryFactory(this.options(input, brief, prompt, canUseTool, hooks)), input),
     });
@@ -145,20 +144,11 @@ export class ClaudeAgentProvider implements AgentProvider {
     return false;
   }
 
-  retireOutOfRole(taskId: string, role: CoordinationRole | undefined) {
-    void this.pool.retireOutOfRole(taskId, role);
-  }
-
   /** Reaches the thread's own session, so work that outlived the run that started it can still be stopped. */
   stopProcess(taskId: string, processId: string) {
-    const session = this.pool.liveSession(taskId);
-    if (!(session instanceof ClaudeSession)) return false;
-    session.stopProcess(processId);
-    return true;
-  }
-
-  closeAll() {
-    this.pool.closeAll();
+    const session = this.session(taskId);
+    session?.stopProcess(processId);
+    return Boolean(session);
   }
 
   private options(input: ProviderRunInput, brief: RunBrief, prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool, hooks: Options["hooks"]) {
