@@ -4,7 +4,7 @@ import { useRef, type ReactNode } from "react";
 import type { DockConversationView, FindView, SideChatView } from "../../application/workspace-state";
 import type { ReadingPoint } from "../../contracts/commands";
 import { sentPrompts, type Annotation, type AnnotationAnchor, type AttachedFile, type PastedText } from "../../domain/conversation";
-import { defaultEffortFor, defaultModelFor, isAgentEngine, unopenableEngine, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
+import { defaultEffortFor, isAgentEngine, unopenableEngine, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 import { ApprovalCard, type ApprovalCardProps } from "./ApprovalCard";
@@ -121,7 +121,7 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
         engine={chat.thread.engine}
         engineLabel={engineLabel}
         engineLocked
-        model={chat.thread.model ?? defaultModelFor(chat.thread.engine)}
+        model={chat.model}
         effort={chat.thread.effort ?? defaultEffortFor(chat.thread.engine)}
         fastMode={chat.thread.fastMode ?? false}
         onFastModeChange={onFastModeChange}

@@ -177,7 +177,8 @@ export type ConversationComposerProps = {
   engineLocked?: boolean;
   /** Which engines a run may go to; one that cannot be picked says why. Every engine is ready unless told otherwise. */
   engineAccess?: Record<AgentEngine, EngineReadiness>;
-  model: AgentModel;
+  /** None for a thread whose engine has yet to name the model it runs on. */
+  model: AgentModel | undefined;
   effort: AgentEffort;
   /** Set for a coordinator, whose effort menu offers no effort that hands work to the engine's agents. */
   coordinating?: boolean;
@@ -347,7 +348,7 @@ export function ConversationComposer({
       {surface === "main" && <ReturnFocusContext.Provider value={caret.textareaRef}>{decisions}</ReturnFocusContext.Provider>}
       {question && <QuestionPrompt question={question} answer={question.answer ?? ""} disabled={disabled || waiting} onAnswerChange={(text) => onQuestionAnswerChange(question, text)} onSubmit={() => onAnswerQuestion(question)} />}
       <QueuedRow messages={queuedMessages} surface={surface} canSteer={runActive} onEdit={onEditQueued} onSteer={onSteerQueued} onDrop={onDropQueued} />
-      {planUsage && <PlanUsageWarning engine={engine} engineLabel={engineLabel} model={model} {...planUsage} />}
+      {planUsage && model !== undefined && <PlanUsageWarning engine={engine} engineLabel={engineLabel} model={model} {...planUsage} />}
       {surface === "main" && startOptions}
       {unopenable ? <UnopenableComposer reason={unopenable} taskId={taskId} surface={surface} runActive={runActive} updateAvailable={updateAvailable} onCancel={onCancel} /> : <div className="composer">
         {reviewPicker && (
@@ -390,7 +391,7 @@ export function ConversationComposer({
           <AttachButton disabled={disabled} onFilesAdd={onFilesAdd} />
           <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} coordinating={coordinating} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
-            {planUsage && <PlanUsageMeter engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
+            {planUsage && model !== undefined && <PlanUsageMeter engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
             <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} />
           </div>

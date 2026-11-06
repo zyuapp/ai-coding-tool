@@ -294,7 +294,7 @@ const commands = {
   "task.move": { fields: { taskId: text, target: dropTarget }, at: "thread" },
   "task.fork": { fields: { taskId: optionalText, worktree: optionalBoolean, title: optional(startTitle) }, at: "thread" },
   "task.set-policy": { fields: { taskId: optionalText, policy: policy }, at: "thread" },
-  "task.set-model": { fields: { taskId: optionalText, engine: isAgentEngine, model: isModelId }, at: "thread" },
+  "task.set-model": { fields: { taskId: optionalText, engine: isAgentEngine, model: optional(isModelId) }, at: "thread" },
   "task.set-fast-mode": { fields: { taskId: optionalText, fastMode: boolean }, at: "thread" },
   "task.set-effort": { fields: { taskId: optionalText, engine: isAgentEngine, effort: isAgentEffort }, at: "thread" },
   "task.set-worktree": { fields: { taskId: optionalText, worktree: boolean }, at: "thread" },

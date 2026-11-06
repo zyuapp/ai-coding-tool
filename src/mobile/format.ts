@@ -127,8 +127,8 @@ export function settingsSummary(settings: MobileThreadSettings): { mode: string;
   return {
     /** A mode, model or effort only a newer build knows is named as it was sent. */
     mode: Object.hasOwn(POLICIES, settings.policy) ? POLICIES[settings.policy].label : settings.policy,
-    model: `${spec?.label ?? settings.model}${capabilitiesFor(settings.engine).fastMode && settings.fastMode ? " · Fast" : ""}`,
+    model: `${spec?.label ?? settings.model ?? "No model"}${capabilitiesFor(settings.engine).fastMode && settings.fastMode ? " · Fast" : ""}`,
     effort:
-      spec?.efforts.find((candidate) => candidate.id === effortForModel(BUILT_IN_MODELS, settings.model, settings.effort))?.label ?? (spec && isAgentEffort(settings.effort) ? null : settings.effort),
+      spec?.efforts.find((candidate) => candidate.id === effortForModel(BUILT_IN_MODELS, spec.id, settings.effort))?.label ?? (spec && isAgentEffort(settings.effort) ? null : settings.effort),
   };
 }

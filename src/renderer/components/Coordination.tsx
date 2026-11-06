@@ -58,7 +58,8 @@ const OVERVIEW_LABELS: Record<OverviewGroup, string> = { needs: "Needs you", rev
 /** What the Overview's header needs to pick what a coordinator's threads run on, with the same readiness the composer shows. */
 export type OverviewHeaderProps = {
   taskId: string;
-  threadModel: ThreadModelChoice;
+  /** None while the coordinator names no model and its engine has yet to name one. */
+  threadModel: ThreadModelChoice | null;
   engineAccess: Record<AgentEngine, EngineReadiness>;
   favoriteModels?: AgentModel[];
   onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
@@ -392,8 +393,9 @@ function StopAllButton({ taskId, stoppable }: { taskId: string; stoppable: boole
 
 /** What the coordinator's new threads run on, picked with the composer's own chips. */
 export function OverviewHeader({ taskId, threadModel, engineAccess, favoriteModels, onModelFavorite, onSetThreadModel, onEngineRead, onSignIn, onOpenEngineSettings }: OverviewHeaderProps) {
-  const { model, effort } = threadModel;
   const catalog = useModelCatalog();
+  if (!threadModel) return null;
+  const { model, effort } = threadModel;
   const engine = modelEngine(catalog, model);
   return (
     <div className="coordination-overview-header">

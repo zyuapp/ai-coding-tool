@@ -5,7 +5,6 @@ import { act } from "react";
 import { MOBILE_PROTOCOL_VERSION, type MobileView } from "../../src/contracts/mobile.ts";
 import { MOBILE_FOLDED_KEY } from "../../src/mobile/client/storage.ts";
 import { groupMark, settingsSummary } from "../../src/mobile/format.ts";
-import { defaultModelFor } from "../../src/domain/agent-engine.ts";
 import { ensureLanguage } from "../../src/renderer/diff/highlight.ts";
 import { BUILD, CODE, TOKEN, click, clickButton, clickRow, dom, lastCommand, live, openPhone, patchView, queries, typeInto, view, type FakeSocket } from "../support/mobile-phone.mts";
 
@@ -68,7 +67,7 @@ test("a thread's settings start a thread on the other engine in the same place",
   click(".sheet-new-engine");
   assert.deepEqual(line.sent.slice(-2).map((frame) => frame.kind === "command" ? frame.command : null), [
     { type: "task.new", projectId: "p" },
-    { type: "task.set-model", engine: "codex", model: defaultModelFor("codex") },
+    { type: "task.set-model", engine: "codex" },
   ]);
   assert.equal(document.querySelector(".bar-title h1")?.textContent, "New thread");
 });

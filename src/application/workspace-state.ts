@@ -52,8 +52,9 @@ import { OPEN_SIDEBAR_SECTIONS, type SidebarMode, type SidebarSections } from ".
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
-import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineLabel, isAgentEngine, unopenableEngine, type AgentEngine, type AgentModel, type EngineCapabilities, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
+import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, effortForModel, threadModel, engineLabel, isAgentEngine, unopenableEngine, type AgentEngine, type AgentModel, type EngineCapabilities, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
 import { catalogOf, engineReadinessOf } from "./engine-access.js";
+import { normalizeDraft, type AgentDraft } from "../domain/agent-draft.js";
 import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
 import { annotationRevealFor, annotationsFor, filesFor, imagesFor, pastesFor, type AnnotationReveal } from "./composer-drafts.js";
 export type { AnnotationReveal } from "./composer-drafts.js";
@@ -580,6 +581,17 @@ export function currentFolder(state: WorkspaceState): string | null {
   return threadWorkspaceRoot(state, thread) ?? draft ?? state.lastFolder;
 }
 
+/** The agent choices the new-thread composer holds. */
+export function draftOf(state: WorkspaceState): AgentDraft {
+  return { engine: state.draftEngine, model: state.draftModel, effort: state.draftEffort, policy: state.draftPolicy, fastMode: state.draftFastMode };
+}
+
+/** The draft with `change` made and held to its engine, which is how its agent choices are ever written. */
+export function withDraft(state: WorkspaceState, change: Partial<AgentDraft>): WorkspaceState {
+  const draft = normalizeDraft(catalogOf(state), { ...draftOf(state), ...change }, effortRoleOf(undefined, state.draftRole));
+  return { ...state, draftEngine: draft.engine, draftModel: draft.model, draftEffort: draft.effort, draftPolicy: draft.policy, draftFastMode: draft.fastMode };
+}
+
 /**
  * Which composer the window is typing into. While a paired computer's thread is on screen it is that
  * thread's, so the draft typed for it stays keyed to it here and never travels as keystrokes.
@@ -660,10 +672,10 @@ function engineView(state: WorkspaceState, currentThread: Thread | undefined) {
 
 /** The model in front and the effort a run on it gets, which for a coordinator is never one that hands work to the engine's agents. */
 function modelView(state: WorkspaceState, currentThread: Thread | undefined) {
-  const model = currentThread ? currentThread.model ?? defaultModelFor(currentThread.engine) : state.draftModel;
+  const model = currentThread ? threadModel(catalogOf(state), currentThread) : state.draftModel;
   const role = effortRoleOf(currentThread, state.draftRole);
   const effort = currentThread ? currentThread.effort ?? defaultEffortFor(currentThread.engine) : state.draftEffort;
-  return { model, coordinating: role === "coordinator", effort: effortForModel(catalogOf(state), model, effort, role) };
+  return { model, coordinating: role === "coordinator", effort: model === undefined ? effort : effortForModel(catalogOf(state), model, effort, role) };
 }
 
 /**

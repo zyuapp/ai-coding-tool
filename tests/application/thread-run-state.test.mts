@@ -211,7 +211,7 @@ test("what a run spends adds up on its thread by the model it runs on, without m
   assert.equal(next.threads[1], initial.threads[1]);
 
   const unchosen = applyRunEvent(state(), { ...at, sequence: 1, type: "context.spent", tokens: 40 });
-  assert.deepEqual(unchosen.threads[0]!.usage, { [defaultModelFor("claude")]: 40 }, "a thread on its engine's default counts under that model");
+  assert.deepEqual(unchosen.threads[0]!.usage, { [defaultModelFor("claude")!]: 40 }, "a thread on its engine's default counts under that model");
   assert.equal(applyRunEvent(next, { ...at, runId: "run-old", sequence: 3, type: "context.spent", tokens: 99 }), next, "a run that is no longer the thread's counts nothing");
 });
 

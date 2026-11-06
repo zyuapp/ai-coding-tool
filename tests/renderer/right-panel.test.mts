@@ -105,6 +105,7 @@ test("a side chat composes with everything the main composer has", async () => {
       sourceThreadId: "main-task",
       error: null,
       thread: chatThread,
+      model: "opus",
       compacting: false,
       retrying: null,
       status: "running",

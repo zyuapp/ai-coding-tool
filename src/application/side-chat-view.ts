@@ -13,6 +13,8 @@ import type { Thread } from "../domain/thread.js";
 import type { AutomationView } from "../domain/automation.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
 import type { ChangedFilesResult } from "../contracts/ipc.js";
+import { threadModel, type AgentModel } from "../domain/agent-engine.js";
+import { catalogOf } from "./engine-access.js";
 
 const NO_QUEUED: QueuedMessage[] = [];
 
@@ -21,6 +23,8 @@ export type DockConversationView = {
   id: string;
   title: string;
   thread: Thread;
+  /** What the thread runs on, or none while its engine has yet to name a model. */
+  model: AgentModel | undefined;
   prompt: string;
   annotations: Annotation[];
   annotationReveal: AnnotationReveal | null;
@@ -60,6 +64,7 @@ function dockConversationView(state: WorkspaceState, thread: Thread): DockConver
     id: thread.id,
     title: thread.title,
     thread,
+    model: threadModel(catalogOf(state), thread),
     prompt: state.prompts[thread.id] ?? "",
     annotations: annotationsFor(state, thread.id),
     annotationReveal: annotationRevealFor(state, thread.id),

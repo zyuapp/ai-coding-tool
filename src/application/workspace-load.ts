@@ -1,8 +1,8 @@
 import { backfillProjectSortIndex } from "./project-order.js";
 import { backfillSortIndex } from "./thread-order.js";
 import { restoredThreads, withCutOffTurnsEnded } from "./thread-restore.js";
-import { emptyWorkspaceState, sideChatIds, type WorkspaceState } from "./workspace-state.js";
-import { DEFAULT_ENGINE, DEFAULT_MODEL, defaultModelFor, policyFor } from "../domain/agent-engine.js";
+import { draftOf, emptyWorkspaceState, sideChatIds, withDraft, type WorkspaceState } from "./workspace-state.js";
+import { DEFAULT_ENGINE, type EngineStatus } from "../domain/agent-engine.js";
 import { coordinatorOf } from "../domain/coordination.js";
 import { legacyProjectId } from "../domain/project.js";
 import { DEFAULT_EFFORT } from "../domain/run.js";
@@ -10,7 +10,7 @@ import { retainedThreads } from "../domain/thread-retention.js";
 import type { ThreadStoreData } from "../domain/thread-storage.js";
 
 /** The workspace a store answer opens on, with its threads restored and any turn the last session cut off ended. */
-export function stateFromData(data: ThreadStoreData, storageError: string | null = null): WorkspaceState {
+export function stateFromData(data: ThreadStoreData, storageError: string | null = null, engineStatus: EngineStatus | null = null): WorkspaceState {
   const projects = data.lastFolder && !data.projects.some((project) => project.root === data.lastFolder)
     ? [...data.projects, { id: legacyProjectId(data.lastFolder), root: data.lastFolder }]
     : data.projects;
@@ -21,8 +21,9 @@ export function stateFromData(data: ThreadStoreData, storageError: string | null
   /** A reviewer's mode is the app's, not the user's, so the new-thread draft never takes it. */
   const draftThread = threads.find((thread) => !coordinatorOf(threads, thread) && thread.role !== "reviewer");
   const firstProject = firstThread?.projectId ?? (firstThread ? null : projects.find((project) => project.root === data.lastFolder)?.id ?? null);
-  const restored: WorkspaceState = {
+  const restored: WorkspaceState = withDraft({
     ...emptyWorkspaceState(storageError),
+    engineStatus,
     threads: backfillSortIndex(threads),
     subagents,
     projects: backfillProjectSortIndex(projects),
@@ -33,13 +34,14 @@ export function stateFromData(data: ThreadStoreData, storageError: string | null
     history: firstThread ? [firstThread.id] : [],
     historyIndex: firstThread ? 0 : -1,
     draftProjectId: firstProject,
-    draftPolicy: policyFor(firstThread?.engine ?? DEFAULT_ENGINE, draftThread?.executionPolicy ?? "confirm"),
-    draftEngine: firstThread?.engine ?? DEFAULT_ENGINE,
-    draftModel: firstThread ? firstThread.model ?? defaultModelFor(firstThread.engine) : DEFAULT_MODEL,
-    draftEffort: firstThread?.effort ?? DEFAULT_EFFORT,
-    draftFastMode: firstThread?.fastMode ?? false,
     expandedProjects: new Set(firstProject ? [firstProject] : []),
-  };
+  }, {
+    engine: firstThread?.engine ?? DEFAULT_ENGINE,
+    model: firstThread?.model,
+    effort: firstThread?.effort ?? DEFAULT_EFFORT,
+    policy: draftThread?.executionPolicy ?? "confirm",
+    fastMode: firstThread?.fastMode ?? false,
+  });
   return withCutOffTurnsEnded(restored, cutOff, at);
 }
 
@@ -49,7 +51,8 @@ export function stateFromData(data: ThreadStoreData, storageError: string | null
  * an annotation, a run on its way out and a run already going all outlive the arrival.
  */
 export function withStoreData(state: WorkspaceState, data: ThreadStoreData): WorkspaceState {
-  const landing = stateFromData(data);
+  /** The session may already hold the models its engines named, which the draft is held to. */
+  const landing = stateFromData(data, null, state.engineStatus);
   /** Threads the answer cannot know about: a fork, which is never stored, and one just started here. */
   const held = sideChatIds(state);
   for (const taskId in state.activeRuns) held.add(taskId);
@@ -75,19 +78,14 @@ export function withStoreData(state: WorkspaceState, data: ThreadStoreData): Wor
     writable: landing.writable,
   };
   if (sessionStarted(arrived)) return arrived;
-  return {
+  return withDraft({
     ...arrived,
     currentId: landing.currentId,
     history: landing.history,
     historyIndex: landing.historyIndex,
     draftProjectId: landing.draftProjectId,
-    draftPolicy: landing.draftPolicy,
-    draftEngine: landing.draftEngine,
-    draftModel: landing.draftModel,
-    draftEffort: landing.draftEffort,
-    draftFastMode: landing.draftFastMode,
     expandedProjects: landing.expandedProjects,
-  };
+  }, draftOf(landing));
 }
 
 /**

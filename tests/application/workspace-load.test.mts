@@ -43,11 +43,29 @@ test("a reviewer's own mode never becomes the new-thread draft", () => {
 });
 
 test("the draft's mode is held to the draft's engine when a reviewer runs on another", () => {
-  const reviewer: Thread = { ...task("review"), engine: "opencode", executionPolicy: "bypass", role: "reviewer" };
+  const reviewer: Thread = { ...task("review"), engine: "opencode", model: "openrouter/z-ai/glm-5.3-flash", executionPolicy: "bypass", role: "reviewer" };
   const older: Thread = { ...task("older"), executionPolicy: "autonomous" };
   const state = stateFromData(data([reviewer, older]));
   assert.equal(state.draftEngine, "opencode", "the draft still takes the newest thread's engine");
+  assert.equal(state.draftModel, "openrouter/z-ai/glm-5.3-flash");
   assert.equal(state.draftPolicy, "allow-edits", "and holds Auto to the nearest mode OpenCode has");
+});
+
+test("the draft's effort and model are held to the first thread's engine", () => {
+  const luna: Thread = { ...task("luna"), engine: "codex", model: "gpt-6-luna", effort: "ultra", fastMode: true };
+  const state = stateFromData(data([luna]));
+  assert.equal(state.draftEffort, "max", "an effort the model lacks drops to the nearest one below");
+  assert.equal(state.draftFastMode, true);
+
+  const opencode: Thread = { ...task("open"), engine: "opencode", effort: "max" };
+  const unnamed = stateFromData(data([opencode]));
+  assert.equal(unnamed.draftEngine, "claude", "an engine yet to name a model leaves the draft on the default engine, never a Claude model on OpenCode");
+  assert.equal(unnamed.draftModel, "opus");
+
+  const named = stateFromData(data([opencode]), null, { opencode: { access: "ready", catalog: [{ id: "openrouter/z-ai/glm-5.3-flash", label: "GLM", description: "", contextWindow: 8_000, efforts: [{ id: "low", label: "Low" }] }] } });
+  assert.equal(named.draftEngine, "opencode", "once it has named some, the draft takes its default");
+  assert.equal(named.draftModel, "openrouter/z-ai/glm-5.3-flash");
+  assert.equal(named.draftEffort, "low");
 });
 
 test("a last folder no project holds comes back as a project", () => {

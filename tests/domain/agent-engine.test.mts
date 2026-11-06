@@ -9,7 +9,7 @@ const engines: AgentEngine[] = ["claude", "codex"];
 test("every engine defaults to a model and an effort it offers", () => {
   for (const engine of engines) {
     assert.ok(isAgentEngine(engine));
-    assert.ok(engineHasModel(catalog, engine, defaultModelFor(engine)));
+    assert.ok(engineHasModel(catalog, engine, defaultModelFor(engine)!));
     assert.ok(engineHasEffort(catalog, engine, defaultEffortFor(engine)));
     for (const model of modelsFor(catalog, engine)) {
       for (const spec of effortsFor(catalog, model.id)) assert.ok(isAgentEffort(spec.id));
@@ -42,15 +42,15 @@ test("any well-formed model id passes the shape guard, known or not", () => {
 test("a foreign model uses the engine's default context window", () => {
   for (const engine of engines) {
     const foreign = engine === "codex" ? "opus" : "gpt-6.1-sol";
-    assert.equal(contextWindowLimit(catalog, engine, foreign), contextWindowLimit(catalog, engine, defaultModelFor(engine)));
+    assert.equal(contextWindowLimit(catalog, engine, foreign), contextWindowLimit(catalog, engine, defaultModelFor(engine)!));
   }
 });
 
 test("per-engine settings and operations are catalogue entries", () => {
   const every = ["confirm", "plan", "allow-edits", "autonomous", "bypass"];
-  assert.deepEqual(capabilitiesFor("codex"), { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true, policies: every });
-  assert.deepEqual(capabilitiesFor("claude"), { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false, policies: every });
-  assert.deepEqual(capabilitiesFor("opencode"), { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, policies: ["confirm", "plan", "allow-edits", "bypass"] });
+  assert.deepEqual(capabilitiesFor("codex"), { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true, policies: every, unattendedPolicy: "autonomous" });
+  assert.deepEqual(capabilitiesFor("claude"), { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false, policies: every, unattendedPolicy: "autonomous" });
+  assert.deepEqual(capabilitiesFor("opencode"), { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, policies: ["confirm", "plan", "allow-edits", "bypass"], unattendedPolicy: "bypass" });
 });
 
 test("manual compaction belongs to the model and only through the engine that offers it", () => {

@@ -131,7 +131,7 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       /** An effort the model lacks, or none, keeps the depth the threads run at as near as that model allows. */
       const effort = input.effort && modelHasEffort(catalog, input.model, input.effort)
         ? input.effort
-        : effortForModel(catalog, input.model, threadModelOf(catalog, lead).effort ?? defaultEffortFor(engine));
+        : effortForModel(catalog, input.model, threadModelOf(catalog, lead)?.effort ?? defaultEffortFor(engine));
       const threadModel = modelTakesEffort(catalog, input.model) ? { model: input.model, effort } : { model: input.model };
       if (lead.threadModel?.model === threadModel.model && lead.threadModel.effort === threadModel.effort) return settled(state);
       return settled(updateThread(state, lead.id, (item) => ({ ...item, threadModel, updatedAt: now() })));

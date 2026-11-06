@@ -16,7 +16,7 @@ import { coordinationRole, GROUP_OF, undeliveredNote } from "../coordination.js"
 import { withTurnBegun } from "../outstanding-stops.js";
 import { QUEUED_NOT_YOURS, QUEUED_SENT } from "../computers.js";
 import { isCoordinator, withCoordinationNote, withoutAnswer, withoutReport } from "../../domain/coordination.js";
-import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, policyFor } from "../../domain/agent-engine.js";
+import { capabilitiesFor, defaultEffortFor, effortForModel, policyFor, threadModel, type AgentModel } from "../../domain/agent-engine.js";
 import { catalogOf } from "../engine-access.js";
 import { createSentMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
 import type { Project } from "../../domain/project.js";
@@ -104,8 +104,16 @@ function claudeRunSettings(state: WorkspaceState): ClaudeRunSettings | undefined
   return Object.keys(settings).length > 0 ? settings : undefined;
 }
 
+/** The model a run on this thread goes to, for a thread its start has already found one for. */
+export function runModelOf(state: WorkspaceState, thread: Thread): AgentModel {
+  const model = threadModel(catalogOf(state), thread);
+  if (model === undefined) throw new Error(`No model to run the thread ${thread.id} on.`);
+  return model;
+}
+
 export function startRunCommand(state: WorkspaceState, thread: Thread, runId: string, prompt: string, workspaceId: string, policy = thread.executionPolicy): StartRunCommand {
   const claude = claudeRunSettings(state);
+  const model = runModelOf(state, thread);
   const coordination = coordinationRole(state.threads, thread);
   /** A member running anywhere but its project's checkout is told that checkout, which stays the user's. */
   const project = coordination === "member" ? projectFor(state, thread) : undefined;
@@ -120,8 +128,8 @@ export function startRunCommand(state: WorkspaceState, thread: Thread, runId: st
     workspaceId,
     policy: policyFor(thread.engine, policy),
     engine: thread.engine,
-    model: thread.model ?? defaultModelFor(thread.engine),
-    effort: effortForModel(catalogOf(state), thread.model ?? defaultModelFor(thread.engine), thread.effort ?? defaultEffortFor(thread.engine), coordination),
+    model,
+    effort: effortForModel(catalogOf(state), model, thread.effort ?? defaultEffortFor(thread.engine), coordination),
     ...(capabilitiesFor(thread.engine).fastMode ? { fastMode: thread.fastMode ?? false } : {}),
     ...(claude ? { claude } : {}),
     ...(state.computerUse ? {} : { computerUseTools: false as const }), ...(state.browserTools ? {} : { browserTools: false as const }),

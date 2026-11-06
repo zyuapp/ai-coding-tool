@@ -18,7 +18,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
   const controls = useCommandControls();
   /** A thread on a paired computer spends that computer's plan, which only it can read. */
   usePlanUsageReads(workspace.runActive, () => void workspace.dispatch({ type: "usage.read", ...(workspace.activeComputer ? { everywhere: true } : {}) }));
-  const compact = controls.available({ type: "run.compact" }) && thread && modelSupportsManualCompaction(workspace.models, thread.engine, workspace.model)
+  const compact = controls.available({ type: "run.compact" }) && thread && workspace.model !== undefined && modelSupportsManualCompaction(workspace.models, thread.engine, workspace.model)
     && thread.continuation?.provider === thread.engine
     && thread.contextUsage !== undefined
     && !workspace.runActive

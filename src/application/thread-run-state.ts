@@ -529,7 +529,9 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
   if (event.type === "context.spent") {
     /** Spend is counted beside the conversation, not in it: it moves neither the messages nor when the thread last changed. */
     return updateThread(withSequence, event.taskId, (thread) => {
+      /** A thread that names no model on an engine with no built-in default has nothing to count it under. */
       const model = thread.model ?? defaultModelFor(thread.engine);
+      if (model === undefined) return thread;
       return { ...thread, usage: { ...thread.usage, [model]: Math.min(Number.MAX_SAFE_INTEGER, (thread.usage?.[model] ?? 0) + event.tokens) } };
     });
   }

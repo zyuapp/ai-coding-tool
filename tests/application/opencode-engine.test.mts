@@ -3,7 +3,8 @@ import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import { newThreadSend, threadProposal } from "../../src/application/thread-starts.ts";
-import { BUILT_IN_MODELS, capabilitiesFor, defaultModelIn, engineCatalog, engineNotice, policyFor, resolveModel, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.ts";
+import { BUILT_IN_MODELS, capabilitiesFor, defaultModelFor, defaultModelIn, engineCatalog, engineModelsKnown, engineNotice, policyFor, resolveModel, threadModel, type AgentEngine, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.ts";
+import { threadModelOf } from "../../src/domain/coordination.ts";
 import { describeToolCall } from "../../src/domain/tool-call.ts";
 import { effectAt, run, send, task, workspace } from "./workspace-reducer-fixtures.mts";
 
@@ -20,6 +21,48 @@ test("OpenCode offers every mode but Auto, which stands on a reviewer it has non
   assert.equal(policyFor("opencode", "bypass"), "bypass");
   assert.equal(policyFor("claude", "autonomous"), "autonomous");
   assert.equal(policyFor("codex", "autonomous"), "autonomous");
+  assert.equal(policyFor("opencode", "plan"), "plan");
+  assert.equal(policyFor("future" as AgentEngine, "bypass"), "confirm", "an engine only a newer build knows offers no mode, so it asks for everything");
+  assert.equal(capabilitiesFor("opencode").unattendedPolicy, "bypass");
+  assert.equal(capabilitiesFor("claude").unattendedPolicy, "autonomous");
+});
+
+test("an engine's models are known by how it knows them, never by an empty list", () => {
+  assert.equal(engineModelsKnown(null, "claude"), true);
+  assert.equal(engineModelsKnown(null, "opencode"), false);
+  assert.equal(engineModelsKnown(status, "opencode"), true);
+  assert.equal(engineModelsKnown(null, "future" as AgentEngine), true, "one only a newer build knows offers none here, and does not throw");
+  assert.equal(defaultModelFor("opencode"), undefined);
+  assert.equal(defaultModelFor("future" as AgentEngine), undefined);
+});
+
+test("an OpenCode thread that names no model never runs on a Claude one", () => {
+  const unnamed = task("task-a", { engine: "opencode" });
+  assert.equal(threadModel(BUILT_IN_MODELS, unnamed), undefined);
+  assert.equal(threadModel(engineCatalog(status), unnamed), "openrouter/z-ai/glm-5.3-flash");
+
+  const early = reduce(workspace({ threads: [unnamed] }), { type: "task.send", taskId: "task-a", text: "Carry on" });
+  assert.equal(early.state.actionError, "OpenCode has not named a model for this thread yet. Pick a model.");
+  assert.deepEqual(early.state.pendingRuns, {});
+  assert.equal(deriveView(workspace({ threads: [unnamed], currentId: "task-a" })).model, undefined, "the composer names no model for it either");
+
+  const read = reduce(workspace({ threads: [unnamed] }), { type: "engine.status", status }).state;
+  const sending = reduce(read, { type: "task.send", taskId: "task-a", text: "Carry on" });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: projectless });
+  assert.equal(effectAt(started, "start-run").command.model, "openrouter/z-ai/glm-5.3-flash", "once named, it runs on its engine's default");
+
+  const lead = task("lead", { engine: "opencode", role: "coordinator" });
+  assert.equal(threadModelOf(BUILT_IN_MODELS, lead), undefined, "nor does a coordinator's thread take one");
+  assert.equal(threadModelOf(engineCatalog(status), lead)?.model, "openrouter/z-ai/glm-5.3-flash");
+});
+
+test("picking an engine without a model moves the draft to that engine's default here", () => {
+  assert.equal(reduce(workspace(), { type: "task.set-model", engine: "opencode" }).state.draftEngine, "claude", "nothing to move to before OpenCode names its models");
+  const read = reduce(workspace(), { type: "engine.status", status }).state;
+  const moved = reduce(read, { type: "task.set-model", engine: "opencode" }).state;
+  assert.equal(moved.draftEngine, "opencode");
+  assert.equal(moved.draftModel, "openrouter/z-ai/glm-5.3-flash");
+  assert.equal(reduce(workspace(), { type: "task.set-model", engine: "codex" }).state.draftModel, "gpt-6.1-sol");
 });
 
 test("an engine whose models are only known once it names them defaults to the first it names", () => {

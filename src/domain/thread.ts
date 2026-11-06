@@ -87,10 +87,13 @@ export type Thread = {
   projectId?: string;
   executionPolicy: ExecutionPolicy;
   engine: AgentEngine;
-  /** One the engine offers; the engine's default when absent. */
+  /**
+   * One the engine offers. Absent means the engine's default in the catalogue, which an engine that
+   * only names its models once asked has none of until it does.
+   */
   model?: AgentModel;
   effort?: AgentEffort;
-  /** Codex only. Absent means standard speed. */
+  /** Only on an engine with fast mode. Absent means standard speed. */
   fastMode?: boolean;
   contextUsage?: ContextUsage;
   /** What this thread's runs have spent, which unlike its context only ever grows. */

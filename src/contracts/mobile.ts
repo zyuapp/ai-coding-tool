@@ -133,7 +133,8 @@ export type MobileChanges = {
 /** What the open thread is set to run as, which the phone can change like any other command. */
 export type MobileThreadSettings = {
   engine: AgentEngine;
-  model: AgentModel;
+  /** Absent while the thread's engine has yet to name the model it runs on. */
+  model?: AgentModel;
   effort: AgentEffort;
   /** Absent when connected to an older desktop. */
   fastMode?: boolean;
@@ -374,7 +375,7 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
     case "task.set-policy":
       return named && isPolicy(command.policy);
     case "task.set-model":
-      return named && isAgentEngine(command.engine) && isModelId(command.model);
+      return named && isAgentEngine(command.engine) && (command.model === undefined || isModelId(command.model));
     case "task.set-fast-mode":
       return named && typeof command.fastMode === "boolean";
     case "task.set-effort":

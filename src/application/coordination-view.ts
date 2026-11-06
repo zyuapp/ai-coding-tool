@@ -111,7 +111,7 @@ function sameUsage(before: CoordinationUsage | null | undefined, next: Coordinat
  * they run on and its memory; a thread its coordinator and brief.
  */
 export type CoordinationView = CoordinationParts & (
-  | { coordinator: true; threadModel: ThreadModelChoice; memory: CoordinatorMemoryView }
+  | { coordinator: true; threadModel: ThreadModelChoice | null; memory: CoordinatorMemoryView }
   | { coordinator: false; threadModel: null; memory: null }
 );
 
@@ -178,7 +178,7 @@ export function coordinationView(
     const proposals = proposalViews(previous?.proposals, thread.proposals ?? [], state.startingProposals, state.computers.paired);
     const usage = sameUsage(previous?.usage, coordinationUsage(coordinated, thread));
     const waiting = sameWaiting(previous?.waiting, waitingOnUser(thread, coordinated.map((member) => member.thread), state.startingProposals));
-    return { ...NO_COORDINATION, coordinator: true, threadModel: threadModelOf(catalogOf(state), thread), memory, members, starts, approvals, decisions, proposals, usage, brief: thread.brief ?? null, waiting };
+    return { ...NO_COORDINATION, coordinator: true, threadModel: threadModelOf(catalogOf(state), thread) ?? null, memory, members, starts, approvals, decisions, proposals, usage, brief: thread.brief ?? null, waiting };
   }
   const lead = coordinatorOf(threads, thread) ?? null;
   const remote = lead ? undefined : remoteLeadOf(thread);

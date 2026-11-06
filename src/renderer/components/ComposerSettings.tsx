@@ -154,7 +154,8 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
 export type EffortControl = { value: AgentEffort; coordinating?: boolean; onChange: (effort: AgentEffort) => void };
 
 /** The efforts a model offers, shallowest first, and the one a run on it gets. */
-function effortSteps(catalog: ModelCatalog, model: AgentModel, effort: EffortControl) {
+function effortSteps(catalog: ModelCatalog, model: AgentModel | undefined, effort: EffortControl) {
+  if (model === undefined) return { steps: [], value: effort.value };
   const role = effort.coordinating ? "coordinator" : undefined;
   return { steps: [...effortsFor(catalog, model, role)].reverse(), value: effortForModel(catalog, model, effort.value, role) };
 }
@@ -237,7 +238,7 @@ function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]
 }
 
 /** The effort for the model in the library, pinned under the list so it stays in reach however long the list grows. */
-function EffortStrip({ model, modelLabel, effort }: { model: AgentModel; modelLabel: string; effort: EffortControl }) {
+function EffortStrip({ model, modelLabel, effort }: { model: AgentModel | undefined; modelLabel: string; effort: EffortControl }) {
   const { steps, value } = effortSteps(useModelCatalog(), model, effort);
   return <div className="effort-strip">
     <span className="effort-strip-axis">Effort<small>{modelLabel}</small></span>
@@ -251,7 +252,7 @@ type ModelLibraryProps = {
   engine: AgentEngine;
   engineLocked: boolean;
   engineAccess: Record<AgentEngine, EngineReadiness>;
-  model: AgentModel;
+  model: AgentModel | undefined;
   favoriteModels?: AgentModel[];
   onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
   onChange: (engine: AgentEngine, model: AgentModel) => void;
@@ -364,8 +365,8 @@ export function ModelMenu({ onOpen, ...props }: ModelLibraryProps & { onOpen: ()
   /** A model this build does not know, as a newer computer may run, is named as it is sent. */
   const catalog = useModelCatalog();
   const offered = modelGroupsOf(catalog).filter((group) => group.engine === props.engine).flatMap((group) => group.choices);
-  const selected = offered.find((item) => item.value === props.model) ?? (catalogHasModel(catalog, props.model) ? offered[0] : undefined);
-  const modelLabel = selected?.label ?? props.model;
+  const selected = offered.find((item) => item.value === props.model) ?? (props.model !== undefined && catalogHasModel(catalog, props.model) ? offered[0] : undefined);
+  const modelLabel = selected?.label ?? props.model ?? "Choose a model";
   const { effort } = props;
   const { steps, value } = effort ? effortSteps(catalog, props.model, effort) : { steps: [], value: undefined };
   const shown = steps.find((spec) => spec.id === value);
@@ -399,7 +400,7 @@ export function ComposerSettings({ taskId, mode, engine, engineLabel, engineLock
   /** Set once the thread has an engine for good, which is from its first message on. */
   engineLocked: boolean;
   engineAccess: Record<AgentEngine, EngineReadiness>;
-  model: AgentModel;
+  model: AgentModel | undefined;
   effort: AgentEffort;
   coordinating?: boolean;
   fastMode: boolean;

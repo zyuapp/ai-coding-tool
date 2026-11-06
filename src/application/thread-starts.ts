@@ -9,7 +9,7 @@ import { namedPlace, projectFor } from "./thread-location.js";
 import type { AppCommand } from "../contracts/commands.js";
 import { coordinatorOf, isCoordinator, remoteLeadOf, threadModelOf, undelegable, type ProposalPlace, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
 import { clampTitle, type Thread } from "../domain/thread.js";
-import { defaultEffortFor, defaultModelFor, defaultModelIn, effortForModel, engineLabel, isAgentEngine, type AgentEngine, modelDelegable, modelEngine, modelHasEffort, modelTakesEffort, resolveModel, unknownModel } from "../domain/agent-engine.js";
+import { defaultEffortFor, defaultModelIn, effortForModel, engineLabel, isAgentEngine, modelDelegable, modelEngine, modelHasEffort, modelTakesEffort, resolveModel, threadModel, unknownModel } from "../domain/agent-engine.js";
 import { catalogOf } from "./engine-access.js";
 
 export type NewThreadSend = Extract<AppCommand, { type: "task.send" }>;
@@ -44,12 +44,15 @@ export function newThreadSend(state: WorkspaceState, caller: Thread, command: Ne
   const lead = isCoordinator(caller) ? caller : coordinatorOf(state.threads, caller);
   const remote = lead ? undefined : remoteLeadOf(caller);
   const catalog = catalogOf(state);
-  const inherited = lead ? threadModelOf(catalog, lead) : { model: caller.model ?? defaultModelFor(caller.engine), effort: caller.effort };
+  const inherited = lead ? threadModelOf(catalog, lead) : { model: threadModel(catalog, caller), effort: caller.effort };
   /** An engine named for a model means its default one, which an engine that lists no models has none of; any other name means the model it reads as. */
   const named = command.model === undefined || isAgentEngine(command.model) ? undefined : resolveModel(catalog, command.model, state.favoriteModels);
   if (named && "error" in named) return { error: named.error };
-  const model = command.model !== undefined && isAgentEngine(command.model) ? defaultModelIn(catalog, command.model) : named?.model ?? inherited.model;
-  if (model === undefined) return { error: `${engineLabel(command.model as AgentEngine)} has no models to start a thread on. Connect a provider first.` };
+  const namedEngine = command.model !== undefined && isAgentEngine(command.model) ? command.model : undefined;
+  const model = namedEngine ? defaultModelIn(catalog, namedEngine) : named?.model ?? inherited?.model;
+  if (model === undefined) {
+    return { error: namedEngine ? `${engineLabel(namedEngine)} has no models to start a thread on. Connect a provider first.` : `Pass a model: ${engineLabel((lead ?? caller).engine)} has yet to name the one this thread runs on.` };
+  }
   const engine = modelEngine(catalog, model);
   if (!engine) return { error: unknownModel(model) };
   if ((lead || remote) && !modelDelegable(catalog, model)) return { error: undelegable(model) };
@@ -58,7 +61,7 @@ export function newThreadSend(state: WorkspaceState, caller: Thread, command: Ne
   if (role && (command.worktree || command.worktreeId !== undefined)) return { error: COORDINATOR_WORKTREE_START };
   if (command.effort && !modelHasEffort(catalog, model, command.effort, role)) return { error: `The ${model} model does not support ${command.effort} effort${role ? " for a coordinator" : ""}.` };
   /** An inherited effort the new model does not take drops to the nearest one it does. */
-  const effort = command.effort ?? effortForModel(catalog, model, inherited.effort ?? defaultEffortFor(engine), role);
+  const effort = command.effort ?? effortForModel(catalog, model, inherited?.effort ?? defaultEffortFor(engine), role);
   /** A brief is what a coordinator hands the threads it starts, so one any other thread passes is dropped. */
   const { effort: _asked, brief, model: _named, ...rest } = command;
   const briefed = lead === caller && brief ? { brief } : {};

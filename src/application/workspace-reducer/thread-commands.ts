@@ -21,7 +21,7 @@ import { offlineMessage } from "../../domain/computers.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeById } from "../thread-location.js";
-import { DRAFT_DOCK, dockFor, frontDock, sideChatIds, withDock, type WorkspaceState } from "../workspace-state.js";
+import { DRAFT_DOCK, dockFor, frontDock, sideChatIds, withDock, withDraft, type WorkspaceState } from "../workspace-state.js";
 import { threadActivity, threadLists } from "../thread-activity.js";
 import { dismissed, hasUnreadAttention, readAttention, wantsAttention, withAllRead } from "../../domain/attention.js";
 import { readRow } from "../thread-attention.js";
@@ -30,7 +30,8 @@ import { clampTitle, type Thread } from "../../domain/thread.js";
 import { asCoordinator, coordinatorOf, effortRoleOf } from "../../domain/coordination.js";
 import { isSnoozeHours, withoutSnooze } from "../../domain/thread-snooze.js";
 import { cancelPause } from "../limit-pauses.js";
-import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort, policyFor } from "../../domain/agent-engine.js";
+import { capabilitiesFor, defaultModelIn, engineHasModel, modelHasEffort, threadModel } from "../../domain/agent-engine.js";
+import type { AgentEffort } from "../../domain/run.js";
 import { catalogOf } from "../engine-access.js";
 
 export const THREAD_COMMAND_INPUTS = [
@@ -379,7 +380,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
     case "task.set-policy": {
       const taskId = targetId(state, input.taskId);
       if (!capabilitiesFor(state.threads.find((thread) => thread.id === taskId)?.engine ?? state.draftEngine).policies.includes(input.policy)) return settled(state);
-      const drafted = input.taskId === undefined ? { ...state, draftPolicy: input.policy } : state;
+      const drafted = input.taskId === undefined ? withDraft(state, { policy: input.policy }) : state;
       return settled(taskId ? updateThread(drafted, taskId, (thread) => ({ ...thread, executionPolicy: input.policy, updatedAt: now() })) : drafted);
     }
 
@@ -387,18 +388,18 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const taskId = targetId(state, input.taskId);
       /** A thread keeps the engine it started on, so the model must be one that engine offers too. */
       const engine = state.threads.find((thread) => thread.id === taskId)?.engine, catalog = catalogOf(state);
-      if (!engineHasModel(catalog, input.engine, input.model) || engine && !engineHasModel(catalog, engine, input.model)) return settled(state);
+      const model = input.model ?? defaultModelIn(catalog, input.engine);
+      if (model === undefined || !engineHasModel(catalog, input.engine, model) || engine && !engineHasModel(catalog, engine, model)) return settled(state);
       /** A draft keeps its effort where the new model takes it, and drops to the nearest one below where it does not. */
-      const draftEffort = effortForModel(catalog, input.model, state.draftEffort, effortRoleOf(undefined, state.draftRole));
-      const drafted = input.taskId === undefined ? { ...state, draftEngine: input.engine, draftModel: input.model, draftEffort, draftPolicy: policyFor(input.engine, state.draftPolicy) } : state;
-      return settled(taskId ? updateThread(drafted, taskId, (thread) => ({ ...thread, model: input.model, updatedAt: now() })) : drafted);
+      const drafted = input.taskId === undefined ? withDraft(state, { engine: input.engine, model }) : state;
+      return settled(taskId ? updateThread(drafted, taskId, (thread) => ({ ...thread, model, updatedAt: now() })) : drafted);
     }
 
     case "task.set-fast-mode": {
       const taskId = targetId(state, input.taskId);
       const thread = state.threads.find((item) => item.id === taskId);
       if (taskId && !thread || !capabilitiesFor(thread?.engine ?? state.draftEngine).fastMode) return settled(state);
-      const drafted = input.taskId === undefined ? { ...state, draftFastMode: input.fastMode } : state;
+      const drafted = input.taskId === undefined ? withDraft(state, { fastMode: input.fastMode }) : state;
       return settled(taskId ? updateThread(drafted, taskId, (item) => ({ ...item, fastMode: input.fastMode, updatedAt: now() })) : drafted);
     }
 
@@ -406,12 +407,17 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const taskId = targetId(state, input.taskId);
       const thread = state.threads.find((item) => item.id === taskId);
       /** Effort belongs to the model, and to the part the thread plays, so only one the target takes can be set on it. */
-      if (thread && !modelHasEffort(catalogOf(state), thread.model ?? defaultModelFor(thread.engine), input.effort, effortRoleOf(thread, null))) return settled(state);
+      if (thread && !threadTakesEffort(state, thread, input.effort)) return settled(state);
       const draftTakes = modelHasEffort(catalogOf(state), state.draftModel, input.effort, effortRoleOf(undefined, state.draftRole));
       if (!thread && !draftTakes) return settled(state);
       /** The draft keeps its own model, so it takes the effort only where that model offers it. */
-      const drafted = input.taskId === undefined && draftTakes ? { ...state, draftEffort: input.effort } : state;
+      const drafted = input.taskId === undefined && draftTakes ? withDraft(state, { effort: input.effort }) : state;
       return settled(taskId ? updateThread(drafted, taskId, (thread) => ({ ...thread, effort: input.effort, updatedAt: now() })) : drafted);
     }
   }
+}
+
+function threadTakesEffort(state: WorkspaceState, thread: Thread, effort: AgentEffort) {
+  const model = threadModel(catalogOf(state), thread);
+  return model !== undefined && modelHasEffort(catalogOf(state), model, effort, effortRoleOf(thread, null));
 }

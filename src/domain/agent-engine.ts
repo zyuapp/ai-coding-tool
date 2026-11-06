@@ -99,40 +99,52 @@ export type EngineCapabilities = {
   review: boolean;
   /** The modes the engine can keep its promise for, in no particular order. */
   policies: readonly ExecutionPolicy[];
+  /** The mode a run nobody watches gets, such as a reviewer's, so it never waits on an approval. */
+  unattendedPolicy: ExecutionPolicy;
 };
 
 const EVERY_POLICY: readonly ExecutionPolicy[] = ["confirm", "plan", "allow-edits", "autonomous", "bypass"];
 
+/**
+ * Asking least first. A mode an engine lacks falls to the nearest one after it. Plan is a different
+ * kind of run rather than a step here, so it falls to confirm like any mode with none offered after it.
+ */
+const POLICY_ORDER: readonly ExecutionPolicy[] = ["bypass", "autonomous", "allow-edits", "confirm"];
+
+/** How an engine's models are known: a list this build ships with, or only once the engine names them. */
+type EngineModels = { kind: "built-in"; list: readonly ModelSpec[]; default: AgentModel } | { kind: "discovered" };
+
 type EngineSpec = {
   label: string;
-  /** Absent for an engine whose models are only known once it names them. */
-  defaultModel?: AgentModel;
+  models: EngineModels;
   defaultEffort: AgentEffort;
   capabilities: EngineCapabilities;
 };
 
+/** The default engine's own default, which a draft lands on when its engine has none to offer. */
+export const DEFAULT_MODEL: AgentModel = "opus";
+
 const ENGINES: Record<AgentEngine, EngineSpec> = {
   claude: {
     label: "Claude",
-    defaultModel: "opus",
+    models: { kind: "built-in", list: CLAUDE_MODELS, default: DEFAULT_MODEL },
     defaultEffort: "high",
-    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false, policies: EVERY_POLICY },
+    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false, policies: EVERY_POLICY, unattendedPolicy: "autonomous" },
   },
   codex: {
     label: "Codex",
-    defaultModel: "gpt-6.1-sol",
+    models: { kind: "built-in", list: CODEX_MODELS, default: "gpt-6.1-sol" },
     defaultEffort: "high",
-    capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true, policies: EVERY_POLICY },
+    capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true, policies: EVERY_POLICY, unattendedPolicy: "autonomous" },
   },
   opencode: {
     label: "OpenCode",
+    models: { kind: "discovered" },
     defaultEffort: "high",
     /** Auto stands on a reviewer that judges each call, which OpenCode has none of. */
-    capabilities: { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, policies: ["confirm", "plan", "allow-edits", "bypass"] },
+    capabilities: { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, policies: ["confirm", "plan", "allow-edits", "bypass"], unattendedPolicy: "bypass" },
   },
 };
-
-export const DEFAULT_MODEL: AgentModel = "opus";
 
 /** Every engine, in the order pickers list them. */
 export const AGENT_ENGINES = Object.keys(ENGINES) as readonly AgentEngine[];
@@ -258,7 +270,10 @@ export function modelCatalog(lists: Readonly<Record<AgentEngine, readonly ModelS
   return { models, entries };
 }
 
-const BUILT_IN_LISTS: Readonly<Record<AgentEngine, readonly ModelSpec[]>> = { claude: CLAUDE_MODELS, codex: CODEX_MODELS, opencode: [] };
+const BUILT_IN_LISTS: Readonly<Record<AgentEngine, readonly ModelSpec[]>> = byEngine((engine) => {
+  const models = ENGINES[engine].models;
+  return models.kind === "built-in" ? models.list : [];
+});
 
 /** The models this build ships knowing, which stand for every engine that names none of its own. */
 export const BUILT_IN_MODELS: ModelCatalog = modelCatalog(BUILT_IN_LISTS);
@@ -299,9 +314,9 @@ export function engineHasModel(catalog: ModelCatalog, engine: AgentEngine, model
   return catalog.entries.get(model)?.engine === engine;
 }
 
-/** True once an engine's models are known: it ships knowing some, or main has named them. */
+/** True once an engine's models are known: it ships knowing them, or main has named them. One only a newer build knows offers none here, which is known. */
 export function engineModelsKnown(status: EngineStatus | null | undefined, engine: AgentEngine) {
-  return BUILT_IN_LISTS[engine].length > 0 || Array.isArray(status?.[engine]?.catalog);
+  return engineSpec(engine)?.models.kind !== "discovered" || Array.isArray(status?.[engine]?.catalog);
 }
 
 /** The engine that offers a model, or none for one the catalogue does not hold, as a newer computer may send. */
@@ -319,6 +334,11 @@ export function engineForModel(catalog: ModelCatalog, model: AgentModel): AgentE
 /** Why a model the catalogue does not hold cannot be picked. */
 export function unknownModel(model: AgentModel): string {
   return `No engine here offers the ${model} model. Pick another model.`;
+}
+
+/** Why a thread that names no model cannot run while its engine has yet to name one. */
+export function noModel(engine: AgentEngine): string {
+  return `${engineLabel(engine)} has not named a model for this thread yet. Pick a model.`;
 }
 
 /** A name with case, spaces and punctuation dropped, so "GLM 5.3 Flash" and "glm-5.3-flash" read alike. */
@@ -392,7 +412,7 @@ function engineSpec(engine: AgentEngine): EngineSpec | undefined {
   return Object.hasOwn(ENGINES, engine) ? ENGINES[engine] : undefined;
 }
 
-const NO_CAPABILITIES: EngineCapabilities = { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, policies: [] };
+const NO_CAPABILITIES: EngineCapabilities = { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, policies: [], unattendedPolicy: "confirm" };
 
 export function modelsFor(catalog: ModelCatalog, engine: AgentEngine): readonly ModelSpec[] {
   return Object.hasOwn(catalog.models, engine) ? catalog.models[engine] : [];
@@ -409,14 +429,21 @@ export function effortsFor(catalog: ModelCatalog, model: AgentModel, role?: Coor
   return role === "coordinator" ? entry.coordinatorEfforts : entry.efforts;
 }
 
-export function defaultModelFor(engine: AgentEngine): AgentModel {
-  return engineSpec(engine)?.defaultModel ?? DEFAULT_MODEL;
+/** The default this build ships for the engine; none for one whose models are only known once it names them. */
+export function defaultModelFor(engine: AgentEngine): AgentModel | undefined {
+  const models = engineSpec(engine)?.models;
+  return models?.kind === "built-in" ? models.default : undefined;
 }
 
 /** The engine's default where the catalogue offers it, else the first model the engine lists; none for an engine that lists none. */
 export function defaultModelIn(catalog: ModelCatalog, engine: AgentEngine): AgentModel | undefined {
-  const fixed = engineSpec(engine)?.defaultModel;
+  const fixed = defaultModelFor(engine);
   return fixed !== undefined && engineHasModel(catalog, engine, fixed) ? fixed : modelsFor(catalog, engine)[0]?.id ?? fixed;
+}
+
+/** The model a thread runs on: its own, else its engine's default in the catalogue; none while that engine has yet to name any. */
+export function threadModel(catalog: ModelCatalog, thread: { engine: AgentEngine; model?: AgentModel }): AgentModel | undefined {
+  return thread.model ?? defaultModelIn(catalog, thread.engine);
 }
 
 export function defaultEffortFor(engine: AgentEngine): AgentEffort {
@@ -432,7 +459,8 @@ export function capabilitiesFor(engine: AgentEngine): EngineCapabilities {
 export function policyFor(engine: AgentEngine, policy: ExecutionPolicy): ExecutionPolicy {
   const offered = capabilitiesFor(engine).policies;
   if (offered.includes(policy)) return policy;
-  return policy === "autonomous" && offered.includes("allow-edits") ? "allow-edits" : "confirm";
+  const asked = POLICY_ORDER.indexOf(policy);
+  return (asked < 0 ? undefined : POLICY_ORDER.slice(asked).find((candidate) => offered.includes(candidate))) ?? "confirm";
 }
 
 /** What the engine is called wherever the app speaks of the agent running a thread; one only a newer build knows, by its own id. */

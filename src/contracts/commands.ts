@@ -158,8 +158,8 @@ export type TaskCommand =
   | { type: "task.fork"; taskId?: string; worktree?: boolean; title?: string }
   /** Without a `taskId` the setting also becomes the draft the next new task starts from. */
   | { type: "task.set-policy"; taskId?: string; policy: ExecutionPolicy }
-  /** A thread keeps its engine; the pair only moves the draft, and a model or effort the engine lacks changes nothing. */
-  | { type: "task.set-model"; taskId?: string; engine: AgentEngine; model: AgentModel }
+  /** A thread keeps its engine; the pair only moves the draft, and a model or effort the engine lacks changes nothing. No model means the engine's default. */
+  | { type: "task.set-model"; taskId?: string; engine: AgentEngine; model?: AgentModel }
   | { type: "task.set-fast-mode"; taskId?: string; fastMode: boolean }
   | { type: "task.set-effort"; taskId?: string; engine: AgentEngine; effort: AgentEffort }
   /**

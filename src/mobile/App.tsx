@@ -1,7 +1,7 @@
 import { LuChevronLeft as ChevronLeft, LuCloudOff as CloudOff, LuEllipsis as Ellipsis, LuQrCode as QrCode, LuSquarePen as SquarePen, LuX as X } from "react-icons/lu";
 import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import type { MobileCommand, MobileDraftView, MobileProjectGroup, MobileThreadEntry, MobileThreadView } from "../contracts/mobile";
-import { defaultModelFor, type AgentEngine } from "../domain/agent-engine";
+import type { AgentEngine } from "../domain/agent-engine";
 import { SETTINGS_PAGE_LABELS, settingControl } from "../domain/settings-catalog";
 import { PAIRING_CODE_LENGTH, type MobileConnectionState } from "../domain/mobile";
 import { useMobileClient } from "./client/useMobileClient";
@@ -407,7 +407,7 @@ export function App() {
           ? thread && !pending
             ? <ThreadBody thread={thread} live={live} waiting={waiting} returned={state.returned} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => enter("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onNewWith={(engine) => {
               newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined);
-              send({ type: "task.set-model", engine, model: defaultModelFor(engine) });
+              send({ type: "task.set-model", engine });
             }} onArchive={() => {
               const { id } = thread;
               back();
