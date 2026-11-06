@@ -109,7 +109,7 @@ export function deviceName(agent: string): string {
   return "Phone";
 }
 
-/** Which list groups the phone has folded shut, by project id or "recents". */
+/** Which list sections the phone has folded shut, such as "activity:priority". */
 export const MOBILE_FOLDED_KEY = "aicodingtool.mobile.folded";
 
 export function readFolded(store: CredentialStore): Set<string> {

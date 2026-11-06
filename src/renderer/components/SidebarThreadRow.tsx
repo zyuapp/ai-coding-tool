@@ -387,8 +387,7 @@ function menuPoint(event: React.MouseEvent<HTMLElement>) {
 }
 
 /**
- * The row itself, which is the same whether the list around it lets it be dragged or not. The title
- * shows itself whole under the pointer only while it is cut short. A row on a computer that is away
+ * The row itself. The title shows itself whole under the pointer only while it is cut short. A row on a computer that is away
  * answers a right-click as it does a click, by saying why it takes nothing.
  */
 function rowBody(row: RowState, className: string, content: ReactNode, action: RowAction, priority = false) {
