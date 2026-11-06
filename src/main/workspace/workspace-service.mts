@@ -180,4 +180,4 @@ function unavailableReason(error: unknown): "missing" | "not-directory" | "inacc
   return "inaccessible";
 }
 
-export { UnknownWorkspaceError, WorkspaceRegistrationError } from "../../domain/workspace.js";
+export { UnknownWorkspaceError } from "../../domain/workspace.js";

@@ -12,7 +12,7 @@ export {
   drawAnnotations,
   placeBadges,
 } from "../annotate/marks";
-export type { Annotation, AnnotationKind } from "../annotate/marks";
+export type { Annotation } from "../annotate/marks";
 
 const tools: { value: AnnotationKind; label: string; key: string; hint: string; icon: typeof Square }[] = [
   { value: "box", label: "Box", key: "b", hint: "Drag a box over the area you mean", icon: Square },

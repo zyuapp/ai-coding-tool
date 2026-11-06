@@ -1,7 +1,7 @@
 import type { BranchesResult } from "./git.js";
 export type { BranchesResult } from "./git.js";
 import type { AgentSettingsReloadEvent, ReloadAgentSettingsCommand } from "./agent-settings.js";
-export { isAgentSettingsReloadEvent, type AgentSettingsReloadEvent, type ReloadAgentSettingsCommand } from "./agent-settings.js";
+export { isAgentSettingsReloadEvent, type AgentSettingsReloadEvent } from "./agent-settings.js";
 import { isQuestionRequest, type QuestionRequest } from "../domain/agent-question.js";
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
 import type { BrowserRead, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
@@ -32,7 +32,7 @@ import type { MobileDesktopAPI } from "./mobile.js";
 import type { ImageDesktopAPI } from "./images.js";
 import type { LoadedTaskStore, TaskStoreDelta } from "./task-store.js";
 import type { TerminalDataEvent, TerminalOutputRead, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
-export type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
+export type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalText } from "./terminal.js";
 export type { LoadedTaskStore, PersistedSubagent, PersistedTask, TaskStoreDelta } from "./task-store.js";
 export type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
 
