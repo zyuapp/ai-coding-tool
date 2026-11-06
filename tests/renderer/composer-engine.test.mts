@@ -355,12 +355,12 @@ test("another coordinator's Needs-you card opens on its first page", async () =>
 test("the model menu's effort strip offers what the model takes, and says so for a model that takes none", async () => {
   window.desktop = composerDesktop();
   const changes: string[] = [];
-  const composer = (engine: "claude" | "codex", model: AgentModel, coordinating: boolean) => React.createElement(ConversationComposer, {
+  const composer = (engine: "claude" | "codex", model: AgentModel | undefined, coordinating: boolean) => React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine, engineLabel: "Claude", model, effort: "high", coordinating,
     runActive: false, queuedMessages: [],
     onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange: (_engine, effort) => changes.push(effort), fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   });
-  const efforts = async (engine: "claude" | "codex", model: AgentModel, coordinating = false) => {
+  const efforts = async (engine: "claude" | "codex", model: AgentModel | undefined, coordinating = false) => {
     const view = await mount(composer(engine, model, coordinating));
     await act(async () => {});
     const menu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
@@ -384,6 +384,7 @@ test("the model menu's effort strip offers what the model takes, and says so for
   const haiku = await efforts("claude", "haiku");
   assert.equal(haiku.chip, "ModelHaiku", "Haiku reasons at one depth, so its chip names no effort");
   assert.equal(haiku.none, "Haiku has no effort setting");
+  assert.equal((await efforts("codex", undefined)).none, undefined, "with no model chosen, there is no model to say so of");
 });
 
 test("what a newer build sent is named as it is, and a thread on an engine only it knows takes no message here", async () => {

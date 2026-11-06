@@ -204,14 +204,14 @@ function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]
   </>;
 }
 
-/** The effort for the model in the library, pinned under the list so it stays in reach however long the list grows. */
+/** The effort for the model in the library, pinned under the list so it stays in reach however long the list grows. With no model chosen, it says nothing of one. */
 function EffortStrip({ engine, model, modelLabel, effort }: { engine: AgentEngine; model: AgentModel | undefined; modelLabel: string; effort: EffortControl }) {
   const { steps, value } = effortSteps(useModelCatalog(), engine, model, effort);
   return <div className="effort-strip">
     <span className="effort-strip-axis">Effort<small>{modelLabel}</small></span>
     {steps.length
       ? <EffortSlider steps={steps} value={value} onChange={effort.onChange} />
-      : <span className="effort-strip-none">{modelLabel} has no effort setting</span>}
+      : model !== undefined && <span className="effort-strip-none">{modelLabel} has no effort setting</span>}
   </div>;
 }
 
