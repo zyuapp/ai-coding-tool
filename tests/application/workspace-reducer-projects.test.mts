@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, WORKSPACE_ERRORS } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
+import { RUNNING_PROJECT_ERROR } from "../../src/application/workspace-reducer/errors.ts";
 import { task, workspace, activeRun, effectAt, required, run, PROJECT, projected, madeWorktree, heldWorktree, inside, send } from "./workspace-reducer-fixtures.mts";
 
 test("a project with no workspace of its own adopts the one the picker opened for it", () => {
@@ -242,4 +243,22 @@ test("a folder just opened lands above the ones the user already ordered", () =>
   const opened = reduce(state, { type: "project.opened", workspace: { id: "workspace-2", kind: "project", root: "/two" } });
 
   assert.deepEqual(deriveView(opened.state).projects.map((project) => project.root), ["/two", "/one"]);
+});
+
+test("a refused removal is shown on the Projects page, and a removal that goes through clears it", () => {
+  const running = projected({ threads: [task("task-a", { projectId: PROJECT.id })], activeRuns: { "task-a": activeRun("task-a", "run-a") } });
+  const busy = reduce(running, { type: "project.remove", projectId: PROJECT.id });
+  assert.equal(busy.state.actionError, RUNNING_PROJECT_ERROR);
+  assert.equal(busy.state.actionErrorPage, "projects");
+  assert.deepEqual(busy.state.projects, [PROJECT]);
+
+  const worktree = heldWorktree();
+  const checkedOut = reduce(projected({ ...inside(worktree, [task("task-b", { projectId: PROJECT.id })]) }), { type: "project.remove", projectId: PROJECT.id });
+  assert.equal(checkedOut.state.actionError, WORKSPACE_ERRORS.projectWorktrees);
+  assert.equal(checkedOut.state.actionErrorPage, "projects");
+
+  const removed = reduce({ ...projected(), actionError: RUNNING_PROJECT_ERROR, actionErrorPage: "projects" }, { type: "project.remove", projectId: PROJECT.id });
+  assert.deepEqual(removed.state.projects, []);
+  assert.equal(removed.state.actionError, null);
+  assert.equal(removed.state.actionErrorPage, null);
 });

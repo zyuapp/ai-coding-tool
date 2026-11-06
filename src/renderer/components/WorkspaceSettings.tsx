@@ -70,6 +70,8 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
         projects: workspace.projects,
         projectHosts: workspace.projectHosts,
         threads: workspace.orderedThreads,
+        error: workspace.actionErrorPage === "projects" ? workspace.actionError : null,
+        onDismissError: () => void workspace.dispatch({ type: "view.dismiss-action-error" }),
         onAdd: workspace.actions.openFolder,
         onEdit: workspace.actions.editProjectOpen,
         onRemove: workspace.actions.removeProject,

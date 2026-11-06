@@ -10,6 +10,9 @@ export type ProjectSettingsProps = {
   projectHosts: Map<string, ThreadHost>;
   /** The threads still listed, which removing their project archives. */
   threads: Thread[];
+  /** Why the last removal was refused, while it stands. */
+  error: string | null;
+  onDismissError: () => void;
   onAdd: () => void;
   onEdit: (projectId: string) => void;
   onRemove: (projectId: string) => void;
@@ -28,7 +31,7 @@ function removeLabel(threads: number) {
   return `Remove and archive ${threads === 1 ? "1 thread" : `${threads} threads`}`;
 }
 
-export function ProjectSettings({ projects, projectHosts, threads, onAdd, onEdit, onRemove }: ProjectSettingsProps) {
+export function ProjectSettings({ projects, projectHosts, threads, error, onDismissError, onAdd, onEdit, onRemove }: ProjectSettingsProps) {
   const rows = useRowListFocus<HTMLElement>();
   const counts = new Map<string, number>();
   for (const thread of threads) if (thread.projectId) counts.set(thread.projectId, (counts.get(thread.projectId) ?? 0) + 1);
@@ -47,6 +50,7 @@ export function ProjectSettings({ projects, projectHosts, threads, onAdd, onEdit
           </div>
         </div>
 
+        {error && <p className="settings-error" role="alert">{error}<button type="button" className="settings-empty-action" onClick={onDismissError}>Dismiss</button></p>}
         {projects.length === 0
           ? <p className="settings-empty">No projects yet.</p>
           : sortedProjects(projects, projectHosts).map((project) => {
@@ -58,9 +62,10 @@ export function ProjectSettings({ projects, projectHosts, threads, onAdd, onEdit
                   <strong>{name}</strong>
                   <p className="project-settings-path">{host ? `${host.name} · ${project.root}` : project.root}</p>
                 </div>
-                <div className="setting-row-action">
-                  <button type="button" aria-label={`Edit ${name}`} onClick={() => onEdit(project.id)}>Edit…</button>
-                  <ConfirmAction className="danger" aria-label={`Remove ${name}`} confirm={removeLabel(counts.get(project.id) ?? 0)} onConfirm={() => onRemove(project.id)}>Remove</ConfirmAction>
+                {/** A paired computer's project is edited on that computer, and removed only while it answers. */}
+                <div className="setting-row-action project-actions">
+                  {!host && <button type="button" aria-label={`Edit ${name}`} onClick={() => onEdit(project.id)}>Edit…</button>}
+                  <ConfirmAction className="danger" aria-label={`Remove ${name}`} disabled={host?.offline} confirm={removeLabel(counts.get(project.id) ?? 0)} onConfirm={() => onRemove(project.id)}>Remove</ConfirmAction>
                 </div>
               </div>
             );

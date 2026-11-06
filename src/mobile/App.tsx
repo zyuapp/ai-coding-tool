@@ -260,7 +260,7 @@ function startingProject(groups: MobileProjectGroup[], activityProject: string |
 type Screen = "list" | "thread" | "changes";
 
 /**
- * A notice sits in a strip under the bar until it is put away, so the title and the list switch stay put.
+ * A notice sits in a strip under the bar until it is put away, so the title stays put.
  *
  * The conversation is the one the desktop has open, because the desktop's selection is the only one
  * there is. So the phone asks for a thread and then shows whichever one arrives rather than waiting

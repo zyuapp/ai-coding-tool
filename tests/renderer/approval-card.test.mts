@@ -8,7 +8,6 @@ import { mount, query } from "../support/renderer-dom.mts";
 
 const { ApprovalCard } = await import("../../src/renderer/components/ApprovalCard.tsx");
 const { SystemNotice } = await import("../../src/renderer/components/SystemNotice.tsx");
-const { ShowMore } = await import("../../src/renderer/components/ShowMore.tsx");
 
 const approval = (input: Record<string, unknown>) => ({ approvalId: "a1", taskId: "t", runId: "r", title: "Run a command?", description: "Wants to clean the build", toolName: "Bash", input });
 
@@ -65,11 +64,3 @@ test("a failure notice carries an alert mark and a copy button, a neutral notice
   await info.unmount();
 });
 
-test("show more always says whether the rest is open", async () => {
-  const closed = await mount(React.createElement(ShowMore, { label: "Show 3 more", expanded: false, onSelect() {} }));
-  assert.equal(query(closed.container, ".show-more").getAttribute("aria-expanded"), "false");
-  await closed.unmount();
-  const open = await mount(React.createElement(ShowMore, { label: "Show less", expanded: true, onSelect() {} }));
-  assert.equal(query(open.container, ".show-more").getAttribute("aria-expanded"), "true");
-  await open.unmount();
-});

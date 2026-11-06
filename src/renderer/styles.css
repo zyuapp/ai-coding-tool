@@ -630,24 +630,6 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
  */
 .menu-submenu { top: 0; left: calc(100% + 3px); right: auto; z-index: 1; background: var(--p-bg-4); backdrop-filter: none; }
 .menu-submenu.menu-flipped { left: auto; right: calc(100% + 3px); }
-.show-more {
-  height: 24px;
-  display: block;
-  border: 0;
-  border-radius: 7px;
-  padding: 0 8px 0 36px;
-  background: transparent;
-  color: var(--quiet);
-  text-align: left;
-  font-size: var(--text-meta);
-  letter-spacing: -0.012em;
-  cursor: pointer;
-}
-.show-more:hover { background: var(--row-hover); color: var(--ink-dim); }
-.show-more { height: 28px; display: flex; align-items: center; gap: 5px; color: var(--ink-faint); font-weight: 560; }
-.show-more:hover { color: var(--ink-soft); }
-.show-more-chevron { flex: none; transition: transform 140ms ease; }
-.show-more[aria-expanded="true"] .show-more-chevron { transform: rotate(180deg); }
 .task-entry { position: relative; min-width: 0; border-radius: 10px; }
 .context-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; }
 /** What an open right-click menu acts on. */
@@ -2512,7 +2494,7 @@ pre {
 .setting-row-action button.danger { border-color: var(--danger-line); color: var(--danger-soft); }
 .setting-row-action button.danger:hover { border-color: var(--danger-line-hover); background: var(--danger-surface); }
 /* A question in place of its row's other controls, so asking it does not push the row's text aside. */
-.computer-actions:has(> .armed) > :not(.armed, .armed + button), .settings-group-action:has(> .armed) > span { display: none; }
+.computer-actions:has(> .armed) > :not(.armed, .armed + button), .project-actions:has(> .armed) > :not(.armed, .armed + button), .settings-group-action:has(> .armed) > span { display: none; }
 :is(.setting-row-action, .settings-group-action) button.danger.armed { border-color: color-mix(in srgb, var(--danger) 75%, var(--canvas)); background: var(--danger-surface); color: var(--danger); }
 .setting-row-action button > svg { flex: 0 0 auto; }
 .setting-row-action button.setting-switch { position: relative; flex: none; width: 42px; height: 24px; border-color: var(--line-input); border-radius: 999px; padding: 0; background: var(--sunken); }

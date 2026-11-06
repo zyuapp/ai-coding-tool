@@ -22,12 +22,13 @@ export function reduceProjectCommands(state: WorkspaceState, input: ProjectInput
       return reduceProjects(state, input);
 
     case "project.remove": {
-      if (state.threads.some((thread) => thread.projectId === input.projectId && state.activeRuns[thread.id])) {
-        return rejected(state, RUNNING_PROJECT_ERROR);
-      }
-      if (state.worktrees.some((worktree) => worktree.projectId === input.projectId)) {
-        return rejected(state, PROJECT_WORKTREES_ERROR);
-      }
+      /** Projects are removed from Settings, so the refusal is shown on that page. */
+      const refused = (message: string): WorkspaceTransition => {
+        const transition = rejected(state, message);
+        return { ...transition, state: { ...transition.state, actionErrorPage: "projects" } };
+      };
+      if (state.threads.some((thread) => thread.projectId === input.projectId && state.activeRuns[thread.id])) return refused(RUNNING_PROJECT_ERROR);
+      if (state.worktrees.some((worktree) => worktree.projectId === input.projectId)) return refused(PROJECT_WORKTREES_ERROR);
       const leaving = state.threads.filter((thread) => thread.projectId === input.projectId);
       const effects = retireAutomations(state, leaving.map((thread) => thread.id));
       const project = state.projects.find((item) => item.id === input.projectId);
@@ -45,6 +46,7 @@ export function reduceProjectCommands(state: WorkspaceState, input: ProjectInput
         projectEdit: state.projectEdit?.projectId === input.projectId ? null : state.projectEdit,
         openMenu: null,
         actionError: null,
+        actionErrorPage: null,
       }, effects);
     }
   }

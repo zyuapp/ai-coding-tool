@@ -1,5 +1,6 @@
 import { fakeDesktop } from "../support/desktop-api.mts";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "vitest";
 import { act } from "react";
 import { renderSettingsPanel } from "../support/settings-panel.mts";
@@ -10,7 +11,7 @@ import type { ProjectSettingsProps } from "../../src/renderer/components/Project
 const linux = { id: "linux", name: "linux-box", offline: false };
 
 function projectSettings(overrides: Partial<ProjectSettingsProps> = {}): ProjectSettingsProps {
-  return { projects: [], projectHosts: new Map(), threads: [], onAdd() {}, onEdit() {}, onRemove() {}, ...overrides };
+  return { projects: [], projectHosts: new Map(), threads: [], error: null, onDismissError() {}, onAdd() {}, onEdit() {}, onRemove() {}, ...overrides };
 }
 
 const button = (root: ParentNode, name: string) => item([...root.querySelectorAll<HTMLButtonElement>("button")].find((candidate) => candidate.textContent === name));
@@ -98,5 +99,54 @@ test("with no projects, the page says so and still offers adding one", async () 
   assert.equal(query(view.container, ".settings-empty").textContent, "No projects yet.");
   await act(async () => { button(view.container, "Add project").click(); });
   assert.equal(added, 1);
+  await view.unmount();
+});
+
+test("a refused removal is said on the page, and Dismiss puts it away", async () => {
+  window.desktop = fakeDesktop({});
+  let dismissed = 0;
+  const view = await mount(renderSettingsPanel({
+    initialSection: "projects",
+    projects: projectSettings({ projects: [{ id: "web", root: "/work/web" }], error: "Stop the running tasks before removing this project.", onDismissError: () => { dismissed++; } }),
+  }));
+  await act(async () => {});
+  const alert = query(view.container, '.settings-error[role="alert"]');
+  assert.match(alert.textContent, /^Stop the running tasks before removing this project\./);
+  await act(async () => { button(alert, "Dismiss").click(); });
+  assert.equal(dismissed, 1);
+  await view.unmount();
+
+  const quiet = await mount(renderSettingsPanel({ initialSection: "projects", projects: projectSettings({ projects: [{ id: "web", root: "/work/web" }] }) }));
+  await act(async () => {});
+  assert.equal(quiet.container.querySelector(".settings-error"), null, "no error, no alert");
+  await quiet.unmount();
+});
+
+test("a paired computer's project offers no Edit, and one whose computer is away cannot be removed", async () => {
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({
+    initialSection: "projects",
+    projects: projectSettings({
+      projects: [{ id: "here", root: "/work/here" }, { id: "ml", root: "/linux/ml" }, { id: "away", root: "/studio/away" }],
+      projectHosts: new Map([["ml", linux], ["away", { id: "studio", name: "Studio", offline: true }]]),
+    }),
+  }));
+  await act(async () => {});
+  assert.ok(view.container.querySelector('[aria-label="Edit here"]'), "this computer's project is edited here");
+  assert.equal(view.container.querySelector('[aria-label="Edit ml"]'), null, "a paired computer's project is edited on that computer");
+  assert.equal(query<HTMLButtonElement>(view.container, '[aria-label="Remove ml"]').disabled, false, "a connected computer's project can be removed");
+  assert.equal(query<HTMLButtonElement>(view.container, '[aria-label="Remove away"]').disabled, true, "an away computer's cannot");
+  await view.unmount();
+});
+
+test("arming Remove takes the row's Edit out of the way, leaving the question and Cancel", async () => {
+  const css = await readFile(new URL("../../src/renderer/styles.css", import.meta.url), "utf8");
+  assert.match(css, /\.project-actions:has\(> \.armed\) > :not\(\.armed, \.armed \+ button\)/);
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({ initialSection: "projects", projects: projectSettings({ projects: [{ id: "web", root: "/work/web" }] }) }));
+  await act(async () => {});
+  const actions = query(view.container, ".setting-row-action.project-actions");
+  await act(async () => { query<HTMLButtonElement>(actions, '[aria-label="Remove web"]').click(); });
+  assert.deepEqual([...actions.children].map((child) => [child.textContent, child.classList.contains("armed")]), [["Edit…", false], ["Remove", true], ["Cancel", false]]);
   await view.unmount();
 });

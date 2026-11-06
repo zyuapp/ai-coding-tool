@@ -4,7 +4,7 @@ import { LuActivity as Activity, LuAlarmClock as AlarmClock, LuAlarmClockOff as 
 import { pauseSummary } from "../../domain/usage-limit";
 import { projectName, type Project } from "../../domain/project";
 import type { Thread } from "../../domain/thread";
-import { hasUnreadAttention, MEMBER_BLOCKED_LABEL, MEMBER_UNREAD_LABEL, newestUnreadFinding, type AttentionTone } from "../../domain/attention";
+import { hasUnreadAttention, MEMBER_BLOCKED_LABEL, MEMBER_UNREAD_LABEL, newestUnreadFinding } from "../../domain/attention";
 import type { ThreadOutcome } from "../../domain/thread-run";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
 import type { AutomationView } from "../../domain/automation";
@@ -255,8 +255,6 @@ type RowState = {
   coordinators: readonly Thread[];
   stoppable: boolean;
   notifications: boolean;
-  /** Why a drag can reorder the thread within its folder but not carry it elsewhere, or null when it can. */
-  pinned: string | null;
   /** The folders an open menu offers to move the thread to, or null when it cannot move. */
   moveTargets: readonly Project[] | null;
   handlers: RowHandlers;
@@ -533,8 +531,7 @@ export function useThreadRows({
     threads.map((thread) => [thread.id, worktree] as const))), [worktreeGroups]);
 
   const coordinated = useMemo(() => new Set([...coordination.threadsByCoordinator.values()].flat().map((thread) => thread.id)), [coordination.threadsByCoordinator]);
-  const pinned = (thread: Thread) => threadMoveBlock(thread, threadHosts.get(thread.id), coordinated.has(thread.id));
-  const moveTargets = (thread: Thread) => pinned(thread) !== null ? null : projects.filter((project) => !projectHosts.has(project.id));
+  const moveTargets = (thread: Thread) => threadMoveBlock(thread, threadHosts.get(thread.id), coordinated.has(thread.id)) !== null ? null : projects.filter((project) => !projectHosts.has(project.id));
 
   const rowState = (thread: Thread): RowState => {
     const away = offline(thread.id);
@@ -561,7 +558,6 @@ export function useThreadRows({
       coordinators: menuOpen ? coordination.coordinatorsByComputer.get(threadHosts.get(thread.id)?.id ?? null) ?? NO_THREADS : NO_THREADS,
       stoppable: menuOpen && coordination.stoppable.has(thread.id),
       notifications: coordination.notifications,
-      pinned: pinned(thread),
       moveTargets: menuOpen ? moveTargets(thread) : null,
       handlers,
     };
