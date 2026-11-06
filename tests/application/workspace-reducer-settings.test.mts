@@ -108,19 +108,28 @@ test("a folded subagent group is written down, and an unknown group is refused",
 });
 
 test("model favorites persist, restore, and ignore duplicate commands", () => {
-  const pinned = reduce(workspace(), { type: "view.set-model-favorite", model: "opus", favorite: true });
-  assert.deepEqual(pinned.state.favoriteModels, ["opus"]);
+  const pinned = reduce(workspace(), { type: "view.set-model-favorite", engine: "claude", model: "opus", favorite: true });
+  assert.deepEqual(pinned.state.favoriteModels, [{ engine: "claude", model: "opus" }]);
   const saved = effectAt(pinned, "persist-preferences").preferences;
   const restored = reduce(workspace(), { type: "preferences.loaded", preferences: saved }).state;
-  assert.deepEqual(restored.favoriteModels, ["opus"]);
-  assert.deepEqual(reduce(restored, { type: "view.set-model-favorite", model: "opus", favorite: true }).effects, []);
-  const removed = reduce(restored, { type: "view.set-model-favorite", model: "opus", favorite: false });
+  assert.deepEqual(restored.favoriteModels, [{ engine: "claude", model: "opus" }]);
+  assert.deepEqual(reduce(restored, { type: "view.set-model-favorite", engine: "claude", model: "opus", favorite: true }).effects, []);
+  const removed = reduce(restored, { type: "view.set-model-favorite", engine: "claude", model: "opus", favorite: false });
   assert.deepEqual(effectAt(removed, "persist-preferences").preferences.favoriteModels, []);
+});
+
+test("pinning a model pins it on its own engine, not on another naming the same id", () => {
+  const claude = reduce(workspace(), { type: "view.set-model-favorite", engine: "claude", model: "opus", favorite: true }).state;
+  const both = reduce(claude, { type: "view.set-model-favorite", engine: "opencode", model: "opus", favorite: true }).state;
+  assert.deepEqual(both.favoriteModels, [{ engine: "claude", model: "opus" }, { engine: "opencode", model: "opus" }]);
+  const unpinned = reduce(both, { type: "view.set-model-favorite", engine: "claude", model: "opus", favorite: false }).state;
+  assert.deepEqual(unpinned.favoriteModels, [{ engine: "opencode", model: "opus" }], "unpinning one leaves the other's pin");
+  assert.equal(reduce(claude, { type: "view.set-model-favorite", engine: "galaxy" as never, model: "opus", favorite: true }).state, claude);
 });
 
 test("a favorite saved under a replaced model id restores as its successor", () => {
   const storage = new Map<string, string>([[VIEW_PREFERENCES_KEY, JSON.stringify({ favoriteModels: ["gpt-5.6-sol", "gpt-6-sol", "gpt-6.1-sol", "gpt-5.6-luna"] })]]);
-  assert.deepEqual(readViewPreferences({ getItem: (key) => storage.get(key) ?? null, setItem: () => {} }).favoriteModels, ["gpt-6.1-sol", "gpt-6-luna"]);
+  assert.deepEqual(readViewPreferences({ getItem: (key) => storage.get(key) ?? null, setItem: () => {} }).favoriteModels, [{ engine: "codex", model: "gpt-6.1-sol" }, { engine: "codex", model: "gpt-6-luna" }]);
 });
 
 test("agent settings reload is transient, waits for the worker, and can be retried after failure", () => {

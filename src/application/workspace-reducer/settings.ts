@@ -7,7 +7,7 @@ import { withSubagents } from "../thread-run-state.js";
 import { viewPreferences } from "../view-preferences.js";
 import { dockOwner, withDock, type WorkspaceState } from "../workspace-state.js";
 import { shortcutAction, shortcutProblem, withShortcut } from "../../domain/shortcuts.js";
-import { capabilitiesFor, isModelId } from "../../domain/agent-engine.js";
+import { capabilitiesFor, isAgentEngine, isFavorite, isModelId } from "../../domain/agent-engine.js";
 import { isSubagentGroup } from "../../domain/run.js";
 import { isSettingsSection } from "../../domain/settings-section.js";
 import { isSidebarSection } from "../../domain/sidebar.js";
@@ -26,9 +26,9 @@ export const SETTINGS_INPUTS = [
 type SettingsInput = Extract<WorkspaceInput, { type: (typeof SETTINGS_INPUTS)[number] }>;
 
 export function reduceModelFavorite(state: WorkspaceState, input: Extract<WorkspaceInput, { type: "view.set-model-favorite" }>): WorkspaceTransition {
-  if (!isModelId(input.model) || typeof input.favorite !== "boolean" || state.favoriteModels.includes(input.model) === input.favorite) return settled(state);
-  const favoriteModels = state.favoriteModels.filter((model) => model !== input.model);
-  if (input.favorite) favoriteModels.push(input.model);
+  if (!isAgentEngine(input.engine) || !isModelId(input.model) || typeof input.favorite !== "boolean" || isFavorite(state.favoriteModels, input.engine, input.model) === input.favorite) return settled(state);
+  const favoriteModels = state.favoriteModels.filter((pinned) => pinned.engine !== input.engine || pinned.model !== input.model);
+  if (input.favorite) favoriteModels.push({ engine: input.engine, model: input.model });
   const next = { ...state, favoriteModels };
   return settled(next, persistView(next));
 }

@@ -148,7 +148,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
             threadModel: coordination.threadModel,
             engineAccess: workspace.engineAccess,
             favoriteModels: workspace.favoriteModels,
-            onModelFavorite: (model, favorite) => void workspace.dispatch({ type: "view.set-model-favorite", model, favorite }),
+            onModelFavorite: (engine, model, favorite) => void workspace.dispatch({ type: "view.set-model-favorite", engine, model, favorite }),
             onSetThreadModel: (engine, model, effort) => void workspace.actions.setThreadModel(lead.id, engine, model, effort),
             onEngineRead: workspace.actions.readEngineStatus,
             onSignIn: workspace.actions.signInEngine,

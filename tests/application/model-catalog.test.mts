@@ -185,7 +185,7 @@ test("a model two engines name runs on the engine it was picked on, and one name
 
   const caller = both.threads[0]!;
   const asked = (input: { model: string; engine?: "codex" }) => newThreadSend(both, { ...caller, role: undefined }, { type: "task.send", text: "Fix it", ...input });
-  assert.deepEqual(asked({ model: "opus" }), { error: "opus could mean opus on Claude, opus on Codex. Name the engine as well." }, "a thread asking names which one it means");
+  assert.deepEqual(asked({ model: "opus" }), { error: "opus could mean opus on Claude, opus on Codex. Name the engine as well, or pin the one you mean in the model picker." }, "a thread asking names which one it means");
   const start = asked({ model: "Gateway Opus", engine: "codex" });
   assert.ok("command" in start && start.command.engine === "codex" && start.command.model === "opus");
 });

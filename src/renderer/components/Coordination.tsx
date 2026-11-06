@@ -1,7 +1,7 @@
 import { createContext, memo, useContext, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuCircleCheck as Resolved, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuPencil as Pencil, LuTrash2 as Trash, LuUndo2 as Reopen, LuX as X } from "react-icons/lu";
 import { deliveryLabel, MAX_MEMORY_NOTE, MAX_MEMORY_NOTES, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
-import { engineHasModel, modelDelegable, modelLabel, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
+import { engineHasModel, modelDelegable, modelLabel, type AgentEngine, type AgentModel, type EngineModel, type EngineReadiness } from "../../domain/agent-engine";
 import { useModelCatalog } from "../model-catalog";
 import type { AgentEffort } from "../../domain/run";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
@@ -61,8 +61,8 @@ export type OverviewHeaderProps = {
   /** None while the coordinator names no model and its engine has yet to name one. */
   threadModel: ThreadModelChoice | null;
   engineAccess: Record<AgentEngine, EngineReadiness>;
-  favoriteModels?: AgentModel[];
-  onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
+  favoriteModels?: EngineModel[];
+  onModelFavorite?: (engine: AgentEngine, model: AgentModel, favorite: boolean) => void;
   onSetThreadModel: (engine: AgentEngine, model: AgentModel, effort?: AgentEffort) => void;
   onEngineRead: () => void;
   onSignIn: (engine: AgentEngine) => void;

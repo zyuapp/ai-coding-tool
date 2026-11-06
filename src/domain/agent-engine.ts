@@ -358,6 +358,20 @@ export function modelEngine(catalog: ModelCatalog, model: AgentModel, preferred?
   return entries?.find((entry) => entry.engine === preferred)?.engine ?? entries?.[0]?.engine;
 }
 
+/**
+ * The engine a model saved without one belongs to: the first engine listed that ships knowing it,
+ * else the first whose models are only known once it names them, since no built-in list holds the
+ * id. None only when no engine names its own.
+ */
+export function savedModelEngine(model: AgentModel): AgentEngine | undefined {
+  return modelEngine(BUILT_IN_MODELS, model) ?? AGENT_ENGINES.find((engine) => ENGINES[engine].models.kind === "discovered");
+}
+
+/** True when `favorites` pins this engine's model. */
+export function isFavorite(favorites: readonly EngineModel[], engine: AgentEngine, model: AgentModel): boolean {
+  return favorites.some((favorite) => favorite.engine === engine && favorite.model === model);
+}
+
 /** Why a model the catalogue does not hold, or that the named engine does not offer, cannot be picked. */
 export function unknownModel(model: AgentModel, engine?: AgentEngine): string {
   return engine === undefined ? `No engine here offers the ${model} model. Pick another model.` : `${engineLabel(engine)} here does not offer the ${model} model. Pick another model.`;
@@ -378,19 +392,19 @@ function plainName(name: string) {
  * id or label reads the same. Where several do, the pinned one wins; otherwise the name is refused with
  * the ones it could mean, since the same model from two providers or two engines differs in price and limits.
  */
-export function resolveModel(catalog: ModelCatalog, name: AgentModel, favorites: readonly AgentModel[], engine?: AgentEngine): EngineModel | { error: string } {
+export function resolveModel(catalog: ModelCatalog, name: AgentModel, favorites: readonly EngineModel[], engine?: AgentEngine): EngineModel | { error: string } {
   const on = (entries: readonly CatalogEntry[]) => engine === undefined ? entries : entries.filter((entry) => entry.engine === engine);
   const exact = on(catalog.byId.get(name) ?? []);
   const plain = plainName(name);
   const matches = exact.length || !plain ? exact : on([...catalog.entries.values()]).filter(({ spec }) => plainName(spec.id.slice(spec.id.lastIndexOf("/") + 1)) === plain || plainName(spec.label) === plain);
-  const pinned = matches.filter(({ spec }) => favorites.includes(spec.id));
+  const pinned = matches.filter((entry) => isFavorite(favorites, entry.engine, entry.spec.id));
   const meant = pinned.length ? pinned : matches;
   if (meant.length === 1) return { engine: meant[0]!.engine, model: meant[0]!.spec.id };
   if (meant.length > 1) {
-    /** Two engines naming one id tell apart only by engine, which pinning an id cannot. */
+    /** Two engines naming one id tell apart only by engine. */
     const shared = new Set(meant.map(({ spec }) => spec.id)).size < meant.length;
     const named = meant.map(({ engine: offering, spec }) => shared ? `${spec.id} on ${engineLabel(offering)}` : spec.id);
-    return { error: `${name} could mean ${named.join(", ")}. ${shared ? "Name the engine as well." : "Name one of them, or pin the one you mean in the model picker."}` };
+    return { error: `${name} could mean ${named.join(", ")}. ${shared ? "Name the engine as well, or pin the one you mean in the model picker." : "Name one of them, or pin the one you mean in the model picker."}` };
   }
   return { error: unknownModel(name, engine) };
 }

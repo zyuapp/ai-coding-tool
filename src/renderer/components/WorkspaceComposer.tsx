@@ -122,7 +122,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onImageRecall={(paths) => void workspace.dispatch({ type: "image.recall", paths })}
       onModeChange={workspace.actions.setPolicy}
       favoriteModels={workspace.favoriteModels}
-      onModelFavorite={(model, favorite) => void workspace.dispatch({ type: "view.set-model-favorite", model, favorite })}
+      onModelFavorite={(engine, model, favorite) => void workspace.dispatch({ type: "view.set-model-favorite", engine, model, favorite })}
       onModelChange={workspace.actions.setModel}
       onEffortChange={workspace.actions.setEffort}
       onEngineRead={workspace.actions.readEngineStatus}

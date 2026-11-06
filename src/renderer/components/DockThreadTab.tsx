@@ -15,7 +15,7 @@ import { attachmentSendFor, type AttachmentSendState } from "../../application/c
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import type { AppCommand } from "../../contracts/commands";
 import type { FindView, ThreadTabView } from "../../application/workspace-state";
-import { engineLabel, type AgentModel } from "../../domain/agent-engine";
+import { engineLabel, type AgentModel, type EngineModel } from "../../domain/agent-engine";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
@@ -93,7 +93,7 @@ const DockThreadTab = memo(function DockThreadTab({ tab, dispatch, attachmentSen
   tab: ThreadTabView;
   dispatch: Dispatch;
   attachmentSend: AttachmentSendState;
-  favoriteModels: AgentModel[];
+  favoriteModels: EngineModel[];
   leadTitle: string;
   threads: ThreadHandleOption[];
   active: boolean;

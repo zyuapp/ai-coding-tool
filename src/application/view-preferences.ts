@@ -1,4 +1,4 @@
-import { currentModel, isModelId } from "../domain/agent-engine.js";
+import { currentModel, isAgentEngine, isModelId, savedModelEngine, type EngineModel } from "../domain/agent-engine.js";
 import { isBrowserImportMemory } from "../domain/browser-import.js";
 import type { KeyValueStorage } from "./task-store.js";
 import { DRAFT_DOCK, type WorkspaceState } from "./workspace-state.js";
@@ -68,6 +68,20 @@ function bindings(value: unknown): ShortcutOverrides | undefined {
   return shortcutOverrides(stored);
 }
 
+/** Pinned models, each on its engine. One saved as a bare id, before pins named their engine, is read on the engine that offers it. */
+function favoriteModels(value: unknown): EngineModel[] {
+  if (!Array.isArray(value)) return [];
+  const pinned = new Map<string, EngineModel>();
+  for (const entry of value as unknown[]) {
+    const saved = typeof entry === "string" ? { model: entry } : entry && typeof entry === "object" ? entry as Record<string, unknown> : null;
+    const model = currentModel(saved?.model);
+    if (!isModelId(model)) continue;
+    const engine = saved && "engine" in saved ? saved.engine : savedModelEngine(model);
+    if (isAgentEngine(engine)) pinned.set(`${engine}\u0000${model}`, { engine, model });
+  }
+  return [...pinned.values()];
+}
+
 /** Anything unreadable reports no preference, so the caller's default decides. */
 export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPreferences> {
   try {
@@ -85,9 +99,8 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
     const folds = sidebarSections(value.sections);
     const reading = sizeById(READING_SIZE, value.readingSize);
     const terminal = sizeById(TERMINAL_SIZE, value.terminalSize);
-    const favoriteModels = Array.isArray(value.favoriteModels) ? [...new Set(value.favoriteModels.map(currentModel).filter(isModelId))] : [];
     return {
-      favoriteModels,
+      favoriteModels: favoriteModels(value.favoriteModels),
       ...(themeById(value.theme) ? { theme: value.theme as string } : {}),
       ...(isThemeMode(value.themeMode) ? { themeMode: value.themeMode } : {}),
       ...(uiFontById(value.uiFont) ? { uiFont: value.uiFont as string } : {}),

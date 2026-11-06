@@ -52,7 +52,7 @@ import { OPEN_SIDEBAR_SECTIONS, type SidebarMode, type SidebarSections } from ".
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
-import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, effortForModel, threadModel, engineLabel, isAgentEngine, unopenableEngine, type AgentEngine, type AgentModel, type EngineCapabilities, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
+import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, effortForModel, threadModel, engineLabel, isAgentEngine, unopenableEngine, type AgentEngine, type AgentModel, type EngineCapabilities, type EngineModel, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
 import { catalogOf, engineReadinessOf } from "./engine-access.js";
 import { normalizeDraft, type AgentDraft } from "../domain/agent-draft.js";
 import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
@@ -327,7 +327,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   settingsSection: SettingsSection | null;
   /** The control on that page to scroll to and mark, when something named one. */
   settingsFocus: SettingMark | null;
-  favoriteModels: AgentModel[];
+  /** Pinned models, each on its engine, since two engines may name the same id. */
+  favoriteModels: EngineModel[];
   /** The projects last picked in the new-thread picker, newest first. Kept between launches. */
   recentProjects: string[];
   /** The bindings the user changed, and the action waiting for a keystroke while settings are open. */

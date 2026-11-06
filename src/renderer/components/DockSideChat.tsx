@@ -4,7 +4,7 @@ import { attachDroppedFiles, imageSources } from "../dropped-files";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import type { AppCommand, ReadingPoint } from "../../contracts/commands";
 import type { DockConversationView, FindView, SideChatView } from "../../application/workspace-state";
-import type { AgentEngine, AgentModel } from "../../domain/agent-engine";
+import type { AgentEngine, AgentModel, EngineModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 import type { Annotation, AnnotationAnchor, AttachedFile, PastedText } from "../../domain/conversation";
@@ -37,7 +37,7 @@ export function chatHandlers(dispatch: Dispatch, chatId: string, images: DockCon
     onCancel: () => void dispatch({ type: "run.cancel", taskId: chatId }),
     onDecide: ({ runId, approvalId }: { runId: string; approvalId: string }, allow: boolean) => void dispatch({ type: "run.decide", allow, taskId: chatId, runId, approvalId }),
     onPolicyChange: (policy: ExecutionPolicy) => void dispatch({ type: "task.set-policy", taskId: chatId, policy }),
-    onModelFavorite: (model: AgentModel, favorite: boolean) => void dispatch({ type: "view.set-model-favorite", model, favorite }),
+    onModelFavorite: (engine: AgentEngine, model: AgentModel, favorite: boolean) => void dispatch({ type: "view.set-model-favorite", engine, model, favorite }),
     onModelChange: (engine: AgentEngine, model: AgentModel) => void dispatch({ type: "task.set-model", taskId: chatId, engine, model }),
     onFastModeChange: (fastMode: boolean) => void dispatch({ type: "task.set-fast-mode", taskId: chatId, fastMode }),
     onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void dispatch({ type: "task.set-effort", taskId: chatId, engine, effort }),
@@ -56,7 +56,7 @@ const DockSideChatTab = memo(function DockSideChatTab({ chat, dispatch, attachme
   dispatch: Dispatch;
   /** Where this chat's own images stand between its send and the run. */
   attachmentSend: AttachmentSendState;
-  favoriteModels: AgentModel[];
+  favoriteModels: EngineModel[];
   engineLabel: string;
   sourceTitle: string;
   /** Whether the thread this chat forks has a session to fork, which is what it starts from. */

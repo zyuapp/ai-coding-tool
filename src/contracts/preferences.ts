@@ -1,4 +1,4 @@
-import type { AgentModel } from "../domain/agent-engine.js";
+import type { EngineModel } from "../domain/agent-engine.js";
 import type { BrowserImportMemory } from "../domain/browser-import.js";
 import type { ShortcutOverrides } from "../domain/shortcuts.js";
 import type { ThemeMode } from "../domain/theme.js";
@@ -7,7 +7,7 @@ import type { SubagentGroups } from "../domain/run.js";
 
 /** Presentation choices the window remembers between launches. */
 export type ViewPreferences = {
-  favoriteModels?: AgentModel[];
+  favoriteModels?: EngineModel[];
   /** The theme the window paints in, by id. Themes the app no longer ships fall back to the default. */
   theme: string;
   /** The ground the user asked for, which "auto" leaves to the system's own appearance. */

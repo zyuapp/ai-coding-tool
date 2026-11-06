@@ -2,7 +2,7 @@ import { CommandGate, CommandButton, useCommandControls } from "./CommandControl
 import type { IconType } from "react-icons";
 import { LuSearch as Search, LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuCheck as Check, LuChevronDown as ChevronDown, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
-import { AGENT_ENGINES, capabilitiesFor, byEngine, catalogHasModel, effortForModel, effortsFor, engineLabel, engineNotice, modelsFor, type AgentEngine, type AgentModel, type ModelCatalog, type ModelSpec, type EffortSpec, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
+import { AGENT_ENGINES, capabilitiesFor, byEngine, catalogHasModel, effortForModel, effortsFor, engineLabel, engineNotice, isFavorite, modelsFor, type AgentEngine, type AgentModel, type EngineModel, type ModelCatalog, type ModelSpec, type EffortSpec, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
 import { useModelCatalog } from "../model-catalog";
 import { POLICIES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
@@ -253,8 +253,8 @@ type ModelLibraryProps = {
   engineLocked: boolean;
   engineAccess: Record<AgentEngine, EngineReadiness>;
   model: AgentModel | undefined;
-  favoriteModels?: AgentModel[];
-  onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
+  favoriteModels?: EngineModel[];
+  onModelFavorite?: (engine: AgentEngine, model: AgentModel, favorite: boolean) => void;
   onChange: (engine: AgentEngine, model: AgentModel) => void;
   onSignIn: (engine: AgentEngine) => void;
   onOpenEngineSettings?: () => void;
@@ -275,7 +275,6 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
   });
   const [query, setQuery] = useState("");
   const results = useRef<HTMLDivElement>(null);
-  const favorites = new Set(favoriteModels);
   const search = query.trim().toLocaleLowerCase();
   const available = modelGroupsOf(catalog).map((group) => {
     const readiness = engineAccess[group.engine];
@@ -285,7 +284,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
     ...group,
     choices: group.choices.filter((item) => {
       if (search) return `${group.label} ${item.label} ${item.value} ${item.description}`.toLocaleLowerCase().includes(search);
-      return filter !== "favorites" || favorites.has(item.value);
+      return filter !== "favorites" || isFavorite(favoriteModels, group.engine, item.value);
     }),
   }));
   const count = groups.reduce((total, group) => total + group.choices.length, 0);
@@ -319,7 +318,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
     </div>
     <div className="model-library-body">
       <nav className="model-provider-rail" aria-label="Filter models">
-        <button type="button" aria-pressed={!search && filter === "favorites"} onClick={() => { setFilter("favorites"); setQuery(""); }}><Star size={16} />Favorites<span>{available.reduce((total, group) => total + group.choices.filter((item) => favorites.has(item.value)).length, 0)}</span></button>
+        <button type="button" aria-pressed={!search && filter === "favorites"} onClick={() => { setFilter("favorites"); setQuery(""); }}><Star size={16} />Favorites<span>{available.reduce((total, group) => total + group.choices.filter((item) => isFavorite(favoriteModels, group.engine, item.value)).length, 0)}</span></button>
         <button type="button" aria-pressed={!search && filter === "all"} onClick={() => { setFilter("all"); setQuery(""); }}><Grid size={16} />All models<span>{available.reduce((total, group) => total + group.choices.length, 0)}</span></button>
         <hr />
         {available.map((group) => <button key={group.key} type="button" aria-pressed={!search && filter === group.key} onClick={() => { setFilter(group.key); setQuery(""); }}><span className="model-provider-initial" aria-hidden="true">{group.label[0]}</span>{group.label}<span>{group.choices.length}</span></button>)}
@@ -335,7 +334,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
           return <div key={group.key} role="group" aria-label={group.label}>
             {group.choices.map((item) => {
               const selected = group.engine === engine && item.value === model;
-              const favorite = favorites.has(item.value);
+              const favorite = isFavorite(favoriteModels, group.engine, item.value);
               const Icon = item.icon;
               return <div key={item.value} className={`model-row${selected ? " selected" : ""}`}>
                 <button type="button" className="model-choice" aria-pressed={selected} disabled={!ready} onClick={() => { onChange(group.engine, item.value); if (!effort) close(); }}>
@@ -343,7 +342,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
                   <span className="model-row-label"><strong>{item.label}</strong><small data-tip={`${group.label} · ${item.description}`} data-tip-overflow>{group.label} · {item.description}</small></span>
                   {selected && <Check size={16} className="model-selected-check" aria-hidden="true" />}
                 </button>
-                {onModelFavorite && <button type="button" className="model-favorite" aria-label={`${favorite ? "Unpin" : "Pin"} ${item.label}`} aria-pressed={favorite} data-tip={favorite ? "Unpin from Favorites" : "Pin to Favorites"} onClick={() => onModelFavorite(item.value, !favorite)}><Star size={16} fill={favorite ? "currentColor" : "none"} /></button>}
+                {onModelFavorite && <button type="button" className="model-favorite" aria-label={`${favorite ? "Unpin" : "Pin"} ${item.label}`} aria-pressed={favorite} data-tip={favorite ? "Unpin from Favorites" : "Pin to Favorites"} onClick={() => onModelFavorite(group.engine, item.value, !favorite)}><Star size={16} fill={favorite ? "currentColor" : "none"} /></button>}
               </div>;
             })}
             {locked && group.first && <p className="setting-hint">Start a new thread to use {engineLabel(group.engine)}</p>}
@@ -406,8 +405,8 @@ export function ComposerSettings({ taskId, mode, engine, engineLabel, engineLock
   fastMode: boolean;
   onFastModeChange: (fastMode: boolean) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
-  favoriteModels?: AgentModel[];
-  onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
+  favoriteModels?: EngineModel[];
+  onModelFavorite?: (engine: AgentEngine, model: AgentModel, favorite: boolean) => void;
   onModelChange: (engine: AgentEngine, model: AgentModel) => void;
   onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
   /** Asked when the model menu opens on another engine, so the menu can say whether it can be picked. */

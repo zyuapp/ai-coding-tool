@@ -8,7 +8,7 @@ import { AnnotationRow } from "./AnnotationRow";
 import { FileRow } from "./FileRow";
 import { PasteRow } from "./PasteRow";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
-import type { AgentEngine, AgentModel, EngineReadiness } from "../../domain/agent-engine";
+import type { AgentEngine, AgentModel, EngineModel, EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/thread-run";
 import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments, type ComposerOutbox } from "./ComposerAttachments";
@@ -236,8 +236,8 @@ export type ConversationComposerProps = {
   onImageRecall?: (paths: string[]) => void;
   onFileRemove?: (fileId: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
-  favoriteModels?: AgentModel[];
-  onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
+  favoriteModels?: EngineModel[];
+  onModelFavorite?: (engine: AgentEngine, model: AgentModel, favorite: boolean) => void;
   onModelChange: (engine: AgentEngine, model: AgentModel) => void;
   onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
   /** Asked when the model menu opens on another engine. A surface that cannot ask leaves every engine ready. */

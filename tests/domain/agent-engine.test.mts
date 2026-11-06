@@ -117,7 +117,8 @@ test("a model two engines name is each one's own, listed and run where it was pi
   assert.equal(modelEngine(own, "opus"), "claude", "a model named without its engine reads as the first engine's, as it did when ids were unique");
   assert.equal(modelEngine(own, "opus", "codex"), "codex");
   assert.deepEqual(resolveModel(own, "opus", [], "codex"), { engine: "codex", model: "opus" });
-  assert.deepEqual(resolveModel(own, "opus", ["opus"]), { error: "opus could mean opus on Claude, opus on Codex. Name the engine as well." }, "pinning an id cannot tell two engines apart");
+  assert.deepEqual(resolveModel(own, "opus", []), { error: "opus could mean opus on Claude, opus on Codex. Name the engine as well, or pin the one you mean in the model picker." });
+  assert.deepEqual(resolveModel(own, "opus", [{ engine: "codex", model: "opus" }]), { engine: "codex", model: "opus" }, "a pin names its engine, so it tells two engines apart");
   assert.deepEqual(resolveModel(own, "gpt-6.1-sol", [], "codex"), { error: "Codex here does not offer the gpt-6.1-sol model. Pick another model." });
 });
 
