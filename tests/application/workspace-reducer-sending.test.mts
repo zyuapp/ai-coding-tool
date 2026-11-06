@@ -345,6 +345,17 @@ test("a send is refused with the command that fixes it when the engine is missin
   );
 });
 
+test("a send naming its own engine is held to that engine's install, not the draft's", () => {
+  const draftMissing = workspace({ draftEngine: "codex", draftModel: "gpt-6.1-sol", engineStatus: { codex: { access: "missing", fix: "brew install --cask codex" } } });
+  const onClaude = reduce(draftMissing, { type: "task.send", text: "Inspect the app", engine: "claude", model: "opus" });
+  assert.equal(onClaude.state.actionError, null, "a missing Codex does not stop a run on Claude");
+  assert.equal(effectAt(onClaude, "resolve-run-workspace").type, "resolve-run-workspace");
+
+  const namedMissing = workspace({ engineStatus: { codex: { access: "missing", fix: "brew install --cask codex" } } });
+  const onCodex = reduce(namedMissing, { type: "task.send", text: "Inspect the app", engine: "codex", model: "gpt-6.1-sol" });
+  assert.equal(required(onCodex.state.actionError), "Codex is not installed. Run `brew install --cask codex` to fix it.", "a ready Claude draft does not let a run through to a missing Codex");
+});
+
 test("only an installed engine the app can upgrade is updated, one at a time", () => {
   const ready = workspace();
   assert.deepEqual(reduce(ready, { type: "engine.update", engine: "codex" }).effects, [], "a ready engine has nothing to update");

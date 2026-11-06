@@ -88,18 +88,17 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
       if (thread && state.creatingWorktrees.includes(thread.id)) return refuse(WORKTREE_CREATING_ERROR);
       /** A checkout on its way out is the same: the folder a run would start in is about to go. */
       if (thread && leavingThreadIds(state).has(thread.id)) return refuse(WORKTREE_RELEASING_ERROR);
+      /** The run goes to the model the thread, the caller, or the draft names, which its engine must offer here. */
+      const catalog = catalogOf(state);
+      /** An older computer names a model without its engine, so the catalogue says which one it means. */
+      const runEngine = thread?.engine ?? (input.model === undefined ? state.draftEngine : input.engine ?? modelEngine(catalog, input.model));
       /** The engine is a command on this machine, so a missing or too old one is said before a run starts. */
-      const engine = thread?.engine ?? state.draftEngine;
-      const blocked = engineBlocker(engine, engineReadinessOf(state, engine));
+      const blocked = runEngine && engineBlocker(runEngine, engineReadinessOf(state, runEngine));
       if (blocked) {
         /** The user may have fixed it since the app last looked, so the refusal also asks again. */
         const asked = refreshEngines({ ...state, actionError: blocked, actionErrorPage: "engines" });
         return rejected(asked.state, blocked, asked.effects);
       }
-      /** The run goes to the model the thread, the caller, or the draft names, which its engine must offer here. */
-      const catalog = catalogOf(state);
-      /** An older computer names a model without its engine, so the catalogue says which one it means. */
-      const runEngine = thread?.engine ?? (input.model === undefined ? state.draftEngine : input.engine ?? modelEngine(catalog, input.model));
       const runModel = thread ? threadModel(catalog, thread) : input.model ?? state.draftModel;
       if (runModel === undefined) return refuse(noModel(thread?.engine ?? state.draftEngine));
       if (!runEngine || !engineOffersModel(state, runEngine, runModel)) return refuse(unknownModel(runModel));
