@@ -12,7 +12,8 @@ import type { AgentEngine, AgentModel, EngineModel, EngineReadiness } from "../.
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/thread-run";
 import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments, type ComposerOutbox } from "./ComposerAttachments";
-import { ComposerSettings, EVERY_ENGINE_READY } from "./ComposerSettings";
+import { ComposerSettings } from "./ComposerSettings";
+import { EVERY_ENGINE_READY } from "../../domain/model-library";
 import { CommandMenu, ThreadMenu, menuActiveDescendant, menuControls, useComposerMenus, type ComposerAction } from "./ComposerMenus";
 import { ContextUsageMeter } from "./ContextUsageMeter";
 import { PlanUsageMeter, PlanUsageWarning, type ComposerPlanUsage } from "./PlanUsageMeter";

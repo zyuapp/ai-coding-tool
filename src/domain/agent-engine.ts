@@ -1,5 +1,5 @@
 import type { CoordinationRole } from "./coordination.js";
-import type { AgentEffort, ExecutionPolicy } from "./run.js";
+import { POLICY_CHOICES, type AgentEffort, type ExecutionPolicy } from "./run.js";
 
 /** The backends that can run a task. Each offers its own models, efforts, and context windows. */
 export type AgentEngine = "claude" | "codex" | "opencode";
@@ -214,6 +214,25 @@ export function engineNotice(engine: AgentEngine, readiness: EngineReadiness): E
   /** Ready, but behind: it runs, and the models it never heard of are simply missing from the menu. */
   if (readiness.required) return { blocking: false, message: `${named} is behind ${readiness.required}, so some models are hidden.`, ...update };
   return null;
+}
+
+/** An engine's state in a word: short enough to read at a glance, plain enough to need no key. */
+export function engineStatusWord(readiness: EngineReadiness): string {
+  if (readiness.access === "missing") return "Not installed";
+  if (readiness.access === "outdated") return "Too old to run";
+  if (readiness.access === "unavailable") return "Will not start";
+  if (readiness.access === "signed-out") return "Signed out";
+  if (readiness.required) return "Needs update";
+  return readiness.latest ? "Update available" : "Ready";
+}
+
+/** What this engine is doing on this machine, said under its name. */
+export function engineStatusLine(engine: AgentEngine, readiness: EngineReadiness): string {
+  const notice = engineNotice(engine, readiness);
+  if (notice) return notice.message;
+  if (readiness.access === "signed-out") return `Sign in to run threads on ${engineLabel(engine)}.`;
+  if (readiness.latest) return `Version ${readiness.version}. ${readiness.latest} is available${readiness.fix ? "" : "; update it the way you installed it"}.`;
+  return readiness.version ? `Version ${readiness.version}` : "Installed and ready.";
 }
 
 /** A version an installed engine can move to, the one it is on, and the command that moves it when the app can run it. */
@@ -507,6 +526,13 @@ export function policyFor(engine: AgentEngine, policy: ExecutionPolicy): Executi
   if (offered.includes(policy)) return policy;
   const asked = POLICY_ORDER.indexOf(policy);
   return (asked < 0 ? undefined : POLICY_ORDER.slice(asked).find((candidate) => offered.includes(candidate))) ?? "confirm";
+}
+
+const OFFERED_POLICIES = byEngine((engine) => POLICY_CHOICES.filter((policy) => ENGINES[engine].capabilities.policies.includes(policy)));
+
+/** The modes a picker offers for an engine, in the one order every picker lists them; none for an engine only a newer build knows. */
+export function offeredPolicies(engine: EngineId): readonly ExecutionPolicy[] {
+  return isAgentEngine(engine) ? OFFERED_POLICIES[engine] : [];
 }
 
 /** What the engine is called wherever the app speaks of the agent running a thread; one only a newer build knows, by its own id. */

@@ -5,7 +5,8 @@ import { mount, query } from "../support/renderer-dom.mts";
 import { readViewPreferences } from "../../src/application/view-preferences.ts";
 import { BUILT_IN_MODELS, engineCatalog, modelDelegable, type AgentEngine, type AgentModel } from "../../src/domain/agent-engine.ts";
 const { ModelCatalogProvider } = await import("../../src/renderer/model-catalog.ts");
-const { ComposerSettings, EVERY_ENGINE_READY, ModelMenu } = await import("../../src/renderer/components/ComposerSettings.tsx");
+const { ComposerSettings, ModelMenu } = await import("../../src/renderer/components/ComposerSettings.tsx");
+const { EVERY_ENGINE_READY } = await import("../../src/domain/model-library.ts");
 
 test("the library filters providers, searches globally, pins without choosing, and selects by keyboard", async () => {
   const selected: AgentModel[] = [];

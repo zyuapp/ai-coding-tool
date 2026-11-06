@@ -1,7 +1,7 @@
 import { LuRefreshCw as RefreshCw } from "react-icons/lu";
 import { SettingGroup } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
-import { AGENT_ENGINES, engineLabel, engineNotice, engineUpdate, type AgentEngine, type EngineReadiness } from "../../domain/agent-engine";
+import { AGENT_ENGINES, engineLabel, engineNotice, engineStatusLine, engineStatusWord, engineUpdate, type AgentEngine, type EngineReadiness } from "../../domain/agent-engine";
 import type { WorkspaceState } from "../../application/workspace-state";
 import { CopyButton } from "./CopyButton";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
@@ -21,25 +21,6 @@ export type EngineSettingsProps = {
   onSignIn: (engine: AgentEngine) => void;
   onUpdate: (engine: AgentEngine) => void;
 };
-
-/** The word in the right column: short enough to read at a glance, plain enough to need no key. */
-function statusWord(readiness: EngineReadiness) {
-  if (readiness.access === "missing") return "Not installed";
-  if (readiness.access === "outdated") return "Too old to run";
-  if (readiness.access === "unavailable") return "Will not start";
-  if (readiness.access === "signed-out") return "Signed out";
-  if (readiness.required) return "Needs update";
-  return readiness.latest ? "Update available" : "Ready";
-}
-
-/** What this engine is doing on this machine, under its name. */
-function statusLine(engine: AgentEngine, readiness: EngineReadiness) {
-  const notice = engineNotice(engine, readiness);
-  if (notice) return notice.message;
-  if (readiness.access === "signed-out") return `Sign in to run threads on ${engineLabel(engine)}.`;
-  if (readiness.latest) return `Version ${readiness.version}. ${readiness.latest} is available${readiness.fix ? "" : "; update it the way you installed it"}.`;
-  return readiness.version ? `Version ${readiness.version}` : "Installed and ready.";
-}
 
 const RELOAD_TONE = { idle: "", reloading: "", pending: "pending", reloaded: "done", failed: "failed" } as const;
 
@@ -81,7 +62,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
               <span className="setting-glyph" aria-hidden="true"><ThreadEngineIcon engine={engine} size={16} /></span>
               <div>
                 <strong>{engineLabel(engine)}</strong>
-                <p>{statusLine(engine, readiness)}</p>
+                <p>{engineStatusLine(engine, readiness)}</p>
                 {notice?.fix && !notice.updatable && (
                   <div className="setting-readiness">
                     <code>{notice.fix}</code>
@@ -96,7 +77,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
                     ? <button type="button" aria-label={`${updating === engine ? "Updating" : "Update"} ${engineLabel(engine)}`} disabled={updating !== null || checking} aria-busy={updating === engine} onClick={() => onUpdate(engine)}>
                       {updating === engine && <RefreshCw size={14} aria-hidden="true" className="spinning" />}{updating === engine ? "Updating…" : "Update"}
                     </button>
-                    : <span className={`setting-pill${ready ? " ready" : notice?.blocking ? " blocked" : ""}`}>{statusWord(readiness)}</span>}
+                    : <span className={`setting-pill${ready ? " ready" : notice?.blocking ? " blocked" : ""}`}>{engineStatusWord(readiness)}</span>}
               </div>
             </div>
           );

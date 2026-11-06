@@ -13,7 +13,8 @@ import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts"
 import { workspaceActions } from "../../src/renderer/task-workspace/workspace-actions.ts";
 
 const { CoordinationBar, CoordinatorOverview } = await import("../../src/renderer/components/Coordination.tsx");
-const { ModelMenu, EVERY_ENGINE_READY } = await import("../../src/renderer/components/ComposerSettings.tsx");
+const { ModelMenu } = await import("../../src/renderer/components/ComposerSettings.tsx");
+const { EVERY_ENGINE_READY } = await import("../../src/domain/model-library.ts");
 const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
 const { buildDock } = await import("../../src/renderer/components/dock-registry.tsx");
 
