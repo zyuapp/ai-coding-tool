@@ -3,7 +3,7 @@ import { BUILT_IN_MODELS, claudeEffort, contextWindowLimit, modelTakesEffort, ty
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, SubagentMetadata, SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { WorkflowReport } from "../../contracts/ipc.js";
 import type { UsageLimit } from "../../domain/usage-limit.js";
-import type { AgentTurn, ProviderEvent, ProviderResult, ProviderRunInput, SteerQueue, ToolDecision } from "../agent/agent-provider.mjs";
+import { denialReason, type AgentTurn, type ProviderEvent, type ProviderResult, type ProviderRunInput, type SteerQueue, type ToolDecision } from "../agent/agent-provider.mjs";
 import { needsSideChatBoundary, SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "../agent/workflow-progress.mjs";
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
@@ -679,7 +679,7 @@ export class ClaudeSession {
     const allow = { behavior: "allow" as const, updatedInput: toolInput, toolUseID: options.toolUseID };
     const answered = (decision: ToolDecision) => decision === "allow"
       ? allow
-      : { behavior: "deny" as const, message: typeof decision === "object" ? decision.deny : "The user denied this action.", toolUseID: options.toolUseID };
+      : { behavior: "deny" as const, message: denialReason(decision), toolUseID: options.toolUseID };
     if (grantsTool(toolReach(toolName), turn?.input)) return allow;
     if (turn) return answered(await turn.input.authorize(normalizeToolIntent(toolName, toolInput, options.toolUseID)));
     /** Work that outlived its run still has to ask, so the turn the agent started takes the question. */

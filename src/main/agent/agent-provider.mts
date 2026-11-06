@@ -100,6 +100,11 @@ export type AgentTurn = {
 /** A plain denial reads as the user's; one that carries wording says why, for a run with no user. */
 export type ToolDecision = "allow" | "deny" | { deny: string };
 
+/** What the agent is told of a denial, which every engine words the same. */
+export function denialReason(decision: Exclude<ToolDecision, "allow">) {
+  return typeof decision === "object" ? decision.deny : "The user denied this action.";
+}
+
 export type ProviderRunInput = {
   /** Null means the request expired; aborting the signal withdraws its unanswered questions. */
   askQuestion: (request: QuestionRequest, signal?: AbortSignal) => Promise<QuestionAnswers | null>;

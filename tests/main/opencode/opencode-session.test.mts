@@ -219,7 +219,7 @@ test("a tool call is shown as it was made, and the approval the rules ask for is
   server().emit("session.tool.called", { sessionID: "ses_new", id: "call-2", input: { prompt: "go" } });
   server().emit("permission.asked", { id: "per_2", sessionID: "ses_new", action: "aicodingtool_start_thread", resources: ["*"], source: { type: "tool", id: "call-2" } });
   await until(() => server().sent("POST", "/reply").length === 2, "the second reply");
-  assert.deepEqual(server().sent("POST", "/reply")[1]!.body, { decision: "reject" });
+  assert.deepEqual(server().sent("POST", "/reply")[1]!.body, { decision: "reject", message: "The user denied this action." }, "a plain denial says so, as Claude is told, so the turn goes on past it");
   assert.equal((asked[1] as { name: string }).name, "start_thread", "the app's own tools are named as the app names them");
 });
 
