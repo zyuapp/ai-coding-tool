@@ -299,16 +299,16 @@ export function validateThreadStoreData(values: DecodedThreadStore): ThreadStore
   };
 }
 
-/**
- * A reference to a checkout that is not there is dropped rather than refusing the whole store: a
- * reconcile removes a checkout the moment nothing claims it, and a crash in that window would
- * otherwise leave the user unable to write anything at all.
- */
 /** A thread saved before threads were ranked ranks by when it last spoke, which is where the list last showed it. */
 export function rankedThread<T extends Omit<StoredThread, "subagents">>(thread: T): T & Thread {
   return (thread.rankedAt === undefined ? { ...thread, rankedAt: threadLastOutputAt(thread) } : thread) as T & Thread;
 }
 
+/**
+ * A reference to a checkout that is not there is dropped rather than refusing the whole store: a
+ * reconcile removes a checkout the moment nothing claims it, and a crash in that window would
+ * otherwise leave the user unable to write anything at all.
+ */
 function claiming(task: StoredThread, worktreeIds: Set<string>): StoredThread {
   if (!task.worktreeId || worktreeIds.has(task.worktreeId)) return task;
   const { worktreeId: _gone, worktreeEnteredAt: _forked, ...local } = task;

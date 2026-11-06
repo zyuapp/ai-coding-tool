@@ -270,7 +270,7 @@ function leadChange(state: WorkspaceState, thread: Thread, computer: PairedCompu
  * that may still lead threads on paired computers. Once gone they can no longer say those threads
  * are let go, so that is remembered for them, between launches too.
  */
-export function discardedLeads(state: WorkspaceState, threads: readonly Thread[]): WorkspaceTransition {
+export function discardedLeads(state: WorkspaceState, threads: readonly Pick<Thread, "id" | "role" | "remoteHeard">[]): WorkspaceTransition {
   const held = new Set(state.computers.discardedLeads);
   const leads = new Set(threads.flatMap((thread) => mayLeadElsewhere(thread) && !held.has(thread.id) ? [thread.id] : []));
   if (!leads.size) return settled(state);

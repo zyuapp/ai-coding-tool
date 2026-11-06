@@ -212,12 +212,15 @@ function reportStands(thread: Thread, pickup: RunPickup | undefined) {
   return pickup === "warming" || pickup === "agent" && thread.report !== undefined && GROUP_OF[thread.report.state] === "needs";
 }
 
-/** A human who joins a scheduled run owns it from then on: what it finds is an answer to them, and the app quitting under it cuts their turn off. */
+/**
+ * A human who joins a scheduled run owns it from then on: what it finds is an answer to them, and the
+ * app quitting under it cuts their turn off. A quiet run starts its turn there; one already open has.
+ */
 export function withAttendedRun(state: WorkspaceState, taskId: string): WorkspaceState {
   const active = state.activeRuns[taskId];
   if (!active || active.origin === "composer") return state;
   const attended = { ...active, origin: "composer" as const };
-  return updateThread(withActiveRun(state, taskId, attended), taskId, (thread) => opened(thread, attended));
+  return updateThread(withActiveRun(state, taskId, attended), taskId, (thread) => thread.runOpen ? thread : opened(thread, attended));
 }
 
 /**

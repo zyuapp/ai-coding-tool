@@ -1,3 +1,5 @@
+import { mount, query } from "../support/renderer-dom.mts";
+import { renderProjectSidebar } from "../support/sidebar.mts";
 import { effectAt, task, workspace } from "./workspace-reducer-fixtures.mts";
 import assert from "node:assert/strict";
 import { afterEach, test, vi } from "vitest";
@@ -11,11 +13,10 @@ import { THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
 
 const PROJECTLESS: WorkspaceRecord = { id: "projectless", kind: "projectless", root: "/tmp" };
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => vi.restoreAllMocks());
 
 function at(time: number) {
-  vi.useFakeTimers();
-  vi.setSystemTime(time);
+  vi.spyOn(Date, "now").mockReturnValue(time);
 }
 
 function start(state: WorkspaceState, taskId: string): WorkspaceState {
@@ -33,9 +34,10 @@ function end(state: WorkspaceState, taskId: string, sequence: number): Workspace
   return reduce(state, { type: "run.event", event: { type: "run.status", taskId, runId, sequence, status: "succeeded" } }).state;
 }
 
-function threadsList(state: WorkspaceState) {
+function lists(state: WorkspaceState) {
   const busy = new Set(Object.keys(state.activeRuns));
-  return sidebarLists(state, [], state.threads, busy, new Set()).activityThreads.threads.map((thread) => thread.id);
+  const { activityThreads, recentThreads } = sidebarLists(state, [], state.threads, busy, new Set());
+  return { threads: activityThreads.threads.map((thread) => thread.id), recents: recentThreads.map((thread) => thread.id) };
 }
 
 test("a run moves its thread when it starts and when it ends, never while it speaks", () => {
@@ -44,7 +46,7 @@ test("a run moves its thread when it starts and when it ends, never while it spe
   at(100);
   state = start(state, "reviewer");
   assert.equal(state.threads.find((thread) => thread.id === "reviewer")!.rankedAt, 100);
-  assert.deepEqual(threadsList(state), ["reviewer", "other"]);
+  assert.deepEqual(lists(state), { threads: ["reviewer", "other"], recents: ["reviewer", "other"] });
 
   state = { ...state, threads: state.threads.map((thread) => thread.id === "other" ? { ...thread, rankedAt: 150 } : thread) };
   at(200);
@@ -52,12 +54,12 @@ test("a run moves its thread when it starts and when it ends, never while it spe
   at(300);
   state = speak(state, "reviewer", 2);
   assert.equal(state.threads.find((thread) => thread.id === "reviewer")!.rankedAt, 100);
-  assert.deepEqual(threadsList(state), ["other", "reviewer"], "a reviewer working in Threads holds its row while it speaks");
+  assert.deepEqual(lists(state), { threads: ["other", "reviewer"], recents: ["other", "reviewer"] }, "a working thread holds its row in Threads and Recents while it speaks");
 
   at(400);
   state = end(state, "reviewer", 3);
   assert.equal(state.threads.find((thread) => thread.id === "reviewer")!.rankedAt, 400);
-  assert.deepEqual(threadsList(state), ["reviewer", "other"]);
+  assert.deepEqual(lists(state), { threads: ["reviewer", "other"], recents: ["reviewer", "other"] });
 });
 
 test("a thread saved or sent before threads were ranked ranks by when it last spoke", () => {
@@ -67,4 +69,37 @@ test("a thread saved or sent before threads were ranked ranks by when it last sp
 
   const read = createRemoteWorkspaceReader()({ ...workspace(), threads: [saved] });
   assert.equal(read.threads[0]!.rankedAt, 41);
+});
+
+function fire(quiet: boolean): WorkspaceState {
+  const pending = reduce(workspace({ threads: [task("task-a", { rankedAt: 1 })] }), {
+    type: "automation.fired",
+    fire: { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 2, unattended: true, ...(quiet ? { quiet } : {}) },
+  });
+  return reduce(pending.state, { type: "run.resolved", pendingId: effectAt(pending, "resolve-run-workspace").pendingId, workspace: PROJECTLESS }).state;
+}
+
+test("joining a scheduled run ranks a quiet one where its turn starts and leaves a loud one where it began", () => {
+  at(100);
+  const loud = fire(false);
+  const quiet = fire(true);
+  assert.deepEqual([loud.threads[0]!.rankedAt, quiet.threads[0]!.rankedAt], [100, 1]);
+
+  at(200);
+  const join = (state: WorkspaceState) => reduce(state, { type: "task.send", taskId: "task-a", text: "What did you find?", steer: true }).state.threads[0]!.rankedAt;
+  assert.equal(join(loud), 100, "a loud tick already moved the row when it started");
+  assert.equal(join(quiet), 200, "a quiet tick becomes a turn once the user joins it");
+});
+
+test("a row says when its thread was ranked, not when it last spoke", async () => {
+  const ranked = Date.UTC(2026, 0, 1, 9, 5);
+  const working = task("task-a", { projectId: "project-1", rankedAt: ranked, messages: [{ id: "m", kind: "assistant", text: "Still reading.", at: Date.UTC(2026, 0, 1, 14, 40) }] });
+  const view = await mount(renderProjectSidebar({
+    mode: "activity",
+    projects: [{ id: "project-1", root: "/work/api" }],
+    activityThreads: { priority: [], running: [], threads: [working], snoozed: [] },
+  }));
+  const time = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(ranked);
+  assert.equal(query(view.container, ".task-row-text small").textContent, `api · ${time}`);
+  await view.unmount();
 });

@@ -9,6 +9,7 @@ import { rankThreadJumps, type ThreadJumpOption } from "../domain/thread-jump.js
 import { projectName, type Project } from "../domain/project.js";
 import { linksPullRequest, pullRequestQuery } from "../domain/pull-request.js";
 import type { Thread } from "../domain/thread.js";
+import { recentFirst } from "./thread-order.js";
 import type { WorkspaceState } from "./workspace-state.js";
 
 /**
@@ -33,8 +34,7 @@ function threadJumpOptions(state: WorkspaceState): ThreadJumpOption[] {
   if (cached && cached.projects === state.projects) return cached.options;
   const forked = new Set(state.sideChats.map((chat) => chat.id));
   const names = new Map(state.projects.map((project) => [project.id, projectName(project)]));
-  const options = state.threads
-    .filter((thread) => thread.archivedAt === undefined && !forked.has(thread.id))
+  const options = recentFirst(state.threads.filter((thread) => thread.archivedAt === undefined && !forked.has(thread.id)))
     .map((thread): ThreadJumpOption => ({
       id: thread.id,
       title: thread.title,
@@ -42,8 +42,7 @@ function threadJumpOptions(state: WorkspaceState): ThreadJumpOption[] {
       engine: thread.engine,
       pullRequest: thread.pullRequest ?? null,
       rankedAt: thread.rankedAt,
-    }))
-    .sort((left, right) => right.rankedAt - left.rankedAt);
+    }));
   jumpCache.set(state.threads, { projects: state.projects, options });
   return options;
 }

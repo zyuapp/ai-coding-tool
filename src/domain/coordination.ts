@@ -256,7 +256,7 @@ export function effortRoleOf(thread: Thread | undefined, draftRole: ThreadRole |
  * or not, or it has heard from a thread there, since taking its role off keeps those away under it
  * rather than letting them go, so they still need letting go once it is cleared.
  */
-export function mayLeadElsewhere(thread: Thread): boolean {
+export function mayLeadElsewhere(thread: Pick<Thread, "role" | "remoteHeard">): boolean {
   return thread.role === "coordinator" || thread.remoteHeard !== undefined && Object.keys(thread.remoteHeard).length > 0;
 }
 

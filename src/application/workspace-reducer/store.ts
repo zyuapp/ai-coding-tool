@@ -6,7 +6,6 @@ import { viewPreferenceState } from "../view-preferences.js";
 import { dockFor, type WorkspaceState } from "../workspace-state.js";
 import { withStoreData } from "../workspace-load.js";
 import { browserUrl, type BrowserTab } from "../../domain/browser.js";
-import { rankedThread } from "../../domain/thread-storage.js";
 
 export const STORE_INPUTS = [
   "store.loaded", "store.thread-loaded", "store.absent", "store.persisted", "preferences.loaded", "store.failed", "action.failed"
@@ -19,7 +18,7 @@ export function reduceStore(state: WorkspaceState, input: StoreInput): Workspace
       const arrived = withStoreData(state, input.data);
       /** A thread that outlived its time in the archive goes as one cleared from it does. */
       const kept = new Set(arrived.threads.map((thread) => thread.id));
-      return discardedLeads({ ...arrived, hiddenThreads: input.hiddenTasks ?? 0, restored: true }, input.data.tasks.filter((thread) => !kept.has(thread.id)).map(rankedThread));
+      return discardedLeads({ ...arrived, hiddenThreads: input.hiddenTasks ?? 0, restored: true }, input.data.tasks.filter((thread) => !kept.has(thread.id)));
     }
 
     case "store.thread-loaded": {
