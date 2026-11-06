@@ -7,6 +7,7 @@ import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { COMPUTER_CAPABILITIES, REMOTE_UNSUPPORTED } from "../../src/contracts/computer-capabilities.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
+import { everyEngine } from "../support/engines.mts";
 import { activeRun, effectOf, running, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 function paired(id: string, state: WorkspaceState | null = workspace(), overrides: Partial<ComputerLink> = {}): PairedComputer {
@@ -102,9 +103,7 @@ test("a paired computer's row lists its app and engines, each with where it stan
   }, "a build that knows fewer engines lists only its own, never one it will not report");
   assert.deepEqual(lines({ engineStatus: null }), {
     app: ["0.7.10", "Up to date", undefined],
-    claude: [null, "Checking…", undefined],
-    codex: [null, "Checking…", undefined],
-    opencode: [null, "Checking…", undefined],
+    ...everyEngine(() => [null, "Checking…", undefined]),
   }, "until it answers");
   const newer = upkeep({ engineStatus: { gemini: { access: "ready", version: "1.0.0", latest: "1.1.0", fix: "npm i -g gemini" }, claude: { access: "ready", version: "2.1.301" } } as never });
   assert.deepEqual(newer.items.map((item) => [item.key, item.label, item.state.text, item.action?.label]), [

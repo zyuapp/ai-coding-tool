@@ -5,6 +5,7 @@ import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
+import { AGENT_ENGINES } from "../../src/domain/agent-engine.ts";
 import { workspace } from "./workspace-reducer-fixtures.mts";
 
 function paired(id: string, overrides: Partial<ComputerLink> = {}, state: WorkspaceState | null = workspace()): PairedComputer {
@@ -23,7 +24,7 @@ test("a read from the Usage page asks every connected computer that knows how, a
     paired("old", { capabilities: ["command:task.send"] }),
   ]);
   const { effects } = reduce(state, { type: "usage.read", everywhere: true });
-  assert.deepEqual(effects.filter((effect) => effect.type === "read-plan-usage").map((effect) => effect.engine), ["claude", "codex", "opencode"]);
+  assert.deepEqual(effects.filter((effect) => effect.type === "read-plan-usage").map((effect) => effect.engine), AGENT_ENGINES);
   assert.deepEqual(effects.filter((effect) => effect.type === "computer.forward"), [{ type: "computer.forward", id: "mac", inputs: [{ type: "usage.read" }] }]);
 });
 

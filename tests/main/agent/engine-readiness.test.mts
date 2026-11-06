@@ -7,6 +7,7 @@ import { test } from "vitest";
 import { compareVersions, isOlderThan, readVersion } from "../../../src/domain/engine-version.ts";
 import type { EngineReadiness } from "../../../src/domain/agent-engine.ts";
 import { engineBinaryPath, installCommand, installedEngine } from "../../../src/main/agent/engine-binary.mts";
+import { readinessStubs } from "../../support/engines.mts";
 
 /** A stand-in command that prints a version, so no real engine is spawned. */
 async function fakeEngine(command: string, version: string) {
@@ -124,7 +125,7 @@ test("an answer with every engine in place is kept, and one with an engine missi
     return answers.shift() ?? { access: "ready" };
   };
   const host = new EngineAccessHost(
-    { claude: { readiness: async () => ({ access: "ready" }) }, opencode: { readiness: async () => ({ access: "ready" }) }, codex: { readiness } },
+    readinessStubs({ codex: { readiness } }),
     async () => { paths += 1; },
   );
 
@@ -144,8 +145,7 @@ test("two asks at once run the engine commands once", async () => {
   const { EngineAccessHost } = await import("../../../src/main/agent/engine-services.mts");
   let reads = 0;
   const host = new EngineAccessHost(
-    {
-      claude: { readiness: async () => ({ access: "ready" }) }, opencode: { readiness: async () => ({ access: "ready" }) },
+    readinessStubs({
       codex: {
         readiness: async () => {
           reads += 1;
@@ -153,7 +153,7 @@ test("two asks at once run the engine commands once", async () => {
           return { access: "ready" };
         },
       },
-    },
+    }),
     async () => {},
   );
 
@@ -168,8 +168,7 @@ test("an update runs the engine's own upgrade, then reads every engine from scra
   let updates = 0;
   let paths = 0;
   const host = new EngineAccessHost(
-    {
-      claude: { readiness: async () => ({ access: "ready" }) }, opencode: { readiness: async () => ({ access: "ready" }) },
+    readinessStubs({
       codex: {
         readiness: async () => (version === "0.147.0" ? { access: "outdated", version, required: "0.150.1" } : { access: "ready", version }),
         update: async () => {
@@ -178,7 +177,7 @@ test("an update runs the engine's own upgrade, then reads every engine from scra
           version = "0.150.1";
         },
       },
-    },
+    }),
     async () => { paths += 1; },
   );
 

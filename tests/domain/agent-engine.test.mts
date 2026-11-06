@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { BUILT_IN_MODELS, capabilitiesFor, catalogHasModel, contextWindowLimit, defaultEffortFor, defaultModelFor, effortForModel, effortsFor, engineCatalog, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isModelId, modelDelegable, modelEngine, modelLabel, modelSupportsManualCompaction, modelTakesEffort, modelsFor, resolveModel, type AgentEngine, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.js";
+import { AGENT_ENGINES, BUILT_IN_MODELS, capabilitiesFor, catalogHasModel, contextWindowLimit, defaultEffortFor, defaultModelFor, effortForModel, effortsFor, engineCatalog, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isModelId, modelDelegable, modelEngine, modelLabel, modelSupportsManualCompaction, modelTakesEffort, modelsFor, resolveModel, type AgentEngine, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.js";
 
 const catalog = BUILT_IN_MODELS;
 
-const engines: AgentEngine[] = ["claude", "codex"];
+/** The engines that ship knowing their models. */
+const engines = AGENT_ENGINES.filter((engine) => defaultModelFor(engine) !== undefined);
 
 test("every engine defaults to a model and an effort it offers", () => {
   for (const engine of engines) {
@@ -41,7 +42,7 @@ test("any well-formed model id passes the shape guard, known or not", () => {
 
 test("a foreign model uses the engine's default context window", () => {
   for (const engine of engines) {
-    const foreign = engine === "codex" ? "opus" : "gpt-6.1-sol";
+    const foreign = engines.flatMap((other) => modelsFor(catalog, other)).find((model) => !engineHasModel(catalog, engine, model.id))!.id;
     assert.equal(contextWindowLimit(catalog, engine, foreign), contextWindowLimit(catalog, engine, defaultModelFor(engine)!));
   }
 });

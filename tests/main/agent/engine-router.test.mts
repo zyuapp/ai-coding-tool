@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { ProviderResult, ProviderRunInput } from "../../../src/main/agent/agent-provider.mts";
 import { EngineRouter, type EngineProvider } from "../../../src/main/agent/engine-router.mts";
+import { AGENT_ENGINES } from "../../../src/domain/agent-engine.ts";
 import { input } from "../../support/codex-client.mjs";
+import { everyEngine } from "../../support/engines.mts";
 
 function engine(name: string, log: string[], holds: string[] = []): EngineProvider {
   return {
@@ -36,7 +38,7 @@ function engine(name: string, log: string[], holds: string[] = []): EngineProvid
 
 test("a run goes to the engine it names, a stop asks each engine for the thread, and closing closes them all", async () => {
   const log: string[] = [];
-  const router = new EngineRouter({ claude: engine("claude", log), codex: engine("codex", log, ["task-c"]), opencode: engine("opencode", log) });
+  const router = new EngineRouter(everyEngine((name) => engine(name, log), { codex: engine("codex", log, ["task-c"]) }));
 
   assert.deepEqual(await router.execute(input({ engine: "claude", model: "opus", taskId: "task-a" })), { status: "succeeded", message: "claude" });
   assert.deepEqual(await router.execute(input({ engine: "codex", model: "gpt-6.1-sol", taskId: "task-c" })), { status: "succeeded", message: "codex" });
@@ -49,31 +51,25 @@ test("a run goes to the engine it names, a stop asks each engine for the thread,
     "codex:codex:task-c",
     "claude:stop:task-c:false",
     "codex:stop:task-c:true",
-    "claude:stop:task-z:false",
-    "codex:stop:task-z:false",
-    "opencode:stop:task-z:false",
-    "claude:closeAll",
-    "codex:closeAll",
-    "opencode:closeAll",
+    ...AGENT_ENGINES.map((name) => `${name}:stop:task-z:false`),
+    ...AGENT_ENGINES.map((name) => `${name}:closeAll`),
   ]);
 });
 
-test("a role change asks every engine, since either may hold the thread's session", () => {
+test("a role change asks every engine, since any may hold the thread's session", () => {
   const log: string[] = [];
-  new EngineRouter({ claude: engine("claude", log), codex: engine("codex", log), opencode: engine("opencode", log) }).retireOutOfRole("task-a", "coordinator");
-  assert.deepEqual(log, ["claude:role:task-a:coordinator", "codex:role:task-a:coordinator", "opencode:role:task-a:coordinator"]);
+  new EngineRouter(everyEngine((name) => engine(name, log))).retireOutOfRole("task-a", "coordinator");
+  assert.deepEqual(log, AGENT_ENGINES.map((name) => `${name}:role:task-a:coordinator`));
 });
 
 test("an archive goes to the engine that made the thread's continuation, and one with none yet asks each", () => {
   const log: string[] = [];
-  const router = new EngineRouter({ claude: engine("claude", log), codex: engine("codex", log), opencode: engine("opencode", log) });
+  const router = new EngineRouter(everyEngine((name) => engine(name, log)));
   assert.equal(router.archiveThread("task-o", { provider: "opencode", value: "ses_1" }, true), true);
   assert.equal(router.archiveThread("task-g", { provider: "gemini", value: "g-1" }, true), false, "an engine this build does not run files nothing");
   assert.equal(router.archiveThread("task-n", undefined, true), false);
   assert.deepEqual(log, [
     "opencode:archive:task-o:true:true",
-    "claude:archive:task-n:true:false",
-    "codex:archive:task-n:true:false",
-    "opencode:archive:task-n:true:false",
+    ...AGENT_ENGINES.map((name) => `${name}:archive:task-n:true:false`),
   ]);
 });

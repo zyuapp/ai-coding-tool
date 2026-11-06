@@ -7,6 +7,7 @@ import { task } from "../application/workspace-reducer-fixtures.mts";
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 import { ComputerSettings } from "../../src/renderer/components/ComputerSettings.tsx";
 import type { Thread } from "../../src/domain/thread.ts";
+import { EVERY_ENGINE_READY } from "../../src/domain/model-library.ts";
 
 const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
 
@@ -61,7 +62,7 @@ test("a failed reload says why, and engine buttons name their engine", async () 
     initialSection: "engines",
     agentSettingsReload: "failed",
     agentSettingsReloadError: "Worker unavailable",
-    engineAccess: { opencode: { access: "ready" }, claude: { access: "signed-out" }, codex: { access: "ready", version: "1.0.0", required: "1.2.0" } },
+    engineAccess: { ...EVERY_ENGINE_READY, claude: { access: "signed-out" }, codex: { access: "ready", version: "1.0.0", required: "1.2.0" } },
   }));
   await act(async () => {});
   assert.equal(query(view.container, ".settings-status.failed").textContent, "Could not reload settings: Worker unavailable");
