@@ -6,17 +6,17 @@ import type { QuestionAnswers, QuestionRequest } from "../../domain/agent-questi
 import type { ToolIntent } from "../../domain/run.js";
 import { continuationOf, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { appSkillsRoot } from "../app-plugin.mjs";
-import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
-import { TurnSlot, type SessionTurn } from "../agent/session-turn.mjs";
-import { SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
+import { endMarkdown, streamMarkdown, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
+import { INTERRUPT_GRACE_MS, isRecord, OpenFailure, reasonOf, serveTools } from "../agent/session-common.mjs";
+import { drainSteering, reportCompacting, TurnSlot, type Compacting, type SessionTurn } from "../agent/session-turn.mjs";
+import { needsSideChatBoundary, SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
 import type { ServedTools, ToolHost } from "../tools/mcp-http-host.mjs";
 import { modelRef, type OpenCodeModel } from "./opencode-catalog.mjs";
 import { openCodeBrief } from "./opencode-instructions.mjs";
 import { agentFor, APP_SERVER_NAME, COMPUTER_USE_SERVER_NAME, permissionRules, type PermissionRule } from "./opencode-policy.mjs";
 import { FEED_ENDED, OpenCodeError, OpenCodeExited, readLoaded, type OpenCodeClient, type OpenCodeConnect, type OpenCodeEvent } from "./opencode-server.mjs";
 
-/** How long an interrupted turn has to come back with a result before the session is given up on. */
-const INTERRUPT_GRACE_MS = 10_000;
+const ENDED = "The OpenCode session ended before the run could start.";
 /** How long a lost feed waits for its server's exit, which says why it went. */
 const EXIT_WAIT_MS = 500;
 
@@ -25,20 +25,8 @@ type SessionInfo = { id: string; location?: { directory?: string } };
 type FormField = { key: string; type: string; title?: string; description?: string; options?: { value: string; label: string; description?: string }[] };
 type FormInfo = { id: string; sessionID: string; title: string; fields: FormField[] };
 
-function isRecord(value: unknown): value is Data {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function text(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
-}
-
-function firstLine(message: string) {
-  return message.split("\n", 1)[0] ?? message;
-}
-
-function reasonOf(error: unknown) {
-  return firstLine(error instanceof Error ? error.message : String(error));
 }
 
 /** Tokens a response read and wrote, as the server counts a step. */
@@ -95,19 +83,12 @@ export function formAnswer(form: FormInfo, answers: QuestionAnswers): Record<str
   return answer;
 }
 
-/** Why the session could not open, worded for the run that asked. `lost` says the continuation itself is gone. */
-class OpenFailure extends Error {
-  constructor(message: string, readonly lost = false) {
-    super(message);
-  }
-}
-
 function openFailure(error: unknown) {
   if (error instanceof OpenFailure) return error.message;
   return `OpenCode could not start: ${reasonOf(error)}`;
 }
 
-type Turn = SessionTurn & {
+type Turn = SessionTurn & Compacting & {
   /** Messages this turn put in the session's inbox that it has yet to take, and those it has taken. */
   waiting: Set<string>;
   delivered: Set<string>;
@@ -119,8 +100,6 @@ type Turn = SessionTurn & {
   /** Set once the server has the turn's prompt, so an interrupt has something to stop. */
   started?: boolean;
   interruptWanted?: boolean;
-  compacting?: boolean;
-  compactionPreTokens?: number;
   failure?: string;
 };
 
@@ -137,7 +116,6 @@ export class OpenCodeSession {
   private ended = false;
   private closed: Promise<void> = Promise.resolve();
   private outcome: ProviderResult | null = null;
-  private announced = false;
   private briefFile: string | null = null;
   /** Context windows, and the depths each model reasons at, by app model id, read once from the server. */
   private readonly windows = new Map<string, number>();
@@ -181,7 +159,7 @@ export class OpenCodeSession {
   }
 
   run(input: ProviderRunInput): Promise<ProviderResult> {
-    if (this.ended) return Promise.resolve(this.outcome ?? { status: "failed", message: "The OpenCode session ended before the run could start." });
+    if (this.ended) return Promise.resolve(this.outcome ?? { status: "failed", message: ENDED });
     return this.turns.take(input, {
       open: (base) => ({ ...base, waiting: new Set(), delivered: new Set(), streamed: new Map(), tools: new Map(), intents: new Map() }),
       begin: (turn) => { void this.begin(turn); },
@@ -215,23 +193,14 @@ export class OpenCodeSession {
   }
 
   private async begin(turn: Turn) {
-    try {
-      await (this.opening ??= this.open(turn.input));
-    } catch (error) {
-      if (this.turn === turn) {
-        if (error instanceof OpenFailure && error.lost) turn.input.emit({ type: "continuation-lost" });
-        this.turns.settle({ status: "failed", message: openFailure(error) });
-      }
+    if (!await this.turns.opened(turn, this.opening ??= this.open(turn.input), openFailure)) {
       void this.close();
       return;
     }
     const client = this.client;
     const sessionId = this.sessionId;
     if (this.turn !== turn || !client || !sessionId) return;
-    if (!this.announced) {
-      this.announced = true;
-      turn.input.emit({ type: "continuation", continuation: { provider: "opencode", value: sessionId } });
-    }
+    this.turns.announce({ provider: "opencode", value: sessionId });
     try {
       await this.apply(client, sessionId, turn.input);
       if (this.turn !== turn) return;
@@ -312,15 +281,7 @@ export class OpenCodeSession {
   /** Starts the server with the app's tools and instructions, and puts the run's session on it. */
   private async open(seed: ProviderRunInput) {
     const brief = openCodeBrief(seed);
-    const tools = brief.tools.flatMap((set) => set.tools);
-    if (tools.length) {
-      const served = await this.host.serve(tools);
-      if (this.ended) {
-        served.release();
-        throw new OpenFailure("The OpenCode session ended before the run could start.");
-      }
-      this.served = served;
-    }
+    this.served = await serveTools(this.host, brief.tools, () => this.ended, ENDED);
     const folder = path.join(os.tmpdir(), "aicodingtool-opencode");
     await mkdir(folder, { recursive: true });
     this.briefFile = path.join(folder, `${randomUUID()}.md`);
@@ -336,7 +297,7 @@ export class OpenCodeSession {
     const client = await this.connect({ cwd: seed.workspaceRoot, config });
     if (this.ended) {
       await client.close();
-      throw new OpenFailure("The OpenCode session ended before the run could start.");
+      throw new OpenFailure(ENDED);
     }
     this.client = client;
     this.unsubscribe = client.subscribe((event) => this.receive(event));
@@ -386,7 +347,7 @@ export class OpenCodeSession {
       }
     }
     this.sessionId = session.id;
-    if (seed.channel === "side" && (continuation === undefined || seed.forkContinuation)) {
+    if (needsSideChatBoundary(seed)) {
       await client.request("POST", `/api/session/${session.id}/synthetic`, { text: SIDE_CHAT_BOUNDARY, resume: false });
     }
   }
@@ -401,18 +362,8 @@ export class OpenCodeSession {
 
   /** Feeds one run's steered messages into the session as it works, each taken at its next step. */
   private async drainSteering(turn: Turn) {
-    for (let steer = await turn.input.steering.next(); steer; steer = await turn.input.steering.next()) {
-      const client = this.client;
-      const sessionId = this.sessionId;
-      if (this.turn !== turn || !client || !sessionId) return;
-      try {
-        await this.send(client, sessionId, turn, steer.prompt, "steer");
-        turn.input.emit({ type: "steered", messageId: steer.messageId });
-      } catch (error) {
-        if (this.turn !== turn) return;
-        turn.input.emit({ type: "steer-failed", messageId: steer.messageId, message: `Could not steer: ${reasonOf(error)}. Your message is still queued for the next turn.` });
-      }
-    }
+    const target = () => this.turn === turn && this.client && this.sessionId ? { client: this.client, sessionId: this.sessionId } : undefined;
+    await drainSteering(turn.input, target, ({ client, sessionId }, prompt) => this.send(client, sessionId, turn, prompt, "steer"));
   }
 
   private exited(error: OpenCodeExited) {
@@ -469,10 +420,10 @@ export class OpenCodeSession {
         }
         return;
       case "session.text.delta":
-        this.receiveDelta(turn, `${String(data.assistantMessageID)}:${String(data.ordinal)}`, text(data.delta) ?? "");
+        streamMarkdown(turn.streamed, turn.input, `${String(data.assistantMessageID)}:${String(data.ordinal)}`, text(data.delta) ?? "");
         return;
       case "session.text.ended":
-        this.receiveText(turn, `${String(data.assistantMessageID)}:${String(data.ordinal)}`, text(data.text) ?? "");
+        endMarkdown(turn.streamed, turn.input, `${String(data.assistantMessageID)}:${String(data.ordinal)}`, text(data.text) ?? "");
         return;
       case "session.tool.input.started":
         if (typeof data.id === "string" && typeof data.name === "string") turn.tools.set(data.id, data.name);
@@ -535,33 +486,8 @@ export class OpenCodeSession {
     this.onRested();
   }
 
-  private receiveDelta(turn: Turn, key: string, delta: string) {
-    let buffer = turn.streamed.get(key);
-    if (!buffer) turn.streamed.set(key, buffer = openMarkdownBuffer());
-    const complete = appendCompleteMarkdown(buffer, delta);
-    if (complete) turn.input.emit({ type: "assistant", messageId: key, text: complete, append: true });
-    turn.input.emit({ type: "assistant-tail", messageId: key, text: buffer.text });
-  }
-
-  /** A part that streamed is on screen but for its tail; one that did not arrives whole. */
-  private receiveText(turn: Turn, key: string, whole: string) {
-    const buffer = turn.streamed.get(key);
-    if (buffer) {
-      turn.streamed.delete(key);
-      if (buffer.text) turn.input.emit({ type: "assistant", messageId: key, text: buffer.text, append: true });
-    } else if (whole.trim()) {
-      turn.input.emit({ type: "assistant", messageId: key, text: whole });
-    }
-  }
-
   private setCompacting(turn: Turn, compacting: boolean, error?: string) {
-    if (this.turn !== turn) return;
-    if (compacting && turn.compactionPreTokens === undefined) {
-      turn.compactionPreTokens = turn.input.operation?.type === "compact" ? turn.input.operation.preTokens : this.lastTokens;
-    }
-    if (turn.compacting === compacting && error === undefined) return;
-    turn.compacting = compacting;
-    turn.input.emit({ type: "compaction-status", compacting, ...(error ? { error } : {}) });
+    if (this.turn === turn) reportCompacting(turn, compacting, this.lastTokens, error);
   }
 
   /** Puts a tool the rules left to ask about to the run's user. Nothing is allowed on a session with no run to ask. */

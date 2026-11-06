@@ -1,3 +1,5 @@
+import { continuationOf, type ProviderRunInput } from "./agent-provider.mjs";
+
 /** Shared by every provider when opening or resuming a side chat. */
 export const SIDE_CHAT_INSTRUCTIONS = `You are in an AICodingTool side chat, a separate conversation beside the parent task. Answer the user's side-chat question. The parent continues independently.
 
@@ -28,3 +30,8 @@ Everything before this boundary belongs to the parent task and is reference cont
 The fork cannot resume the parent's helper processes. Any copied process-exited or lost-state notice describes that limitation of this copy, not a failure of the parent or its helpers. The parent's live state is unknown unless app status supplies it.
 
 Answer explanations and ordinary progress questions from the conversation and supplied app status. Missing findings are something to state, not a reason to call tools. Fetch newer parent information only when the user explicitly asks for that check. If no request follows, wait for one.`;
+
+/** A side chat takes the boundary once, as it opens on a conversation of its own: a new one, or a fork of its parent's. */
+export function needsSideChatBoundary(input: ProviderRunInput) {
+  return input.channel === "side" && (continuationOf(input) === undefined || input.forkContinuation === true);
+}

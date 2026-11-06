@@ -3,13 +3,14 @@ import { BUILT_IN_MODELS, claudeEffort, contextWindowLimit, modelTakesEffort, ty
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, SubagentMetadata, SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { WorkflowReport } from "../../contracts/ipc.js";
 import type { UsageLimit } from "../../domain/usage-limit.js";
-import { continuationOf, type AgentTurn, type ProviderEvent, type ProviderResult, type ProviderRunInput, type SteerQueue, type ToolDecision } from "../agent/agent-provider.mjs";
-import { SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
+import type { AgentTurn, ProviderEvent, ProviderResult, ProviderRunInput, SteerQueue, ToolDecision } from "../agent/agent-provider.mjs";
+import { needsSideChatBoundary, SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "../agent/workflow-progress.mjs";
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
 import { grantsTool, toolReach } from "../agent/approval-grant.mjs";
 import { BackgroundWork } from "../agent/background-work.mjs";
 import { RunningTotals } from "../agent/running-totals.mjs";
+import { INTERRUPT_GRACE_MS } from "../agent/session-common.mjs";
 import { TurnSlot, type SessionTurn } from "../agent/session-turn.mjs";
 
 /** The model the agent process stamps on replies it produced itself: slash commands, interrupts, error notices. */
@@ -41,9 +42,6 @@ function usageLimitOf(info: SDKRateLimitInfo | null): { limit?: UsageLimit } {
   /** Reported in seconds. Only the five-hour window lifts soon enough to resume on its own. */
   return { limit: { resetsAt: info.resetsAt * 1_000, window: info.rateLimitType === undefined || info.rateLimitType === "five_hour" ? "session" : "weekly" } };
 }
-
-/** How long an interrupted turn has to come back with a result before the session is given up on. */
-const INTERRUPT_GRACE_MS = 10_000;
 
 /** The task types that are processes of their own. Subagents and workflows have a panel already. */
 const backgroundProcessKinds: Record<string, BackgroundProcessKind> = {
@@ -204,7 +202,7 @@ export class ClaudeSession {
   }
 
   open(opener: SessionOpener, seed: ProviderRunInput) {
-    this.sideChatBoundaryPending = seed.channel === "side" && (continuationOf(seed) === undefined || seed.forkContinuation === true);
+    this.sideChatBoundaryPending = needsSideChatBoundary(seed);
     this.model = seed.model;
     this.effort = effortFlag(seed);
     this.reportWorkflow = seed.reportWorkflow;

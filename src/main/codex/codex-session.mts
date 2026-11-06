@@ -3,14 +3,15 @@ import { BUILT_IN_MODELS, contextWindowLimit } from "../../domain/agent-engine.j
 import type { BackgroundProcess, ToolIntent } from "../../domain/run.js";
 import { continuationOf, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { grantsTool } from "../agent/approval-grant.mjs";
-import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
+import { endMarkdown, streamMarkdown, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
 import { BackgroundWork } from "../agent/background-work.mjs";
-import { TurnSlot, type SessionTurn } from "../agent/session-turn.mjs";
+import { firstLine, INTERRUPT_GRACE_MS, isRecord, OpenFailure, reasonOf as plainReasonOf, serveTools } from "../agent/session-common.mjs";
+import { drainSteering, reportCompacting, TurnSlot, type Compacting, type SessionTurn } from "../agent/session-turn.mjs";
 import type { ServedTools, ToolHost } from "../tools/mcp-http-host.mjs";
 import { AppServerError, AppServerExited, CLIENT_INFO, codexAppServer, type AppServerClient, type AppServerCommand, type BackgroundTerminal, type ExitStatus, type IncomingRequest, type NotificationParams } from "./app-server-client.mjs";
 import { codexConfig, TOOL_TOKEN_ENV } from "./codex-config.mjs";
 import { codexBrief } from "./codex-instructions.mjs";
-import { SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
+import { needsSideChatBoundary, SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
 import { adoptAppSkills, CodexSkills } from "./codex-skills.mjs";
 import { codexImageOutput, type ImageOutput } from "./codex-images.mjs";
 import { CodexSubagents } from "./codex-subagents.mjs";
@@ -29,10 +30,8 @@ export type CodexClient = Pick<AppServerClient, "initialize" | "request" | "on" 
 
 export type CodexConnect = (command: AppServerCommand) => CodexClient;
 
-/** How long an interrupted turn has to come back with a result before the session is given up on. */
-const INTERRUPT_GRACE_MS = 10_000;
-
 const SIGN_IN = "Sign in to Codex to run this thread.";
+const ENDED = "The Codex session ended before the run could start.";
 
 function goalCommand(prompt: string) {
   const match = /^\/goal(?:\s+([\s\S]*))?$/.exec(prompt.trim());
@@ -41,15 +40,6 @@ function goalCommand(prompt: string) {
   return argument.toLowerCase() === "clear" ? { type: "clear" as const } : argument ? { type: "set" as const, objective: argument } : { type: "get" as const };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function firstLine(message: string) {
-  return message.split("\n", 1)[0] ?? message;
-}
-
-/** What went wrong, without the method the server was answering when it did. */
 /** Why the server is retrying a request, in the user's terms. */
 function retryReason(error: TurnError): string {
   const info = error.codexErrorInfo;
@@ -60,9 +50,9 @@ function retryReason(error: TurnError): string {
   return firstLine(error.message);
 }
 
+/** What went wrong, without the method the server was answering when it did. */
 function reasonOf(error: unknown) {
-  if (error instanceof AppServerError) return firstLine(error.message.slice(error.method.length + 2));
-  return firstLine(error instanceof Error ? error.message : String(error));
+  return error instanceof AppServerError ? firstLine(error.message.slice(error.method.length + 2)) : plainReasonOf(error);
 }
 
 function describeExit(exit: ExitStatus) {
@@ -71,15 +61,6 @@ function describeExit(exit: ExitStatus) {
 
 function startFailure(exit: ExitStatus) {
   return `Codex could not start: ${describeExit(exit)}`;
-}
-
-/** Why the session could not open, worded for the run that asked. `lost` says the continuation itself is gone. */
-class OpenFailure extends Error {
-  readonly lost: boolean;
-  constructor(message: string, lost = false) {
-    super(message);
-    this.lost = lost;
-  }
 }
 
 function openFailure(error: unknown) {
@@ -120,7 +101,7 @@ function toolNamed(message: string) {
 }
 
 /** One turn a run asked for, and everything it builds up as it streams. */
-type Turn = SessionTurn & {
+type Turn = SessionTurn & Compacting & {
   /** Named by the server once turn/start returns; an interrupt asked for before then waits on it. */
   turnId?: string;
   interruptWanted?: boolean;
@@ -133,9 +114,6 @@ type Turn = SessionTurn & {
   imageIds: Set<string>;
   /** The last error the server said it would not retry, kept for the turn's failure. */
   failure?: TurnError;
-  /** The context measured before this compaction began, before usage notifications can replace it. */
-  compactionPreTokens?: number;
-  compacting?: boolean;
   /** The final native review report, used to avoid repeating its following assistant message. */
   reviewOutput?: string;
 };
@@ -158,8 +136,6 @@ export class CodexSession {
   private closed: Promise<void> = Promise.resolve();
   /** How the session ended, kept for a run that arrives after it is already over. */
   private outcome: ProviderResult | null = null;
-  /** Whether the thread's id has been reported to a run yet. Once is enough: the id never changes. */
-  private announced = false;
   /** The context the last request carried, which is what a compaction is measured from. */
   private lastTokens = 0;
   /** What this session's threads spend, counted on the run in flight. */
@@ -213,7 +189,7 @@ export class CodexSession {
   }
 
   run(input: ProviderRunInput): Promise<ProviderResult> {
-    if (this.ended) return Promise.resolve(this.outcome ?? { status: "failed", message: "The Codex session ended before the run could start." });
+    if (this.ended) return Promise.resolve(this.outcome ?? { status: "failed", message: ENDED });
     return this.turns.take(input, {
       open: (base) => ({
         ...base,
@@ -270,23 +246,14 @@ export class CodexSession {
   }
 
   private async begin(turn: Turn) {
-    try {
-      await (this.opening ??= this.open(turn.input));
-    } catch (error) {
-      if (this.turn === turn) {
-        if (error instanceof OpenFailure && error.lost) turn.input.emit({ type: "continuation-lost" });
-        this.turns.settle({ status: "failed", message: openFailure(error) });
-      }
+    if (!await this.turns.opened(turn, this.opening ??= this.open(turn.input), openFailure)) {
       this.close();
       return;
     }
     const client = this.client;
     const threadId = this.threadId;
     if (this.turn !== turn || !client || !threadId) return;
-    if (!this.announced) {
-      this.announced = true;
-      turn.input.emit({ type: "continuation", continuation: { provider: "codex", value: threadId } });
-    }
+    this.turns.announce({ provider: "codex", value: threadId });
     if (turn.input.operation?.type === "compact") {
       await this.beginCompaction(turn, client, threadId);
       return;
@@ -406,17 +373,9 @@ export class CodexSession {
     this.reportGoal = seed.reportGoal;
     this.reportGoal({ type: "goal.changed", goal: null });
     const brief = codexBrief(seed);
-    const tools = brief.tools.flatMap((set) => set.tools);
-    if (tools.length) {
-      const served = await this.host.serve(tools);
-      if (this.ended) {
-        served.release();
-        throw new OpenFailure("The Codex session ended before the run could start.");
-      }
-      this.served = served;
-    }
+    this.served = await serveTools(this.host, brief.tools, () => this.ended, ENDED);
     const command = await codexAppServer(codexConfig(seed, this.served ?? undefined, brief.tools), { cwd: seed.workspaceRoot, ...(this.served ? { env: { ...process.env, [TOOL_TOKEN_ENV]: this.served.token } } : {}) });
-    if (this.ended) throw new OpenFailure("The Codex session ended before the run could start.");
+    if (this.ended) throw new OpenFailure(ENDED);
     const client = this.client = this.connect(command);
     const skills = this.skills = new CodexSkills(client, seed.workspaceRoot);
     const subagents = this.subagents = new CodexSubagents(seed.reportSubagent, (busy) => {
@@ -487,7 +446,7 @@ export class CodexSession {
           if (error instanceof AppServerError) throw new OpenFailure(`Codex could not continue this thread (${reasonOf(error)}). Start a new thread to keep going.`, true);
           throw error;
         });
-    if (seed.channel === "side" && (continuation === undefined || seed.forkContinuation)) {
+    if (needsSideChatBoundary(seed)) {
       await client.request("thread/inject_items", {
         threadId: started.thread.id,
         items: [{ type: "message", role: "user", content: [{ type: "input_text", text: SIDE_CHAT_BOUNDARY }] }],
@@ -517,25 +476,18 @@ export class CodexSession {
    * Feeds one run's steered messages into the turn already going. One the server refuses stays
    * queued on the thread, which sends it as the next turn once this run settles.
    */
-  private async drainSteering(turn: Turn, threadId = this.threadId) {
-    for (let steer = await turn.input.steering.next(); steer; steer = await turn.input.steering.next()) {
-      const client = this.client;
-      if (this.turn !== turn || !client || !threadId || !turn.turnId) return;
-      try {
-        if (goalCommand(steer.prompt)?.type === "clear") {
-          await client.request("thread/goal/clear", { threadId });
-          this.goalActive = false;
-          turn.input.reportGoal({ type: "goal.changed", goal: null });
-          turn.input.emit({ type: "steered", messageId: steer.messageId });
-          continue;
-        }
-        await client.request("turn/steer", { threadId, input: await this.skills!.input(steer.prompt), expectedTurnId: turn.turnId });
-        turn.input.emit({ type: "steered", messageId: steer.messageId });
-      } catch (error) {
-        if (this.turn !== turn) return;
-        turn.input.emit({ type: "steer-failed", messageId: steer.messageId, message: `Could not steer: ${reasonOf(error)}. Your message is still queued for the next turn.` });
+  private async drainSteering(turn: Turn) {
+    const threadId = this.threadId;
+    const target = () => this.turn === turn && this.client && threadId && turn.turnId ? { client: this.client, threadId, turnId: turn.turnId } : undefined;
+    await drainSteering(turn.input, target, async ({ client, threadId, turnId }, prompt) => {
+      if (goalCommand(prompt)?.type === "clear") {
+        await client.request("thread/goal/clear", { threadId });
+        this.goalActive = false;
+        turn.input.reportGoal({ type: "goal.changed", goal: null });
+        return;
       }
-    }
+      await client.request("turn/steer", { threadId, input: await this.skills!.input(prompt), expectedTurnId: turnId });
+    }, reasonOf);
   }
 
   private exited(exit: ExitStatus) {
@@ -561,11 +513,7 @@ export class CodexSession {
   private receiveDelta(itemId: string, delta: string) {
     const turn = this.turn;
     if (!turn || turn.reviewOutput !== undefined) return;
-    let buffer = turn.streamed.get(itemId);
-    if (!buffer) turn.streamed.set(itemId, buffer = openMarkdownBuffer());
-    const complete = appendCompleteMarkdown(buffer, delta);
-    if (complete) turn.input.emit({ type: "assistant", messageId: itemId, text: complete, append: true });
-    turn.input.emit({ type: "assistant-tail", messageId: itemId, text: buffer.text });
+    streamMarkdown(turn.streamed, turn.input, itemId, delta);
   }
 
   private receiveCompleted(item: ThreadItem) {
@@ -578,14 +526,7 @@ export class CodexSession {
           if (this.turn === turn) this.turns.settle({ status: "failed", message: `Codex could not receive your answer: ${reasonOf(error)}` });
         });
       }
-      const buffer = turn.streamed.get(item.id);
-      /** A message that streamed is already on screen but for its tail; one that did not arrives whole. */
-      if (buffer) {
-        turn.streamed.delete(item.id);
-        if (buffer.text) turn.input.emit({ type: "assistant", messageId: item.id, text: buffer.text, append: true });
-      } else if (item.text.trim()) {
-        turn.input.emit({ type: "assistant", messageId: item.id, text: item.text });
-      }
+      endMarkdown(turn.streamed, turn.input, item.id, item.text);
     } else if (item.type === "exitedReviewMode" && turn.input.operation?.type === "review") {
       const output = item.review.trim();
       if (output && turn.reviewOutput === undefined) {
@@ -614,13 +555,7 @@ export class CodexSession {
   }
 
   private setCompacting(turn: Turn, compacting: boolean, error?: string) {
-    if (this.turn !== turn) return;
-    if (compacting && turn.compactionPreTokens === undefined) {
-      turn.compactionPreTokens = turn.input.operation?.type === "compact" ? turn.input.operation.preTokens : this.lastTokens;
-    }
-    if (turn.compacting === compacting && error === undefined) return;
-    turn.compacting = compacting;
-    turn.input.emit({ type: "compaction-status", compacting, ...(error ? { error } : {}) });
+    if (this.turn === turn) reportCompacting(turn, compacting, this.lastTokens, error);
   }
 
   /** The window the server reports is the model's own; the catalogue's stands in while it reports none. */

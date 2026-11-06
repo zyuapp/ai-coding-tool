@@ -3,6 +3,7 @@ import type { NotificationParams } from "./app-server-client.mjs";
 import type { CodexSpend } from "./codex-spend.mjs";
 import type { ThreadItem } from "./protocol/v2/ThreadItem.js";
 import type { Thread } from "./protocol/v2/Thread.js";
+import { isRecord } from "../agent/session-common.mjs";
 
 type ChildLifecycle = "unknown" | "working" | "idle" | "failed" | "stopped";
 
@@ -40,10 +41,6 @@ export type CodexChildTurn = { threadId: string; turnId: string };
 
 const MAX_BUFFERED_ACTIVITY = 100;
 const MAX_SEEN_ACTIVITY = 1_000;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function nonempty(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;

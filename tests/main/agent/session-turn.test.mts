@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import type { ProviderResult } from "../../../src/main/agent/agent-provider.mts";
-import { TurnSlot, type SessionTurn, type TurnEngine } from "../../../src/main/agent/session-turn.mts";
+import type { ProviderEvent, ProviderResult, SteerMessage } from "../../../src/main/agent/agent-provider.mts";
+import { OpenFailure } from "../../../src/main/agent/session-common.mts";
+import { drainSteering, reportCompacting, TurnSlot, type Compacting, type SessionTurn, type TurnEngine } from "../../../src/main/agent/session-turn.mts";
 import { input } from "../../support/claude-session.mjs";
 
 type TestTurn = SessionTurn & { begun: boolean };
@@ -88,4 +89,78 @@ test("a settled turn lets go of the run it was listening to", async () => {
   abortController.abort();
   assert.deepEqual(parts.log, ["begin"], "nothing is left to interrupt");
   assert.deepEqual(await running, { status: "succeeded" });
+});
+
+/** A run that records what it was told, and steers the given messages in, then nothing more. */
+function recorded(steered: SteerMessage[] = [], overrides: Parameters<typeof input>[0] = {}) {
+  const events: ProviderEvent[] = [];
+  const queue = [...steered];
+  return { events, input: input({ emit: (event) => events.push(event), steering: { next: async () => queue.shift() ?? null }, ...overrides }) };
+}
+
+test("a session that cannot open fails the turn, and says so when the continuation is gone", async () => {
+  const slot = new TurnSlot<TestTurn>(10_000, () => {});
+  const run = recorded();
+  const running = slot.take(run.input, engine());
+  const turn = slot.turn!;
+
+  assert.equal(await slot.opened(turn, Promise.reject(new OpenFailure("gone", true)), (error) => `could not start: ${(error as Error).message}`), false);
+  assert.deepEqual(run.events, [{ type: "continuation-lost" }]);
+  assert.deepEqual(await running, { status: "failed", message: "could not start: gone" });
+
+  const other = recorded();
+  const next = slot.take(other.input, engine());
+  assert.equal(await slot.opened(slot.turn!, Promise.reject(new Error("no binary")), () => "could not start"), false);
+  assert.deepEqual(other.events, [], "only a lost continuation is reported as lost");
+  assert.deepEqual(await next, { status: "failed", message: "could not start" });
+});
+
+test("a session reports its handle to the first turn it answers, and to none after", async () => {
+  const slot = new TurnSlot<TestTurn>(10_000, () => {});
+  slot.announce({ provider: "codex", value: "thread-1" });
+  const first = recorded();
+  void slot.take(first.input, engine());
+  assert.equal(await slot.opened(slot.turn!, Promise.resolve(), () => ""), true);
+  slot.announce({ provider: "codex", value: "thread-1" });
+  slot.settle({ status: "succeeded" });
+
+  const second = recorded();
+  void slot.take(second.input, engine());
+  slot.announce({ provider: "codex", value: "thread-1" });
+  assert.deepEqual(first.events, [{ type: "continuation", continuation: { provider: "codex", value: "thread-1" } }], "nothing is announced with no turn to hear it");
+  assert.deepEqual(second.events, []);
+});
+
+test("steering feeds each message in while the turn is going, and words a refusal the same for every engine", async () => {
+  const run = recorded([{ messageId: "m1", prompt: "first" }, { messageId: "m2", prompt: "refused" }, { messageId: "m3", prompt: "late" }]);
+  const sent: string[] = [];
+  let going = true;
+  await drainSteering(run.input, () => going ? "turn" : undefined, async (into, prompt) => {
+    sent.push(`${into}:${prompt}`);
+    if (prompt === "refused") {
+      throw new Error("busy\nstack");
+    }
+    going = false;
+  });
+  assert.deepEqual(sent, ["turn:first"], "a turn that ended takes no more");
+  assert.deepEqual(run.events, [{ type: "steered", messageId: "m1" }]);
+
+  const refused = recorded([{ messageId: "m2", prompt: "refused" }]);
+  await drainSteering(refused.input, () => "turn", async () => { throw new Error("busy\nstack"); });
+  assert.deepEqual(refused.events, [{ type: "steer-failed", messageId: "m2", message: "Could not steer: busy. Your message is still queued for the next turn." }]);
+});
+
+test("a compaction is measured from the context before it began, and said once", () => {
+  const auto = recorded();
+  const turn: SessionTurn & Compacting = { input: auto.input, settle: () => {}, release: () => {} };
+  reportCompacting(turn, true, 1_200);
+  reportCompacting(turn, true, 5_000);
+  reportCompacting(turn, false, 5_000, "Could not compact context: offline");
+  assert.equal(turn.compactionPreTokens, 1_200);
+  assert.deepEqual(auto.events, [{ type: "compaction-status", compacting: true }, { type: "compaction-status", compacting: false, error: "Could not compact context: offline" }]);
+
+  const manual = recorded([], { operation: { type: "compact", preTokens: 9_000 } });
+  const asked: SessionTurn & Compacting = { input: manual.input, settle: () => {}, release: () => {} };
+  reportCompacting(asked, true, 1_200);
+  assert.equal(asked.compactionPreTokens, 9_000, "a manual compaction was told what it starts from");
 });

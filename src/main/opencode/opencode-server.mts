@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { engineBinaryPath } from "../agent/engine-binary.mjs";
+import { isRecord } from "../agent/session-common.mjs";
 
 /** Long enough for a cold start that loads the model catalogue, short enough that a stuck one is noticed. */
 const START_TIMEOUT_MS = 30_000;
@@ -50,10 +51,6 @@ function unreadStartup(line: string) {
 
 function firstLine(text: string) {
   return text.trim().split("\n", 1)[0] ?? "";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** What a client asks of a server. The real one fits; a scripted one can stand in for it. */
