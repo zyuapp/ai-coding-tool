@@ -86,7 +86,7 @@ test("a Codex review picker starts a native review without adding a user message
     threads: [task("task-a", {
       projectId: "project-1",
       engine: "codex",
-      model: "gpt-5.6-terra",
+      model: "gpt-6.1-terra",
       continuation: { provider: "codex", value: "thread-1" },
       continuationStatus: "available",
     })],

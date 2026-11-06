@@ -658,7 +658,7 @@ test("fast mode stays a Codex preference when switching the draft to Claude", ()
   const claude = reduce(codex, { type: "task.set-model", engine: "claude", model: "opus" }).state;
   assert.equal(deriveView(claude).fastMode, false);
   assert.equal(reduce(claude, { type: "task.set-fast-mode", fastMode: true }).state, claude);
-  const back = reduce(claude, { type: "task.set-model", engine: "codex", model: "gpt-5.6-terra" }).state;
+  const back = reduce(claude, { type: "task.set-model", engine: "codex", model: "gpt-6.1-terra" }).state;
   assert.equal(deriveView(back).fastMode, true);
   const thread = workspace({ threads: [task("claude")], currentId: "claude" });
   assert.equal(reduce(thread, { type: "task.set-fast-mode", fastMode: true }).state, thread);

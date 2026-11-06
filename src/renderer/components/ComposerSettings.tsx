@@ -25,7 +25,7 @@ const modesOf = byEngine((engine) => offeredPolicies(engine).map((policy): Choic
 /** The marks of the models engines ship knowing. A model an engine names for itself takes the plain one. */
 const MODEL_ICONS: Partial<Record<AgentEngine, Readonly<Record<string, IconType>>>> = {
   claude: { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather },
-  codex: { "gpt-6-astra": Brain, "gpt-6.1-sol": Sparkles, "gpt-5.6-terra": Gauge, "gpt-6-luna": Moon },
+  codex: { "gpt-6-astra": Brain, "gpt-6.1-sol": Sparkles, "gpt-6.1-terra": Gauge, "gpt-6-luna": Moon },
 };
 
 function modelIcon(engine: AgentEngine, model: AgentModel): IconType {

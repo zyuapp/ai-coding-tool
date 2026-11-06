@@ -63,14 +63,14 @@ test("a run opens one app server in the workspace, signs in, starts a thread, an
   }]);
   assert.deepEqual(emitted, [{ type: "continuation", continuation: { provider: "codex", value: threadId } }]);
 
-  const again = await turn(codex, { prompt: "and again", model: "gpt-5.6-terra", effort: "low", policy: "allow-edits", continuation: { provider: "codex", value: threadId }, emit: (event) => emitted.push(event) });
+  const again = await turn(codex, { prompt: "and again", model: "gpt-6.1-terra", effort: "low", policy: "allow-edits", continuation: { provider: "codex", value: threadId }, emit: (event) => emitted.push(event) });
   assert.equal(again.client, client, "the second turn rides the warm session");
   assert.equal(client.calls("thread/start").length, 1);
   assert.equal(client.calls("thread/resume").length, 0);
   assert.deepEqual(client.calls("turn/start")[1], {
     threadId,
     input: [{ type: "text", text: "and again", text_elements: [] }],
-    model: "gpt-5.6-terra",
+    model: "gpt-6.1-terra",
     effort: "low",
     serviceTier: "default",
     approvalPolicy: "on-request",
@@ -348,7 +348,7 @@ test("items the agent starts become tool intents under the names the thread file
 const breakdown = (totalTokens: number) => ({ totalTokens, inputTokens: totalTokens - 200, cachedInputTokens: 11_008, cacheWriteInputTokens: 0, outputTokens: 200, reasoningOutputTokens: 69 });
 
 test.each([
-  { model: "gpt-5.6-terra", effort: "high", limit: 258_400 },
+  { model: "gpt-6.1-terra", effort: "high", limit: 258_400 },
   { model: "gpt-6-astra", effort: "ultra", limit: 872_000 },
 ] as const)("$model sends its effort and reports context usage through compaction", async ({ model, effort, limit }) => {
   const emitted: ProviderEvent[] = [];

@@ -33,7 +33,7 @@ test("native review runs inline on paginated history and emits its findings once
   const running = codex.provider.execute(input({
     prompt: "",
     continuation: { provider: "codex", value: threadId },
-    model: "gpt-5.6-terra",
+    model: "gpt-6.1-terra",
     effort: "low",
     policy: "allow-edits",
     operation: { type: "review", target: { type: "baseBranch", branch: "main" } },
@@ -53,7 +53,7 @@ test("native review runs inline on paginated history and emits its findings once
     threadId,
     cwd: "/tmp/project",
     serviceTier: "default",
-    model: "gpt-5.6-terra",
+    model: "gpt-6.1-terra",
     approvalPolicy: "on-request",
     sandbox: "workspace-write",
     approvalsReviewer: "user",

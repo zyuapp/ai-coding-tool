@@ -104,7 +104,7 @@ test("native Codex reviews accept valid targets and inherited continuation forks
   const review = {
     ...command,
     engine: "codex",
-    model: "gpt-5.6-terra",
+    model: "gpt-6.1-terra",
     prompt: "",
     continuation: { provider: "codex", value: "thread-1" },
     operation: { type: "review", target: { type: "uncommittedChanges" } },

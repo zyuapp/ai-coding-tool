@@ -32,7 +32,7 @@ test("a thread that has an engine offers only its models, and says a new thread 
   const chosen: Array<[string, string]> = [];
   const view = await mount(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
-    engine: "codex", engineLabel: "Codex", engineLocked: true, model: "gpt-5.6-terra", effort: "high", runActive: false,
+    engine: "codex", engineLabel: "Codex", engineLocked: true, model: "gpt-6.1-terra", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange: (engine, model) => chosen.push([engine, model]), onEffortChange() {}, fastMode: false, onFastModeChange() {},
     queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   }));
@@ -205,7 +205,7 @@ test("an idle Sol thread offers compact as an app slash command", async () => {
   await act(async () => { query<HTMLButtonElement>(view.container, '[role="option"]').click(); });
   assert.deepEqual(dispatched.slice(-2), [{ type: "view.set-prompt", prompt: "" }, { type: "run.compact" }]);
 
-  await view.render(render("gpt-5.6-terra"));
+  await view.render(render("gpt-6.1-terra"));
   assert.equal(view.container.querySelector('[role="option"]'), null, "Terra does not inherit the Sol-specific command");
   await view.unmount();
 });
@@ -215,7 +215,7 @@ test("an idle Codex project thread opens review options from the slash menu", as
   const dispatched: WorkspaceInput[] = [];
   const dispatch = async (input: WorkspaceInput) => { dispatched.push(input); };
   const currentThread: Thread = {
-    id: "task-1", title: "Codex thread", projectId: "project-1", engine: "codex", model: "gpt-5.6-terra", executionPolicy: "confirm",
+    id: "task-1", title: "Codex thread", projectId: "project-1", engine: "codex", model: "gpt-6.1-terra", executionPolicy: "confirm",
     messages: [], continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available",
     lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
   };
@@ -277,7 +277,7 @@ test("the review picker reads branches from the thread's worktree", async () => 
     },
   };
   const currentThread: Thread = {
-    id: "task-1", title: "Worktree review", projectId: "project-1", worktreeId: "worktree-1", engine: "codex", model: "gpt-5.6-terra", executionPolicy: "confirm",
+    id: "task-1", title: "Worktree review", projectId: "project-1", worktreeId: "worktree-1", engine: "codex", model: "gpt-6.1-terra", executionPolicy: "confirm",
     messages: [], continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available",
     lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
   };
