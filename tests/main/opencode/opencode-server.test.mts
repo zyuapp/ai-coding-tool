@@ -166,6 +166,14 @@ test("a list read while the server loads its folder is read again until it settl
   let never = 0;
   assert.deepEqual(await readLoaded<string>({ request: async () => { never += 1; return [] as never; } }, "/api/skill", 1), []);
   assert.equal(never, 10, "an empty folder is believed after a few seconds");
+  let again = 0;
+  const client = { request: async () => { again += 1; return ["a"] as never; } };
+  await readLoaded<string>(client, "/api/command", 1);
+  assert.equal(again, 2);
+  assert.deepEqual(await readLoaded<string>(client, "/api/command", 1), ["a"]);
+  assert.equal(again, 3, "a list the server has loaded is read once from then on");
+  await readLoaded<string>(client, "/api/skill", 1);
+  assert.equal(again, 5, "another list is still waited on");
 });
 
 test("a start that never said how to reach it blames the last line naming what is missing, and a slow start blames nothing", () => {

@@ -243,15 +243,22 @@ class OpenCodeServer implements OpenCodeClient {
 const LOADING_RETRY_MS = 500;
 const LOADING_ATTEMPTS = 10;
 
+/** The lists each server has already loaded, which are read once from then on. */
+const loaded = new WeakMap<Pick<OpenCodeClient, "request">, Set<string>>();
+
 /**
  * A list read in a folder the server has not loaded yet comes back empty, then grows while it loads,
  * so it is read again until two answers in a row agree, for a few seconds at most.
  */
 export async function readLoaded<T>(client: Pick<OpenCodeClient, "request">, path: string, retryMs = LOADING_RETRY_MS): Promise<T[]> {
+  const settled = loaded.get(client) ?? new Set<string>();
+  loaded.set(client, settled);
   let previous: T[] | undefined;
   for (let attempt = 1; ; attempt += 1) {
     const list = await client.request<T[] | undefined>("GET", path) ?? [];
-    if (list.length && list.length === previous?.length || attempt >= LOADING_ATTEMPTS) return list;
+    if (settled.has(path)) return list;
+    if (list.length && list.length === previous?.length) settled.add(path);
+    if (settled.has(path) || attempt >= LOADING_ATTEMPTS) return list;
     previous = list;
     await new Promise((resolve) => setTimeout(resolve, retryMs));
   }

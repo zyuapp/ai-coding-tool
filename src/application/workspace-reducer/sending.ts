@@ -9,8 +9,8 @@ import { queueHolder } from "../computers.js";
 import { threadHandleOptions } from "../thread-projection.js";
 import { leavingThreadIds, namedPlace, worktreeFor } from "../thread-location.js";
 import { promptKey, type PendingRun, type QueuedMessage, type WorkspaceState } from "../workspace-state.js";
-import { defaultModelFor, engineBlocker, engineHasModel, modelEngine, unknownModel } from "../../domain/agent-engine.js";
-import { catalogOf, engineReadinessOf, refreshEngines } from "../engine-access.js";
+import { defaultModelFor, engineBlocker, modelEngine, unknownModel } from "../../domain/agent-engine.js";
+import { catalogOf, engineOffersModel, engineReadinessOf, refreshEngines } from "../engine-access.js";
 import { expandThreadHandles } from "../../domain/thread-handles.js";
 import { withoutSnooze } from "../../domain/thread-snooze.js";
 import { updateThread } from "../thread-run-state.js";
@@ -100,7 +100,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
       const catalog = catalogOf(state);
       const runEngine = thread?.engine ?? (input.model === undefined ? state.draftEngine : modelEngine(catalog, input.model));
       const runModel = thread ? thread.model ?? defaultModelFor(thread.engine) : input.model ?? state.draftModel;
-      if (!runEngine || !engineHasModel(catalog, runEngine, runModel)) return refuse(unknownModel(runModel));
+      if (!runEngine || !engineOffersModel(state, runEngine, runModel)) return refuse(unknownModel(runModel));
       const local = input.from === undefined || input.from === thread?.id ? undefined : state.threads.find((item) => item.id === input.from);
       /** A thread on another computer names itself, since this computer may not hold it. */
       const sender: { id: string; title: string; computer?: string } | undefined = local ? { id: local.id, title: local.title } : input.sender ? { id: input.sender.threadId, title: input.sender.title, computer: input.sender.computer } : undefined;

@@ -8,7 +8,7 @@ import { installCommand, installedEngine, latestEngineVersion, type InstalledEng
  * Where an install stands against what the app was built on and the newest release, and the command
  * that moves it on when it is behind either and the app can run that command.
  */
-async function versionReadiness(engine: AgentEngine, installed: InstalledEngine, baseline: string): Promise<Pick<EngineReadiness, "version" | "required" | "latest" | "fix">> {
+export async function versionReadiness(engine: AgentEngine, installed: InstalledEngine, baseline: string): Promise<Pick<EngineReadiness, "version" | "required" | "latest" | "fix">> {
   const latest = installed.version ? await latestEngineVersion(engine, installed) : null;
   const required = isOlderThan(installed.version, baseline) ? baseline : undefined;
   const newer = latest && installed.version && isOlderThan(installed.version, latest) ? latest : undefined;

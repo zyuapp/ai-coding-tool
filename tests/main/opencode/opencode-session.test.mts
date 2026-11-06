@@ -345,6 +345,32 @@ test("a slash command runs as the server's command, and a skill named in a promp
   assert.deepEqual(command.server().sent("POST", "/command")[0]!.body, { name: "init", text: "add tests", delivery: "queue" });
   const skill = await started({ prompt: "/review-thread opus high" });
   assert.deepEqual(skill.server().sent("POST", "/prompt")[0]!.body, { text: "/review-thread opus high", skills: [{ id: "review-thread" }], delivery: "queue" });
+  const path = await started({ prompt: "Read /review-thread/SKILL.md" });
+  assert.deepEqual(path.server().sent("POST", "/prompt")[0]!.body, { text: "Read /review-thread/SKILL.md", delivery: "queue" }, "a path that starts with a skill's name loads no skill");
+});
+
+test("a session closed while its server starts closes that server once it is up", async () => {
+  let up!: () => void;
+  const starting = new Promise<void>((resolve) => { up = resolve; });
+  const servers: FakeServer[] = [];
+  const provider = new OpenCodeAgentProvider({ host, connect: async (options) => { await starting; const server = new FakeServer(options); servers.push(server); return server; } });
+  const run = input();
+  const result = provider.execute(run.run);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  provider.closeAll();
+  up();
+  await settled(result);
+  await until(() => servers.length === 1 && servers[0]!.closed, "the late server closing");
+});
+
+test("a model whose context window the server does not say reports its spend, and no usage against a window of nothing", async () => {
+  const { server, events, result } = await started({ model: "openrouter/unlisted" });
+  server().emit("session.inbox.delivered", { sessionID: "ses_new", inboxID: "msg_1" });
+  server().emit("session.step.ended", { sessionID: "ses_new", tokens: { input: 900, output: 10, reasoning: 5, cache: { read: 80, write: 5 } } });
+  server().emit("session.execution.succeeded", { sessionID: "ses_new" });
+  assert.deepEqual(await settled(result), { status: "succeeded" });
+  assert.deepEqual(events.find((event) => event.type === "spend"), { type: "spend", tokens: 1_000 });
+  assert.equal(events.some((event) => event.type === "usage"), false);
 });
 
 test("a server that dies mid-turn fails the run, and closing the provider stops every server", async () => {

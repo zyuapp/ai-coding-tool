@@ -24,8 +24,8 @@ import { threadBusy, threadToBegin } from "../run-record.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree, RunEvent } from "../../contracts/ipc.js";
-import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineHasEffort, engineHasModel, modelEngine, modelSupportsManualCompaction, policyFor, unknownModel } from "../../domain/agent-engine.js";
-import { catalogOf } from "../engine-access.js";
+import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineHasEffort, modelEngine, modelSupportsManualCompaction, policyFor, unknownModel } from "../../domain/agent-engine.js";
+import { catalogOf, engineOffersModel } from "../engine-access.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
@@ -257,7 +257,7 @@ function modelGone(state: WorkspaceState, pending: PendingRun): WorkspaceTransit
   const thread = pending.taskId ? state.threads.find((item) => item.id === pending.taskId) : undefined;
   if (!thread) return null;
   const model = thread.model ?? defaultModelFor(thread.engine);
-  if (engineHasModel(catalogOf(state), thread.engine, model)) return null;
+  if (engineOffersModel(state, thread.engine, model)) return null;
   return pending.origin === "automation" ? settled(state, ack(pending, false)) : rejected(withUnsent(state, pending), unknownModel(model));
 }
 
@@ -314,7 +314,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const engine = pending.model ? modelEngine(catalog, pending.model) : state.draftEngine;
   const model = pending.model ?? state.draftModel;
   /** The catalogue may have changed while the run found its workspace. */
-  if (!engine || !existing && !engineHasModel(catalog, engine, model)) return rejected(withUnsent(state, pending), unknownModel(model));
+  if (!engine || !existing && !engineOffersModel(state, engine, model)) return rejected(withUnsent(state, pending), unknownModel(model));
   const effort = effortForModel(catalog, model, pending.effort ?? (engineHasEffort(catalog, engine, state.draftEffort) ? state.draftEffort : defaultEffortFor(engine)), pending.role === "coordinator" ? "coordinator" : undefined);
   const thread: Thread = existing ?? {
     id: crypto.randomUUID(),

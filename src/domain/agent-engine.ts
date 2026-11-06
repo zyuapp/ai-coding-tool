@@ -299,6 +299,11 @@ export function engineHasModel(catalog: ModelCatalog, engine: AgentEngine, model
   return catalog.entries.get(model)?.engine === engine;
 }
 
+/** True once an engine's models are known: it ships knowing some, or main has named them. */
+export function engineModelsKnown(status: EngineStatus | null | undefined, engine: AgentEngine) {
+  return BUILT_IN_LISTS[engine].length > 0 || Array.isArray(status?.[engine]?.catalog);
+}
+
 /** The engine that offers a model, or none for one the catalogue does not hold, as a newer computer may send. */
 export function modelEngine(catalog: ModelCatalog, model: AgentModel): AgentEngine | undefined {
   return catalog.entries.get(model)?.engine;

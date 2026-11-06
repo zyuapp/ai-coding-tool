@@ -147,3 +147,22 @@ test("no run of any kind starts on a thread whose model its engine does not offe
   const tick = reduce(workspace({ threads: [known], pendingRuns: { tick: pendings.tick } }), { type: "run.resolved", pendingId: "tick", workspace: projectless });
   assert.equal(tick.effects.some((effect) => effect.type === "start-run"), true, "a thread on a model its engine offers still ticks");
 });
+
+test("a thread on an engine whose models main has yet to name runs on its model, and is held to them once named", () => {
+  const thread = task("task-a", { engine: "opencode", model: "openrouter/z-ai/glm-5.3-flash" });
+  const early = reduce(workspace({ threads: [thread] }), { type: "task.send", taskId: "task-a", text: "Carry on" });
+  assert.equal(early.state.actionError, null);
+  assert.notDeepEqual(early.state.pendingRuns, {}, "a launch still reading its engines does not turn the thread away");
+
+  const named = reduce(workspace({ threads: [thread] }), { type: "engine.status", status: { opencode: { access: "ready", catalog: [{ id: "openrouter/other", label: "Other", description: "", contextWindow: 8_000, efforts: [] }] } } });
+  const refused = reduce(named.state, { type: "task.send", taskId: "task-a", text: "Carry on" });
+  assert.equal(refused.state.actionError, "No engine here offers the openrouter/z-ai/glm-5.3-flash model. Pick another model.");
+  assert.deepEqual(refused.state.pendingRuns, {});
+
+  const drafted = run(workspace({ draftEngine: "opencode", draftModel: "openrouter/z-ai/glm-5.3-flash" }), [{ type: "view.set-prompt", prompt: "Inspect the app" }]);
+  const fresh = send(drafted, projectless);
+  assert.equal(effectAt(fresh, "start-run").command.model, "openrouter/z-ai/glm-5.3-flash", "nor a new thread on a draft of that engine");
+
+  const codex = task("task-b", { engine: "codex", model: "gpt-9-future" });
+  assert.deepEqual(reduce(workspace({ threads: [codex] }), { type: "task.send", taskId: "task-b", text: "Carry on" }).state.pendingRuns, {}, "an engine that ships knowing its models is held to them from the start");
+});

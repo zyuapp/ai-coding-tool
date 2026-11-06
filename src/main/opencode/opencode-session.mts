@@ -263,7 +263,7 @@ export class OpenCodeSession {
       this.awaitDelivery(turn, sent?.id);
       return;
     }
-    const skills = [...new Set([...prompt.matchAll(/(?:^|\s)\/([^\s/]+)/g)].map((match) => match[1]!).filter((name) => known.has(name)))];
+    const skills = [...new Set([...prompt.matchAll(/(?:^|\s)\/([^\s/]+)(?=\s|$)/g)].map((match) => match[1]!).filter((name) => known.has(name)))];
     const sent = await client.request<{ id?: string }>("POST", `/api/session/${sessionId}/prompt`, {
       text: prompt,
       ...(skills.length ? { skills: skills.map((id) => ({ id })) } : {}),
@@ -333,8 +333,12 @@ export class OpenCodeSession {
     }
     const skills = appSkillsRoot();
     const config = { mcp, instructions: [this.briefFile], ...(skills ? { skills: [skills] } : {}) };
-    const client = this.client = await this.connect({ cwd: seed.workspaceRoot, config });
-    if (this.ended) throw new OpenFailure("The OpenCode session ended before the run could start.");
+    const client = await this.connect({ cwd: seed.workspaceRoot, config });
+    if (this.ended) {
+      await client.close();
+      throw new OpenFailure("The OpenCode session ended before the run could start.");
+    }
+    this.client = client;
     this.unsubscribe = client.subscribe((event) => this.receive(event));
     void client.exited.then((exit) => this.exited(new OpenCodeExited(exit)));
     const location = `location[directory]=${encodeURIComponent(seed.workspaceRoot)}`;
@@ -485,7 +489,8 @@ export class OpenCodeSession {
         if (!tokens) return;
         this.lastTokens = tokens;
         turn.input.emit({ type: "spend", tokens });
-        turn.input.emit({ type: "usage", tokens, limit: this.windows.get(turn.input.model) ?? 0, model: turn.input.model });
+        const limit = this.windows.get(turn.input.model);
+        if (limit) turn.input.emit({ type: "usage", tokens, limit, model: turn.input.model });
         return;
       }
       case "session.retry.scheduled":

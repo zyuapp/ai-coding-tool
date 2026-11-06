@@ -1,7 +1,6 @@
 import os from "node:os";
 import type { AvailableCommand } from "../../contracts/ipc.js";
 import type { AgentModel, EngineReadiness } from "../../domain/agent-engine.js";
-import { isOlderThan } from "../../domain/engine-version.js";
 import type { PlanUsage, UsageWindow } from "../../domain/plan-usage.js";
 import { appSkillsRoot, unqualifiedSkillName } from "../app-plugin.mjs";
 import { TITLE_INSTRUCTIONS, titleOf, titleQuestion } from "../agent/title-text.mjs";
@@ -128,22 +127,15 @@ export function openCodeServices() {
  * was installed. A ready install names the models its connected providers offer.
  */
 export async function readOpenCodeReadiness(): Promise<EngineReadiness> {
-  const { installCommand, installedEngine, latestEngineVersion } = await import("../agent/engine-binary.mjs");
+  const { installCommand, installedEngine } = await import("../agent/engine-binary.mjs");
+  const { versionReadiness } = await import("../agent/engine-readiness.mjs");
   const installed = await installedEngine("opencode");
   if (!installed) return { access: "missing", fix: installCommand("opencode") };
-  const latest = installed.version ? await latestEngineVersion("opencode", installed) : null;
-  const required = isOlderThan(installed.version, OPENCODE_BASELINE_VERSION) ? OPENCODE_BASELINE_VERSION : undefined;
-  const newer = latest && installed.version && isOlderThan(installed.version, latest) ? latest : undefined;
-  const version = {
-    ...(installed.version ? { version: installed.version } : {}),
-    ...(required ? { required } : {}),
-    ...(newer ? { latest: newer } : {}),
-  };
-  if (required) return { access: "outdated", ...version };
+  const version = await versionReadiness("opencode", installed, OPENCODE_BASELINE_VERSION);
+  if (version.required) return { access: "outdated", ...version };
   try {
     const catalog = await openCodeServices().catalog();
-    const fix = catalog.length ? (installed.update && newer ? { fix: installed.update.command } : {}) : { fix: "opencode auth login" };
-    return { access: "ready", ...version, ...fix, catalog };
+    return { access: "ready", ...version, ...(catalog.length ? {} : { fix: "opencode auth login" }), catalog };
   } catch {
     return { access: "unavailable", ...version };
   }
