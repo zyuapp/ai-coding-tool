@@ -294,6 +294,11 @@ function startReview(state: WorkspaceState, pending: PendingRun, workspace: Work
   return settled(beginRun(state, thread.id, pending.runId, { ...ATTENDED_RUN, operation: "review" }), [{ type: "start-run", command }]);
 }
 
+/** A reviewer runs on Auto where its engine has one, and on Bypass where it has none, so its round never waits on an approval. */
+function reviewerPolicy(engine: Thread["engine"]): Thread["executionPolicy"] {
+  return capabilitiesFor(engine).policies.includes("autonomous") ? "autonomous" : "bypass";
+}
+
 function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord, worktree?: CreatedWorktree): WorkspaceTransition {
   const existing = pending.taskId ? state.threads.find((item) => item.id === pending.taskId) : undefined;
   if (pending.taskId && !existing) return rejected(state, "This thread was removed before its message could be sent.");
@@ -315,8 +320,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     id: crypto.randomUUID(),
     title: pending.title ? clampTitle(pending.title) : threadTitleFor(pending.text || pasteTitle(pending.pastes ?? []) || fileTitle(pending.files ?? []), pending.attachments.map((path) => ({ path, labels: [] }))),
     ...(pending.projectId ? { projectId: pending.projectId } : {}),
-    /** A reviewer starts in Bypass, whatever mode the draft carries, so its round never waits on an approval. */
-    executionPolicy: policyFor(engine, pending.role === "reviewer" ? "bypass" : state.draftPolicy),
+    executionPolicy: policyFor(engine, pending.role === "reviewer" ? reviewerPolicy(engine) : state.draftPolicy),
     engine,
     model,
     effort,

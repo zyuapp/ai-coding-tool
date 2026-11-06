@@ -664,16 +664,17 @@ test("a role named on a send belongs to the thread it creates, never to one that
   assert.equal(again.state.threads[0].role, "reviewer");
 });
 
-test("a reviewer starts in Bypass whatever mode this thread is in, and every other role keeps the draft mode", () => {
-  const start = (role: "reviewer" | "implementer" | "researcher" | "coordinator", draftPolicy: "confirm" | "plan" | "autonomous" | "bypass") => {
-    const sending = reduce(workspace({ draftPolicy }), { type: "task.send", text: "Review the diff", attachments: [], role });
+test("a reviewer starts on Auto where its engine has one, else Bypass, and every other role keeps the draft mode", () => {
+  const start = (role: "reviewer" | "implementer" | "researcher" | "coordinator", draftPolicy: "confirm" | "plan" | "autonomous" | "bypass", model?: AgentModel) => {
+    const sending = reduce(workspace({ draftPolicy }), { type: "task.send", text: "Review the diff", attachments: [], role, ...(model ? { model } : {}) });
     return reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   };
   for (const draftPolicy of ["confirm", "plan", "autonomous", "bypass"] as const) {
     const started = start("reviewer", draftPolicy);
-    assert.equal(started.state.threads[0].executionPolicy, "bypass", `a reviewer started on ${draftPolicy}`);
-    assert.equal(effectAt(started, "start-run").command.policy, "bypass", "and its first run runs that way too");
+    assert.equal(started.state.threads[0].executionPolicy, "autonomous", `a Claude reviewer started on ${draftPolicy}`);
+    assert.equal(effectAt(started, "start-run").command.policy, "autonomous", "and its first run runs that way too");
   }
+  assert.equal(start("reviewer", "confirm", "gpt-6.1-sol").state.threads[0].executionPolicy, "autonomous", "Codex has Auto too");
   assert.equal(start("implementer", "confirm").state.threads[0].executionPolicy, "confirm", "any other role keeps the draft mode");
   assert.equal(start("researcher", "plan").state.threads[0].executionPolicy, "plan");
   assert.equal(start("coordinator", "autonomous").state.threads[0].executionPolicy, "autonomous");
