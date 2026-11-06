@@ -11,8 +11,8 @@ const JUMP: JumpView = {
   query: "pa",
   index: 1,
   options: [
-    { kind: "thread", id: "task-a", title: "Panel find", project: "api", engine: "claude", pullRequest: null, lastActivityAt: 2, running: true, namedPullRequest: null },
-    { kind: "thread", id: "task-b", title: "Dock the browser panel", project: null, engine: "codex", pullRequest: null, lastActivityAt: 1, running: false, namedPullRequest: null },
+    { kind: "thread", id: "task-a", title: "Panel find", project: "api", engine: "claude", pullRequest: null, rankedAt: 2, running: true, namedPullRequest: null },
+    { kind: "thread", id: "task-b", title: "Dock the browser panel", project: null, engine: "codex", pullRequest: null, rankedAt: 1, running: false, namedPullRequest: null },
     { kind: "setting", id: "settings:appearance", section: "appearance", settingId: null, title: "Appearance", page: null, keywords: "" },
     { kind: "setting", id: "settings:appearance.ui-font", section: "appearance", settingId: "appearance.ui-font", title: "Interface", page: "Appearance", keywords: "" },
   ],

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { rankedThread } from "../../src/domain/thread-storage.ts";
 import { reduce, type WorkspaceEffect, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import { dockFor, dockOwner, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { viewPreferences } from "../../src/application/view-preferences.ts";
@@ -17,7 +18,7 @@ export function dock(state: WorkspaceState, owner?: string) {
 }
 
 export function task(id: string, overrides: Partial<Thread> = {}): Thread {
-  return {
+  return rankedThread({
     id,
     title: id,
     engine: "claude",
@@ -27,7 +28,7 @@ export function task(id: string, overrides: Partial<Thread> = {}): Thread {
     lastChangeSnapshot: { files: [], capturedAt: 1 },
     updatedAt: 1,
     ...overrides,
-  };
+  });
 }
 
 export function workspace(overrides: Partial<WorkspaceState> = {}): WorkspaceState {

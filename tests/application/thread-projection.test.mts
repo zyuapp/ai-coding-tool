@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { rankedThread } from "../../src/domain/thread-storage.ts";
 import { test } from "vitest";
 import { findThread, resolveScope, threadMatches, threadHandleOptions, threadSummaries, threadTranscript, threadWaitResult } from "../../src/application/thread-projection.ts";
 import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
@@ -14,7 +15,7 @@ function message(text: string, at: number, kind: ConversationMessage["kind"] = "
 }
 
 function task(id: string, overrides: Partial<Thread> = {}): Thread {
-  return {
+  return rankedThread({
     id,
     title: id,
     engine: "claude",
@@ -25,7 +26,7 @@ function task(id: string, overrides: Partial<Thread> = {}): Thread {
     createdAt: NOW - 10 * HOUR,
     updatedAt: NOW,
     ...overrides,
-  };
+  });
 }
 
 function workspace(threads: Thread[], overrides: Partial<WorkspaceState> = {}): WorkspaceState {

@@ -1,5 +1,4 @@
-import { task, workspace } from "./workspace-reducer-fixtures.mts";
-import { sidebarLists } from "../../src/application/sidebar-lists.ts";
+import { task } from "./workspace-reducer-fixtures.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { activitySections, backfillSortIndex, moveThread, nextSortIndex, orderThreads, threadMoveBlock } from "../../src/application/thread-order.ts";
@@ -122,7 +121,7 @@ test("activity leads with the threads that want the user, and every thread appea
   const sections = activitySections(threads, new Set(["busy", "both", "asked", "asked-again"]), new Set(["asked", "asked-again"]));
 
   assert.deepEqual(sections.priority.map((item) => item.id), ["asked-again", "settled", "asked"]);
-  assert.deepEqual(sections.running.map((item) => item.id), ["busy", "both"], "a working thread keeps its sidebar place, however its last run ended");
+  assert.deepEqual(sections.running.map((item) => item.id), ["both", "busy"], "a working thread keeps its sidebar place, however its last run ended");
   assert.deepEqual(sections.threads.map((item) => item.id), ["newest", "quiet"]);
   assert.deepEqual(
     [...sections.priority, ...sections.running, ...sections.threads].map((item) => item.id).sort(),
@@ -193,28 +192,4 @@ test("activity sections keep input order when activity ties", () => {
   assert.deepEqual(sections.priority.map((item) => item.id), ["priority-first", "priority-second"]);
   assert.deepEqual(sections.running.map((item) => item.id), ["running"]);
   assert.deepEqual(sections.threads.map((item) => item.id), ["thread-first", "thread-second"]);
-});
-
-test("a working thread speaking moves no row in any sidebar list, and moves once when its run ends", () => {
-  const message = (id: string, kind: "user" | "assistant", at: number) => ({ id, kind, text: id, at });
-  const threads = [
-    task("reviewer", { role: "reviewer", messages: [message("r1", "user", 10)], runEndedAt: 5 }),
-    task("loose", { messages: [message("l1", "user", 20)], runEndedAt: 5 }),
-    task("done", { role: "reviewer", messages: [message("d1", "user", 30)], runEndedAt: 31 }),
-    task("other", { messages: [message("o1", "user", 15)], runEndedAt: 16 }),
-  ];
-  const busy = new Set(["reviewer", "loose"]);
-  const state = workspace();
-  const lists = (current: Thread[]) => {
-    const { activityThreads, recentThreads } = sidebarLists(state, [], current, busy, new Set());
-    return { threads: activityThreads.threads.map((item) => item.id), recents: recentThreads.map((item) => item.id) };
-  };
-  const before = lists(threads);
-  assert.deepEqual(before, { threads: ["done", "other", "reviewer"], recents: ["done", "loose", "other", "reviewer"] });
-  const spoke = threads.map((item) => busy.has(item.id) ? { ...item, messages: [...item.messages, message(`${item.id}-reply`, "assistant", 100)] } : item);
-  assert.deepEqual(lists(spoke), before);
-
-  busy.delete("reviewer");
-  const ended = spoke.map((item) => item.id === "reviewer" ? { ...item, runEndedAt: 101 } : item);
-  assert.deepEqual(lists(ended).threads, ["reviewer", "done", "other"]);
 });

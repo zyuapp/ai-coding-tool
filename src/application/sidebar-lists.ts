@@ -1,11 +1,11 @@
 import { orderProjects } from "./project-order.js";
-import { orderThreads, slotThreadIds } from "./thread-order.js";
+import { orderThreads, recentFirst, slotThreadIds } from "./thread-order.js";
 import { coordinationSections, projectActivity, waitingLine } from "./coordination.js";
 import { coordinatedThreadIds, threadsByCoordinator as threadsOfCoordinators, waitingOnUser } from "../domain/coordination.js";
 import { SLOT_COUNT } from "../domain/shortcuts.js";
 import type { Project } from "../domain/project.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
-import { threadRankAt, type Thread } from "../domain/thread.js";
+import type { Thread } from "../domain/thread.js";
 import type { ThreadHost } from "./computers.js";
 
 /** Each computer owns its project order. Keep this computer first and paired computers together. */
@@ -62,8 +62,7 @@ export function sidebarLists(
     if (line) waitingLines.set(thread.id, line);
   }
   const activityThreads = activityProject ? projectActivity(ranked, visibleThreads, activityProject) : ranked;
-  /** Ranked and stamped by when each chat last did something, so a tick that surfaced nothing moves none of them. */
-  const recentThreads = visibleThreads.filter((thread) => !thread.projectId && !members.has(thread.id)).sort((a, b) => threadRankAt(b, busy.has(b.id)) - threadRankAt(a, busy.has(a.id)));
+  const recentThreads = recentFirst(visibleThreads.filter((thread) => !thread.projectId && !members.has(thread.id)));
   return {
     projects: ordered,
     orderedThreads,

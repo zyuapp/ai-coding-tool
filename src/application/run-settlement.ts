@@ -204,6 +204,7 @@ function withTurnHeard(state: WorkspaceState, thread: Thread, status: TurnStatus
 function withRestoredTestimony(state: WorkspaceState, taskId: string, before: ThreadMark): WorkspaceState {
   return updateThread(state, taskId, ({ outcome: _outcome, outcomeUnread: _unread, runEndedAt: _ended, runEndedAs: _endedAs, ...thread }) => ({
     ...thread,
+    ...(before.rankedAt === undefined ? {} : { rankedAt: before.rankedAt }),
     ...(before.runEndedAs === undefined ? {} : { runEndedAs: before.runEndedAs }),
     ...(before.outcome === undefined ? {} : { outcome: before.outcome }),
     ...(before.outcomeUnread ? { outcomeUnread: true as const } : {}),

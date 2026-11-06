@@ -163,7 +163,7 @@ test("a folder is lifted by its own row, and lifting one leaves every folded fol
 test("a thread drag leaves a folded folder folded, and opens no gap where it sits", async () => {
   const task = (id: string, projectId: string): Thread => ({
     id, title: id, ...(projectId ? { projectId } : {}), engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, rankedAt: 1, updatedAt: 1,
   });
   const projects = [{ id: "open-project", root: "/open" }, { id: "shut-project", root: "/shut" }];
   const tasks = [task("open-task", "open-project"), task("shut-task", "shut-project")];

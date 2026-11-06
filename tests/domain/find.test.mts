@@ -22,7 +22,7 @@ function thread(...entries: MessageSeed[]): WorkspaceState {
     messages: messages(...entries),
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 1,
+    rankedAt: 1, updatedAt: 1,
   };
   return { ...emptyWorkspaceState(), threads: [subject], currentId: subject.id };
 }

@@ -10,7 +10,7 @@ import type { Automation } from "../../src/domain/automation.ts";
 import type { Subagent } from "../../src/domain/run.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";
 import type { ThreadStoreData } from "../../src/domain/thread-storage.ts";
-import { threadActivityAt, threadCreatedAt } from "../../src/domain/thread.ts";
+import { threadLastOutputAt, threadCreatedAt } from "../../src/domain/thread.ts";
 
 function loadDatabase(database: TaskDatabase): ThreadStoreData {
   const loaded = database.load();
@@ -25,7 +25,7 @@ const summaryTask: PersistedTask = {
   executionPolicy: "confirm",
   continuationStatus: "none",
   lastChangeSnapshot: { files: [], capturedAt: 1 },
-  updatedAt: 100,
+  rankedAt: 100, updatedAt: 100,
 };
 
 test("Codex storage cutover preserves Claude data and new Codex history across restarts", async () => {
@@ -67,7 +67,7 @@ test("startup summaries preserve activity and counts while messages load only on
     assert.deepEqual(summary.tasks[0].messages, []);
     assert.deepEqual(summary.tasks[0].historySummary, { messageCount: 3, attachmentCount: 1, firstMessageAt: 10, lastAudibleAt: 20 });
     assert.equal(threadCreatedAt(summary.tasks[0]), 10);
-    assert.equal(threadActivityAt(summary.tasks[0]), 20);
+    assert.equal(threadLastOutputAt(summary.tasks[0]), 20);
     assert.deepEqual(database.loadThreadMessages(summaryTask.id), messages);
 
     database.persist({ tasks: [{ task: { ...summaryTask, title: "Renamed before opening" }, messages: [] }] });
@@ -164,7 +164,7 @@ test("SQLite task storage appends and updates messages without rewriting the tra
     executionPolicy: "confirm",
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 2,
+    rankedAt: 2, updatedAt: 2,
   };
   try {
     database.persist({
@@ -204,7 +204,7 @@ test("SQLite task storage keeps subagent activity in rows of its own", async () 
     executionPolicy: "confirm",
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 2,
+    rankedAt: 2, updatedAt: 2,
   };
   const subagent: PersistedSubagent = { id: "agent-1", description: "Explore", status: "working", startedAt: 1, model: "claude-sonnet", effort: "high", prompt: "  Exact\nprompt  " };
   try {
@@ -250,7 +250,7 @@ test("SQLite task storage lifts subagents out of tasks written before they had r
     executionPolicy: "confirm",
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 2,
+    rankedAt: 2, updatedAt: 2,
     subagents: [{
       id: "agent-1",
       description: "Explore",
@@ -339,7 +339,7 @@ test("a project folder inside any of the app's own worktree roots is refused, an
     executionPolicy: "confirm",
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 2,
+    rankedAt: 2, updatedAt: 2,
   };
   const errors: unknown[][] = [];
   const reportError = console.error;
@@ -430,7 +430,7 @@ test("SQLite task storage keeps what a thread's runs found, and which of its mes
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
     findings: [{ id: "finding-1", headline: "Checkout is returning 5xx", key: "checkout", at: 30 }],
-    updatedAt: 31,
+    rankedAt: 31, updatedAt: 31,
   };
   try {
     database.persist({ tasks: [{ task, messages: [

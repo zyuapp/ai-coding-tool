@@ -111,6 +111,11 @@ export type Thread = {
   lastChangeSnapshot: ChangeSnapshot;
   /** Sidebar position. Only the user moves it; run activity never does. */
   sortIndex?: number;
+  /**
+   * Where lists ordered by recency place this thread. The reducer moves it when the thread is created,
+   * a run starts, and a run ends, never while a run speaks, so a working thread holds its place.
+   */
+  rankedAt: number;
   /** The verdict of the newest settled run, until a dismissal or the next run supersedes it. */
   outcome?: ThreadOutcome;
   /** Set while the user has yet to see that verdict. It marks the thread, the verdict ranks it. */
@@ -191,37 +196,20 @@ export function forkTitle(title: string, taken: Iterable<string>): string {
   }
 }
 
-export function threadCreatedAt(thread: Thread): number {
+export function threadCreatedAt(thread: Omit<Thread, "rankedAt">): number {
   return thread.createdAt ?? thread.historySummary?.firstMessageAt ?? thread.messages[0]?.at ?? thread.updatedAt;
 }
 
 /**
- * When the thread last did something. `updatedAt` moves on any write, so it cannot answer this.
- * A tick that surfaced nothing withdrew the messages it wrote and put `runEndedAt` back, so it counts
- * for nothing here: four such schedules must not reshuffle the list two hundred times a day.
+ * When the thread last said anything. It moves with every message a run writes, so a list ordered by it
+ * reshuffles while threads work: order lists by `rankedAt`. A tick that surfaced nothing withdrew the
+ * messages it wrote and put `runEndedAt` back, so it counts for nothing here.
  */
-export function threadActivityAt(thread: Thread): number {
+export function threadLastOutputAt(thread: Omit<Thread, "rankedAt">): number {
   return Math.max(threadCreatedAt(thread), lastAudibleAt(thread), thread.runEndedAt ?? 0);
 }
 
-/**
- * When a list ranks the thread. A run moves it when it starts and again when it ends, never while it
- * speaks, so a working thread holds its place.
- */
-export function threadRankAt(thread: Thread, running: boolean): number {
-  if (!running || thread.historySummary) return threadActivityAt(thread);
-  return Math.max(threadCreatedAt(thread), lastPromptAt(thread), thread.runEndedAt ?? 0);
-}
-
-function lastPromptAt(thread: Thread): number {
-  for (let index = thread.messages.length - 1; index >= 0; index -= 1) {
-    const message = thread.messages[index]!;
-    if (message.kind === "user" && !message.withdrawn) return message.at;
-  }
-  return 0;
-}
-
-function lastAudibleAt(thread: Thread): number {
+function lastAudibleAt(thread: Omit<Thread, "rankedAt">): number {
   if (thread.historySummary) return thread.historySummary.lastAudibleAt ?? 0;
   for (let index = thread.messages.length - 1; index >= 0; index -= 1) {
     const message = thread.messages[index]!;

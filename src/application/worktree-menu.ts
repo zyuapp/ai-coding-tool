@@ -1,5 +1,5 @@
 import type { AppCommand } from "../contracts/commands.js";
-import { threadActivityAt, type Thread } from "../domain/thread.js";
+import type { Thread } from "../domain/thread.js";
 import { worktreeName } from "../domain/worktree.js";
 import { locationOf, projectFor, worktreeFor } from "./thread-location.js";
 import type { WorkspaceState } from "./workspace-state.js";
@@ -41,7 +41,7 @@ export function worktreeMenuView(state: WorkspaceState, current: Thread | undefi
   const threads: WorktreeMenuChoice[] = [];
   if (open) {
     const matching = members.filter((thread) => thread.title.toLocaleLowerCase().includes(threadQuery));
-    matching.sort((a, b) => Number(b.id === current.id) - Number(a.id === current.id) || threadActivityAt(b) - threadActivityAt(a));
+    matching.sort((a, b) => Number(b.id === current.id) - Number(a.id === current.id) || b.rankedAt - a.rankedAt);
     for (const thread of matching) threads.push({ id: thread.id, title: thread.title, detail: thread.id === current.id ? "Current thread" : status(state, thread), current: thread.id === current.id, command: { type: "task.select", taskId: thread.id } });
   }
   const managed = new Map(state.managedWorktrees?.map((item) => [item.root, item]));

@@ -11,7 +11,7 @@ import type { Thread } from "../../../src/domain/thread.ts";
 import { input, liveQueryFactory, liveTurn, tick, turn, type LiveQueryCapture } from "../../support/claude-session.mjs";
 
 function task(id: string): Thread {
-  return { id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 };
+  return { id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1 };
 }
 
 function workspace(overrides: Partial<WorkspaceState> = {}): WorkspaceState {

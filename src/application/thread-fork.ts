@@ -24,6 +24,7 @@ export function sideChatThread(source: Thread, id: string, title: string, at: nu
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: at },
     createdAt: at,
+    rankedAt: at,
     updatedAt: at,
   };
 }
@@ -45,6 +46,7 @@ export function forkedThreads(threads: Thread[], source: Thread, id: string, at:
     lastChangeSnapshot: { files: [], capturedAt: at },
     sortIndex: nextSortIndex(threads),
     createdAt: at,
+    rankedAt: at,
     updatedAt: at,
   };
   /** The slot after the source, counted in the list the copy is dropped into with the copy left out. */

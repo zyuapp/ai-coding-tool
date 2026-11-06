@@ -4,7 +4,7 @@ import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
 import { LuActivity as Activity, LuAlarmClock as AlarmClock, LuAlarmClockOff as AlarmClockOff, LuCheck as Check, LuClockAlert as ClockAlert, LuEllipsis as Ellipsis, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass, LuMonitorOff as MonitorOff } from "react-icons/lu";
 import { pauseSummary } from "../../domain/usage-limit";
 import { projectName, type Project } from "../../domain/project";
-import { threadRankAt, type Thread } from "../../domain/thread";
+import type { Thread } from "../../domain/thread";
 import { attentionUrgency, FOLDER_LABELS, hasUnreadAttention, MEMBER_BLOCKED_LABEL, MEMBER_UNREAD_LABEL, newestUnreadFinding, type AttentionTone } from "../../domain/attention";
 import type { ThreadOutcome } from "../../domain/thread-run";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
@@ -101,14 +101,14 @@ function statusMark(status: RowStatus | null): ReactNode {
  * it last moved. A row carrying something a run found says that instead — the headline is why the
  * row is in Priority. A snoozed row says when it comes back.
  */
-function activityMeta(thread: Thread, host: ThreadHost | undefined, projectLabel: string | undefined, waiting: string | null, memberBlocked: boolean, pauseLabel: string | null, running: boolean) {
+function activityMeta(thread: Thread, host: ThreadHost | undefined, projectLabel: string | undefined, waiting: string | null, memberBlocked: boolean, pauseLabel: string | null) {
   /** An approval a thread under it waits on is said first, as its mark says it. */
   if (memberBlocked) return MEMBER_BLOCKED_LABEL;
   const headline = rowHeadline(thread, waiting);
   if (headline) return headline;
   if (pauseLabel !== null) return hostMeta(host, pauseLabel);
   if (thread.snoozedUntil !== undefined) return hostMeta(host, ...[projectLabel, snoozeLabel(thread.snoozedUntil)].filter((part): part is string => Boolean(part)));
-  return hostMeta(host, ...[projectLabel, formatTime(threadRankAt(thread, running))].filter((part): part is string => Boolean(part)));
+  return hostMeta(host, ...[projectLabel, formatTime(thread.rankedAt)].filter((part): part is string => Boolean(part)));
 }
 
 /** A row's meta line: the computer it lives on, marked as one, ahead of whatever else the line says. */
@@ -455,7 +455,7 @@ const ThreadRow = memo(function ThreadRow({ index, place, ...row }: RowState & {
     ? <span data-tip={thread.title} data-tip-overflow>{thread.title}</span>
     : <span className="task-row-text">
         <span data-tip={thread.title} data-tip-overflow>{thread.title}</span>
-        <small>{hostMeta(host, formatTime(threadRankAt(thread, row.running)))}</small>
+        <small>{hostMeta(host, formatTime(thread.rankedAt))}</small>
       </span>;
   return (
     <Draggable draggableId={thread.id} index={index} isDragDisabled={row.away}>
@@ -489,7 +489,7 @@ const ActivityRow = memo(function ActivityRow({ projectLabel, action, priority, 
       {rowBody(row, `task-row ${row.active ? "active" : ""}`, (
         <span className="task-row-text">
           <span data-tip={thread.title} data-tip-overflow>{thread.title}</span>
-          <small>{activityMeta(thread, row.host, projectLabel, row.waiting, row.memberBlocked, row.pauseLabel, row.running)}</small>
+          <small>{activityMeta(thread, row.host, projectLabel, row.waiting, row.memberBlocked, row.pauseLabel)}</small>
         </span>
       ), action, priority)}
     </div>

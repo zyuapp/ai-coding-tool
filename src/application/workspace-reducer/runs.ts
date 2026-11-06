@@ -340,6 +340,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     lastChangeSnapshot: { files: [], capturedAt: now() },
     sortIndex: nextSortIndex(state.threads),
     createdAt: now(),
+    rankedAt: now(),
     updatedAt: now(),
   };
   if (created && !created.name) created.name = thread.title;

@@ -98,7 +98,7 @@ function withEndedWatches(state: WorkspaceState, before: readonly AutomationView
   const finished: Thread[] = [];
   const threads = state.threads.map((thread) => {
     if (!ended.has(thread.id) || thread.archivedAt !== undefined) return thread;
-    const verdict = { outcome: "finished" as const, runEndedAs: "finished" as const, runEndedAt: at, ...(threadOnScreen(state, thread.id) ? {} : { outcomeUnread: true as const }) };
+    const verdict = { outcome: "finished" as const, runEndedAs: "finished" as const, runEndedAt: at, rankedAt: at, ...(threadOnScreen(state, thread.id) ? {} : { outcomeUnread: true as const }) };
     const run = activeRuns[thread.id];
     if (run) activeRuns[thread.id] = { ...run, before: { ...run.before, ...verdict } };
     finished.push(thread);

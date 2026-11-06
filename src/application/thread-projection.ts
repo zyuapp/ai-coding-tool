@@ -4,7 +4,7 @@ import { projectFor, worktreeFor } from "./thread-location.js";
 import { sideChatIds, type WorkspaceState } from "./workspace-state.js";
 import type { ProjectScope, ThreadFilter, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../contracts/threads.js";
 import { findProject, projectName, type Project } from "../domain/project.js";
-import { threadActivityAt, threadCreatedAt, type Thread } from "../domain/thread.js";
+import { threadLastOutputAt, threadCreatedAt, type Thread } from "../domain/thread.js";
 import { threadHandles, type ThreadHandleOption } from "../domain/thread-handles.js";
 import type { Worktree } from "../domain/worktree.js";
 import { messageLabel, type MessageOrigin } from "../domain/message-origin.js";
@@ -71,7 +71,7 @@ function projectThreadSummary(state: WorkspaceState, thread: Thread, activity: n
 }
 
 export function threadSummary(state: WorkspaceState, thread: Thread, index?: ProjectionIndex): ThreadSummary {
-  return projectThreadSummary(state, thread, threadActivityAt(thread), index);
+  return projectThreadSummary(state, thread, threadLastOutputAt(thread), index);
 }
 
 /** Newest activity first, so a limit keeps the threads worth looking at. */
@@ -84,7 +84,7 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
       if (forked.has(thread.id)) continue;
       if (!inScope(thread, filter.scope)) continue;
       if ((thread.archivedAt !== undefined) !== Boolean(filter.archived)) continue;
-      if (filter.idleForMs !== undefined && at - threadActivityAt(thread) < filter.idleForMs) continue;
+      if (filter.idleForMs !== undefined && at - threadLastOutputAt(thread) < filter.idleForMs) continue;
       if (search && !matches(thread, search, filter.stored)) continue;
       const attachments = filter.attachments ? countAttachments(thread) : undefined;
       if (filter.attachments && !attachments) continue;
@@ -93,7 +93,7 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
     if (!matching.length) return [];
     const index = projectionIndex(state);
     return matching
-      .map(({ thread, attachments }) => projectThreadSummary(state, thread, threadActivityAt(thread), index, attachments))
+      .map(({ thread, attachments }) => projectThreadSummary(state, thread, threadLastOutputAt(thread), index, attachments))
       .sort((left, right) => right.lastActivityAt - left.lastActivityAt);
   }
   const matching: Array<{ thread: Thread; activity: number; attachments?: number }> = [];
@@ -103,13 +103,13 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
     if ((thread.archivedAt !== undefined) !== Boolean(filter.archived)) continue;
     let activity: number | undefined;
     if (filter.idleForMs !== undefined) {
-      activity = threadActivityAt(thread);
+      activity = threadLastOutputAt(thread);
       if (at - activity < filter.idleForMs) continue;
     }
     if (search && !matches(thread, search, filter.stored)) continue;
     const attachments = filter.attachments ? countAttachments(thread) : undefined;
     if (filter.attachments && !attachments) continue;
-    matching.push({ thread, activity: activity ?? threadActivityAt(thread), ...(attachments === undefined ? {} : { attachments }) });
+    matching.push({ thread, activity: activity ?? threadLastOutputAt(thread), ...(attachments === undefined ? {} : { attachments }) });
   }
   if (!matching.length || Math.max(0, filter.limit) === 0) return [];
   matching.sort((left, right) => right.activity - left.activity);
@@ -140,7 +140,7 @@ export function threadHandleOptions(state: WorkspaceState, draftKey: string): Th
         project: project ? projectName(project) : null,
         inScope: (thread.projectId ?? null) === projectId,
         running: working.has(thread.id),
-        lastActivityAt: threadActivityAt(thread),
+        lastActivityAt: threadLastOutputAt(thread),
       };
     }));
 }

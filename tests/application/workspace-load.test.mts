@@ -17,7 +17,7 @@ function task(id: string): Thread {
     messages: [],
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: Date.now(),
+    rankedAt: Date.now(), updatedAt: Date.now(),
   };
 }
 

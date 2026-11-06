@@ -5,7 +5,7 @@ import type { AutomationFinding } from "./finding.js";
 import { isProject, legacyProjectId, normalizeProjectRoot, type Project } from "./project.js";
 import type { Continuation, ExecutionPolicy, Subagent } from "./run.js";
 import { isThreadUsage, type ContextUsage, type ContinuationStatus, type ThreadOutcome } from "./thread-run.js";
-import type { Thread } from "./thread.js";
+import { threadLastOutputAt, type Thread } from "./thread.js";
 import { isThreadRole } from "./thread-role.js";
 import { isCaughtStarts, isCoordinationNote, isCoordinationReport, isCoordinatorMemory, isDecision, isHeldLead, isRemoteHeard, isRemoteStops, isRemoteWorking, isThreadBrief, isThreadModelChoice, isThreadProposal } from "./coordination.js";
 import { isWorktree, type Worktree } from "./worktree.js";
@@ -19,9 +19,10 @@ const UNRECORDED_ENGINE: AgentEngine = "claude";
 
 /**
  * A thread as the store holds it. The helper agents it delegated to are saved beside it and travel
- * with it on the way in; the workspace lifts them into a feed of their own once it has them.
+ * with it on the way in; the workspace lifts them into a feed of their own once it has them. A thread
+ * saved before threads were ranked has no rank until it is restored.
  */
-export type StoredThread = Thread & { subagents?: Subagent[] };
+export type StoredThread = Omit<Thread, "rankedAt"> & { rankedAt?: number; subagents?: Subagent[] };
 
 export type ThreadStoreData = {
   version: typeof THREAD_STORE_VERSION;
@@ -143,7 +144,7 @@ export function migrateV1ToV2(raw: StorageValues): ThreadStoreParseResult {
 
   const projects = [...roots].map((root) => ({ id: legacyProjectId(root), root }));
   const projectByRoot = new Map(projects.map((project) => [project.root, project.id]));
-  const tasks: Thread[] = [];
+  const tasks: StoredThread[] = [];
   for (const [index, value] of legacyTasks.entries()) {
     const task = migrateLegacyThread(value, index, projectByRoot, errors);
     if (task) tasks.push(task);
@@ -173,7 +174,7 @@ function migrateLegacyThread(
   index: number,
   projectByRoot: Map<string, string>,
   errors: string[],
-): Thread | null {
+): StoredThread | null {
   if (!isRecord(value)) {
     errors.push(`tasks[${index}] must be an object`);
     return null;
@@ -303,7 +304,12 @@ export function validateThreadStoreData(values: DecodedThreadStore): ThreadStore
  * reconcile removes a checkout the moment nothing claims it, and a crash in that window would
  * otherwise leave the user unable to write anything at all.
  */
-function claiming(task: Thread, worktreeIds: Set<string>): Thread {
+/** A thread saved before threads were ranked ranks by when it last spoke, which is where the list last showed it. */
+export function rankedThread<T extends Omit<StoredThread, "subagents">>(thread: T): T & Thread {
+  return (thread.rankedAt === undefined ? { ...thread, rankedAt: threadLastOutputAt(thread) } : thread) as T & Thread;
+}
+
+function claiming(task: StoredThread, worktreeIds: Set<string>): StoredThread {
   if (!task.worktreeId || worktreeIds.has(task.worktreeId)) return task;
   const { worktreeId: _gone, worktreeEnteredAt: _forked, ...local } = task;
   return local;
@@ -401,6 +407,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.runEndedAt === undefined || finiteNumber(value.runEndedAt)) &&
     (value.runEndedAs === undefined || isThreadOutcome(value.runEndedAs)) &&
     (value.createdAt === undefined || finiteNumber(value.createdAt)) &&
+    (value.rankedAt === undefined || finiteNumber(value.rankedAt)) &&
     finiteNumber(value.updatedAt) &&
     (value.archivedAt === undefined || finiteNumber(value.archivedAt));
 }
@@ -595,6 +602,7 @@ export function readableRemoteThread(thread: Thread): Thread {
   }
   if (read.role !== undefined && !isThreadRole(read.role)) without("role");
   if (read.outcome !== undefined && !isThreadOutcome(read.outcome)) without("outcome");
+  if (!read.rankedAt) read = { ...read, rankedAt: threadLastOutputAt(read) };
   return read;
 }
 

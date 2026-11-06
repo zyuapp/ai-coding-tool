@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { rankedThread } from "../../src/domain/thread-storage.ts";
 import { test } from "vitest";
 import {
   desktopAccelerator,
@@ -28,7 +29,7 @@ function workspace(overrides: Partial<WorkspaceState> = {}): WorkspaceState {
 }
 
 function thread(id: string, overrides: Partial<Thread> = {}): Thread {
-  return {
+  return rankedThread({
     id,
     title: id,
     engine: "claude",
@@ -39,7 +40,7 @@ function thread(id: string, overrides: Partial<Thread> = {}): Thread {
     updatedAt: 1,
     createdAt: 1,
     ...overrides,
-  };
+  });
 }
 
 function run(state: WorkspaceState, inputs: WorkspaceInput[]) {

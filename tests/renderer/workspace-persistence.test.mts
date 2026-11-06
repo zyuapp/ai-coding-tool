@@ -22,7 +22,7 @@ function snapshot(text: string): PersistenceState {
     messages: [{ id: "message-1", kind: "assistant", text, at: 1 }],
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 1,
+    rankedAt: 1, updatedAt: 1,
   };
   return { threads: [task], subagents: {}, sideChats: [], projects: [], worktrees: [], lastFolder: null };
 }

@@ -18,7 +18,7 @@ import { isNews, issueState } from "../../src/domain/attention.ts";
 import { automationAfterRun, type AutomationPatch, type AutomationView } from "../../src/domain/automation.ts";
 import type { AutomationFinding } from "../../src/domain/finding.ts";
 import { THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
-import { threadActivityAt, type Thread } from "../../src/domain/thread.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { AutomationPanelProps } from "../../src/renderer/components/AutomationPanel.tsx";
 import type { ProjectSidebarProps } from "../../src/renderer/components/ProjectSidebar.tsx";
@@ -90,7 +90,7 @@ test("a quiet tick the app quits under is restored as it was, and a loud one as 
   const restored = (state: WorkspaceState) => stateFromData({ version: THREAD_STORE_VERSION, tasks: state.threads, projects: [], worktrees: [], lastFolder: null }).threads[0]!;
   const quiet = fire({ quiet: true }).state;
   assert.equal(quiet.threads[0]!.runOpen, undefined, "a quiet tick speaks only through what it finds");
-  assert.deepEqual([restored(quiet).runEndedAs, threadActivityAt(restored(quiet))], [undefined, threadActivityAt(quiet.threads[0]!)], "so being cut off says nothing and moves nothing");
+  assert.deepEqual([restored(quiet).runEndedAs, restored(quiet).rankedAt], [undefined, quiet.threads[0]!.rankedAt], "so being cut off says nothing and moves nothing");
   const loud = fire().state;
   assert.equal(loud.threads[0]!.runOpen, true);
   assert.equal(restored(loud).runEndedAs, "stopped");
@@ -114,7 +114,7 @@ test("a scheduled run is the scheduler's, unattended, and never quiet unless the
     acknowledged: false,
     reportedIssues: [],
     messagesBefore: 1,
-    before: { updatedAt: 1 },
+    before: { updatedAt: 1, rankedAt: 1 },
   });
   assert.equal(fire({ quiet: true }).state.activeRuns["task-a"].quiet, true);
 });
@@ -188,6 +188,7 @@ function midRun(run: Partial<ActiveRun> = {}, taskOverrides: Partial<Thread> = {
   /** What the tick found the thread looking like, which is what an unseen one puts back. */
   const before = {
     updatedAt: started.updatedAt,
+    rankedAt: started.rankedAt,
     ...(started.runEndedAt === undefined ? {} : { runEndedAt: started.runEndedAt }),
     ...(started.outcome === undefined ? {} : { outcome: started.outcome }),
     ...(started.outcomeUnread ? { outcomeUnread: true as const } : {}),
@@ -254,7 +255,7 @@ test("a tick that surfaced nothing leaves the thread exactly where it stood", ()
 
   assert.equal(thread.runEndedAt, 500, "the ending the last audible run stamped on is put back");
   assert.deepEqual(thread.messages.map((message) => message.withdrawn), [true, true], "everything the tick wrote is withdrawn, its own reply included");
-  assert.equal(threadActivityAt(thread), 500, "so nothing about the thread moved");
+  assert.equal(thread.rankedAt, 500, "so nothing about the thread moved");
   assert.deepEqual(activitySections(settled.threads, new Set(), new Set()).threads.map((item) => item.id), ["task-a"]);
 });
 
@@ -279,7 +280,7 @@ test("a quiet tick that found something bumps the thread and leads the list", ()
   assert.equal(thread.outcome, "finished", "a run that spoke cannot be retracted into silence");
   const runEndedAt = thread.runEndedAt;
   assert.ok(runEndedAt !== undefined && runEndedAt > 0);
-  assert.equal(threadActivityAt(thread), runEndedAt);
+  assert.equal(thread.rankedAt, runEndedAt);
   assert.deepEqual(activitySections(settled.threads, new Set(), new Set()).priority.map((item) => item.id), ["task-a"]);
 });
 
@@ -613,7 +614,7 @@ test("a tick the scheduler said is quiet withdraws its own label from the start"
   const [label] = started.state.threads[0].messages;
 
   assert.equal(label.withdrawn, true);
-  assert.equal(threadActivityAt(started.state.threads[0]), 5, "the label alone does not count as the thread doing something");
+  assert.equal(started.state.threads[0].rankedAt, 5, "the label alone does not count as the thread doing something");
   assert.match(effectAt(started.effects, 0, "start-run").command.prompt, /Surface it when: there is an error\./, "the tick's sentence reaches the run that has to honour it");
 });
 

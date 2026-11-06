@@ -10,7 +10,7 @@ function options(...titles: string[]): ThreadJumpOption[] {
     project: null,
     engine: "claude" as const,
     pullRequest: null,
-    lastActivityAt: titles.length - index,
+    rankedAt: titles.length - index,
   }));
 }
 

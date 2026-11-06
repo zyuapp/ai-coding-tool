@@ -7,7 +7,7 @@ import { threadWorkspaceId } from "./thread-location.js";
 import { updateThread } from "./thread-run-state.js";
 import { caughtStartComputer } from "./outstanding-stops.js";
 import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, isWaitingOnUser, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, stuckVerdict, waitingOnUser, withCoordinated, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal, type WaitingOnUser } from "../domain/coordination.js";
-import { lastRunOutcome, threadActivityAt, type Thread } from "../domain/thread.js";
+import { lastRunOutcome, threadLastOutputAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
 import { newestUnreadFinding, wantsAttention } from "../domain/attention.js";
 import { originLabel } from "../domain/message-origin.js";
@@ -408,7 +408,7 @@ function roster(state: WorkspaceState, lead: Thread): string[] {
     return { ...coordinatedThreadStatus(member.thread, activity.working, activity.blocked), member, busy: activity.working.has(member.thread.id), stands: threadStatus(said, member.thread.id) };
   });
   const done = standing.filter(({ status }) => GROUP_OF[status] === "done");
-  const recent = new Set(done.map(({ thread }) => thread).sort((left, right) => threadActivityAt(right) - threadActivityAt(left)).slice(0, ROSTER_DONE));
+  const recent = new Set(done.map(({ thread }) => thread).sort((left, right) => threadLastOutputAt(right) - threadLastOutputAt(left)).slice(0, ROSTER_DONE));
   const lines = standing.flatMap(({ thread, status, summary, member, busy, stands }) => {
     const group = GROUP_OF[status];
     if (group === "resolved" || group === "done" && !recent.has(thread)) return [];

@@ -1,17 +1,22 @@
 import type { ThreadDropTarget } from "../domain/project.js";
-import { threadRankAt, type Thread } from "../domain/thread.js";
+import type { Thread } from "../domain/thread.js";
 import { wantsAttention } from "../domain/attention.js";
 import { coordinatedThreadIds } from "../domain/coordination.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 import type { ThreadHost } from "./computers.js";
 
+/**
+ * Every order a thread list is drawn in lives here: {@link orderThreads} where the user put each row,
+ * {@link recentFirst} newest `rankedAt` first, and Snoozed's next to wake first. Lists take one of
+ * these rather than sorting threads themselves, so no row moves while its run speaks.
+ */
+
 /** The activity sidebar's lists, in the order they are drawn. */
 export type ActivitySections = Record<"priority" | "running" | "threads" | "snoozed", Thread[]>;
 
-type RankedThread = { thread: Thread; activity: number };
-
-function newestFirst(threads: RankedThread[]): Thread[] {
-  return threads.sort((left, right) => right.activity - left.activity).map(({ thread }) => thread);
+/** Newest `rankedAt` first, in a new array. */
+export function recentFirst(threads: readonly Thread[]): Thread[] {
+  return [...threads].sort((left, right) => right.rankedAt - left.rankedAt);
 }
 
 /**
@@ -19,34 +24,30 @@ function newestFirst(threads: RankedThread[]): Thread[] {
  * blocked on the user, or when it is idle and its last run left a verdict or a run found something;
  * a thread still working belongs among the runs however it ended last time. Reviewers stay in Threads
  * unless blocked on the user. A snoozed thread waits in Snoozed, the next to wake first. Every thread
- * appears once.
- *
- * Running holds its rows in the sidebar's own order instead, because ranking live threads by their
- * newest activity reshuffles the list under the user every time one of them speaks.
+ * appears once. Running holds its rows where the user put them.
  */
 export function activitySections(threads: Thread[], busy: Set<string>, blocked: Set<string>): ActivitySections {
-  const priority: RankedThread[] = [];
+  const priority: Thread[] = [];
   const running: Thread[] = [];
-  const settled: RankedThread[] = [];
+  const settled: Thread[] = [];
   const snoozed: Thread[] = [];
   for (const thread of threads) {
-    const ranked = () => ({ thread, activity: threadRankAt(thread, busy.has(thread.id) || blocked.has(thread.id)) });
     if (thread.snoozedUntil !== undefined) {
       snoozed.push(thread);
     } else if (blocked.has(thread.id)) {
-      priority.push(ranked());
+      priority.push(thread);
     } else if (thread.role === "reviewer") {
-      settled.push(ranked());
+      settled.push(thread);
     } else if (busy.has(thread.id)) {
       running.push(thread);
     } else {
-      (wantsAttention(thread) ? priority : settled).push(ranked());
+      (wantsAttention(thread) ? priority : settled).push(thread);
     }
   }
   return {
-    priority: newestFirst(priority),
+    priority: recentFirst(priority),
     running: orderThreads(running),
-    threads: newestFirst(settled),
+    threads: recentFirst(settled),
     snoozed: snoozed.sort((left, right) => left.snoozedUntil! - right.snoozedUntil!),
   };
 }
@@ -59,7 +60,7 @@ function compareThreads(left: Thread, right: Thread) {
   if (left.sortIndex !== undefined && right.sortIndex !== undefined) return left.sortIndex - right.sortIndex;
   if (left.sortIndex !== undefined) return -1;
   if (right.sortIndex !== undefined) return 1;
-  return right.updatedAt - left.updatedAt;
+  return right.rankedAt - left.rankedAt;
 }
 
 export function orderThreads(threads: Thread[]): Thread[] {

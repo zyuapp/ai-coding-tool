@@ -16,6 +16,8 @@ type RecordDefaults<T> = { [K in keyof T as {} extends Pick<T, K> ? never : K]: 
 const THREAD_DEFAULTS = {
   id: REQUIRED_TEXT, title: "Untitled thread", executionPolicy: "confirm", engine: REQUIRED_TEXT,
   messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 0 }, updatedAt: 0,
+  /** An older host ranks nothing; {@link readableRemoteThread} ranks its threads by when they last spoke. */
+  rankedAt: 0,
 } satisfies RecordDefaults<Thread>;
 const PROJECT_DEFAULTS = { id: REQUIRED_TEXT, root: REQUIRED_TEXT } satisfies RecordDefaults<Project>;
 const SIDE_CHAT_DEFAULTS = { id: REQUIRED_TEXT, sourceThreadId: REQUIRED_TEXT, error: null } satisfies RecordDefaults<SideChat>;

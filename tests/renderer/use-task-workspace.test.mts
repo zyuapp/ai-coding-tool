@@ -128,7 +128,7 @@ const BRANCH_PROJECT = { id: "project-1", root: "/project", workspaceId: "worksp
 function seedBranchProject(overrides: Partial<DesktopAPI> = {}) {
   const task: Thread = {
     id: "task-1", title: "Task", projectId: BRANCH_PROJECT.id, engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
   };
   const store: NonNullable<Awaited<ReturnType<DesktopAPI["loadTaskStore"]>>> = {
     version: 2, hiddenTasks: 0, projects: [BRANCH_PROJECT], worktrees: [], tasks: [task], lastFolder: BRANCH_PROJECT.root,
@@ -288,7 +288,7 @@ test("threads a newer build wrote are counted, and the notice asks the updater b
   const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
   const task: Thread = {
     id: "task-1", title: "Task", projectId: project.id, engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
   };
   let asked = 0;
   const desktop = fakeDesktop({
@@ -322,7 +322,7 @@ test("workspace hook removes a project without touching its folder", async () =>
   const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
   const task: Thread = {
     id: "task-1", title: "Task", projectId: project.id, engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
   };
   const desktop = fakeDesktop({ loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [project], worktrees: [], tasks: [task], lastFolder: project.root }) });
   const workspace = await mountWorkspace(desktop);

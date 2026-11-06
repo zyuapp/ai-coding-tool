@@ -185,7 +185,7 @@ test("a new thread inherits agent settings and can select any registered model",
 
 test("a coordinator's threads run on the model chosen for them, not its own", async () => {
   const thread = (id: string, overrides: Partial<Thread>): Thread => ({
-    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1, ...overrides,
   });
   const lead = thread("lead", { role: "coordinator", model: "sonnet", effort: "low", threadModel: { model: "opus", effort: "high" } });
   const worker = thread("worker", { parentId: "lead", model: "sonnet", effort: "low" });
@@ -218,7 +218,7 @@ test("a coordinator's threads run on the model chosen for them, not its own", as
 
 test("a thread its coordinator names keeps that name on either engine, and no title is written for it", async () => {
   const lead: Thread = {
-    id: "lead", title: "lead", role: "coordinator", engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    id: "lead", title: "lead", role: "coordinator", engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
   };
   const titled: string[] = [];
   const desktop = fakeDesktop({
@@ -245,7 +245,7 @@ test("a thread its coordinator names keeps that name on either engine, and no ti
 
 test("only a coordinator keeps a memory, and its tool answer names the note it saved", async () => {
   const thread = (id: string, overrides: Partial<Thread>): Thread => ({
-    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1, ...overrides,
   });
   const lead = thread("lead", { role: "coordinator", memory: { notes: [{ id: "n1", text: "Use Sonnet for docs", at: 1 }], revision: 2, heard: 2 } });
   const desktop = fakeDesktop({ loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [], worktrees: [], tasks: [lead, thread("solo", {})], lastFolder: null }) });
@@ -275,7 +275,7 @@ test("only a coordinator suggests threads, each checked as its start would be an
   const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
   const worktree = { id: "wt-lead", projectId: project.id, root: "/worktrees/repo-lead", workspaceId: "worktree-lead", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 };
   const thread = (id: string, overrides: Partial<Thread>): Thread => ({
-    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, projectId: project.id, ...overrides,
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1, projectId: project.id, ...overrides,
   });
   const lead = thread("lead", { role: "coordinator", worktreeId: worktree.id, threadModel: { model: "opus", effort: "high" } });
   const desktop = fakeDesktop({ loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [project], worktrees: [worktree], tasks: [lead, thread("solo", {})], lastFolder: project.root }) });
@@ -318,7 +318,7 @@ test("a new thread starts in the caller's worktree unless the command places it 
   const worktree = { id: "wt-caller", projectId: project.id, root: "/worktrees/repo-caller", workspaceId: "worktree-caller", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 };
   const caller: Thread = {
     id: "task-1", title: "Add the header", projectId: project.id, worktreeId: worktree.id, engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
   };
   const desktop = fakeDesktop({ loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [project], worktrees: [worktree], tasks: [caller], lastFolder: project.root }) });
   const workspace = await mountWorkspace(desktop);

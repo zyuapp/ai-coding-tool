@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { rankedThread } from "../../src/domain/thread-storage.ts";
 import { test } from "vitest";
 import { applyMobilePatch, diffMobileView, emptyMobileView, mobileEngineView, MOBILE_TRANSCRIPT_MESSAGES, projectMobileView } from "../../src/application/mobile-projection.ts";
 import { BUILT_IN_MODELS, efforts, effortsFor, modelLabel, modelsFor, type EngineStatus } from "../../src/domain/agent-engine.ts";
@@ -15,7 +16,7 @@ function message(text: string, at: number, kind: ConversationMessage["kind"] = "
 }
 
 function task(id: string, overrides: Partial<Thread> = {}): Thread {
-  return {
+  return rankedThread({
     id,
     title: id,
     engine: "claude",
@@ -26,7 +27,7 @@ function task(id: string, overrides: Partial<Thread> = {}): Thread {
     createdAt: NOW - 60_000,
     updatedAt: NOW,
     ...overrides,
-  };
+  });
 }
 
 function workspace(threads: Thread[], overrides: Partial<WorkspaceState> = {}): WorkspaceState {

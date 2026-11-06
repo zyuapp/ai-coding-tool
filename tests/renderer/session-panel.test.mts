@@ -76,7 +76,7 @@ const liveWorkflow: Workflow = {
   startedAt: workflowStart,
 };
 
-const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, parentId: "lead" });
+const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1, parentId: "lead" });
 
 test("a coordinator's session panel keeps its own rows and adds its threads' worktrees and pull requests", async () => {
   window.desktop = fakeDesktop();
@@ -436,7 +436,7 @@ test("workspace header keeps session summary and right panel controls separate",
   const view = await mount(React.createElement(WorkspaceHeader, {
     currentThread: {
       id: "codex-thread", title: "Codex thread", engine: "codex", executionPolicy: "confirm", messages: [],
-      continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+      continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
     } satisfies Thread,
     folder: "/project",
     folderLabel: "project",

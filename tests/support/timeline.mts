@@ -30,7 +30,7 @@ export function timelineView(
   onTestFinished(() => scroller.remove());
   const task: Thread = {
     id: "t1", title: "T", engine: "claude", executionPolicy: "confirm", messages,
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
     ...(runEndedAt === undefined ? {} : { runEndedAt }),
   };
   return React.createElement(ConversationTimeline, {

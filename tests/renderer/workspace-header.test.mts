@@ -10,7 +10,7 @@ function headerProps(overrides: Partial<React.ComponentProps<typeof WorkspaceHea
   return {
     currentThread: {
       id: "codex-thread", title: "Codex thread", engine: "codex", executionPolicy: "confirm", messages: [],
-      continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+      continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
     } satisfies Thread,
     folder: "/project", folderLabel: "project", sidebarOpen: true, sessionPanelOpen: false, rightDockOpen: false,
     zen: { available: true, tip: "Zen mode", onEnter: () => {} },
@@ -129,7 +129,7 @@ test("the heading names the paired computer a thread lives on, ahead of its fold
   const props = {
     currentThread: {
       id: "remote-thread", title: "What is in this repo", engine: "claude", executionPolicy: "confirm", messages: [],
-      continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+      continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
     } satisfies Thread,
     folder: "/home/me/just-speak-linux",
     folderLabel: "just-speak-linux",

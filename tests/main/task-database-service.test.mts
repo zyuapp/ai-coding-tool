@@ -10,7 +10,7 @@ import { TaskDatabaseService } from "../../src/main/task-database-service.mts";
 const workerURL = new URL("../../dist/main/main/task-database-worker.mjs", import.meta.url);
 const task: PersistedTask = {
   id: "task", title: "Worker storage", engine: "claude", executionPolicy: "confirm", continuationStatus: "none",
-  lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+  lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
 };
 
 test("worker close drains queued writes and preserves ordering across a restart", async () => {

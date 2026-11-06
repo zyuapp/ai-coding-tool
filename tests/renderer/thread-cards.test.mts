@@ -13,7 +13,7 @@ const { ThreadCards, ThreadCardsContext } = await import("../../src/renderer/com
 const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
 
 const member = (id: string, title: string, overrides: Partial<Thread> = {}): Thread => ({
-  id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, parentId: "lead", ...overrides,
+  id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1, parentId: "lead", ...overrides,
 });
 
 const PULL_REQUEST = { number: 212, url: "https://github.com/o/r/pull/212", title: "Fix login", state: "open" as const, checks: "failing" as const };

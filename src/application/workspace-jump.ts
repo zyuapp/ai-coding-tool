@@ -8,7 +8,7 @@ import type { SettingsJumpOption } from "../domain/settings-catalog.js";
 import { rankThreadJumps, type ThreadJumpOption } from "../domain/thread-jump.js";
 import { projectName, type Project } from "../domain/project.js";
 import { linksPullRequest, pullRequestQuery } from "../domain/pull-request.js";
-import { threadActivityAt, type Thread } from "../domain/thread.js";
+import type { Thread } from "../domain/thread.js";
 import type { WorkspaceState } from "./workspace-state.js";
 
 /**
@@ -41,9 +41,9 @@ function threadJumpOptions(state: WorkspaceState): ThreadJumpOption[] {
       project: thread.projectId ? names.get(thread.projectId) ?? null : null,
       engine: thread.engine,
       pullRequest: thread.pullRequest ?? null,
-      lastActivityAt: threadActivityAt(thread),
+      rankedAt: thread.rankedAt,
     }))
-    .sort((left, right) => right.lastActivityAt - left.lastActivityAt);
+    .sort((left, right) => right.rankedAt - left.rankedAt);
   jumpCache.set(state.threads, { projects: state.projects, options });
   return options;
 }

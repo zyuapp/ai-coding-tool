@@ -23,7 +23,7 @@ function startCommand(command: RunCommand | undefined): Extract<RunCommand, { ty
 test("activity mode ranks threads into priority, running, and the rest, and only priority dismisses", async () => {
   const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1, ...overrides,
   });
   const dismissed: string[] = [];
   let clearedAll = 0;
@@ -110,7 +110,7 @@ test("activity mode ranks threads into priority, running, and the rest, and only
 test("a row marks and says what waits on the user, as the lists word it", async () => {
   const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1, ...overrides,
   });
   const rows = [thread("suggests", { role: "coordinator" }), thread("quiet", { role: "coordinator" })];
   const said = "A decision and a suggested thread are waiting on you";
@@ -127,7 +127,7 @@ test("a row marks and says what waits on the user, as the lists word it", async 
 test("what waits on the user outranks a coordinator's threads at work, and only a row with something to file away offers Dismiss", async () => {
   const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1, ...overrides,
   });
   const said = "A suggested thread is waiting on you";
   const waits = thread("waits", { role: "coordinator", projectId: "p" });
@@ -155,7 +155,7 @@ test("what waits on the user outranks a coordinator's threads at work, and only 
 test("a row whose role or engine only a newer build knows draws without those marks", async () => {
   const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1, ...overrides,
   });
   const rows = [thread("designer", { role: "designer" as never }), thread("gemini", { engine: "gemini" as never })];
   const view = await mount(renderProjectSidebar({ mode: "activity", activityThreads: { priority: [], running: [], threads: rows, snoozed: [] } }));
@@ -166,7 +166,7 @@ test("a row whose role or engine only a newer build knows draws without those ma
 test("only the priority heading offers to dismiss every dot at once", async () => {
   const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1, ...overrides,
   });
   const sidebar = (priority: Thread[]) => renderProjectSidebar({
     open: true,
@@ -358,7 +358,7 @@ test("opening a dotted row in projects mode takes its dot off", async () => {
 test("the sidebar lists a project's threads as one list, and its menu starts another in a checkout", async () => {
   const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
     id, title: id, projectId: "project-1", engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1, ...overrides,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, rankedAt: 1, updatedAt: 1, ...overrides,
   });
   const worktree = { id: "wt1", projectId: "project-1", root: "/worktrees/project-wt1", workspaceId: "ws-1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 };
   const started: Array<[string | undefined, string | undefined]> = [];
@@ -404,7 +404,7 @@ test("the sidebar lists a project's threads as one list, and its menu starts ano
 test("the sidebar marks each thread's engine, schedule, and checkout", async () => {
   const task = (id: string, projectId?: string, engine: Thread["engine"] = "claude"): Thread => ({
     id, title: id, ...(projectId ? { projectId } : {}), engine, executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, rankedAt: 1, updatedAt: 1,
   });
   const view = await mount(renderProjectSidebar({
     inactive: false,
@@ -443,7 +443,7 @@ test("the sidebar marks each thread's engine, schedule, and checkout", async () 
 test("the sidebar follows the thread the keyboard steps to", async () => {
   const thread = (id: string): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
   });
   const scrolled: Array<{ className: string; options?: boolean | ScrollIntoViewOptions }> = [];
   const original = dom.window.HTMLElement.prototype.scrollIntoView;
@@ -544,7 +544,7 @@ test("a run settling on the thread on screen ranks it without marking it, even b
 test("a row's rail reserves slots only for the marks of threads the sidebar draws", async () => {
   const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1, ...overrides,
   });
   const marked = thread("marked", { role: "reviewer", worktreeId: "wt-1", projectId: "project-1" });
   const plain = thread("plain", { projectId: "project-1" });
@@ -573,7 +573,7 @@ test("a row's rail reserves slots only for the marks of threads the sidebar draw
 test("a rail counts the away mark and leaves out an engine mark the row does not draw", async () => {
   const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1, ...overrides,
   });
   const sections = { projects: true, recents: true, priority: true, running: true, threads: true, snoozed: true };
   const slots = (view: { container: HTMLElement }) => query<HTMLElement>(view.container, ".sidebar").style.getPropertyValue("--row-slots");

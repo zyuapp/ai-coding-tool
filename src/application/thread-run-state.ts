@@ -53,6 +53,7 @@ export type ActiveRun = RunProvenance & {
  */
 export type ThreadMark = {
   updatedAt: number;
+  rankedAt?: number;
   runEndedAt?: number;
   runEndedAs?: ThreadOutcome;
   outcome?: ThreadOutcome;
@@ -63,6 +64,7 @@ export type ThreadMark = {
 export function threadMark(thread: Thread | undefined): ThreadMark {
   return {
     updatedAt: thread?.updatedAt ?? 0,
+    ...(thread === undefined ? {} : { rankedAt: thread.rankedAt }),
     ...(thread?.runEndedAt === undefined ? {} : { runEndedAt: thread.runEndedAt }),
     ...(thread?.runEndedAs === undefined ? {} : { runEndedAs: thread.runEndedAs }),
     ...(thread?.outcome === undefined ? {} : { outcome: thread.outcome }),
@@ -84,6 +86,7 @@ export function withdrawRun(thread: Thread, from: number, before: ThreadMark): T
     ...rest,
     messages: withdrawMessages(thread.messages, from),
     updatedAt: before.updatedAt,
+    ...(before.rankedAt === undefined ? {} : { rankedAt: before.rankedAt }),
     ...(before.runEndedAt === undefined ? {} : { runEndedAt: before.runEndedAt }),
     ...(before.runEndedAs === undefined ? {} : { runEndedAs: before.runEndedAs }),
     ...(before.outcome === undefined ? {} : { outcome: before.outcome }),
@@ -396,7 +399,8 @@ export function withTurnEnded<T extends RunTransitionState>(state: T, taskId: st
   return updateThread(withRunStatus(state, taskId, status === "cancelled" ? "stopped" : "idle"), taskId, ({ runOpen: _closed, ...thread }) => {
     const last = thread.messages.at(-1);
     const answered = last?.kind === "assistant" && !last.artifact && !last.answer;
-    return { ...thread, ...(answered ? { messages: replaceLastMessage(thread.messages, { ...last, answer: true }) } : {}), runEndedAt: now(), ...(ended ? { runEndedAs: ended } : {}) };
+    const at = now();
+    return { ...thread, ...(answered ? { messages: replaceLastMessage(thread.messages, { ...last, answer: true }) } : {}), runEndedAt: at, rankedAt: at, ...(ended ? { runEndedAs: ended } : {}) };
   });
 }
 

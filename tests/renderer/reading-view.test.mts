@@ -60,7 +60,7 @@ function threadHarness() {
    */
   const thread = (id: string, count: number, prefix?: string, loading = false, tools = 0, match?: string) => {
     const currentThread: Thread = {
-      id, title: id, engine: "claude", executionPolicy: "confirm", continuationStatus: "none", updatedAt: 1,
+      id, title: id, engine: "claude", executionPolicy: "confirm", continuationStatus: "none", rankedAt: 1, updatedAt: 1,
       lastChangeSnapshot: { files: [], capturedAt: 1 },
       messages: transcript(
         ...Array.from({ length: count }, (_, index): TimelineMessageSeed => ({

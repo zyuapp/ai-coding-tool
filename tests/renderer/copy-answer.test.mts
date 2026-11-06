@@ -109,7 +109,7 @@ test("a finished answer copies whole, without the tool work that led to it", asy
   document.body.append(scroller);
   const task: Thread = {
     id: "t1", title: "T", engine: "claude", executionPolicy: "confirm", continuationStatus: "none",
-    lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
     messages: [
       { id: "m0", at: 1000, kind: "tool", text: "Read", detail: "src/domain/thread.ts" },
       { id: "m1", at: 2000, kind: "assistant", text: ANSWER },

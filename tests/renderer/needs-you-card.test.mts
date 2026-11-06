@@ -18,7 +18,7 @@ const { ReturnFocusContext } = await import("../../src/renderer/focus.ts");
 /** A button's label, without the key hint beside it. */
 const labelOf = (button: HTMLElement) => [...button.childNodes].filter((node) => node.nodeName !== "KBD").map((node) => node.textContent).join("");
 
-const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, parentId: "lead" });
+const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1, parentId: "lead" });
 
 test("the Needs-you card pages through approvals and decisions and answers each", async () => {
   const decided: Array<[string, boolean]> = [];

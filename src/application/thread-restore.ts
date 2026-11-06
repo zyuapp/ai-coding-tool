@@ -2,15 +2,16 @@
 import { settleTurn, withSettledTurn } from "./run-settlement.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import type { Subagent } from "../domain/run.js";
-import { threadActivityAt, type Thread } from "../domain/thread.js";
-import type { StoredThread } from "../domain/thread-storage.js";
+import { threadLastOutputAt, type Thread } from "../domain/thread.js";
+import { rankedThread, type StoredThread } from "../domain/thread-storage.js";
 
 /** The threads the store kept, the subagents each was following, and those whose run the app quit under. */
 export function restoredThreads(stored: readonly StoredThread[]): { threads: Thread[]; subagents: Record<string, Subagent[]>; cutOff: Thread[] } {
   const subagents: Record<string, Subagent[]> = {};
   const cutOff: Thread[] = [];
-  const threads = stored.map(({ subagents: delegated, ...saved }) => {
-    if (delegated?.length) subagents[saved.id] = delegated.map(restoredSubagent);
+  const threads = stored.map(({ subagents: delegated, ...unranked }) => {
+    if (delegated?.length) subagents[unranked.id] = delegated.map(restoredSubagent);
+    const saved = rankedThread(unranked);
     const thread = restoredThread(saved);
     if (thread !== saved) cutOff.push(thread);
     return thread;
@@ -44,6 +45,6 @@ function restoredSubagent(subagent: Subagent): Subagent {
 function restoredThread(thread: Thread): Thread {
   if (!thread.runOpen) return thread;
   const { runOpen: _cutOff, ...rest } = thread;
-  const moved = Math.max(thread.updatedAt, threadActivityAt(thread), thread.report?.at ?? 0, thread.lastFindingAt ?? 0, thread.remoteLead?.backAt ?? 0, ...(thread.decisions ?? []).map((decision) => decision.raisedAt));
-  return { ...rest, runEndedAt: moved + 1, runEndedAs: "stopped" };
+  const moved = Math.max(thread.updatedAt, threadLastOutputAt(thread), thread.report?.at ?? 0, thread.lastFindingAt ?? 0, thread.remoteLead?.backAt ?? 0, ...(thread.decisions ?? []).map((decision) => decision.raisedAt));
+  return { ...rest, runEndedAt: moved + 1, rankedAt: moved + 1, runEndedAs: "stopped" };
 }

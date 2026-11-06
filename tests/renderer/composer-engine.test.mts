@@ -184,7 +184,7 @@ test("an idle Sol thread offers compact as an app slash command", async () => {
     const currentThread: Thread = {
       id: "task-1", title: "Sol thread", engine: "codex", model, executionPolicy: "confirm",
       messages: [], continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available",
-      contextUsage: { tokens: 125_000, limit: 272_000, model }, lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+      contextUsage: { tokens: 125_000, limit: 272_000, model }, lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
     };
     const view = deriveView({ ...emptyWorkspaceState(), threads: [currentThread], currentId: currentThread.id });
     return React.createElement(WorkspaceComposer, {
@@ -217,7 +217,7 @@ test("an idle Codex project thread opens review options from the slash menu", as
   const currentThread: Thread = {
     id: "task-1", title: "Codex thread", projectId: "project-1", engine: "codex", model: "gpt-5.6-terra", executionPolicy: "confirm",
     messages: [], continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available",
-    lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
   };
   const derived = deriveView({
     ...emptyWorkspaceState(),
@@ -279,7 +279,7 @@ test("the review picker reads branches from the thread's worktree", async () => 
   const currentThread: Thread = {
     id: "task-1", title: "Worktree review", projectId: "project-1", worktreeId: "worktree-1", engine: "codex", model: "gpt-5.6-terra", executionPolicy: "confirm",
     messages: [], continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available",
-    lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
   };
   const derived = deriveView({
     ...emptyWorkspaceState(),
@@ -305,7 +305,7 @@ test("clearing a goal targets its existing thread", async () => {
   window.desktop = composerDesktop();
   const currentThread: Thread = {
     id: "task-goal", title: "Goal", engine: "codex", model: "gpt-6.1-sol", executionPolicy: "confirm",
-    messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
   };
   const derived = deriveView({
     ...emptyWorkspaceState(),
@@ -333,7 +333,7 @@ test("clearing a goal targets its existing thread", async () => {
 test("another coordinator's Needs-you card opens on its first page", async () => {
   window.desktop = composerDesktop();
   const thread = (id: string): Thread => ({
-    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
   });
   const dispatch = async (_input: WorkspaceInput) => {};
   const render = (lead: Thread) => {

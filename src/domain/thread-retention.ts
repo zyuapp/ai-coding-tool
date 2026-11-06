@@ -16,7 +16,7 @@ export function archiveConsequence(running: boolean, phone = false): string {
 }
 
 /** Archiving keeps a thread recoverable for {@link ARCHIVE_RETENTION_MS}; the next launch drops what outlived that. */
-export function retainedThreads<T extends Thread>(threads: T[], at: number): T[] {
+export function retainedThreads<T extends Pick<Thread, "archivedAt">>(threads: T[], at: number): T[] {
   let retained: T[] | null = null;
   for (let index = 0; index < threads.length; index += 1) {
     const thread = threads[index]!;

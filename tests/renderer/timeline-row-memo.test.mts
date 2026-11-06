@@ -22,7 +22,7 @@ type Tail = { messageId: string; text: string };
 
 const thread: Thread = {
   id: "t1", title: "T", engine: "claude", executionPolicy: "confirm", continuationStatus: "none",
-  lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+  lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
   messages: [
     { id: "m0", at: 1000, kind: "user", text: "first" },
     { id: "m1", at: 2000, kind: "assistant", text: "settled answer" },

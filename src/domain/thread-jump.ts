@@ -14,7 +14,7 @@ export type ThreadJumpOption = {
   project: string | null;
   engine: AgentEngine;
   pullRequest: PullRequestLink | null;
-  lastActivityAt: number;
+  rankedAt: number;
 };
 
 /** How many rows the panel draws, which is also how far a query has to read. */

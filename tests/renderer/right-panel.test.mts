@@ -94,7 +94,7 @@ test("a side chat composes with everything the main composer has", async () => {
     messages: [],
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 1,
+    rankedAt: 1, updatedAt: 1,
     contextUsage: { tokens: 120_000, limit: 200_000, model: "claude-opus-5" },
   };
   type SideChatProps = React.ComponentProps<typeof SideChat>;

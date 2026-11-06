@@ -77,7 +77,7 @@ async function trial(number: number, scenario: Check[]) {
   const sessions = new Map<string, SessionStoreEntry[]>([[source, inheritedHistory(source, cwd)]]);
   const sideId = randomUUID();
   const state = emptyWorkspaceState();
-  state.threads = [{ id: parentId, title: "Demo sorter investigation", engine: "claude", executionPolicy: "autonomous", messages: [], continuationStatus: "available", updatedAt: 1, lastChangeSnapshot: { files: [], capturedAt: 1 } }];
+  state.threads = [{ id: parentId, title: "Demo sorter investigation", engine: "claude", executionPolicy: "autonomous", messages: [], continuationStatus: "available", rankedAt: 1, updatedAt: 1, lastChangeSnapshot: { files: [], capturedAt: 1 } }];
   const parent = state.threads[0];
   state.sideChats = [{ id: sideId, sourceThreadId: parentId, error: null }];
   state.subagents[parentId] = [{ id: "fixture-helper", description: "Investigate sorting", status: "working", startedAt: 1, activity: [] }];

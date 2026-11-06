@@ -17,7 +17,7 @@ function task(id: string, worktreeId?: string): Thread {
     messages: [],
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 1,
+    rankedAt: 1, updatedAt: 1,
     ...(worktreeId ? { worktreeId } : {}),
   };
 }

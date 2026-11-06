@@ -3,7 +3,7 @@ import type { PersistedSubagent, PersistedTask, TaskStoreDelta } from "../contra
 import type { Subagent, SubagentActivity } from "../domain/run.js";
 import type { Thread } from "../domain/thread.js";
 import { firstChangedMessage } from "../domain/conversation-updates.js";
-import type { ThreadStoreData } from "../domain/thread-storage.js";
+import { rankedThread, type ThreadStoreData } from "../domain/thread-storage.js";
 
 function persistedTask(thread: Thread): PersistedTask {
   const { messages: _messages, historySummary: _historySummary, ...record } = thread;
@@ -142,7 +142,7 @@ export function persistedStoreState(stored: ThreadStoreData): PersistenceState {
   const subagents: Record<string, Subagent[]> = {};
   for (const task of stored.tasks) if (task.subagents?.length) subagents[task.id] = task.subagents;
   return {
-    threads: stored.tasks,
+    threads: stored.tasks.map(rankedThread),
     subagents,
     sideChats: [],
     projects: stored.projects,

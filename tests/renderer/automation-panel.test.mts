@@ -266,7 +266,7 @@ test("removing a project retires the automations of every task it takes with it"
   const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
   const task = (id: string): Thread => ({
     id, title: id, projectId: project.id, engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
   });
   const desktop = fakeDesktop({
     loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [project], worktrees: [], tasks: [task("task-1"), task("task-2"), task("task-3")], lastFolder: project.root }),
