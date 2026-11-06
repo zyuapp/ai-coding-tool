@@ -5,7 +5,7 @@
  */
 import { supportsComputerCommand } from "../contracts/computer-capabilities.js";
 import type { AppCommand } from "../contracts/commands.js";
-import { AGENT_ENGINES, engineLabel, engineUpdate, type AgentEngine } from "../domain/agent-engine.js";
+import { AGENT_ENGINES, engineLabel, engineUpdate, isAgentEngine, type EngineReadiness } from "../domain/agent-engine.js";
 import type { AppBuild } from "../domain/app-update.js";
 import { compareVersions } from "../domain/engine-version.js";
 import type { PairedComputer } from "./computers.js";
@@ -17,9 +17,9 @@ export type UpkeepPart = { text: string; tone?: "live" | "quiet" | "progress" | 
 
 export type UpkeepAction = { label: string; command: AppCommand };
 
-/** One piece of software on that computer: the app, or an engine. */
+/** One piece of software on that computer: the app, or an engine by the id that computer names it by. */
 export type UpkeepItem = {
-  key: "app" | AgentEngine;
+  key: string;
   label: string;
   /** What it runs now, or null when that computer cannot say. */
   version: string | null;
@@ -67,19 +67,33 @@ function appItem(computer: PairedComputer, remote: WorkspaceState, own: AppBuild
   return { ...item, state: UP_TO_DATE, action: null };
 }
 
-/** Where an engine stands there: missing, too old to run, behind, or current, and whether the app can move it on. */
-function engineItem(computer: PairedComputer, remote: WorkspaceState, engine: AgentEngine): UpkeepItem {
-  const readiness = remote.engineStatus?.[engine];
-  const item = { key: engine, label: engineLabel(engine), version: readiness?.version ?? null };
+/**
+ * The engines that computer reports or is updating, by its own ids: the ones this build knows in their
+ * order, then any only a newer build knows. Until it has reported any, this build's own, to be checked.
+ */
+function reportedEngines(remote: WorkspaceState, status: Readonly<Partial<Record<string, EngineReadiness>>>): readonly string[] {
+  const reported: string[] = [...new Set([...Object.keys(status), ...remote.engineUpdating ? [remote.engineUpdating] : [], ...remote.engineUpdateQueue])];
+  if (!reported.length) return AGENT_ENGINES;
+  return [...AGENT_ENGINES.filter((engine) => reported.includes(engine)), ...reported.filter((engine) => !isAgentEngine(engine))];
+}
+
+/**
+ * Where an engine stands there: missing, too old to run, behind, or current, and whether the app can
+ * move it on. One only a newer build knows is named by its id and updated there.
+ */
+function engineItem(computer: PairedComputer, remote: WorkspaceState, status: Readonly<Partial<Record<string, EngineReadiness>>>, engine: string): UpkeepItem {
+  const readiness = status[engine];
+  const known = isAgentEngine(engine) ? engine : undefined;
+  const item = { key: engine, label: known ? engineLabel(known) : engine, version: readiness?.version ?? null };
   if (remote.engineUpdating === engine) return { ...item, state: { text: "Updating…", tone: "progress" }, action: null };
-  if (remote.engineUpdateQueue.includes(engine)) return { ...item, state: { text: "Waiting to update", tone: "progress" }, action: null };
+  if (remote.engineUpdateQueue.some((queued) => queued === engine)) return { ...item, state: { text: "Waiting to update", tone: "progress" }, action: null };
   if (!readiness) return { ...item, state: { text: "Checking…", tone: "quiet" }, action: null };
   if (readiness.access === "missing") return { ...item, state: { text: "Not installed", tone: "quiet" }, action: null };
   if (readiness.access === "unavailable") return { ...item, state: { text: "Won't start", tone: "error" }, action: null };
   const update = engineUpdate(readiness);
   if (!update) return { ...item, state: UP_TO_DATE, action: null };
-  const upgradable = Boolean(update.command) && supportsComputerCommand(computer.capabilities, { type: "engine.update", engine });
-  const action = upgradable ? { label: "Update", command: { type: "engine.update", engine, computerId: computer.id } as const } : null;
+  const upgradable = known !== undefined && Boolean(update.command) && supportsComputerCommand(computer.capabilities, { type: "engine.update", engine: known });
+  const action = upgradable ? { label: "Update", command: { type: "engine.update", engine: known, computerId: computer.id } as const } : null;
   const where = upgradable ? "" : " · update it there";
   if (readiness.required) {
     /** An engine too old to speak to stops its runs; one only behind hides newer models. */
@@ -108,7 +122,8 @@ export function computerUpkeep(paired: readonly PairedComputer[], own: AppBuild 
       return { id: computer.id, status, action: restarting ? null : { label: "Reconnect", command: { type: "computers.reconnect", id: computer.id } }, items: [] };
     }
     if (!remote) return { id: computer.id, status, action: null, items: [] };
-    return { id: computer.id, status, action: null, items: [appItem(computer, remote, own), ...AGENT_ENGINES.map((engine) => engineItem(computer, remote, engine))] };
+    const engines: Readonly<Partial<Record<string, EngineReadiness>>> = remote.engineStatus ?? {};
+    return { id: computer.id, status, action: null, items: [appItem(computer, remote, own), ...reportedEngines(remote, engines).map((engine) => engineItem(computer, remote, engines, engine))] };
   });
 }
 

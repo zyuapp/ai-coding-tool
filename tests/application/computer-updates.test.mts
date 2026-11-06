@@ -95,12 +95,23 @@ test("a paired computer's row lists its app and engines, each with where it stan
     Object.fromEntries(upkeep(remote, overrides).items.map((item) => [item.key, [item.version, item.state.text, item.action?.label]]));
   const app = (remote: Partial<WorkspaceState>, overrides: Partial<ComputerLink> = {}) => lines(remote, overrides).app;
 
-  assert.deepEqual(lines({ engineStatus: { claude: { access: "ready", version: "2.1.301" }, codex: { access: "missing" } } }), {
+  assert.deepEqual(lines({ engineStatus: { codex: { access: "missing" }, claude: { access: "ready", version: "2.1.301" } } }), {
     app: ["0.7.10", "Up to date", undefined],
     claude: ["2.1.301", "Up to date", undefined],
     codex: [null, "Not installed", undefined],
+  }, "a build that knows fewer engines lists only its own, never one it will not report");
+  assert.deepEqual(lines({ engineStatus: null }), {
+    app: ["0.7.10", "Up to date", undefined],
+    claude: [null, "Checking…", undefined],
+    codex: [null, "Checking…", undefined],
     opencode: [null, "Checking…", undefined],
-  });
+  }, "until it answers");
+  const newer = upkeep({ engineStatus: { gemini: { access: "ready", version: "1.0.0", latest: "1.1.0", fix: "npm i -g gemini" }, claude: { access: "ready", version: "2.1.301" } } as never });
+  assert.deepEqual(newer.items.map((item) => [item.key, item.label, item.state.text, item.action?.label]), [
+    ["app", "AI Coding Tool", "Up to date", undefined],
+    ["claude", "Claude", "Up to date", undefined],
+    ["gemini", "gemini", "1.1.0 available · update it there", undefined],
+  ], "an engine only a newer build knows is named by its id, after the ones this build knows, and updated there");
   assert.deepEqual(app({ appUpdate: available }), ["0.7.10", "0.7.11 available", "Update"]);
   assert.deepEqual(app({ appUpdate: available, activeRuns: { a: activeRun("a", "r") }, threads: [task("a")] }), ["0.7.10", "0.7.11 available · waits for 1 thread", "Update"]);
   assert.deepEqual(app({ appUpdate: ready, appUpdateRequest: { status: "waiting" }, activeRuns: { a: activeRun("a", "r"), b: activeRun("b", "s") } }), ["0.7.10", "Waiting for 2 threads", "Cancel"]);
