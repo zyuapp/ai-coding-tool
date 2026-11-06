@@ -1,5 +1,5 @@
 import { query, type PermissionMode, type Query, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import { ClaudeAgentProvider } from "../../src/main/agent/claude-agent-provider.mts";
+import { ClaudeAgentProvider } from "../../src/main/claude/claude-agent-provider.mts";
 import type { ProviderResult, ProviderRunInput } from "../../src/main/agent/agent-provider.mts";
 
 type QueryArguments = Parameters<typeof query>[0];

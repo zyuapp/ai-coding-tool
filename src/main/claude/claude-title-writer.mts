@@ -2,7 +2,7 @@ import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { claudeProcess } from "./claude-agent-provider.mjs";
-import { IMAGE_BYTE_LIMIT, TITLE_INSTRUCTIONS, TITLE_SCHEMA, readableImages, titleOf, titleQuestion } from "./title-text.mjs";
+import { IMAGE_BYTE_LIMIT, TITLE_INSTRUCTIONS, TITLE_SCHEMA, readableImages, titleOf, titleQuestion } from "../agent/title-text.mjs";
 
 type QueryFactory = typeof query;
 type ImageBlock = { type: "image"; source: { type: "base64"; media_type: "image/png"; data: string } };

@@ -1,7 +1,7 @@
 import type { AgentEngine, EngineReadiness } from "../../domain/agent-engine.js";
 import { isOlderThan } from "../../domain/engine-version.js";
 import { CODEX_PROTOCOL_VERSION } from "../codex/protocol/version.js";
-import { CLAUDE_BASELINE_VERSION } from "./claude-baseline.js";
+import { CLAUDE_BASELINE_VERSION } from "../claude/claude-baseline.js";
 import { installCommand, installedEngine, latestEngineVersion, type InstalledEngine } from "./engine-binary.mjs";
 
 /**
@@ -28,7 +28,7 @@ export async function versionReadiness(engine: AgentEngine, installed: Installed
 export async function readClaudeReadiness(): Promise<EngineReadiness> {
   const installed = await installedEngine("claude");
   if (!installed) return { access: "missing", fix: installCommand("claude") };
-  const { discoverClaudeModels } = await import("./claude-agent-provider.mjs");
+  const { discoverClaudeModels } = await import("../claude/claude-agent-provider.mjs");
   const [models, version] = await Promise.all([discoverClaudeModels(), versionReadiness("claude", installed, CLAUDE_BASELINE_VERSION)]);
   return { access: "ready", ...version, ...(models ? { models } : {}) };
 }

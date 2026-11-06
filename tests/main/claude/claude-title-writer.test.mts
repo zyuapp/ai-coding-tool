@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { query, type Options, type Query, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { test } from "vitest";
-import { suggestTaskTitle } from "../../../src/main/agent/title-writer.mts";
+import { suggestTaskTitle } from "../../../src/main/claude/claude-title-writer.mts";
 
 type QueryCapture = { prompt?: string | AsyncIterable<SDKUserMessage>; options?: Options; closed?: boolean };
 

@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { readVersion } from "../src/domain/engine-version.ts";
 
 const run = promisify(execFile);
-const target = path.resolve("src/main/agent/claude-baseline.ts");
+const target = path.resolve("src/main/claude/claude-baseline.ts");
 
 /**
  * The Claude Code the SDK ships. The app never runs it — it runs the one the user installed — but the

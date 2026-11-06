@@ -4,7 +4,7 @@ import { StreamableHTTPClientTransport, StreamableHTTPError } from "@modelcontex
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { afterEach, test } from "vitest";
-import { ClaudeAgentProvider } from "../../../src/main/agent/claude-agent-provider.mts";
+import { ClaudeAgentProvider } from "../../../src/main/claude/claude-agent-provider.mts";
 import type { AutomationBridge, BrowserBridge, FindingBridge, ProviderEvent, ProviderRunInput, TerminalBridge, ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
 import { runTools } from "../../../src/main/agent/run-tools.mts";
 import { browserTools } from "../../../src/main/tools/browser.mts";

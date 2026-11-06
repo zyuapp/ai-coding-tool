@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "vitest";
-import { claudeTranscriptMetadata, readClaudeSubagentMetadata } from "../../../src/main/agent/claude-subagent-metadata.mts";
+import { claudeTranscriptMetadata, readClaudeSubagentMetadata } from "../../../src/main/claude/claude-subagent-metadata.mts";
 
 const reply = (fields = {}) => ({ type: "assistant", agentId: "child", sessionId: "session", message: { model: "claude-opus-5" }, effort: "medium", ...fields });
 

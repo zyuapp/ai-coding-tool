@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import type { Options, Query, query } from "@anthropic-ai/claude-agent-sdk";
 import { test, vi } from "vitest";
-import { ClaudeAgentProvider, discoverClaudeCommands, discoverClaudeModels } from "../../../src/main/agent/claude-agent-provider.mts";
-import { readPlanUsage } from "../../../src/main/agent/plan-usage.mts";
-import { suggestTaskTitle } from "../../../src/main/agent/title-writer.mts";
+import { ClaudeAgentProvider, discoverClaudeCommands, discoverClaudeModels } from "../../../src/main/claude/claude-agent-provider.mts";
+import { readPlanUsage } from "../../../src/main/claude/claude-plan-usage.mts";
+import { suggestTaskTitle } from "../../../src/main/claude/claude-title-writer.mts";
 import { input } from "../../support/claude-session.mjs";
 
 test("every Claude process names this app in place of an inherited name and keeps the rest of the environment", async () => {

@@ -1,15 +1,15 @@
 import { query, type CanUseTool, type McpServerConfig, type ModelInfo, type Options, type Query, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
 import { BUILT_IN_MODELS, claudeEffort, modelTakesEffort, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import type { CoordinationRole } from "../../domain/coordination.js";
-import { engineBinaryPath } from "./engine-binary.mjs";
-import { continuationOf, type AgentProvider, type ProviderResult, type ProviderRunInput } from "./agent-provider.mjs";
-import { withheldTools } from "./channel-tools.mjs";
+import { engineBinaryPath } from "../agent/engine-binary.mjs";
+import { continuationOf, type AgentProvider, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
+import { withheldTools } from "../agent/channel-tools.mjs";
 import { claudeMcpServer } from "./claude-mcp-host.mjs";
 import { claudePermissionMode, ClaudeSession } from "./claude-session.mjs";
-import { grantsTool } from "./approval-grant.mjs";
-import { runBrief, type BriefDialect, type RunBrief } from "./run-brief.mjs";
-import { COORDINATOR_TOOLS } from "./coordination-instructions.mjs";
-import { SessionPool } from "./session-pool.mjs";
+import { grantsTool } from "../agent/approval-grant.mjs";
+import { runBrief, type BriefDialect, type RunBrief } from "../agent/run-brief.mjs";
+import { COORDINATOR_TOOLS } from "../agent/coordination-instructions.mjs";
+import { SessionPool } from "../agent/session-pool.mjs";
 import { APP_PLUGIN_NAME, appPluginRoot, unqualifiedSkillName } from "../app-plugin.mjs";
 
 type QueryFactory = typeof query;

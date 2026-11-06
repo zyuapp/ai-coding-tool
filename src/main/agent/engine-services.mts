@@ -25,10 +25,10 @@ export type EngineServices = {
 
 export const engineServices: Record<AgentEngine, EngineServices> = {
   claude: {
-    subagentMetadata: async (id, sessionId) => (await import("./claude-subagent-metadata.mjs")).readClaudeSubagentMetadata(id, sessionId),
-    commands: async ({ workspaceRoot, projectless }) => (await import("./claude-agent-provider.mjs")).discoverClaudeCommands(workspaceRoot, projectless),
-    suggestTitle: async (text, images) => (await import("./title-writer.mjs")).suggestTaskTitle(text, images),
-    planUsage: async () => (await import("./plan-usage.mjs")).readPlanUsage(),
+    subagentMetadata: async (id, sessionId) => (await import("../claude/claude-subagent-metadata.mjs")).readClaudeSubagentMetadata(id, sessionId),
+    commands: async ({ workspaceRoot, projectless }) => (await import("../claude/claude-agent-provider.mjs")).discoverClaudeCommands(workspaceRoot, projectless),
+    suggestTitle: async (text, images) => (await import("../claude/claude-title-writer.mjs")).suggestTaskTitle(text, images),
+    planUsage: async () => (await import("../claude/claude-plan-usage.mjs")).readPlanUsage(),
     readiness: async () => (await import("./engine-readiness.mjs")).readClaudeReadiness(),
     update: async () => (await import("./engine-binary.mjs")).upgradeEngine("claude"),
   },

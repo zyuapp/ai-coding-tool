@@ -30,5 +30,5 @@ export default [
   { files: ["**/*.tsx", "**/*.jsx"], languageOptions: typescript(true), rules: sizeRules },
   { files: ["**/*.js", "**/*.mjs", "**/*.cjs"], rules: sizeRules },
   /** Tool definitions belong to no host: a second engine must be able to serve them untouched. */
-  { files: ["src/main/tools/**"], rules: { "no-restricted-imports": ["error", { paths: [{ name: "@anthropic-ai/claude-agent-sdk", message: "Tool definitions are host-neutral; host them from src/main/agent." }] }] } },
+  { files: ["src/main/tools/**"], rules: { "no-restricted-imports": ["error", { paths: [{ name: "@anthropic-ai/claude-agent-sdk", message: "Tool definitions are host-neutral; host them from the engine that serves them." }] }] } },
 ];

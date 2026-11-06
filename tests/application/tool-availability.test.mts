@@ -5,7 +5,7 @@ import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/
 import { viewPreferences } from "../../src/application/view-preferences.ts";
 import type { InternalStartRunCommand } from "../../src/contracts/ipc.ts";
 import type { AgentProvider, BrowserBridge, ProviderResult, ProviderRunInput } from "../../src/main/agent/agent-provider.mts";
-import { ClaudeAgentProvider } from "../../src/main/agent/claude-agent-provider.mts";
+import { ClaudeAgentProvider } from "../../src/main/claude/claude-agent-provider.mts";
 import { RunCoordinator } from "../../src/main/agent/run-coordinator.mts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import { input, queryFactory, type QueryCapture } from "../support/claude-session.mjs";

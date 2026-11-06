@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { z } from "zod";
 import { BUILTIN_TOOL_NAMES, type Options } from "@anthropic-ai/claude-agent-sdk";
-import { ClaudeAgentProvider } from "../../../src/main/agent/claude-agent-provider.mts";
+import { ClaudeAgentProvider } from "../../../src/main/claude/claude-agent-provider.mts";
 import { codexConfig } from "../../../src/main/codex/codex-config.mts";
 import { codexPolicy } from "../../../src/main/codex/codex-policy.mts";
 import { runTools } from "../../../src/main/agent/run-tools.mts";

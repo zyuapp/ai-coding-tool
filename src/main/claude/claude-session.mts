@@ -3,14 +3,14 @@ import { BUILT_IN_MODELS, claudeEffort, contextWindowLimit, modelTakesEffort, ty
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, SubagentMetadata, SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { WorkflowReport } from "../../contracts/ipc.js";
 import type { UsageLimit } from "../../domain/usage-limit.js";
-import { continuationOf, type AgentTurn, type ProviderEvent, type ProviderResult, type ProviderRunInput, type SteerQueue, type ToolDecision } from "./agent-provider.mjs";
-import { SIDE_CHAT_BOUNDARY } from "./side-chat-instructions.mjs";
-import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
-import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "./markdown-buffer.mjs";
-import { grantsTool, toolReach } from "./approval-grant.mjs";
-import { BackgroundWork } from "./background-work.mjs";
-import { RunningTotals } from "./running-totals.mjs";
-import { TurnSlot, type SessionTurn } from "./session-turn.mjs";
+import { continuationOf, type AgentTurn, type ProviderEvent, type ProviderResult, type ProviderRunInput, type SteerQueue, type ToolDecision } from "../agent/agent-provider.mjs";
+import { SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
+import { parseWorkflowProgress, workflowProgressOf } from "../agent/workflow-progress.mjs";
+import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
+import { grantsTool, toolReach } from "../agent/approval-grant.mjs";
+import { BackgroundWork } from "../agent/background-work.mjs";
+import { RunningTotals } from "../agent/running-totals.mjs";
+import { TurnSlot, type SessionTurn } from "../agent/session-turn.mjs";
 
 /** The model the agent process stamps on replies it produced itself: slash commands, interrupts, error notices. */
 const SYNTHETIC_MODEL = "<synthetic>";

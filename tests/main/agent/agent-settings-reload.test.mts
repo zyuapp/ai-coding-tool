@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { SessionPool } from "../../../src/main/agent/session-pool.mts";
-import { ClaudeAgentProvider } from "../../../src/main/agent/claude-agent-provider.mts";
+import { ClaudeAgentProvider } from "../../../src/main/claude/claude-agent-provider.mts";
 import { harness, turn } from "../../support/codex-client.mts";
 import { poolQueryFactory, poolTurn, tick, type PoolCapture } from "../../support/claude-session.mts";
 

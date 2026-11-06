@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { test } from "vitest";
-import { ClaudeAgentProvider } from "../../../src/main/agent/claude-agent-provider.mts";
+import { ClaudeAgentProvider } from "../../../src/main/claude/claude-agent-provider.mts";
 import { RunCoordinator } from "../../../src/main/agent/run-coordinator.mts";
 import type { AgentEvent, InternalStartRunCommand } from "../../../src/contracts/ipc.ts";
 import { reduce } from "../../../src/application/workspace-reducer.ts";

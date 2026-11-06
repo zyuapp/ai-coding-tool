@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { formatReset, formatShare, planLabel, sessionAndWeek, tightestWindow, usageWarningKey, windowsFor, windowSpan, type PlanUsage } from "../../src/domain/plan-usage.ts";
-import { readPlanUsage, toPlanUsage } from "../../src/main/agent/plan-usage.mts";
+import { formatReset, formatShare, planLabel, sessionAndWeek, tightestWindow, usageWarningKey, windowsFor, windowSpan, type PlanUsage } from "../../../src/domain/plan-usage.ts";
+import { readPlanUsage, toPlanUsage } from "../../../src/main/claude/claude-plan-usage.mts";
 
 type QueryFactory = typeof import("@anthropic-ai/claude-agent-sdk").query;
 type QueryCall = Parameters<QueryFactory>[0];

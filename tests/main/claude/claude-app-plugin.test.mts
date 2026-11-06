@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Options, Query } from "@anthropic-ai/claude-agent-sdk";
 import { test } from "vitest";
-import { ClaudeAgentProvider, discoverClaudeCommands } from "../../../src/main/agent/claude-agent-provider.mts";
+import { ClaudeAgentProvider, discoverClaudeCommands } from "../../../src/main/claude/claude-agent-provider.mts";
 import { setAppPluginRoot } from "../../../src/main/app-plugin.mts";
 import { input, queryFactory, type QueryCapture } from "../../support/claude-session.mjs";
 

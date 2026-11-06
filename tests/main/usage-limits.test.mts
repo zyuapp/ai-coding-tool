@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { ClaudeAgentProvider } from "../../src/main/agent/claude-agent-provider.mts";
+import { ClaudeAgentProvider } from "../../src/main/claude/claude-agent-provider.mts";
 import { input as claudeInput, queryFactory } from "../support/claude-session.mjs";
 import { completeTurn, harness, input as codexInput, opened, sentBy } from "../support/codex-client.mjs";
 

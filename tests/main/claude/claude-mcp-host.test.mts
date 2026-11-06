@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { claudeMcpServer } from "../../../src/main/agent/claude-mcp-host.mts";
+import { claudeMcpServer } from "../../../src/main/claude/claude-mcp-host.mts";
 import { BROWSER_SERVER_NAME, browserTools } from "../../../src/main/tools/browser.mts";
 import type { BrowserBridge } from "../../../src/main/agent/agent-provider.mts";
 

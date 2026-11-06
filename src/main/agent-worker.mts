@@ -1,6 +1,6 @@
 import { isAutomationResponse, isInternalRunCommand, isThreadResponse, type AgentEvent, type AutomationRequest, type InternalRunCommand } from "../contracts/ipc.js";
 import type { ThreadRequest } from "../contracts/threads.js";
-import { ClaudeAgentProvider } from "./agent/claude-agent-provider.mjs";
+import { ClaudeAgentProvider } from "./claude/claude-agent-provider.mjs";
 import { AutomationChannel } from "./agent/automation-channel.mjs";
 import { EngineRouter } from "./agent/engine-router.mjs";
 import { CodexAgentProvider } from "./codex/codex-agent-provider.mjs";

@@ -3,7 +3,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { afterEach, test } from "vitest";
-import { ClaudeAgentProvider } from "../../../src/main/agent/claude-agent-provider.mts";
+import { ClaudeAgentProvider } from "../../../src/main/claude/claude-agent-provider.mts";
 import type { AutomationBridge, BrowserBridge, CoordinationBridge, FindingBridge, ProviderRunInput, TerminalBridge, ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
 import { input as claudeInput, liveQueryFactory, queryFactory, turn as claudeTurn, type LiveQueryCapture, type QueryCapture } from "../../support/claude-session.mjs";
 import { harness, turn as codexTurn } from "../../support/codex-client.mjs";
