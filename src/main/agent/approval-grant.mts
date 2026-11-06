@@ -4,7 +4,7 @@ import { AUTOMATION_SERVER_NAME } from "../tools/automation.mjs";
 import { BROWSER_SERVER_NAME, BROWSER_TOOLS } from "../tools/browser.mjs";
 import { COORDINATION_SERVER_NAME } from "../tools/coordination.mjs";
 import { THREAD_SERVER_NAME, THREAD_TOOLS } from "../tools/threads.mjs";
-import { readOnlyToolNames } from "./claude-mcp-host.mjs";
+import { readOnlyToolNames } from "../tools/tool-names.mjs";
 
 /** What a run may do, and where it is being read: together they decide what runs without asking. */
 export type ApprovalScope = { policy: ExecutionPolicy; channel: RunChannel };

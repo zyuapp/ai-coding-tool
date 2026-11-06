@@ -2,7 +2,7 @@ import type { ExecutionPolicy } from "../../domain/run.js";
 import type { CoordinationRole } from "../../domain/coordination.js";
 import type { RunChannel } from "../../contracts/ipc.js";
 import { grantsTool, toolReach } from "../agent/approval-grant.mjs";
-import { mcpToolName } from "../agent/claude-mcp-host.mjs";
+import { mcpToolName } from "../tools/tool-names.mjs";
 import type { ServedToolSet } from "../agent/run-tools.mjs";
 
 /** One OpenCode permission rule. Rules are read in order and the last that matches decides. */

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { AutomationBridge, BrowserBridge, FindingBridge, ProviderEvent, TerminalBridge, ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
 import { grantsTool, toolReach } from "../../../src/main/agent/approval-grant.mts";
-import { mcpToolName } from "../../../src/main/agent/claude-mcp-host.mts";
+import { mcpToolName } from "../../../src/main/tools/tool-names.mts";
 import { runTools } from "../../../src/main/agent/run-tools.mts";
 import type { ExecutionPolicy } from "../../../src/domain/run.ts";
 import { codexConfig, toml } from "../../../src/main/codex/codex-config.mts";

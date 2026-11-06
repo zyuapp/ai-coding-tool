@@ -1,7 +1,7 @@
 import { AUTOMATION_SERVER_NAME } from "../tools/automation.mjs";
 import { THREAD_SERVER_NAME } from "../tools/threads.mjs";
 import type { RunChannel } from "../../contracts/ipc.js";
-import { mcpToolName } from "./claude-mcp-host.mjs";
+import { mcpToolName } from "../tools/tool-names.mjs";
 
 /**
  * Asked through the UI instead, on every channel. A thread's checkout is the app's to keep, so it

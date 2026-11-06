@@ -1,5 +1,5 @@
 import { grantsTool, toolReach } from "../agent/approval-grant.mjs";
-import { mcpToolName } from "../agent/claude-mcp-host.mjs";
+import { mcpToolName } from "../tools/tool-names.mjs";
 import type { ProviderRunInput } from "../agent/agent-provider.mjs";
 import type { ServedToolSet } from "../agent/run-tools.mjs";
 import type { ServedTools } from "../tools/mcp-http-host.mjs";
