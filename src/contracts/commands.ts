@@ -290,7 +290,7 @@ export type WorktreeCommand =
 
 export type RunControlCommand =
   | { type: "run.cancel"; taskId?: string }
-  /** Compacts an idle Codex thread without adding a user message to it. */
+  /** Compacts an idle thread whose model compacts on request, without adding a user message to it. */
   | { type: "run.compact"; taskId?: string }
   | { type: "question.set-answer"; taskId: string; runId: string; requestId: string; questionId: string; text: string }
   | { type: "question.answer"; taskId: string; runId: string; requestId: string; questionId: string; text?: string }
@@ -302,7 +302,7 @@ export type RunControlCommand =
   /** Takes a thread paused by its usage limit out of line, so it stays where the limit left it. */
   | { type: "limit.cancel"; taskId: string };
 
-/** The native Codex review picker and the review turn it starts. */
+/** The review picker of an engine that reviews natively, and the review turn it starts. */
 export type ReviewCommand =
   | { type: "review.open"; taskId?: string }
   | { type: "review.close" }

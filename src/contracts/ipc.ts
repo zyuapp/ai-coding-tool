@@ -250,7 +250,7 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   installCli(): Promise<CliStatus>;
   uninstallCli(): Promise<CliStatus>;
   projectlessWorkspace(): Promise<WorkspaceRecord>;
-  /** What the "/" menu offers a thread on the engine: Claude's slash commands, or Codex's enabled skills. */
+  /** What the "/" menu offers a thread on the engine: its slash commands and enabled skills. */
   commands(workspaceId: WorkspaceId, engine: AgentEngine): Promise<CommandDiscoveryResult>;
   computerUsePermissions(): Promise<ComputerUsePermissions>;
   enableComputerUse(permission: ComputerUsePermission): Promise<ComputerUsePermissions>;

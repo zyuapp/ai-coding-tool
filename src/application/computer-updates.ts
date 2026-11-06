@@ -82,7 +82,7 @@ function engineItem(computer: PairedComputer, remote: WorkspaceState, engine: Ag
   const action = upgradable ? { label: "Update", command: { type: "engine.update", engine, computerId: computer.id } as const } : null;
   const where = upgradable ? "" : " · update it there";
   if (readiness.required) {
-    /** Codex too old stops its runs; Claude behind only hides newer models. */
+    /** An engine too old to speak to stops its runs; one only behind hides newer models. */
     const blocked = readiness.access === "outdated";
     return { ...item, state: { text: `Needs ${readiness.required} ${blocked ? "to run" : "for newer models"}${where}`, tone: blocked ? "error" : "offer" }, action };
   }

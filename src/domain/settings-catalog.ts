@@ -4,6 +4,10 @@
  */
 import { SETTINGS_SECTIONS, type SettingsSection } from "./settings-section.js";
 import { SHORTCUT_ACTIONS } from "./shortcuts.js";
+import { AGENT_ENGINES, engineLabel } from "./agent-engine.js";
+
+/** Every engine by name, so a page about engines answers to each. */
+const ENGINE_NAMES = AGENT_ENGINES.map((engine) => engineLabel(engine).toLowerCase()).join(" ");
 
 /** The name a page goes by, in the sidebar and in the jump panel alike. */
 export const SETTINGS_PAGE_LABELS: Record<SettingsSection, string> = {
@@ -24,7 +28,7 @@ const PAGE_KEYWORDS: Record<SettingsSection, string> = {
   general: "cli terminal command notifications chrome",
   appearance: "theme colours colors dark light font text size",
   usage: "plan limits quota tokens spend",
-  engines: "claude codex sign in account model provider",
+  engines: `${ENGINE_NAMES} sign in account model provider`,
   worktrees: "git branch checkout managed disk",
   shortcuts: "keyboard keys binding keystroke rebind",
   "computer-use": "accessibility screen recording permissions automation apps platform setup linux runtime wayland x11",
@@ -49,7 +53,7 @@ export const SETTINGS_CONTROLS = [
   { id: "general.updates", section: "general", label: "Updates", keywords: "check version release upgrade" },
   { id: "general.licenses", section: "general", label: "Open source licenses", keywords: "legal notices third party copyright" },
   { id: "usage.plan-limits", section: "usage", label: "Plan limits", keywords: "quota tokens spend session weekly reset" },
-  { id: "engines.installed", section: "engines", label: "Installed engines", keywords: "claude codex cli version update sign in install check" },
+  { id: "engines.installed", section: "engines", label: "Installed engines", keywords: `${ENGINE_NAMES} cli version update sign in install check` },
   { id: "engines.agent-settings", section: "engines", label: "Agent settings", keywords: "reload skills mcp hooks config apply" },
   { id: "appearance.theme", section: "appearance", label: "Colours", keywords: "theme colors palette dark light auto mode appearance" },
   { id: "appearance.ui-font", section: "appearance", label: "Interface", keywords: "font typeface family ui interface sans" },
