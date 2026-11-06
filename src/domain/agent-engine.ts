@@ -26,12 +26,12 @@ const EFFORTS = {
   low: { label: "Low" },
 } as const satisfies Record<AgentEffort, Omit<EffortSpec, "id">>;
 
-/** Deepest first. A clamp walks this to find the nearest effort a model will take. */
-const EFFORT_ORDER = Object.keys(EFFORTS) as readonly AgentEffort[];
+/** Every effort, deepest first. A clamp walks this to find the nearest effort a model will take. */
+export const AGENT_EFFORTS = Object.keys(EFFORTS) as readonly AgentEffort[];
 
 /** The named efforts as specs, always deepest first however they were named. */
 export function efforts(...ids: readonly AgentEffort[]): readonly EffortSpec[] {
-  return EFFORT_ORDER.filter((id) => ids.includes(id)).map((id) => ({ id, ...EFFORTS[id] }));
+  return AGENT_EFFORTS.filter((id) => ids.includes(id)).map((id) => ({ id, ...EFFORTS[id] }));
 }
 
 const EFFORTS_THROUGH_MAX = efforts("max", "xhigh", "high", "medium", "low");
@@ -268,7 +268,7 @@ export function engineNeedsAttention(status: EngineStatus | null): boolean {
   return AGENT_ENGINES.some((engine) => status?.[engine] && engineNotice(engine, status[engine]) !== null);
 }
 
-const EFFORT_IDS = new Set<string>(EFFORT_ORDER);
+const EFFORT_IDS = new Set<string>(AGENT_EFFORTS);
 
 type CatalogEntry = { engine: AgentEngine; spec: ModelSpec; efforts: readonly EffortSpec[]; coordinatorEfforts: readonly EffortSpec[] };
 
@@ -467,8 +467,8 @@ export function effortForModel(catalog: ModelCatalog, engine: AgentEngine, model
   if (!isAgentEffort(effort)) return effort;
   const offered = effortsFor(catalog, engine, model, role);
   if (offered.length === 0 || offered.some((spec) => spec.id === effort)) return effort;
-  const asked = EFFORT_ORDER.indexOf(effort);
-  return (offered.find((spec) => EFFORT_ORDER.indexOf(spec.id) >= asked) ?? offered[offered.length - 1]!).id;
+  const asked = AGENT_EFFORTS.indexOf(effort);
+  return (offered.find((spec) => AGENT_EFFORTS.indexOf(spec.id) >= asked) ?? offered[offered.length - 1]!).id;
 }
 
 /**

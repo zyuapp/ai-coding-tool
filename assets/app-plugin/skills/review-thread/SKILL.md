@@ -1,7 +1,7 @@
 ---
 name: review-thread
 description: Start a companion thread that reviews this thread's work, fix the real findings, and loop until the reviewer approves. Arguments name the reviewer's engine or model, its effort, and any review focus. Use when the user asks for a review thread, often with a model or effort, such as "review thread with sol xhigh".
-argument-hint: "[claude|codex|opencode|<model>] [<effort>] [focus]"
+argument-hint: "[<engine>|<model>] [<effort>] [focus]"
 ---
 
 # Review thread
@@ -12,8 +12,8 @@ Run a review loop with a separate AICodingTool thread. The reviewer reads and ju
 
 The words after `/review-thread`, in any order:
 
-- An engine (`claude`, `codex`, `opencode`) or a model id (`fable`, `opus`, `sonnet`, `haiku`, `gpt-6-astra`, `gpt-6.1-sol`, `gpt-5.6-terra`, `gpt-6-luna`, or an OpenCode model, by its picker id such as `openrouter/z-ai/glm-5.3-flash` or by its name such as `glm-5.3-flash`). Pass the user's word as `model` unchanged: a name several providers offer resolves to the one the user pinned, and is refused with its candidates otherwise, which you then put to the user. Pass an engine alone as the `model` of `start_thread`; it means that engine's default model. Omitted: the reviewer inherits this thread's model.
-- An effort (`low`, `medium`, `high`, `xhigh`, `max`, `ultra`). Omitted: the reviewer inherits this thread's effort.
+- An engine or a model: any that `start_thread`'s `model` field names, or any model in the app's model picker, by its id or by the name the picker shows. Pass the user's word as `model` unchanged: a name several providers offer resolves to the one the user pinned, and is refused with its candidates otherwise, which you then put to the user. Pass an engine alone as the `model` of `start_thread`; it means that engine's default model. Omitted: the reviewer inherits this thread's model.
+- An effort, one of those `start_thread`'s `effort` field takes. Omitted: the reviewer inherits this thread's effort.
 - Everything else is review focus, passed to the reviewer verbatim.
 
 ## 1. Define the work
@@ -30,7 +30,7 @@ Do not edit anything while a review round is running. The reviewer reads the wor
 
 ## 2. Start the reviewer
 
-Call `start_thread` once with `role: "reviewer"`, so the review stays in Threads unless it needs the user's approval. A reviewer starts on Auto, or on Bypass where its engine has no Auto (OpenCode), so its round never waits on an approval. Pass `model` and `effort` only when arguments named them. Do not pass `worktree` or `worktreeId`; the new thread starts in this thread's checkout. The prompt must stand alone. Use this template:
+Call `start_thread` once with `role: "reviewer"`, so the review stays in Threads unless it needs the user's approval. A reviewer starts on Auto, or on Bypass where its engine has no Auto, so its round never waits on an approval. Pass `model` and `effort` only when arguments named them. Do not pass `worktree` or `worktreeId`; the new thread starts in this thread's checkout. The prompt must stand alone. Use this template:
 
 ```
 You are the reviewer for another AICodingTool thread's work. Review only; never edit, commit, stash, or run formatters. Read the repository's AGENTS.md or CLAUDE.md first.

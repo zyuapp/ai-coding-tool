@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { MAX_ID_LENGTH, MAX_PROMPT_LENGTH, MAX_SEARCH_TEXT, MAX_THREAD_WAIT_MS } from "../../contracts/ipc.js";
 import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js";
-import { AGENT_ENGINES, BUILT_IN_MODELS, isAgentEffort, isModelId, modelDelegable, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine.js";
+import { AGENT_EFFORTS, AGENT_ENGINES, BUILT_IN_MODELS, isModelId, modelDelegable, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort } from "../../domain/run.js";
 import { THREAD_ROLES, type ThreadRole } from "../../domain/thread-role.js";
 import { DELIVERIES, MAX_BRIEF_FIELD, MAX_PROPOSAL_COMPUTER, MAX_PROPOSAL_PROJECT, MAX_PROPOSAL_TITLE, type CoordinationRole, type Delivery } from "../../domain/coordination.js";
@@ -26,9 +26,13 @@ const projectField = z.string().min(1).max(MAX_PROPOSAL_PROJECT).optional().desc
   "\"current\" (the default) for the project this thread belongs to, \"all\" for every project, or a project named by its folder name or its path.",
 );
 
-const builtIn = AGENT_ENGINES.flatMap((engine) => modelsFor(BUILT_IN_MODELS, engine).map((model) => ({ engine, model: model.id })));
+const builtIn = AGENT_ENGINES.flatMap((engine) => modelsFor(BUILT_IN_MODELS, engine).map((model) => ({ engine, model: model.id, label: model.label })));
 const modelIds = [...new Set(builtIn.map(({ model }) => model))];
-const effortIds = [...new Set(AGENT_ENGINES.flatMap((engine) => modelsFor(BUILT_IN_MODELS, engine).flatMap((model) => model.efforts.map((effort) => effort.id))))];
+/** An id with the name the picker gives it, where that name is not the id itself, so a caller told "sol" knows which id it is. */
+const namedId = (id: AgentModel) => {
+  const label = builtIn.find(({ model }) => model === id)?.label;
+  return label && label.toLowerCase() !== id ? `${id} (${label})` : id;
+};
 /**
  * Models an engine names for itself are only known to the window, which refuses one no engine
  * offers, so any well-formed id is taken here and the built-in ones are named to the caller.
@@ -36,7 +40,7 @@ const effortIds = [...new Set(AGENT_ENGINES.flatMap((engine) => modelsFor(BUILT_
 /** A name said with spaces, as "GLM 5.3 Flash", is taken hyphenated, which the window reads as the same name. */
 const modelFieldOf = (ids: AgentModel[], omitted: string) => z.string().trim().max(256).transform((name) => name.replace(/\s+/g, "-"))
   .refine((id) => isModelId(id) && (ids.includes(id) || !modelIds.includes(id)), "Not a model this thread can start on.").optional().describe(
-    `Model for the new thread: one of ${ids.join(", ")}; an engine (${AGENT_ENGINES.join(", ")}) for that engine's default model; or a model from the app's model picker, by its id such as openrouter/z-ai/glm-5.3-flash or by its name such as glm-5.3-flash, which resolves to the one the user pinned when several providers offer it. Omit to ${omitted}`,
+    `Model for the new thread: one of ${ids.map(namedId).join(", ")}; an engine (${AGENT_ENGINES.join(", ")}) for that engine's default model; or any other model in the app's model picker. Name a model by its id or by the name the picker shows; a name several providers offer resolves to the one the user pinned. Omit to ${omitted}`,
   );
 const modelField = modelFieldOf(modelIds, "inherit the calling thread's model.");
 /** A thread that will work under a coordinator never runs on a model one may not hand work to. */
@@ -46,7 +50,7 @@ const roleIds = THREAD_ROLES.map((option) => option.role);
 const roleField = z.enum(roleIds as [ThreadRole, ...ThreadRole[]]).optional().describe(
   "The part the new thread plays beside the others: coordinator, implementer, reviewer, or researcher. Set reviewer for review threads; a reviewer starts on Auto, or on Bypass where its engine has no Auto, and stays in Threads unless it needs the user's approval.",
 );
-const effortFieldOf = (omitted: string) => z.enum(effortIds as [AgentEffort, ...AgentEffort[]]).refine(isAgentEffort).optional().describe(
+const effortFieldOf = (omitted: string) => z.enum(AGENT_EFFORTS as [AgentEffort, ...AgentEffort[]]).optional().describe(
   `Effort for the new thread. Omit to ${omitted}`,
 );
 const effortField = effortFieldOf("inherit the calling thread's effort when the selected model supports it, otherwise use that engine's default.");

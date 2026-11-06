@@ -143,6 +143,8 @@ test("a coordinator and its threads are not offered Haiku for a thread they star
   assert.match(said({ coordinationRole: "coordinator", coordination }), /Omit to run it on the model this coordinator's threads run on/);
   assert.match(said({ coordinationRole: "member", coordination }), /Omit to run it on the model your coordinator's threads run on/);
   assert.match(said({}), /Omit to inherit the calling thread's model/);
+  assert.match(said({}), /gpt-6\.1-sol \(Sol\)/, "a model is named with the name the picker gives it, so a caller told that name knows the model");
+  assert.equal(accepts({}, "sol"), true);
 });
 
 test("a coordinator's start_thread and propose_threads name a paired computer, which the user allows the thread on", async () => {
