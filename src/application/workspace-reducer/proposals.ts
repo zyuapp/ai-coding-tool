@@ -133,7 +133,8 @@ function startProposal(state: WorkspaceState, leadId: string, proposalId: string
   const retried = withProposalFailure(state, leadId, proposalId, undefined);
   const lead = retried.threads.find((item) => item.id === leadId)!;
   const proposal = lead.proposals!.find((item) => item.id === proposalId)!;
-  const start = newThreadSend(retried, lead, proposalSend(proposal), null);
+  const send = proposalSend(proposal);
+  const start = "error" in send ? send : newThreadSend(retried, lead, send, null);
   if ("error" in start || start.elsewhere) {
     const message = "error" in start ? start.error : "Its project is no longer on this computer.";
     return settled(withProposalFailure(retried, leadId, proposalId, message), [], { ok: false, message });
@@ -171,7 +172,8 @@ function startElsewhere(state: WorkspaceState, leadId: string, proposalId: strin
   const asker = proposal.from ? retried.threads.find((item) => item.id === proposal.from && coordinatorOf(retried.threads, item) === lead) : undefined;
   if (proposal.from && !asker) return refused(ASKER_GONE);
   const caller = asker ?? lead;
-  const start = newThreadSend(retried, caller, proposalSend({ ...proposal, place }), computer);
+  const asked = proposalSend({ ...proposal, place });
+  const start = "error" in asked ? asked : newThreadSend(retried, caller, asked, computer);
   if ("error" in start) return refused(start.error);
   const { command } = start;
   const name = retried.computers.name || "another computer";

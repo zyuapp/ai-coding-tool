@@ -11,7 +11,7 @@ import { wantsAttention } from "./attention.js";
 import type { AgentEffort } from "./run.js";
 import type { ThreadOutcome } from "./thread-run.js";
 import { isThreadRole, type ThreadRole } from "./thread-role.js";
-import { defaultEffortFor, defaultModelIn, effortForModel, engineHasModel, isAgentEffort, isAgentEngine, isModelId, modelDelegable, modelEngine, modelTakesEffort, threadModel, type AgentEngine, type AgentModel, type ModelCatalog } from "./agent-engine.js";
+import { defaultEffortFor, defaultModelIn, effortForModel, engineHasModel, isAgentEffort, isAgentEngine, isModelId, modelDelegable, modelEngine, modelTakesEffort, threadModel, type AgentEngine, type AgentModel, type EngineId, type ModelCatalog } from "./agent-engine.js";
 
 /** A coordinator's run delegates and changes no files; a thread under one reports back to it. */
 export type CoordinationRole = "coordinator" | "member";
@@ -198,8 +198,8 @@ export type ThreadProposal = {
   prompt: string;
   brief?: ThreadBrief;
   place: ProposalPlace;
-  /** The engine `model` runs on, when it was resolved to one. */
-  engine?: AgentEngine;
+  /** The engine `model` runs on, when it was resolved to one: on another computer's thread, one this build may not know. */
+  engine?: EngineId;
   model?: AgentModel;
   effort?: AgentEffort;
   role?: ThreadRole;

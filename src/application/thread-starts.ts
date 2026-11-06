@@ -153,9 +153,11 @@ function elsewherePlace(state: WorkspaceState, caller: Thread, computer: PairedC
 /**
  * The send a suggestion asks for, as the lead would have started it, in the place it was suggested
  * for, and named what the suggestion was called when that was given rather than read from its prompt.
+ * A refusal for one on an engine this build does not know.
  */
-export function proposalSend(proposal: ThreadProposal): NewThreadSend {
-  const { place } = proposal;
+export function proposalSend(proposal: ThreadProposal): NewThreadSend | { error: string } {
+  const { place, engine } = proposal;
+  if (engine !== undefined && !isAgentEngine(engine)) return { error: `This version can't start threads on ${engine}. Update to start it here.` };
   return {
     type: "task.send",
     text: proposal.prompt,
@@ -164,7 +166,7 @@ export function proposalSend(proposal: ThreadProposal): NewThreadSend {
     ...(place.project === undefined ? {} : { project: place.project }),
     ...(place.worktreeId ? { worktreeId: place.worktreeId } : place.worktree === undefined ? {} : { worktree: place.worktree }),
     ...(proposal.model ? { model: proposal.model } : {}),
-    ...(proposal.engine ? { engine: proposal.engine } : {}),
+    ...(engine ? { engine } : {}),
     ...(proposal.effort ? { effort: proposal.effort } : {}),
     ...(proposal.role ? { role: proposal.role } : {}),
   };

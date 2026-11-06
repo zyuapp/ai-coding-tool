@@ -59,10 +59,10 @@ test("older collection records get required-field defaults while identity and un
 test("a newer build's model, effort, mode or engine is kept as it was sent, and only marks this build has none for are left out", () => {
   const read = createRemoteWorkspaceReader();
   const known = task("known", { role: "coordinator", model: "opus", effort: "high" });
-  const proposal = (id: string, model?: string) => ({ id, title: `S ${id}`, prompt: "Do it", place: { worktree: false }, proposedAt: 1, ...(model ? { model } : {}) });
+  const proposal = (id: string, model?: string, engine?: unknown) => ({ id, title: `S ${id}`, prompt: "Do it", place: { worktree: false }, proposedAt: 1, ...(model ? { model } : {}), ...(engine === undefined ? {} : { engine }) });
   const wire = { ...emptyWorkspaceState(), threads: [
     known,
-    task("newer", { role: "designer", model: "opus-next", effort: "galaxy", outcome: "celebrated", executionPolicy: "yolo", threadModel: { model: "opus-next" }, proposals: [proposal("p1"), proposal("p2", "opus-next")] } as never),
+    task("newer", { role: "designer", model: "opus-next", effort: "galaxy", outcome: "celebrated", executionPolicy: "yolo", threadModel: { model: "opus-next" }, proposals: [proposal("p1"), proposal("p2", "opus-next"), proposal("p3", "gemini-next", "gemini"), proposal("p4", "opus", 7)] } as never),
     task("elsewhere", { engine: "gemini" } as never),
   ] };
   const { threads } = read(wire);
@@ -71,7 +71,8 @@ test("a newer build's model, effort, mode or engine is kept as it was sent, and 
   const newer = threads[1]!;
   assert.deepEqual([newer.role, newer.outcome], [undefined, undefined], "a role or verdict this build has no mark for is left out");
   assert.deepEqual([newer.model, newer.effort, newer.executionPolicy, newer.threadModel?.model], ["opus-next", "galaxy", "yolo", "opus-next"], "what it runs on is kept as sent, never swapped for this build's defaults");
-  assert.deepEqual(newer.proposals?.map((item) => item.id), ["p1", "p2"], "a suggestion naming a model this build does not know is still shown");
+  assert.deepEqual(newer.proposals?.map((item) => item.id), ["p1", "p2", "p3"], "a suggestion naming a model or engine this build does not know is still shown, and one it cannot read is left out");
+  assert.equal(newer.proposals?.[2]?.engine, "gemini", "with its engine as sent");
   assert.equal(threads[2]!.engine, "gemini");
   assert.equal(read({ ...wire }).threads, threads, "and the list is read once while it does not move");
 });

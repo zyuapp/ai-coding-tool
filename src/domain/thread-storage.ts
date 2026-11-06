@@ -578,7 +578,7 @@ function withoutUnreadableFields(value: unknown, asSent: ReadonlySet<string> = N
  * is kept as it was sent, for the window to show as it is and leave alone, never swapped for a value
  * of this build's own. A model the catalogue has renamed is read under its new name, as storage reads
  * it; a field or list item whose shape this build cannot read at all is left out, a suggestion only
- * for its shape and not for naming a model this build does not know; and a role or verdict this build
+ * for its shape and not for naming an engine or model this build does not know; and a role or verdict this build
  * has no mark for is left out. The thread itself while it holds nothing to leave out.
  */
 export function readableRemoteThread(thread: Thread): Thread {
@@ -589,7 +589,7 @@ export function readableRemoteThread(thread: Thread): Thread {
   };
   if (read.threadModel !== undefined && !(isRecord(read.threadModel) && typeof read.threadModel.model === "string")) without("threadModel");
   if (read.proposals !== undefined) {
-    const shown = Array.isArray(read.proposals) ? read.proposals.filter((proposal) => isRecord(proposal) && isThreadProposal({ ...proposal, model: undefined, effort: undefined })) : [];
+    const shown = Array.isArray(read.proposals) ? read.proposals.filter((proposal) => isRecord(proposal) && (proposal.engine === undefined || typeof proposal.engine === "string") && isThreadProposal({ ...proposal, engine: undefined, model: undefined, effort: undefined })) : [];
     if (!shown.length) without("proposals");
     else if (shown.length !== read.proposals.length) read = { ...read, proposals: shown };
   }

@@ -120,14 +120,18 @@ test("a suggestion is checked as its start would be, and kept in the place that 
   assert.deepEqual(proposalSend(kept({ model: "gpt-6-luna", effort: "low", role: "reviewer" })), {
     type: "task.send", text: "Fix it", title: "Fix login", brief: BRIEF, project: PROJECT.id, worktreeId: "wt-lead", engine: "codex", model: "gpt-6-luna", effort: "low", role: "reviewer",
   });
-  assert.deepEqual(started(newThreadSend(state, lead, proposalSend(plain), null)), started(newThreadSend(state, lead, send({ brief: BRIEF, title: "Fix login" }))), "a suggestion starts as the coordinator would have started it");
+  const plainSend = proposalSend(plain);
+  assert.ok(!("error" in plainSend));
+  assert.deepEqual(started(newThreadSend(state, lead, plainSend, null)), started(newThreadSend(state, lead, send({ brief: BRIEF, title: "Fix login" }))), "a suggestion starts as the coordinator would have started it");
+  assert.deepEqual(proposalSend({ ...plain, engine: "gemini" }), { error: "This version can't start threads on gemini. Update to start it here." }, "one on an engine this build does not know is refused, not started on another");
 
   /** One asked for without a title is labelled by its prompt, and starts unnamed so its name is written for it. */
   const untitled = threadProposal(state, lead, { prompt: "Fix the login form", brief: BRIEF }, 5);
   assert.ok(!("error" in untitled), "error" in untitled ? untitled.error : "");
   assert.equal(untitled.proposal.title, "Fix the login form");
   assert.equal(untitled.proposal.named, undefined);
-  assert.equal(proposalSend(untitled.proposal).title, undefined);
+  const untitledSend = proposalSend(untitled.proposal);
+  assert.ok(!("error" in untitledSend) && untitledSend.title === undefined);
 });
 
 test("a thread asked for on a paired computer waits in the project there its start resolves to", () => {

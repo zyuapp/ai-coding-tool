@@ -551,8 +551,8 @@ export function unopenableEngine(engine: EngineId): string {
  * A model by the name the composer gives it, or by its id for one the catalogue does not hold, such as
  * one a paired computer's newer build ran. With no engine named, it is the name the first engine offering it gives it.
  */
-export function modelLabel(catalog: ModelCatalog, engine: AgentEngine | undefined, model: string): string {
-  return (engine === undefined ? catalog.byId.get(model)?.[0] : entryOf(catalog, engine, model))?.spec.label ?? model;
+export function modelLabel(catalog: ModelCatalog, engine: EngineId | undefined, model: string): string {
+  return (engine === undefined ? catalog.byId.get(model)?.[0] : isAgentEngine(engine) ? entryOf(catalog, engine, model) : undefined)?.spec.label ?? model;
 }
 
 /** One value per engine, built now so a picker reads a stable list instead of building one per render. */
