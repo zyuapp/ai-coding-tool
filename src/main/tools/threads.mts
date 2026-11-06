@@ -42,7 +42,7 @@ const modelField = modelFieldOf(modelIds, "inherit the calling thread's model.")
 const delegableModelField = (omitted: string) => modelFieldOf(modelIds.filter((model) => modelDelegable(BUILT_IN_MODELS, model)), omitted);
 const roleIds = THREAD_ROLES.map((option) => option.role);
 const roleField = z.enum(roleIds as [ThreadRole, ...ThreadRole[]]).optional().describe(
-  "The part the new thread plays beside the others: coordinator, implementer, reviewer, or researcher. Set reviewer for review threads; they stay in Threads unless awaiting the user's approval.",
+  "The part the new thread plays beside the others: coordinator, implementer, reviewer, or researcher. Set reviewer for review threads; a reviewer starts unasked, since a round that waited on approvals would stall, and stays in Threads unless it needs the user's approval.",
 );
 const effortFieldOf = (omitted: string) => z.enum(effortIds as [AgentEffort, ...AgentEffort[]]).refine(isAgentEffort).optional().describe(
   `Effort for the new thread. Omit to ${omitted}`,
@@ -215,7 +215,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
   defineTool({
     name: "start_thread",
-    description: "Start a new AICodingTool thread on its own prompt and run it. Use when the user asks for separate pieces of work to run side by side, one thread per piece. The new thread runs with the permission policy the app is set to on the computer it runs on, so write a prompt that stands on its own. It starts in this thread's checkout, worktree included. Pass worktree to give it an isolated checkout instead, which is what you want when it edits the same files as this thread.",
+    description: "Start a new AICodingTool thread on its own prompt and run it. Use when the user asks for separate pieces of work to run side by side, one thread per piece. The new thread runs with the permission policy the app is set to on the computer it runs on, except a reviewer, which starts unasked; write a prompt that stands on its own. It starts in this thread's checkout, worktree included. Pass worktree to give it an isolated checkout instead, which is what you want when it edits the same files as this thread.",
     input: START_INPUT,
     readOnly: false,
     run: ({ bridge, now }, args) => report(async () => {

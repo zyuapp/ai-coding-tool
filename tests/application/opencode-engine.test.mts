@@ -55,6 +55,15 @@ test("a thread on OpenCode starts on its model, the effort it takes, and a mode 
   assert.deepEqual(started.effects.find((effect) => effect.type === "suggest-title"), { type: "suggest-title", taskId: started.state.threads[0]!.id, engine: "opencode", model: "openrouter/z-ai/glm-5.3-flash", text: "Fix the flaky test", attachments: [] });
 });
 
+test("a reviewer on OpenCode runs on Bypass, since a mode that asks for each look would stall its round", () => {
+  const read = reduce(workspace({ draftPolicy: "autonomous" }), { type: "engine.status", status }).state;
+  const picked = reduce(read, { type: "task.set-model", engine: "opencode", model: "openrouter/z-ai/glm-5.3-flash" }).state;
+  const sending = reduce(picked, { type: "task.send", text: "Review the diff", attachments: [], role: "reviewer" });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: projectless });
+  assert.equal(started.state.threads[0]?.executionPolicy, "bypass");
+  assert.equal(effectAt(started, "start-run").command.policy, "bypass");
+});
+
 test("a stored OpenCode thread on Auto runs on Edits, and its view shows the model by name once main has named it", () => {
   const thread = task("task-a", { engine: "opencode", model: "openrouter/z-ai/glm-5.3-flash", executionPolicy: "autonomous", messages: [{ id: "m", kind: "user", text: "hi", at: 1 }] });
   const state = reduce(workspace({ threads: [thread], currentId: "task-a" }), { type: "engine.status", status }).state;

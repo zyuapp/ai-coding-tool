@@ -664,6 +664,15 @@ test("a role named on a send belongs to the thread it creates, never to one that
   assert.equal(again.state.threads[0].role, "reviewer");
 });
 
+test("a reviewer runs unasked whatever mode this thread is in, so a round never waits on an approval", () => {
+  for (const draftPolicy of ["confirm", "plan", "autonomous", "bypass"] as const) {
+    const sending = reduce(workspace({ draftPolicy }), { type: "task.send", text: "Review the diff", attachments: [], role: "reviewer" });
+    const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+    assert.equal(started.state.threads[0].executionPolicy, "bypass", `a reviewer started on ${draftPolicy}`);
+    assert.equal(effectAt(started, "start-run").command.policy, "bypass", "and its first run runs that way too");
+  }
+});
+
 test("a draft made a coordinator starts as one, and the next draft starts without a role", () => {
   const drafted = reduce(workspace(), { type: "task.set-role", role: "coordinator" }).state;
   assert.equal(drafted.draftRole, "coordinator");
