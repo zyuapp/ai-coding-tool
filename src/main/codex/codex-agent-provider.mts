@@ -1,6 +1,6 @@
 import type { Continuation } from "../../domain/run.js";
 import type { CoordinationRole } from "../../domain/coordination.js";
-import type { AgentProvider, ProviderResult, ProviderRunInput } from "../agent/agent-provider.mjs";
+import { handleFor, type AgentProvider, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { grantsTool } from "../agent/approval-grant.mjs";
 import { SessionPool } from "../agent/session-pool.mjs";
 import { McpHttpHost, type ToolHost } from "../tools/mcp-http-host.mjs";
@@ -98,14 +98,15 @@ export class CodexAgentProvider implements AgentProvider {
    * archived before Codex named it is filed under the name its session ends up with.
    */
   archiveThread(taskId: string, continuation: Continuation | undefined, archived: boolean) {
-    if (continuation && continuation.provider !== "codex") return false;
+    const handle = handleFor(continuation, "codex");
+    if (continuation && !handle) return false;
     const session = this.pool.liveSession(taskId);
-    if (!continuation && !(archived && session instanceof CodexSession)) return false;
+    if (!handle && !(archived && session instanceof CodexSession)) return false;
     const previous = this.filings.get(taskId) ?? Promise.resolve();
     const filing = previous
       .then(() => archived ? this.pool.retire(taskId) : undefined)
       .then(() => {
-        const threadId = continuation?.value ?? (session as CodexSession).threadId;
+        const threadId = handle ?? (session as CodexSession).threadId;
         return threadId ? fileThread(this.connect, threadId, archived) : undefined;
       })
       .catch(() => {})

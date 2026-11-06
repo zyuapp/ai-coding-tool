@@ -1,3 +1,5 @@
+import type { EngineId } from "./agent-engine.js";
+
 export type ExecutionPolicy = "confirm" | "plan" | "allow-edits" | "autonomous" | "bypass";
 
 /** How a mode reads wherever it is named, so one setting means one thing on every screen. */
@@ -16,8 +18,9 @@ export const POLICY_CHOICES: readonly ExecutionPolicy[] = ["autonomous", "bypass
 export type AgentEffort = "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
 export const DEFAULT_EFFORT: AgentEffort = "high";
 
+/** An engine's own handle on a thread, named by the engine that made it. */
 export type Continuation = {
-  provider: string;
+  provider: EngineId;
   value: string;
 };
 

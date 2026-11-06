@@ -158,9 +158,14 @@ export type ProviderResult = {
   limit?: UsageLimit;
 };
 
-/** The engine's own handle on the thread; another engine's continuation means nothing to it. */
+/** The handle a continuation holds for `engine`; another engine's continuation means nothing to it. */
+export function handleFor(continuation: Continuation | undefined, engine: AgentEngine) {
+  return continuation?.provider === engine ? continuation.value : undefined;
+}
+
+/** The run's engine's own handle on the thread. */
 export function continuationOf(input: ProviderRunInput) {
-  return input.continuation?.provider === input.engine ? input.continuation.value : undefined;
+  return handleFor(input.continuation, input.engine);
 }
 
 export interface AgentProvider {

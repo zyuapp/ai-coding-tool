@@ -63,3 +63,17 @@ test("a role change asks every engine, since either may hold the thread's sessio
   new EngineRouter({ claude: engine("claude", log), codex: engine("codex", log), opencode: engine("opencode", log) }).retireOutOfRole("task-a", "coordinator");
   assert.deepEqual(log, ["claude:role:task-a:coordinator", "codex:role:task-a:coordinator", "opencode:role:task-a:coordinator"]);
 });
+
+test("an archive goes to the engine that made the thread's continuation, and one with none yet asks each", () => {
+  const log: string[] = [];
+  const router = new EngineRouter({ claude: engine("claude", log), codex: engine("codex", log), opencode: engine("opencode", log) });
+  assert.equal(router.archiveThread("task-o", { provider: "opencode", value: "ses_1" }, true), true);
+  assert.equal(router.archiveThread("task-g", { provider: "gemini", value: "g-1" }, true), false, "an engine this build does not run files nothing");
+  assert.equal(router.archiveThread("task-n", undefined, true), false);
+  assert.deepEqual(log, [
+    "opencode:archive:task-o:true:true",
+    "claude:archive:task-n:true:false",
+    "codex:archive:task-n:true:false",
+    "opencode:archive:task-n:true:false",
+  ]);
+});

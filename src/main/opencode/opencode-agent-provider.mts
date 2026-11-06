@@ -1,6 +1,6 @@
 import type { Continuation } from "../../domain/run.js";
 import type { CoordinationRole } from "../../domain/coordination.js";
-import type { AgentProvider, ProviderResult, ProviderRunInput } from "../agent/agent-provider.mjs";
+import { handleFor, type AgentProvider, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { SessionPool } from "../agent/session-pool.mjs";
 import { McpHttpHost, type ToolHost } from "../tools/mcp-http-host.mjs";
 import { openCodeBrief } from "./opencode-instructions.mjs";
@@ -65,10 +65,11 @@ export class OpenCodeAgentProvider implements AgentProvider {
    * goes with it. Filings of one thread land in the order asked.
    */
   archiveThread(taskId: string, continuation: Continuation | undefined, archived: boolean) {
-    if (continuation && continuation.provider !== "opencode") return false;
+    const handle = handleFor(continuation, "opencode");
+    if (continuation && !handle) return false;
     const live = this.pool.liveSession(taskId);
     const session = live instanceof OpenCodeSession ? live : undefined;
-    const sessionId = continuation?.value ?? session?.sessionId;
+    const sessionId = handle ?? session?.sessionId;
     if (!sessionId) return false;
     const previous = this.filings.get(taskId) ?? Promise.resolve();
     const filing = previous
