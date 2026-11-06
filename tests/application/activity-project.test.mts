@@ -17,7 +17,6 @@ function withComputers(state: WorkspaceState, computers: PairedComputer[]): Work
 
 test("a coordinator stays in a narrowed list while a thread under it works in the project", () => {
   const state = workspace({
-    sidebarMode: "activity",
     projects: [{ id: "web", root: "/work/web" }, { id: "api", root: "/work/api" }],
     threads: [
       task("lead", { role: "coordinator", outcome: "finished" }),
@@ -37,7 +36,6 @@ test("the activity lists narrow to one project, a paired computer's included, an
     threads: [task("remote-done", { projectId: "remote-project", outcome: "finished" }), task("remote-chat", { outcome: "finished" })],
   });
   const local = workspace({
-    sidebarMode: "activity",
     projects: [{ id: "web", root: "/work/web" }, { id: "api", root: "/work/api" }],
     threads: [task("web-done", { projectId: "web", outcome: "finished" }), task("api-done", { projectId: "api", outcome: "finished" })],
   });

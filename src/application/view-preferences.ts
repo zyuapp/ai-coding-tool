@@ -8,7 +8,7 @@ import { MAX_DISCARDED_LEADS } from "./computers.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import { shortcutAction, shortcutOverrides, shortcutProblem, type ShortcutOverrides } from "../domain/shortcuts.js";
 import { OPEN_SUBAGENT_GROUPS, SUBAGENT_GROUPS, type SubagentGroups } from "../domain/run.js";
-import { OPEN_SIDEBAR_SECTIONS, SIDEBAR_SECTIONS, isSidebarMode, type SidebarSections } from "../domain/sidebar.js";
+import { OPEN_SIDEBAR_SECTIONS, SIDEBAR_SECTIONS, type SidebarSections } from "../domain/sidebar.js";
 import { isThemeMode, themeById, themeModeOrDefault, themeOrDefault } from "../domain/theme.js";
 import { READING_SIZE, TERMINAL_SIZE, monoFontById, monoFontOrDefault, sizeById, sizeOrDefault, uiFontById, uiFontOrDefault } from "../domain/typography.js";
 
@@ -115,7 +115,6 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
       ...(typeof value.notifications === "boolean" ? { notifications: value.notifications } : {}),
       ...(typeof value.captureFocus === "boolean" ? { captureFocus: value.captureFocus } : {}),
       ...(typeof value.sidebarOpen === "boolean" ? { sidebarOpen: value.sidebarOpen } : {}),
-      ...(isSidebarMode(value.sidebarMode) ? { sidebarMode: value.sidebarMode } : {}),
       ...(typeof value.activityProject === "string" && value.activityProject ? { activityProject: value.activityProject } : {}),
       ...(folds ? { sections: folds } : {}),
       ...(groups ? { subagentGroups: groups } : {}),
@@ -165,7 +164,6 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
     browserTools: state.browserTools,
     notifications: state.notifications,
     sidebarOpen: state.sidebarOpen,
-    sidebarMode: state.sidebarMode,
     ...(state.activityProject ? { activityProject: state.activityProject } : {}),
     sections: state.sections,
     subagentGroups: state.subagentGroups,
@@ -197,7 +195,6 @@ export function viewPreferenceState(preferences: ViewPreferences) {
     browserTools: preferences.browserTools ?? true,
     notifications: preferences.notifications ?? true,
     sidebarOpen: preferences.sidebarOpen,
-    sidebarMode: preferences.sidebarMode,
     activityProject: preferences.activityProject ?? null,
     sections: preferences.sections ?? OPEN_SIDEBAR_SECTIONS,
     subagentGroups: preferences.subagentGroups ?? OPEN_SUBAGENT_GROUPS,

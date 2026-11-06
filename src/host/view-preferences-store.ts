@@ -24,7 +24,6 @@ export function loadViewPreferences(storage: KeyValueStorage, viewportWidth?: nu
     browserTools: stored.browserTools ?? true,
     notifications: stored.notifications ?? true,
     sidebarOpen: stored.sidebarOpen ?? (viewportWidth === undefined || viewportWidth >= 900),
-    sidebarMode: stored.sidebarMode ?? "projects",
     ...(stored.activityProject ? { activityProject: stored.activityProject } : {}),
     sections: stored.sections ?? OPEN_SIDEBAR_SECTIONS,
     subagentGroups: stored.subagentGroups ?? OPEN_SUBAGENT_GROUPS,

@@ -29,7 +29,6 @@ test("dismissing a Priority row files it away with no toast", async () => {
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
   try {
-    await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Rank threads by activity"]').click(); });
     await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Dismiss Review me"]').click(); });
     assert.equal(view.container.querySelector('nav[aria-label="Priority"] .task-row'), null);
     assert.equal(view.container.querySelector(".toasts"), null);

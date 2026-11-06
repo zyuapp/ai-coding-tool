@@ -27,24 +27,6 @@ export function nextProjectSortIndex(projects: Project[]): number {
   return lowest - 1;
 }
 
-/**
- * Moves one project to `index` and renumbers the list. `index` counts rows with the moved project
- * already taken out, matching what a drop reports.
- */
-export function moveProject(projects: Project[], projectId: string, index: number): Project[] {
-  const ordered = orderProjects(projects);
-  const from = ordered.findIndex((project) => project.id === projectId);
-  if (from === -1) return projects;
-  const [moving] = ordered.splice(from, 1);
-  ordered.splice(Math.max(0, Math.min(index, ordered.length)), 0, moving!);
-
-  const positions = new Map(ordered.map((project, position) => [project.id, position]));
-  const next = projects.map((project) => project.sortIndex === positions.get(project.id)
-    ? project
-    : { ...project, sortIndex: positions.get(project.id)! });
-  return next.some((project, position) => project !== projects[position]) ? next : projects;
-}
-
 /** Names a folder in the sidebar. An empty name takes the last one off, so it goes by its folder again. */
 export function nameProject(projects: Project[], projectId: string, name: string | null | undefined): Project[] {
   if (name === undefined) return projects;

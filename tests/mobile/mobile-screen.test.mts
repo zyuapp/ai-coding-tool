@@ -7,7 +7,7 @@ import { MOBILE_FOLDED_KEY } from "../../src/mobile/client/storage.ts";
 import { BUILT_IN_MODELS } from "../../src/domain/agent-engine.ts";
 import { groupMark, settingsSummary } from "../../src/mobile/format.ts";
 import { ensureLanguage } from "../../src/renderer/diff/highlight.ts";
-import { BUILD, CODE, TOKEN, click, clickButton, clickRow, dom, lastCommand, live, openPhone, patchView, queries, typeInto, view, type FakeSocket } from "../support/mobile-phone.mts";
+import { BUILD, CODE, TOKEN, addThread, click, clickButton, clickRow, dom, lastCommand, live, openPhone, patchView, queries, tapThread, typeInto, view, type FakeSocket } from "../support/mobile-phone.mts";
 
 test("the phone page pairs from the address, opens a thread, and answers an approval", () => {
   const line = openPhone({ code: CODE });
@@ -96,7 +96,7 @@ const ENGINES = {
 test("a draft offers the models the computer's engines name, under the headings the desktop's library uses", () => {
   const line = openPhone({ paired: true });
   live(line, { ...view(), engines: ENGINES });
-  click(".group-header .section-action");
+  click('.bar button[aria-label="New thread in App"]');
   patchView(line, 2, { thread: { kind: "closed" }, draft: { projectId: "p", projectName: "App", settings: { engine: "claude", model: "opus", effort: "high", policy: "confirm" }, worktree: false, worktreeName: null, worktrees: [], canWorktree: true } });
   click(".composer-settings");
   assert.deepEqual([...document.querySelectorAll(".sheet-subheading")].map((node) => node.textContent), ["Claude", "Codex", "OpenRouter", "Anthropic"]);
@@ -157,6 +157,7 @@ test("a row something waits on is marked as needing the user, and a folded group
   const waiting = view();
   waiting.thread = null;
   waiting.groups = [{ projectId: "p", name: "App", threads: [{ id: "lead", title: "Plan", projectId: "p", projectName: "App", attention: false, status: "running", waiting: true, headline: "A decision is waiting on you", lastActivityAt: Date.now(), unread: false }] }];
+  waiting.activity = { priority: waiting.groups[0]!.threads, running: [], threads: [], snoozed: [] };
   act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 1, sessionId: "s1", build: BUILD, view: waiting }) }));
   assert.equal(document.querySelector(".thread-row")?.getAttribute("data-waiting"), "true");
   assert.equal(document.querySelector(".thread-row .thread-open .sr-only")?.textContent, "Needs you", "the ring that takes the spinner's place is what a reader hears");
@@ -167,7 +168,6 @@ test("a row something waits on is marked as needing the user, and a folded group
   filed.thread = null;
   filed.activity = { priority: [{ ...waiting.groups[0]!.threads[0]!, status: "idle", attention: true }], running: [], threads: [], snoozed: [] };
   act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 2, sessionId: "s1", build: BUILD, view: filed }) }));
-  click('.segmented button[aria-checked="false"]');
   const row = document.querySelector(".thread-row");
   assert.deepEqual([row?.querySelector(".thread-mark") !== null, row?.querySelector(".thread-dismiss") !== null], [true, true], "a row that needs the user keeps its mark beside Dismiss");
 });
@@ -262,11 +262,10 @@ test("a tap shows the thread it asked for, never the one the Mac still has open"
   function receive(message: unknown) {
     act(() => line.onmessage?.({ data: JSON.stringify(message) }));
   }
-  const two = view();
-  two.groups[0]!.threads.push({ id: "t2", title: "Rewrite the docs", projectId: "p", projectName: "App", attention: false, status: "idle", lastActivityAt: 1, unread: false });
+  const two = addThread(view(), { id: "t2", title: "Rewrite the docs", projectId: "p", projectName: "App", attention: false, status: "idle", lastActivityAt: 1, unread: false });
   receive({ kind: "snapshot", sequence: 1, sessionId: "s7", build: BUILD, view: two });
 
-  click(".thread-row:nth-of-type(2) .thread-open");
+  tapThread("Rewrite the docs");
   assert.equal(document.querySelector(".bar-title h1")?.textContent, "Rewrite the docs");
   assert.match(document.body.textContent ?? "", /Opening the thread/);
   assert.doesNotMatch(document.body.textContent ?? "", /then deploy/, "the thread the Mac still has open is not shown");
@@ -276,7 +275,7 @@ test("a tap shows the thread it asked for, never the one the Mac still has open"
   assert.equal(document.querySelector(".bar-title p")?.textContent, "App");
 
   click(".ghost.icon");
-  click(".group-header .section-action");
+  click('.bar button[aria-label="New thread in App"]');
   assert.equal(document.querySelector(".bar-title h1")?.textContent, "New thread");
   assert.equal(document.querySelector("textarea"), null, "the old thread's composer is not the draft's");
 });
@@ -290,7 +289,7 @@ test("New opens the thread the Mac is about to start, and the first message star
   }
   receive({ kind: "snapshot", sequence: 1, sessionId: "s3", build: BUILD, view: view() });
 
-  click(".group-header .section-action");
+  click('.bar button[aria-label="New thread in App"]');
   assert.deepEqual(lastCommand(line), { type: "task.new", projectId: "p" });
 
   /** The Mac has no thread open from here until a message makes one, which is what it answers with. */
@@ -329,7 +328,7 @@ test("a group folds shut and stays shut across a reload", () => {
   assert.equal(document.querySelectorAll(".thread-row").length, 0);
   assert.equal(document.querySelector(".section-toggle")?.getAttribute("aria-expanded"), "false");
   assert.equal(document.querySelector(".section-mark")?.getAttribute("data-kind"), "needs-you", "the folded header keeps the row's mark");
-  assert.equal(localStorage.getItem(MOBILE_FOLDED_KEY), JSON.stringify(["p"]));
+  assert.equal(localStorage.getItem(MOBILE_FOLDED_KEY), JSON.stringify(["activity:priority"]));
 
   const again = openPhone({ paired: true, folded: JSON.parse(localStorage.getItem(MOBILE_FOLDED_KEY)!) });
   act(() => again.onopen?.());
@@ -342,19 +341,18 @@ test("a group folds shut and stays shut across a reload", () => {
   assert.equal(localStorage.getItem(MOBILE_FOLDED_KEY), "[]");
 });
 
-test("a Mac with no threads still shows a group to start one in", () => {
+test("a Mac with no threads offers one plain way to start", () => {
   const line = openPhone({ paired: true });
   act(() => line.onopen?.());
   const bare: MobileView = { groups: [{ projectId: null, name: "Recents", threads: [] }], activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, engines: {}, thread: null, draft: null, error: null };
   act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 1, sessionId: "s6", build: BUILD, view: bare }) }));
-  assert.ok(document.querySelector(".group-header .section-action"), "the empty group still offers New");
-  assert.equal(document.querySelector(".group-empty"), null, "one empty line for the whole list, not one per group");
+  assert.equal(document.querySelector(".group-empty"), null, "one empty line for the whole list, not one per section");
   assert.match(document.querySelector(".empty")?.textContent ?? "", /No threads yet/);
   click(".empty .primary");
   assert.deepEqual(lastCommand(line), { type: "task.new" }, "the plain way to start goes to whatever project the Mac has open");
 });
 
-test("the list ranks by what wants the user when asked, and a Priority row can be filed away", () => {
+test("the list ranks by what wants the user, and a Priority row can be filed away", () => {
   const line = openPhone({ paired: true });
   const ranked = view();
   ranked.activity = {
@@ -367,9 +365,6 @@ test("the list ranks by what wants the user when asked, and a Priority row can b
     snoozed: [],
   };
   live(line, ranked);
-  assert.equal(localStorage.getItem("aicodingtool.mobile.list"), null);
-  click('.segmented button[aria-checked="false"]');
-  assert.equal(localStorage.getItem("aicodingtool.mobile.list"), "activity", "the choice survives a visit");
   assert.deepEqual([...document.querySelectorAll(".section-toggle > span:first-child")].map((node) => node.textContent), ["Priority", "Running", "Threads"]);
   assert.match(document.querySelector(".thread-headline")?.textContent ?? "", /Tests are red/);
   assert.deepEqual([...document.querySelectorAll(".thread-row .sr-only")].map((node) => node.textContent), ["Unread", "Unread", "Running"]);
@@ -382,18 +377,13 @@ test("the list ranks by what wants the user when asked, and a Priority row can b
 });
 
 test("Dismiss all is sent at once", () => {
-  try {
-    const line = openPhone({ paired: true });
-    const ranked = view();
-    const row = { projectId: "p", projectName: "App", status: "idle", lastActivityAt: 1, unread: true, attention: true, outcome: "finished" } as const;
-    ranked.activity = { priority: [{ ...row, id: "a", title: "One" }, { ...row, id: "b", title: "Two" }], running: [], threads: [], snoozed: [] };
-    live(line, ranked);
-    click('.segmented button[aria-checked="false"]');
-    clickButton("Dismiss all");
-    assert.deepEqual(lastCommand(line), { type: "task.dismiss-all" });
-  } finally {
-    localStorage.removeItem("aicodingtool.mobile.list");
-  }
+  const line = openPhone({ paired: true });
+  const ranked = view();
+  const row = { projectId: "p", projectName: "App", status: "idle", lastActivityAt: 1, unread: true, attention: true, outcome: "finished" } as const;
+  ranked.activity = { priority: [{ ...row, id: "a", title: "One" }, { ...row, id: "b", title: "Two" }], running: [], threads: [], snoozed: [] };
+  live(line, ranked);
+  clickButton("Dismiss all");
+  assert.deepEqual(lastCommand(line), { type: "task.dismiss-all" });
 });
 
 test("the activity list narrows to one project, remembers it, and dismisses only its rows", () => {
@@ -408,7 +398,6 @@ test("the activity list narrows to one project, remembers it, and dismisses only
     running: [], threads: [], snoozed: [],
   };
   live(line, ranked);
-  click('.segmented button[aria-checked="false"]');
   const titles = () => [...document.querySelectorAll(".thread-title")].map((node) => node.textContent);
   assert.equal(document.querySelector(".list-filter")?.textContent, "All projects");
   assert.deepEqual(titles(), ["Fix the parser", "Write the guide"]);
@@ -426,7 +415,6 @@ test("the activity list narrows to one project, remembers it, and dismisses only
   click('.bar button[aria-label="New thread in Docs"]');
   assert.deepEqual(frameOf(line, "task.dismiss-all").command, { type: "task.dismiss-all", projectId: "q" });
   localStorage.removeItem("aicodingtool.mobile.activity-project");
-  localStorage.removeItem("aicodingtool.mobile.list");
 });
 
 test("while a run is going a message may join the queue or cut into it, and a queued one can be steered or dropped", () => {

@@ -1,8 +1,8 @@
-import { LuCheck as Check, LuChevronDown as ChevronDown, LuEllipsis as Ellipsis, LuFolder as Folder, LuSquarePen as SquarePen } from "react-icons/lu";
+import { LuCheck as Check, LuChevronDown as ChevronDown, LuEllipsis as Ellipsis, LuFolder as Folder } from "react-icons/lu";
 import { memo, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import type { MobileActivity, MobileProjectGroup, MobileThreadEntry } from "../../contracts/mobile";
-import { readFolded, writeFolded, type MobileListMode } from "../client/storage";
-import { activityMeta, groupMark, threadMeta } from "../format";
+import { readFolded, writeFolded } from "../client/storage";
+import { activityMeta, groupMark } from "../format";
 import { ProjectSheet } from "./ProjectSheet";
 
 /** How long a finger rests on a row before it asks for the thread's options, and how far it may drift meanwhile. */
@@ -89,10 +89,6 @@ function ThreadRow({ thread, meta, onOpen, onMenu, onDismiss }: {
   );
 }
 
-function groupKey(group: MobileProjectGroup): string {
-  return group.projectId ?? "recents";
-}
-
 type Section = { key: string; label: string; threads: MobileThreadEntry[] };
 
 function narrowActivity(activity: MobileActivity, projectId: string): MobileActivity {
@@ -108,8 +104,7 @@ const ACTIVITY_SECTIONS: ReadonlyArray<{ key: keyof MobileActivity; label: strin
   { key: "snoozed", label: "Snoozed" },
 ];
 
-export const ThreadList = memo(function ThreadList({ mode, groups, activity, chosenProject, now, initialScrollTop, onScroll, onChooseProject, onOpen, onMenu, onNew, onDismiss, onDismissAll }: {
-  mode: MobileListMode;
+export const ThreadList = memo(function ThreadList({ groups, activity, chosenProject, now, initialScrollTop, onScroll, onChooseProject, onOpen, onMenu, onNew, onDismiss, onDismissAll }: {
   groups: MobileProjectGroup[];
   activity: MobileActivity;
   /** The project the activity list was last narrowed to, if any. */
@@ -136,7 +131,7 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, cho
   const project = narrowed?.projectId ?? null;
   const shown = useMemo(() => project ? narrowActivity(activity, project) : activity, [activity, project]);
   const dismissable = shown.priority.filter((thread) => thread.attention);
-  /** A list with nothing in it keeps its groups, which are how a project is started into, under one plain way to start. */
+  /** A computer with no threads at all offers one plain way to start. */
   const bare = !groups.some((group) => group.threads.length);
   const scroller = useRef<HTMLDivElement>(null);
   const restore = useRef(initialScrollTop);
@@ -181,16 +176,7 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, cho
 
   return (
     <div className="thread-list" ref={scroller} onScroll={(event) => onScroll(event.currentTarget.scrollTop)}>
-      {mode === "projects" && groups.map((group) => {
-        const project = group.projectId ? group.name : null;
-        return section({ key: groupKey(group), label: group.name, threads: group.threads }, {
-          action: <button type="button" className="section-action" aria-label={`New thread in ${group.name}`} onClick={() => onNew(group.projectId, project)}><SquarePen size={18} strokeWidth={1.8} /></button>,
-          empty: bare ? undefined : "No threads yet",
-          meta: (thread) => threadMeta(thread, now),
-          project: () => project,
-        });
-      })}
-      {mode === "activity" && projects.length > 0 && (
+      {projects.length > 0 && (
         <button type="button" className="list-filter" data-narrowed={narrowed ? true : undefined} aria-haspopup="dialog" onClick={() => setPicking(true)}>
           <Folder size={16} strokeWidth={1.8} aria-hidden="true" />
           <span>{narrowed?.name ?? "All projects"}</span>
@@ -198,11 +184,11 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, cho
         </button>
       )}
       {/** Snoozed only shows while something is in it, as on the desktop. */}
-      {mode === "activity" && ACTIVITY_SECTIONS.filter(({ key }) => key !== "snoozed" || shown.snoozed.length).map(({ key, label }) => section({ key: `activity:${key}`, label, threads: shown[key] }, {
+      {ACTIVITY_SECTIONS.filter(({ key }) => key !== "snoozed" || shown.snoozed.length).map(({ key, label }) => section({ key: `activity:${key}`, label, threads: shown[key] }, {
         action: key === "priority" && dismissable.length
           ? <button type="button" className="section-text-action" onClick={() => onDismissAll(project ?? undefined)}>Dismiss all</button>
           : undefined,
-        empty: key === "priority" ? "Nothing waiting" : undefined,
+        empty: key === "priority" && !bare ? "Nothing waiting" : undefined,
         meta: (thread) => activityMeta(thread, now),
         dismissable: key === "priority",
         project: (thread) => thread.projectName,

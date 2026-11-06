@@ -28,6 +28,7 @@ test("the start options say where a thread begins, and searching narrows the bra
     branch,
     worktree,
     onSelectProject: (id) => { chosen.project.push(id); },
+    onAddProject() {},
     onSelectBranch: (name, create) => { chosen.branch.push(create ? { name, create } : name); },
     onSetWorktree: (on) => { chosen.worktree.push(on); },
     coordinator: false,
@@ -105,6 +106,7 @@ test("no project makes a chat, which is left only with whether it coordinates", 
     branch: null,
     worktree: false,
     onSelectProject: (id) => { chosen.push(id); },
+    onAddProject() {},
     onSelectBranch() {},
     onSetWorktree() {},
     coordinator: false,
@@ -130,7 +132,7 @@ test("no project makes a chat, which is left only with whether it coordinates", 
   assert.deepEqual([...chosen], ["project-a"], "picking a project turns the chat into work");
 
   await view.render(options(null, []));
-  assert.deepEqual([...view.container.querySelectorAll(".thread-start button")].map((button) => button.textContent), ["Coordinator"], "with nowhere to work there is no project to pick");
+  assert.deepEqual([...view.container.querySelectorAll(".thread-start button")].map((button) => button.textContent), ["Add project", "Coordinator"], "with nowhere to work there is no project to pick, only one to add");
   await act(async () => { query<HTMLButtonElement>(view.container, ".thread-start-coordinator").click(); });
   assert.deepEqual(coordinating, [true]);
   await view.unmount();
@@ -161,6 +163,7 @@ test("the drafted project is shown wherever it sits in the list", async () => {
     branch: null,
     worktree: false,
     onSelectProject() {},
+    onAddProject() {},
     onSelectBranch() {},
     onSetWorktree() {},
     coordinator: false,
@@ -182,6 +185,7 @@ test("a branch the repository does not have is offered as one to create", async 
     branch,
     worktree: false,
     onSelectProject() {},
+    onAddProject() {},
     onSelectBranch: (name, create) => { chosen.push({ name, create }); },
     onSetWorktree() {},
     coordinator: false,
@@ -259,6 +263,7 @@ test("the project picker labels and groups duplicate repository names by compute
   const options = (projectId: string) => React.createElement(ThreadStartOptions, {
     projects, projectHosts, projectId, branch: null, worktree: false,
     onSelectProject: (id) => { chosen.push(id); },
+    onAddProject() {},
     onSelectBranch() {}, onSetWorktree() {}, coordinator: false, onSetCoordinator() {},
   });
   const view = await mount(options("studio-one"));
@@ -334,6 +339,7 @@ test("a branch picker that cannot read branches yet says where the thread starts
     branch: null,
     worktree: false,
     onSelectProject() {},
+    onAddProject() {},
     onSelectBranch() {},
     onSetWorktree() {},
     coordinator: false,
@@ -364,6 +370,7 @@ test("a branch list that cannot be read says so on the picker, which still opens
     branch: null,
     worktree: false,
     onSelectProject() {},
+    onAddProject() {},
     onSelectBranch() {},
     onSetWorktree() {},
     coordinator: false,
@@ -387,6 +394,7 @@ test("the project picker leads with recent projects until a search starts", asyn
   const options = (recentProjectIds: string[], extra: Partial<React.ComponentProps<typeof ThreadStartOptions>> = {}) => React.createElement(ThreadStartOptions, {
     projects, projectId: "gamma", recentProjectIds, branch: null, worktree: false,
     onSelectProject: (id) => { chosen.push(id); },
+    onAddProject() {},
     onSelectBranch() {}, onSetWorktree() {}, coordinator: false, onSetCoordinator() {},
     ...extra,
   });
@@ -423,5 +431,34 @@ test("the project picker leads with recent projects until a search starts", asyn
   await act(async () => { trigger.click(); });
   assert.deepEqual(groups(), ["Recent", "This computer", "Studio Mac"], "computer headings follow Recent");
   assert.equal(rows()[1]?.getAttribute("aria-label"), "beta on Studio Mac", "a recent row names its computer");
+  await view.unmount();
+});
+
+test("the project picker ends with adding a project, and with none to pick the start options offer adding one", async () => {
+  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  window.desktop = fakeDesktop();
+  let added = 0;
+  const chosen: Array<string | undefined> = [];
+  const options = (projects: Array<{ id: string; root: string }>) => React.createElement(ThreadStartOptions, {
+    projects, projectId: null, branch: null, worktree: false,
+    onSelectProject: (id) => { chosen.push(id); },
+    onAddProject: () => { added++; },
+    onSelectBranch() {}, onSetWorktree() {}, coordinator: false, onSetCoordinator() {},
+  });
+  const view = await mount(options([{ id: "project-a", root: "/repo/ai-coding-tool" }]));
+  const trigger = query<HTMLButtonElement>(view.container, 'button[aria-label^="Project: "]');
+  await act(async () => { trigger.click(); });
+  const add = query<HTMLButtonElement>(view.container, ".thread-start-popover .thread-start-add-project");
+  assert.equal(add.textContent, "Add project…");
+  assert.equal(add.closest('[role="listbox"]'), null, "an action, not one of the projects to pick");
+  await act(async () => { add.click(); });
+  assert.equal(added, 1);
+  assert.deepEqual(chosen, [], "adding picks no project of its own");
+  assert.equal(trigger.getAttribute("aria-expanded"), "false", "the picker closes");
+
+  await view.render(options([]));
+  const button = item([...view.container.querySelectorAll<HTMLButtonElement>(".thread-start button")].find((candidate) => candidate.textContent === "Add project"));
+  await act(async () => { button.click(); });
+  assert.equal(added, 2);
   await view.unmount();
 });

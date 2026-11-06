@@ -1,4 +1,4 @@
-import { LuChevronDown as ChevronDown, LuCircleAlert as CircleAlert, LuClock as Clock, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuMessageCircle as MessageCircle, LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
+import { LuChevronDown as ChevronDown, LuCircleAlert as CircleAlert, LuClock as Clock, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuMessageCircle as MessageCircle, LuPlus as Plus, LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
 import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import type { ThreadHost } from "../../application/computers";
@@ -57,6 +57,7 @@ export type ThreadStartOptionsProps = {
   startsInWorktree?: string;
   /** No project starts the thread as a chat, in a scratch workspace of its own. */
   onSelectProject: (projectId?: string) => void;
+  onAddProject: () => void;
   /** `create` names a branch the repository does not have yet, made when the thread starts. */
   onSelectBranch: (branch: string | null, create?: boolean) => void;
   onSetWorktree: (worktree: boolean) => void;
@@ -79,7 +80,7 @@ function CoordinatorToggle({ coordinator, onSetCoordinator }: Pick<ThreadStartOp
  * from, and whether it gets a checkout of its own. No project makes it a chat. Nothing here touches
  * disk — the first message does that.
  */
-export function ThreadStartOptions({ projects, projectHosts, projectId, recentProjectIds = [], workspaceId, branch, worktree, startsInWorktree, onSelectProject, onSelectBranch, onSetWorktree, coordinator, onSetCoordinator }: ThreadStartOptionsProps) {
+export function ThreadStartOptions({ projects, projectHosts, projectId, recentProjectIds = [], workspaceId, branch, worktree, startsInWorktree, onSelectProject, onAddProject, onSelectBranch, onSetWorktree, coordinator, onSetCoordinator }: ThreadStartOptionsProps) {
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [projectQuery, setProjectQuery] = useState("");
   const [branchesOpen, setBranchesOpen] = useState(false);
@@ -104,7 +105,10 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, recentPr
   if (!projects.length) {
     return (
       <div className="thread-start" aria-label="How this thread starts">
-        <div className="thread-start-git"><CoordinatorToggle coordinator={coordinator} onSetCoordinator={onSetCoordinator} /></div>
+        <div className="thread-start-git">
+          <button type="button" className="thread-start-toggle" onClick={onAddProject}><Plus size={14} /><span>Add project</span></button>
+          <CoordinatorToggle coordinator={coordinator} onSetCoordinator={onSetCoordinator} />
+        </div>
       </div>
     );
   }
@@ -160,6 +164,10 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, recentPr
               </div>
             ))}
           </div>
+          <button type="button" className="picker-option thread-start-add-project" onClick={() => { setProjectsOpen(false); onAddProject(); }}>
+            <span className="picker-mark" aria-hidden="true"><Plus size={14} /></span>
+            <span className="picker-label">Add project…</span>
+          </button>
         </PickerPopover>}
       </div>
 

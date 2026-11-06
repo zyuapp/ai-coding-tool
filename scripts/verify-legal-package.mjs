@@ -102,7 +102,7 @@ export async function verifyLegalPackage(resourcesPath) {
   }
   const licenseHeading = (name) => `## ${name} - ${lockedPackageVersion(name)} (`;
   await requireText(path.join(legalPath, "RENDERER-THIRD-PARTY-LICENSES.md"),
-    ["@hello-pangea/dnd", "@xterm/xterm", "mermaid", "react", "shiki"].map(licenseHeading));
+    ["@xterm/xterm", "mermaid", "react", "shiki"].map(licenseHeading));
   await requireText(path.join(legalPath, "MOBILE-THIRD-PARTY-LICENSES.md"),
     ["react-markdown", "react", "remark-gfm"].map(licenseHeading));
   for (const [packaged, source] of [

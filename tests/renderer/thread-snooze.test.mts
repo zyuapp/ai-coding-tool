@@ -23,7 +23,6 @@ test("Priority's right-click submenu snoozes a thread into Snoozed, and Unsnooze
   window.desktop = desktop;
   const view = await mount(React.createElement(App));
   try {
-    await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Rank threads by activity"]').click(); });
     const row = query<HTMLElement>(view.container, 'nav[aria-label="Priority"] .task-row');
     await act(async () => { row.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true, clientX: 160, clientY: 120 })); });
     assert.ok(menuItem("Snooze"));
@@ -50,15 +49,14 @@ test("Priority's right-click submenu snoozes a thread into Snoozed, and Unsnooze
   } finally { await view.unmount(); }
 });
 
-test("snooze is offered on approval rows and gated by the actual section, including project lists", async () => {
+test("snooze is offered on approval rows and gated by the actual section", async () => {
   const asked = task("asked", { outcome: "finished" });
   const busy = task("busy");
   let snoozed: unknown;
-  function Harness({ projects = false }: { projects?: boolean }) {
+  function Harness() {
     const [openMenu, onSetOpenMenu] = useState<string | null>(null);
     return renderProjectSidebar({
-      mode: projects ? "projects" : "activity", openMenu, onSetOpenMenu,
-      recentThreads: [asked, busy], orderedThreads: [asked, busy],
+      openMenu, onSetOpenMenu,
       activityThreads: { priority: [asked], running: [busy], threads: [], snoozed: [] },
       blockedThreadIds: new Set([asked.id]), runningThreadIds: new Set([asked.id, busy.id]),
       onSnoozeThread: (id, hours) => { snoozed = { id, hours }; },
@@ -77,10 +75,6 @@ test("snooze is offered on approval rows and gated by the actual section, includ
     await open('nav[aria-label="Running"] .task-row');
     assert.ok(menuItem("Archive…"));
     assert.equal(menuItem("Snooze"), undefined, "outside Priority the menu leaves snoozing out");
-    await view.render(React.createElement(Harness, { projects: true }));
-    await open('.task-row [data-tip="asked"]');
-    assert.ok(menuItem("Archive…"));
-    assert.equal(menuItem("Snooze"), undefined);
   } finally { await view.unmount(); }
 });
 

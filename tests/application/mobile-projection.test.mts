@@ -368,7 +368,7 @@ test("a coordinator stands for its threads in the phone's activity lists, as it 
     ["a thread under it waiting on a decision", task("member", { parentId: "lead", projectId: "project-app", decisions: [{ id: "d1", question: "Which?", options: [], raisedAt: NOW }] })],
     ["a resolved thread under it that finished", task("member", { parentId: "lead", projectId: "project-app", outcome: "finished", outcomeUnread: true, resolvedAt: NOW })],
   ] as const) {
-    const state = workspace([lead, member], { sidebarMode: "activity" });
+    const state = workspace([lead, member]);
     const desktop = workspaceViewCollections(state).lists.activityThreads;
     const { activity } = projectMobileView(state, NOW);
     for (const list of ["priority", "running", "threads", "snoozed"] as const) {
@@ -416,7 +416,6 @@ test("a coordinator's phone row speaks for its threads on paired computers too, 
   const approval: ApprovalView = { approvalId: "a1", taskId: "far", runId: "run-far", title: "Run a command", description: "rm", toolName: "Bash", input: { command: "rm" } };
   const holder = { ...emptyWorkspaceState(), threads: [task("far", { title: "Far work", remoteLead: { threadId: "lead", title: "Lead", computer: "This Mac" } })], activeRuns: { far: activeRun("far", "run-far", "awaiting-approval") }, approvals: { "run-far": approval } };
   const state = workspace([task("lead", { role: "coordinator", projectId: "project-app" })], {
-    sidebarMode: "activity",
     computers: { ...emptyWorkspaceState().computers, paired: [{ id: "studio", name: "Studio", host: "studio.ts.net", status: "connected", error: null, pairedAt: 1, state: holder }] },
   });
   const desktop = workspaceViewCollections(state).lists.activityThreads.priority.map((thread) => thread.id);

@@ -10,10 +10,7 @@ export type Project = {
   unlisted?: true;
 };
 
-/**
- * Where a dragged thread lands: a slot in a project's list, or in the project-less "recents" list.
- * `index` counts rows in that one list, so each list is its own.
- */
+/** Where a moved thread lands: a slot in a project's threads, or among those with no project. */
 export type ThreadDropTarget = {
   projectId: string | null;
   index: number;

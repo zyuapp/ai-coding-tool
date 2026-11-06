@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { LuActivity as ActivityIcon, LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight, LuFolder as Folder, LuMonitor as Monitor, LuMonitorOff as MonitorOff } from "react-icons/lu";
+import { LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight, LuMonitor as Monitor, LuMonitorOff as MonitorOff } from "react-icons/lu";
 import { awayStatus, type ComputerFilter, type ComputerLink } from "../../domain/computers";
-import type { SidebarMode } from "../../domain/sidebar";
 import { useDismissibleLayer } from "../focus";
 import { MenuList, type MenuItem } from "./PopoverMenu";
 import { shortcutTip } from "./TooltipLayer";
@@ -77,13 +76,7 @@ function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenM
   );
 }
 
-const SIDEBAR_MODES = [
-  { value: "projects", label: "Group by project", tip: "Group by project", Icon: Folder },
-  { value: "activity", label: "Rank threads by activity", tip: "Rank by activity", Icon: ActivityIcon },
-] as const satisfies ReadonlyArray<{ value: SidebarMode; label: string; tip: string; Icon: unknown }>;
-
 export type SidebarHeaderProps = {
-  mode: SidebarMode;
   canGoBack: boolean;
   canGoForward: boolean;
   /** The paired computers, whose switch the header shows only once there is one. */
@@ -93,33 +86,14 @@ export type SidebarHeaderProps = {
   openMenu: string | null;
   onSetComputerFilter: (filter: ComputerFilter) => void;
   onSetOpenMenu: (menu: string | null) => void;
-  onSetMode: (mode: SidebarMode) => void;
   onGoBack: () => void;
   onGoForward: () => void;
 };
 
-export function SidebarHeader({ mode, canGoBack, canGoForward, computerLinks, computerName, computerFilter, openMenu, onSetComputerFilter, onSetOpenMenu, onSetMode, onGoBack, onGoForward }: SidebarHeaderProps) {
+export function SidebarHeader({ canGoBack, canGoForward, computerLinks, computerName, computerFilter, openMenu, onSetComputerFilter, onSetOpenMenu, onGoBack, onGoForward }: SidebarHeaderProps) {
   return (
     <div className="traffic-space">
-      <div className="sidebar-modes">
-        {/** Both ways of drawing the lists side by side, the one in effect filled. */}
-        <div className="sidebar-mode-switch" role="group" aria-label="Sidebar view">
-          {SIDEBAR_MODES.map(({ value, label, tip, Icon }) => (
-            <button
-              key={value}
-              className={`sidebar-mode${mode === value ? " active" : ""}`}
-              type="button"
-              aria-label={label}
-              aria-pressed={mode === value}
-              data-tip={tip}
-              onClick={() => { if (mode !== value) onSetMode(value); }}
-            >
-              <Icon size={16} aria-hidden="true" />
-            </button>
-          ))}
-        </div>
-        {computerLinks.length > 0 && <ComputerSwitch links={computerLinks} name={computerName} filter={computerFilter} onSetFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
-      </div>
+      {computerLinks.length > 0 && <ComputerSwitch links={computerLinks} name={computerName} filter={computerFilter} onSetFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
       <div className="thread-nav">
         <button className="thread-nav-button" type="button" aria-label="Go back" data-tip={BACK_TIP} disabled={!canGoBack} onClick={onGoBack}>
           <ChevronLeft size={16} aria-hidden="true" />

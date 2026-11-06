@@ -1,7 +1,7 @@
 import type { ProjectCommand, ViewCommand } from "../contracts/commands.js";
 import { legacyProjectId, sameRoot } from "../domain/project.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
-import { moveProject as moveProjectInList, nameProject, nextProjectSortIndex } from "./project-order.js";
+import { nameProject, nextProjectSortIndex } from "./project-order.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import type { WorkspaceCommandResult } from "./workspace-reducer/types.js";
 
@@ -17,8 +17,8 @@ export type RegisterProjectEffect = { type: "register-project"; projectId: strin
 
 /** Everything that touches only the sidebar's folders: which there are, what they are called, where they point. */
 export type ProjectInput =
-  | Extract<ProjectCommand, { type: "project.edit" } | { type: "project.move" }>
-  | Extract<ViewCommand, { type: "view.edit-project" } | { type: "view.toggle-project" }>
+  | Extract<ProjectCommand, { type: "project.edit" }>
+  | Extract<ViewCommand, { type: "view.edit-project" }>
   | ProjectEvent;
 
 type ProjectTransition = { state: WorkspaceState; effects: RegisterProjectEffect[]; result?: WorkspaceCommandResult };
@@ -48,7 +48,6 @@ export function reduceProjects(state: WorkspaceState, input: ProjectInput): Proj
         draftProjectId: id,
         lastFolder: input.workspace.root,
         actionError: null,
-        expandedProjects: new Set(state.expandedProjects).add(id),
       });
     }
 
@@ -88,23 +87,10 @@ export function reduceProjects(state: WorkspaceState, input: ProjectInput): Proj
       return { state: { ...state, projectEdit: { ...state.projectEdit, saving: false, error: input.message } }, effects: [], result };
     }
 
-    case "project.move": {
-      const projects = moveProjectInList(state.projects, input.projectId, input.index);
-      if (projects === state.projects) return settled(state);
-      return settled({ ...state, projects, openMenu: null });
-    }
-
     case "view.edit-project": {
       if (!input.projectId) return settled({ ...state, projectEdit: null });
       if (!state.projects.some((project) => project.id === input.projectId)) return settled(state);
       return settled({ ...state, projectEdit: { projectId: input.projectId, saving: false, error: null }, openMenu: null });
-    }
-
-    case "view.toggle-project": {
-      const expandedProjects = new Set(state.expandedProjects);
-      if (expandedProjects.has(input.projectId)) expandedProjects.delete(input.projectId);
-      else expandedProjects.add(input.projectId);
-      return settled({ ...state, expandedProjects });
     }
   }
 }
@@ -129,5 +115,5 @@ export function settledUnlisted(before: WorkspaceState, state: WorkspaceState): 
   if (!dropped.size) return { ...state, projects };
   /** The last folder comes back listed on launch, so one let go stops being it. */
   const lastFolder = state.projects.some((project) => dropped.has(project.id) && state.lastFolder !== null && sameRoot(project.root, state.lastFolder)) ? null : state.lastFolder;
-  return { ...state, projects, lastFolder, expandedProjects: new Set([...state.expandedProjects].filter((id) => !dropped.has(id))) };
+  return { ...state, projects, lastFolder };
 }

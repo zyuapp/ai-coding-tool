@@ -179,7 +179,6 @@ test("the start shortcut asks for a path, then opens a draft in a folder the sid
   assert.deepEqual(sidebarProjects(started), ["/app"]);
   const left = reduce(state, { type: "task.new" }).state;
   assert.deepEqual(left.projects, []);
-  assert.equal(left.expandedProjects.has(id), false);
   assert.equal(left.lastFolder, null, "a folder left without a thread does not come back on launch");
 });
 

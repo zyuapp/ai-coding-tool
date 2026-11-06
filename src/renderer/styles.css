@@ -207,7 +207,6 @@
   --shadow-float: 0 1px 2px rgb(var(--p-shadow) / calc(0.16 * var(--p-shadow-scale))), 0 6px 16px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale)));
   --shadow-float-lift: 0 1px 3px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale))), 0 10px 26px rgb(var(--p-shadow) / calc(0.28 * var(--p-shadow-scale)));
   --shadow-overlay: 0 30px 80px rgb(var(--p-shadow) / calc(0.55 * var(--p-shadow-scale)));
-  --shadow-drag: 0 10px 26px rgb(var(--p-shadow) / calc(0.45 * var(--p-shadow-scale)));
   --shadow-sidebar: 20px 0 60px rgb(var(--p-shadow) / calc(0.45 * var(--p-shadow-scale)));
   --shadow-tooltip: 0 12px 32px rgb(var(--p-shadow) / calc(0.32 * var(--p-shadow-scale)));
   --shadow-thumb: 0 1px 2px rgb(var(--p-shadow) / calc(0.4 * var(--p-shadow-scale))), 0 4px 10px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale)));
@@ -369,16 +368,16 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   flex: 0 0 auto;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 4px;
   /** The window's traffic lights own the left of this strip, so everything here stays clear of them, packed to the right. */
   padding-left: max(0px, calc(var(--window-controls-inset) - 10px));
   container: sidebar-strip / inline-size;
   -webkit-app-region: drag;
 }
-.thread-nav, .sidebar-modes { display: flex; align-items: center; gap: 1px; -webkit-app-region: no-drag; }
-.sidebar-modes { min-width: 0; margin-left: auto; gap: 4px; }
-.thread-nav::before { content: ""; width: 1px; height: 14px; margin: 0 5px 0 1px; background: var(--line); }
-.thread-nav, .sidebar-mode-switch { flex: none; }
+.thread-nav { flex: none; display: flex; align-items: center; gap: 1px; -webkit-app-region: no-drag; }
+.computer-switch { -webkit-app-region: no-drag; }
+.computer-switch + .thread-nav::before { content: ""; width: 1px; height: 14px; margin: 0 5px 0 1px; background: var(--line); }
 .thread-nav-button {
   width: 28px;
   height: 28px;
@@ -395,24 +394,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 /** A pressed header switch takes the accent, so a narrowed or re-ranked list is never mistaken for the default. */
 .thread-nav-button.active, .thread-nav-button.active:hover { background: var(--accent-chip); color: var(--accent-soft); }
 .thread-nav-button:disabled { opacity: var(--disabled-opacity); cursor: default; background: transparent; color: var(--muted); }
-/** Both ways of drawing the lists, side by side in one sunken track, the one in effect raised out of it. */
-.sidebar-mode-switch { display: flex; gap: 1px; padding: 2px; border-radius: 8px; background: var(--surface-input); }
-.sidebar-mode {
-  width: 26px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 6px;
-  padding: 0;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-.sidebar-mode:hover { background: var(--wash); color: var(--ink-dim); }
-.sidebar-mode.active, .sidebar-mode.active:hover { background: var(--chip); color: var(--ink); box-shadow: var(--shadow-thumb); cursor: default; }
 .new-task-button,
-.folder-button,
 .task-row {
   width: 100%;
   border: 0;
@@ -458,7 +440,6 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   transition: background 0.15s ease;
 }
 .sidebar-search:hover { background: var(--control-hover); }
-.folder-button:hover { background: var(--wash); }
 .task-row:hover { background: var(--row-hover); }
 
 .section-label {
@@ -476,10 +457,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   padding: 0 var(--row-inset) 0 10px;
   color: var(--muted);
 }
-.projects-heading, .recents-heading { grid-template-columns: minmax(0, 1fr) var(--row-slot); }
-.projects-heading { margin-top: 8px; }
-.recents-heading { margin-top: 12px; }
-/** Narrows activity mode to one project. Quiet at rest, and filled while it narrows the lists. */
+/** Narrows the sidebar to one project. Quiet at rest, and filled while it narrows the lists. */
 .activity-filter { position: relative; margin: 8px var(--row-inset) 2px 3px; }
 .activity-filter-trigger {
   display: inline-flex;
@@ -507,7 +485,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .activity-filter-clear { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 7px; padding: 0; background: transparent; color: var(--muted); cursor: pointer; }
 .activity-filter-clear:hover { background: var(--wash); color: var(--ink-dim); }
 .activity-filter-menu { min-width: 220px; max-height: min(420px, var(--menu-room, 420px)); overflow-y: auto; }
-/** Activity mode's three headings share one shape: label, fold, and at most one action. */
+/** The sidebar's headings share one shape: label, fold, and at most one action. */
 .activity-heading { grid-template-columns: minmax(0, 1fr) var(--row-slot); }
 .activity-group + .activity-group .activity-heading { margin-top: 12px; }
 /** A folded list's count, as a chip beside its label. */
@@ -561,38 +539,9 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .subagent-group[aria-expanded="false"] .section-chevron { transform: rotate(-45deg); }
 /** A heading's action stays in view, centred on the rail slot below it with a wider target than the slot. */
 .section-action { width: 28px; height: 34px; margin: 0 -3px; padding: 0; display: grid; place-items: center; border-radius: 6px; color: var(--quiet); }
-.section-heading:hover .section-action, .projects-heading.empty .section-action { color: var(--muted-strong); }
+.section-heading:hover .section-action { color: var(--muted-strong); }
 .section-action:hover { background: var(--wash); color: var(--ink-dim); }
-.folder-button {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) 16px;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 11px;
-  border-radius: 9px;
-  color: var(--ink-faint);
-  font-size: var(--text-control);
-}
-.folder-button > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.folder-icon { display: grid; place-items: center; color: var(--muted-strong); }
-.folder-icon > svg { grid-area: 1 / 1; }
-.folder-icon svg { width: 18px; height: 18px; }
-/** Under the pointer or the keyboard a folder's glyph turns into the chevron its click folds by. */
-.folder-icon .folder-fold { width: 16px; height: 16px; opacity: 0; transition: transform 120ms ease; }
-.project-main[aria-expanded="true"] .folder-fold { transform: rotate(90deg); }
-.project-row:hover .folder-glyph,
-.project-main:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .folder-glyph { opacity: 0; }
-.project-row:hover .folder-fold,
-.project-main:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .folder-fold { opacity: 1; }
-.folder-icon path, .empty-glyph path { fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
-.folder-chevron { color: var(--quiet); font-size: 14px; }
-
-.project-list { display: grid; gap: 2px; }
-/** Folders sit under the computer that holds them once more than this one is listed, as the project picker groups them. */
-.computer-group { display: grid; gap: 2px; }
-.computer-group + .computer-group { margin-top: 10px; }
-.computer-heading { display: flex; align-items: center; min-height: 24px; padding: 0 10px 2px; }
-.computer-heading > .host-mark { min-width: 0; color: var(--muted-strong); font-weight: 600; }
+.empty-glyph path { fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
 /** A computer, wherever it is named: a small screen ahead of the name. */
 .host-mark { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; vertical-align: -1px; color: var(--muted); font-size: var(--text-meta); font-weight: 500; }
 .host-mark > svg { flex: none; }
@@ -601,78 +550,9 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .host-mark.reconnecting > svg { animation: host-reconnecting 1.4s steps(14) infinite; }
 @keyframes host-reconnecting { 50% { opacity: 0.55; } }
 @media (prefers-reduced-motion: reduce) { .host-mark.reconnecting > svg { animation: none; } }
-.computer-heading-status { flex: none; margin-left: 6px; color: var(--quiet); font-size: var(--text-meta); }
 /** In a row's meta line the mark runs inline with the text, so the glyph sits on the same line as the words around it. */
 .task-row-text .host-mark { display: inline; font: inherit; color: inherit; vertical-align: baseline; }
 .task-row-text .host-mark > svg { margin-right: 4px; vertical-align: -2px; }
-.project-group { min-width: 0; }
-.project-row {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) repeat(2, var(--row-slot));
-  min-height: 32px;
-  align-items: center;
-  padding-right: var(--row-inset);
-  border-radius: 10px;
-  color: var(--ink-faint);
-}
-.project-row:hover { background: var(--row-hover); }
-.project-row:has(.project-menu.open) { background: var(--row-hover); }
-/** The folder a new thread would start in. */
-.project-row.current { color: var(--ink); }
-.project-row.current .folder-icon { color: var(--accent-text); }
-/** A thread dragged over a folder, folded or open, lands in it. */
-.project-drop.drop-over > .project-row { background: var(--accent-surface); box-shadow: inset 0 0 0 1px var(--accent-line); }
-.project-main,
-.project-new,
-.project-menu > .menu-trigger,
-.menu-popover button,
-.project-task-row {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-.project-main {
-  min-width: 0;
-  height: 32px;
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  padding: 0 0 0 10px;
-  text-align: left;
-  font-size: var(--text-control);
-  letter-spacing: -0.012em;
-}
-.project-main > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-main .folder-icon svg { width: 18px; height: 18px; }
-/** A folded folder's one status mark sits after its name, in a rail slot's width. */
-.project-main:has(> .folder-status) { grid-template-columns: 18px minmax(0, 1fr) var(--row-slot); }
-/** While the folder's own buttons are hidden, its mark sits in the last rail slot, in line with the thread rows' marks. */
-.project-row:not(:hover, :focus-within, .current):not(:has(.project-menu.open)) .folder-status { position: absolute; right: var(--row-inset); }
-/** A folder's New thread and menu show on the row hovered, focused or current. */
-.project-menu, .project-new { opacity: 0; }
-.project-row:hover :is(.project-menu, .project-new),
-.project-row:focus-within:where(:root:not([data-focus-appearance="quiet"]) *) :is(.project-menu, .project-new),
-.project-row.current :is(.project-menu, .project-new),
-.project-menu.open { opacity: 1; }
-.project-new { width: 28px; height: 32px; margin: 0 -3px; border-radius: 6px; padding: 0; display: grid; place-items: center; color: var(--quiet); }
-.project-row:is(:hover, .current) .project-new { color: var(--muted); }
-.project-new:hover, .project-menu > .menu-trigger:hover { color: var(--ink-dim); }
-.project-menu { position: relative; height: 32px; }
-.project-menu > .menu-trigger {
-  width: 28px;
-  height: 32px;
-  margin: 0 -3px;
-  border-radius: 6px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-  font-size: var(--text-control);
-  letter-spacing: 2px;
-}
 /**
  * Every floating menu in the app, whether a trigger or a right-click opened it. Shaped after a menu
  * on this platform: translucent, hairline bordered, tight rows, and a full-width highlight held in
@@ -750,9 +630,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
  */
 .menu-submenu { top: 0; left: calc(100% + 3px); right: auto; z-index: 1; background: var(--p-bg-4); backdrop-filter: none; }
 .menu-submenu.menu-flipped { left: auto; right: calc(100% + 3px); }
-.project-tasks { display: flex; flex-direction: column; gap: 1px; min-height: 8px; margin: 1px 0 2px; }
-.show-more,
-.empty-tasks {
+.show-more {
   height: 24px;
   display: block;
   border: 0;
@@ -765,10 +643,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   letter-spacing: -0.012em;
   cursor: pointer;
 }
-.empty-tasks { height: 28px; display: flex; align-items: center; gap: 7px; padding-left: 34px; color: var(--muted-strong); font-weight: 560; }
-.empty-tasks > svg { flex: none; }
-.empty-tasks.recents-empty { padding-left: 10px; }
-.show-more:hover, .empty-tasks:hover { background: var(--row-hover); color: var(--ink-dim); }
+.show-more:hover { background: var(--row-hover); color: var(--ink-dim); }
 .show-more { height: 28px; display: flex; align-items: center; gap: 5px; color: var(--ink-faint); font-weight: 560; }
 .show-more:hover { color: var(--ink-soft); }
 .show-more-chevron { flex: none; transition: transform 140ms ease; }
@@ -824,41 +699,10 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 }
 .row-action:hover { background: var(--wash); color: var(--ink); }
 .task-dismiss:hover { color: var(--info); }
-.project-task-row {
-  width: 100%;
-  min-width: 0;
-  height: 30px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  border-radius: 10px;
-  padding: 0 var(--row-inset) 0 36px;
-  color: var(--muted-strong);
-  text-align: left;
-  font-size: var(--text-control);
-  letter-spacing: -0.012em;
-}
-.project-task-row:hover { background: var(--row-hover); color: var(--ink-dim); }
-.project-task-row.active { background: var(--row-selected); color: var(--ink); }
-.project-task-row > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-rename {
   width: 100%;
   min-width: 0;
   height: 26px;
-  border: 1px solid var(--line-input);
-  border-radius: 6px;
-  padding: 0 6px;
-  background: var(--surface-input);
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--text-control);
-}
-.project-rename {
-  width: 100%;
-  min-width: 0;
-  height: 26px;
-  margin: 0 0 0 10px;
   border: 1px solid var(--line-input);
   border-radius: 6px;
   padding: 0 6px;
@@ -895,51 +739,6 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .active .task-attention:not(.failed, .stopped, .approval) { background: color-mix(in srgb, var(--info) 75%, var(--ink)); }
 .active .task-attention.failed { background: color-mix(in srgb, var(--danger) 75%, var(--ink)); }
 .active .task-attention.approval { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent-text) 75%, var(--ink)); }
-.task-entry.is-dragging > .project-task-row,
-.task-entry.is-dragging > .task-row,
-.project-group.is-dragging .project-row {
-  background: var(--row-selected);
-  color: var(--ink);
-  box-shadow: var(--shadow-drag);
-}
-/** A grip at the leading edge of a row that can be dragged, under the pointer or the keyboard. */
-.project-row:hover::after,
-.task-entry[data-rfd-drag-handle-draggable-id]:is(:hover, :focus-visible) > :is(.project-task-row, .task-row):not(.offline)::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 2px;
-  width: 8px;
-  height: 16px;
-  margin-top: -8px;
-  background: radial-gradient(circle, var(--muted) 1.25px, transparent 1.5px) 0 0 / 4px 4px;
-  pointer-events: none;
-}
-/** A thread that cannot leave its folder says why under itself while it is carried. */
-.task-entry.is-dragging[data-pinned]::after {
-  content: attr(data-pinned);
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 28px;
-  max-width: calc(100% - 36px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border: 1px solid var(--line-mid);
-  border-radius: 6px;
-  padding: 3px 8px;
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-tooltip);
-  color: var(--ink-soft);
-  font-size: var(--text-meta);
-  pointer-events: none;
-}
-.project-group.is-dragging .project-row, .task-entry.is-dragging { cursor: grabbing; }
-/** While a folder is dragged, other computers' folders, which it cannot join, step back. */
-.project-list:has(.project-group.is-dragging) .computer-group:not(:has(.project-group.is-dragging)) { opacity: 0.4; }
-/** A thread kept to its folder dims every other place to drop it, and none of them light up under it. */
-.sidebar:has(.task-entry.is-dragging[data-pinned]) :is(.project-drop, .recents-list):not(:has(.is-dragging)) { opacity: 0.4; }
-.sidebar:has(.task-entry.is-dragging[data-pinned]) .project-drop.drop-over:not(:has(.is-dragging)) > .project-row { background: transparent; box-shadow: none; }
 .task-list { min-height: 8px; }
 .task-row {
   display: grid;
@@ -958,9 +757,6 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .task-row-text > small { margin-top: 3px; color: var(--quiet); font-size: var(--text-meta); }
 .task-row:hover:not(.offline) .task-row-text > small { color: var(--quiet-strong); }
 .task-row.active .task-row-text > small, .task-row.active .host-mark { color: var(--muted-strong); }
-.folder-button > span:nth-child(2),
-.project-main > span:nth-child(2),
-.project-task-row > span:first-child,
 .task-row-text > span,
 .task-row-text > small {
   text-overflow: clip;
@@ -1786,6 +1582,11 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .branch-menu-group:first-child { padding-top: 3px; }
 /** Leaving the projects behind is set apart from them. */
 .picker-option.thread-start-no-project { margin-bottom: 4px; box-shadow: 0 1px 0 var(--line-soft); border-radius: 6px 6px 0 0; }
+/** The project list scrolls under its search and above Add project, which stay in view. */
+.thread-start-popover { display: flex; flex-direction: column; overflow: hidden; }
+.thread-start-popover > [role="listbox"] { min-height: 0; overflow: auto; }
+.thread-start-popover > .picker-search-field { flex: none; }
+.picker-option.thread-start-add-project { flex: none; margin-top: 4px; box-shadow: 0 -1px 0 var(--line-soft); border-radius: 0 0 6px 6px; color: var(--muted-strong); }
 .branch-menu-empty, .thread-start-empty { padding: 8px; color: var(--quiet); font-size: var(--text-meta); }
 .branch-menu-empty.error { color: var(--danger); overflow-wrap: anywhere; }
 /** A checkout the user picked reads as a chip, not a control: the only choice left is to leave it. */
@@ -2758,6 +2559,7 @@ pre {
 .phone-device-state { color: var(--quiet-strong); font-size: var(--text-meta); }
 .phone-device-state.live { color: var(--success-soft); }
 .settings-empty { margin: 0; border-top: 1px solid var(--line); padding: 19px 0; color: var(--quiet-strong); font-size: var(--text-control); }
+.project-settings-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .settings-empty-action { min-height: 24px; border: 0; padding: 0 2px; background: none; color: var(--link); font: inherit; cursor: pointer; }
 .settings-empty-action:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
 .settings-empty-action:disabled { color: var(--muted); cursor: default; }
@@ -3352,8 +3154,8 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
 .role-implementer { --role-ink: var(--role-implementer); }
 .role-reviewer { --role-ink: var(--role-reviewer); }
 .role-researcher { --role-ink: var(--role-researcher); }
-.project-task-row[class*="role-"], .task-row[class*="role-"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--role-ink) 30%, transparent); }
-.project-task-row.active[class*="role-"], .task-row.active[class*="role-"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--role-ink) 45%, transparent); }
+.task-row[class*="role-"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--role-ink) 30%, transparent); }
+.task-row.active[class*="role-"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--role-ink) 45%, transparent); }
 /** The panel's sections share the session rows' columns: icons, labels and trailing marks line up down the card. */
 .subagent-section { border-top: 1px solid var(--line-soft); padding: 7px 8px 8px; }
 .subagent-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 6px 0 8px; color: var(--quiet-strong); font-size: var(--text-control); font-weight: 580; }
@@ -5340,10 +5142,10 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .computer-switch-menu { top: calc(100% + 4px); left: 0; right: auto; max-width: min(320px, calc(100vw - 28px)); -webkit-app-region: no-drag; }
 .computer-switch-menu button.offline { color: var(--quiet); }
 .computer-switch-menu .offline .menu-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: middle; }
-.task-row.offline, .project-task-row.offline { color: var(--quiet); cursor: default; }
+.task-row.offline { color: var(--quiet); cursor: default; }
 .task-away { color: var(--warning); }
-.task-row.offline:hover, .project-task-row.offline:hover { background: transparent; }
-.task-row.offline.active, .project-task-row.offline.active { color: var(--muted-strong); }
+.task-row.offline:hover { background: transparent; }
+.task-row.offline.active { color: var(--muted-strong); }
 .computer-notice { background: var(--wash); }
 .computer-code { display: grid; gap: 8px; margin-top: 10px; }
 .computer-code label { display: grid; gap: 5px; color: var(--muted); font-size: var(--text-meta); }

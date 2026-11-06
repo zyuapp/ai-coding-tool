@@ -7,7 +7,7 @@ import { SETTINGS_PAGE_LABELS, settingControl } from "../domain/settings-catalog
 import { PAIRING_CODE_LENGTH, type MobileConnectionState } from "../domain/mobile";
 import { useMobileClient } from "./client/useMobileClient";
 import type { ReturnedCommand } from "./client/protocol";
-import { readActivityProject, readListMode, readPairingCode, writeActivityProject, writeListMode, type MobileListMode } from "./client/storage";
+import { readActivityProject, readPairingCode, writeActivityProject } from "./client/storage";
 import { ApprovalSheet } from "./components/ApprovalSheet";
 import { Changes } from "./components/Changes";
 import { Composer, type ReturnedToComposer } from "./components/Composer";
@@ -16,7 +16,6 @@ import { LocationSheet } from "./components/LocationSheet";
 import { ProjectSheet } from "./components/ProjectSheet";
 import { RenameSheet } from "./components/RenameSheet";
 import { ArchiveSheet } from "./components/ArchiveSheet";
-import { Segmented } from "./components/Segmented";
 import { StartOptions } from "./components/StartOptions";
 import { ThreadList } from "./components/ThreadList";
 import { ThreadMenu, ThreadRowMenu } from "./components/ThreadMenu";
@@ -118,8 +117,6 @@ function Banner({ notice, onDismiss }: { notice: string; onDismiss: () => void }
     </div>
   );
 }
-
-const LIST_MODES: { value: MobileListMode; label: string }[] = [{ value: "projects", label: "Projects" }, { value: "activity", label: "Activity" }];
 
 /** Which sheet the thread has up, at most one at a time. */
 type ThreadSheet = "settings" | "menu" | "location" | "rename" | "archive" | "project" | null;
@@ -248,10 +245,9 @@ function useScreenHistory(onPopped: () => void) {
   return useMemo(() => ({ pushed, unwound }), [pushed, unwound]);
 }
 
-/** Where the list's New starts a thread: the project the activity list is narrowed to, else the one worked in last. */
-function startingProject(groups: MobileProjectGroup[], mode: MobileListMode, activityProject: string | null): MobileProjectGroup | null {
-  const narrowed = mode === "activity" ? activityProject : null;
-  const filtered = narrowed ? groups.find((group) => group.projectId === narrowed) : undefined;
+/** Where the list's New starts a thread: the project the list is narrowed to, else the one worked in last. */
+function startingProject(groups: MobileProjectGroup[], activityProject: string | null): MobileProjectGroup | null {
+  const filtered = activityProject ? groups.find((group) => group.projectId === activityProject) : undefined;
   if (filtered) return filtered;
   let latest: { group: MobileProjectGroup; at: number } | null = null;
   for (const group of groups) {
@@ -274,7 +270,6 @@ type Screen = "list" | "thread" | "changes";
 export function App() {
   const { state, send, query, dismissNotice } = useMobileClient();
   const [screen, setScreen] = useState<Screen>("list");
-  const [listMode, setListMode] = useState<MobileListMode>(() => readListMode(window.localStorage));
   const [activityProject, setActivityProject] = useState(() => readActivityProject(window.localStorage));
   const [sheet, setSheet] = useState<ThreadSheet>(null);
   /** The row a long press opened options for, over the list, and whether its rename is up instead. */
@@ -354,12 +349,6 @@ export function App() {
     listScroll.current = top;
   }, []);
 
-
-  const chooseListMode = useCallback((mode: MobileListMode) => {
-    writeListMode(window.localStorage, mode);
-    setListMode(mode);
-  }, []);
-
   const chooseActivityProject = useCallback((projectId: string | null) => {
     writeActivityProject(window.localStorage, projectId);
     setActivityProject(projectId);
@@ -369,7 +358,7 @@ export function App() {
 
   if (state.entry === "blocked" && !state.credential) return <Gate notice={state.notice} />;
 
-  const start = reading ? null : startingProject(state.view.groups, listMode, activityProject);
+  const start = reading ? null : startingProject(state.view.groups, activityProject);
   const pending = opening !== null && current === opening.was && current !== opening.want;
   const title = !reading ? "Threads" : screen === "changes" ? "Changes" : pending ? opening.title : thread ? thread.title : draft ? "New thread" : missed?.title ?? "Opening";
   const project = pending ? opening.project : thread ? thread.projectName : draft ? draft.projectName : missed ? missed.project : undefined;
@@ -385,15 +374,10 @@ export function App() {
         {reading
           ? <button type="button" className="ghost icon" onClick={back} aria-label={screen === "changes" ? "Back to thread" : "Back to threads"}><ChevronLeft size={22} /></button>
           : <span className="bar-spacer" />}
-        {!reading
-          ? <div className="bar-title bar-switch">
-            <h1 className="sr-only">{title}</h1>
-            <Segmented label="List" segments={LIST_MODES} value={listMode} onChange={chooseListMode} />
-          </div>
-          : <div className="bar-title">
-            <h1>{title}</h1>
-            {subtitle && <p>{subtitle}</p>}
-          </div>}
+        <div className="bar-title">
+          <h1>{title}</h1>
+          {subtitle && <p>{subtitle}</p>}
+        </div>
         {!reading && (
           <button type="button" className="ghost icon bar-action" aria-label={start ? `New thread in ${start.name}` : "New thread"} onClick={() => newThread(start?.projectId ?? null, start?.name ?? null)}><SquarePen size={20} strokeWidth={1.8} /></button>
         )}
@@ -424,7 +408,6 @@ export function App() {
                 </div>
                 : <div className="empty" role="status"><p>Opening the thread…</p></div>
           : <ThreadList
-            mode={listMode}
             groups={state.view.groups}
             activity={state.view.activity}
             chosenProject={activityProject}

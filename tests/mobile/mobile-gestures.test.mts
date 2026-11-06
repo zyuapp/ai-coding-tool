@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { act } from "react";
-import { click, clickButton, clickRow, dom, lastCommand, live, openPhone, typeInto, view } from "../support/mobile-phone.mts";
+import { addThread, click, clickButton, clickRow, dom, lastCommand, live, openPhone, tapThread, typeInto, view } from "../support/mobile-phone.mts";
 
 /** A one-finger touch as React reads it: the event's `touches` and `changedTouches` lists. */
 function touch(node: Element, type: "touchstart" | "touchmove" | "touchend", x: number, y: number) {
@@ -63,24 +63,25 @@ test("in a browser tab the edge belongs to the browser, whose back steps back a 
   assert.ok(document.querySelector(".thread-list"), "the browser's back is a step back to the list");
 });
 
-test("the list switch moves with the arrow keys and keeps one Tab stop", () => {
+test("the comparison switch moves with the arrow keys and keeps one Tab stop", () => {
   const line = openPhone({ paired: true });
   live(line);
-  const radios = () => [...document.querySelectorAll<HTMLButtonElement>('.bar [role="radio"]')];
+  click(".thread-row .thread-open");
+  click('button[aria-label="Thread options"]');
+  clickRow("Changes");
+  const radios = () => [...document.querySelectorAll<HTMLButtonElement>('.changes-toolbar [role="radio"]')];
   assert.deepEqual(radios().map((node) => node.tabIndex), [0, -1]);
   act(() => void radios()[0]!.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true })));
   assert.equal(radios()[1]?.getAttribute("aria-checked"), "true");
   assert.equal(document.activeElement, radios()[1]);
-  assert.equal(localStorage.getItem("aicodingtool.mobile.list"), "activity");
-  localStorage.removeItem("aicodingtool.mobile.list");
 });
 
-test("a notice leaves the list switch in place", () => {
+test("a notice leaves the list title in place", () => {
   const line = openPhone({ paired: true });
   const failed = view();
   failed.error = "That worktree is busy.";
   live(line, failed);
-  assert.ok(document.querySelector('.bar [role="radiogroup"]'));
+  assert.equal(document.querySelector(".bar-title h1")?.textContent, "Threads");
   assert.ok(document.querySelector(".banner"));
 });
 
@@ -211,10 +212,9 @@ test("a plain tap on a row opens the thread with no sheet up", () => {
 
 test("a thread's options button shows, off, while the thread is still on its way", () => {
   const line = openPhone({ paired: true });
-  const two = view();
-  two.groups[0]!.threads.push({ ...two.groups[0]!.threads[0]!, id: "t2", title: "Rewrite the docs" });
+  const two = addThread(view(), { ...view().groups[0]!.threads[0]!, id: "t2", title: "Rewrite the docs" });
   live(line, two);
-  click('.thread-row:nth-of-type(2) .thread-open');
+  tapThread("Rewrite the docs");
   assert.equal(document.querySelector<HTMLButtonElement>('button[aria-label="Thread options"]')?.disabled, true);
   act(() => line.onmessage?.({ data: JSON.stringify({ kind: "patch", sequence: 2, patch: { thread: { kind: "opened", thread: { ...two.thread!, id: "t2", title: "Rewrite the docs" } } } }) }));
   assert.equal(document.querySelector<HTMLButtonElement>('button[aria-label="Thread options"]')?.disabled, false);
@@ -305,7 +305,6 @@ test("a typed code forgives look-alike letters and dashes, and says so when it i
 test("a project search that finds nothing offers to clear itself", () => {
   const line = openPhone({ paired: true });
   live(line);
-  click('.segmented button[aria-checked="false"]');
   click(".list-filter");
   typeInto(".sheet-search input", "zzz");
   assert.equal(document.querySelectorAll('.sheet [role="radio"]').length, 0);
@@ -313,5 +312,4 @@ test("a project search that finds nothing offers to clear itself", () => {
   assert.equal(document.querySelector<HTMLInputElement>(".sheet-search input")?.value, "");
   assert.ok(document.activeElement === document.querySelector(".sheet-search input"), "the field keeps the keyboard");
   assert.ok(document.querySelectorAll('.sheet [role="radio"]').length > 0);
-  localStorage.removeItem("aicodingtool.mobile.list");
 });

@@ -91,6 +91,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
             if (projectId) void workspace.dispatch({ type: "view.remember-project", projectId });
             void workspace.actions.newThread(projectId);
           }}
+          onAddProject={workspace.actions.openFolder}
           onSelectBranch={workspace.actions.setBranch}
           onSetWorktree={workspace.actions.setWorktree}
           coordinator={workspace.draftRole === "coordinator"}

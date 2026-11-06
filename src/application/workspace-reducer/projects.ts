@@ -7,7 +7,7 @@ import { reduceProjects } from "../project-commands.js";
 import type { WorkspaceState } from "../workspace-state.js";
 
 export const PROJECT_INPUTS = [
-  "project.opened", "project.edit", "project.registered", "project.register-failed", "project.move", "view.edit-project", "view.toggle-project",
+  "project.opened", "project.edit", "project.registered", "project.register-failed", "view.edit-project",
   "project.remove"
 ] as const;
 type ProjectInput = Extract<WorkspaceInput, { type: (typeof PROJECT_INPUTS)[number] }>;
@@ -18,9 +18,7 @@ export function reduceProjectCommands(state: WorkspaceState, input: ProjectInput
     case "project.edit":
     case "project.registered":
     case "project.register-failed":
-    case "project.move":
     case "view.edit-project":
-    case "view.toggle-project":
       return reduceProjects(state, input);
 
     case "project.remove": {
@@ -33,8 +31,6 @@ export function reduceProjectCommands(state: WorkspaceState, input: ProjectInput
       const leaving = state.threads.filter((thread) => thread.projectId === input.projectId);
       const effects = retireAutomations(state, leaving.map((thread) => thread.id));
       const project = state.projects.find((item) => item.id === input.projectId);
-      const expandedProjects = new Set(state.expandedProjects);
-      expandedProjects.delete(input.projectId);
       return settled({
         ...state,
         projects: state.projects.filter((item) => item.id !== input.projectId),
@@ -46,7 +42,6 @@ export function reduceProjectCommands(state: WorkspaceState, input: ProjectInput
         currentId: state.threads.find((thread) => thread.id === state.currentId)?.projectId === input.projectId ? null : state.currentId,
         draftProjectId: state.draftProjectId === input.projectId ? null : state.draftProjectId,
         lastFolder: project?.root === state.lastFolder ? null : state.lastFolder,
-        expandedProjects,
         projectEdit: state.projectEdit?.projectId === input.projectId ? null : state.projectEdit,
         openMenu: null,
         actionError: null,

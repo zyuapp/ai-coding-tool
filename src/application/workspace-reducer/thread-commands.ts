@@ -210,7 +210,7 @@ function dismissThread(state: WorkspaceState, taskId: string): WorkspaceTransiti
   const elsewhere = dismissElsewhere(state, new Set([taskId]));
   if (threads === state.threads && !elsewhere.effects.length && !elsewhere.errors.length) return settled(state);
   /** Filing away the thread being read moves on to the row that takes its place, so Priority can be worked down without going back to the list. */
-  const successor = state.sidebarMode === "activity" && state.currentId === taskId
+  const successor = state.currentId === taskId
     ? priorityNeighbour(state, taskId)
     : undefined;
   const filed = threads === state.threads ? state : { ...state, threads };
@@ -252,7 +252,6 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
         draftRole: null,
         actionError: null,
         lastFolder: project?.root ?? state.lastFolder,
-        expandedProjects: projectId ? new Set(state.expandedProjects).add(projectId) : state.expandedProjects,
       }), TAKE_KEYS);
     }
 

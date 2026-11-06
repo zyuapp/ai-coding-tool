@@ -64,7 +64,7 @@ test("a paired computer's member whose coordinator is away stays in a list of it
   const state = coordinating(holder);
   const lists = sidebarLists(state, [], [state.threads[0]!, ...holder.threads], new Set(), new Set());
   assert.equal(lists.threadsByCoordinator.get("lead"), undefined);
-  assert.ok(lists.recentThreads.some((thread) => thread.id === "far"));
+  assert.ok(Object.values(lists.activityThreads).flat().some((thread) => thread.id === "far"));
   assert.deepEqual(coordinationMembers(state, "lead"), [], "as its Overview and roster leave it out");
 });
 
@@ -706,7 +706,7 @@ test("a start allowed on another computer keeps its card's name there, and a bui
 
 test("dismissing a coordinator here files away what its threads on a paired computer carry there, by the same rule", () => {
   const holder = workspace({ threads: [far({ outcome: "finished", outcomeUnread: true }), task("asking", { remoteLead: FAR, outcome: "failed" })], activeRuns: { asking: activeRun("asking", "run-asking", { status: "awaiting-approval" }) } });
-  const state = { ...coordinating(holder), sidebarMode: "activity" as const };
+  const state = coordinating(holder);
   assert.deepEqual(deriveView(state).activityThreads.priority.map((thread) => thread.id), ["lead"], "the finished thread there holds its coordinator in Priority");
   const forwarded = (transition: WorkspaceTransition) => transition.effects.flatMap((effect) => effect.type === "computer.forward" ? [[effect.id, effect.inputs]] : []);
   assert.deepEqual(forwarded(reduce(state, { type: "task.dismiss", taskId: "lead" })), [["studio", [{ type: "task.dismiss", taskId: "far" }]]], "only the one with something to file away, never one still asking");
@@ -717,7 +717,7 @@ test("dismissing a coordinator here files away what its threads on a paired comp
 
 test("dismissing a coordinator reaches only the computers the sidebar shows, follows a thread there into its project, and says when one is out of reach", () => {
   const holder = workspace({ projects: [{ id: "p", root: "/studio/p" }], threads: [far({ projectId: "p", outcome: "finished", outcomeUnread: true })] });
-  const base = { ...coordinating(holder), sidebarMode: "activity" as const };
+  const base = coordinating(holder);
   const dismissing = (state: WorkspaceState, input: WorkspaceInput) => reduce(state, input).effects.flatMap((effect) => effect.type === "computer.forward" ? effect.inputs.filter((item) => item.type === "task.dismiss") : []);
   const filtered = { ...base, computers: { ...base.computers, filter: "this" } };
   assert.deepEqual(dismissing(filtered, { type: "task.dismiss-all" }), [], "with only this computer shown, nothing there is filed away");

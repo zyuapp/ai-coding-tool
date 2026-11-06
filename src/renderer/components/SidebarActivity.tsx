@@ -96,7 +96,7 @@ function ProjectFilter({ projects, projectHosts, project, onSetProject, openMenu
   );
 }
 
-/** The activity mode's lists, top to bottom, with the heading each is drawn under. */
+/** The sidebar's lists, top to bottom, with the heading each is drawn under. */
 const ACTIVITY_SECTIONS = [
   { key: "priority", label: "Priority" },
   { key: "running", label: "Running" },
@@ -105,7 +105,7 @@ const ACTIVITY_SECTIONS = [
 ] as const satisfies ReadonlyArray<{ key: keyof ActivitySections & SidebarSection; label: string }>;
 
 export type SidebarActivityProps = {
-  /** The threads ranked by what wants the user, which is what activity mode draws. */
+  /** The threads ranked by what wants the user. */
   activityThreads: ActivitySections;
   sections: SidebarSections;
   blockedThreadIds: Set<string>;

@@ -17,7 +17,7 @@ import { READING_SIZE, TERMINAL_SIZE, monoFontById, sizeById, uiFontById } from 
 
 export const SETTINGS_INPUTS = [
   "view.set-theme", "view.set-theme-family", "view.set-theme-mode", "view.system-scheme", "view.set-ui-font", "view.set-mono-font",
-  "view.set-reading-size", "view.set-terminal-size", "view.set-sidebar-mode", "view.set-activity-project", "view.set-sidebar-open",
+  "view.set-reading-size", "view.set-terminal-size", "view.set-activity-project", "view.set-sidebar-open",
   "view.focus-composer", "view.set-shortcut", "view.reset-shortcuts", "view.capture-shortcut", "shortcut.captured", "shortcut.unavailable",
   "view.inspect-subagent", "subagent.activity.loaded", "view.set-capture-options", "view.set-chrome-browser", "view.set-computer-use",
   "view.set-browser-tools", "view.set-notifications", "view.set-session-panel-open", "view.set-settings-open", "view.set-subagent-group",
@@ -54,7 +54,7 @@ function inspectSubagent(state: WorkspaceState, taskId: string | null, subagentI
 }
 
 /** Keeps one remembered choice, and writes nothing when it already holds. */
-function setPreference<Key extends "sidebarMode" | "activityProject" | "sidebarOpen">(state: WorkspaceState, key: Key, value: WorkspaceState[Key]): WorkspaceTransition {
+function setPreference<Key extends "activityProject" | "sidebarOpen">(state: WorkspaceState, key: Key, value: WorkspaceState[Key]): WorkspaceTransition {
   if (state[key] === value) return settled(state);
   const next = { ...state, [key]: value };
   return settled(next, persistView(next));
@@ -119,9 +119,6 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
       const next = { ...state, terminalSize: size };
       return settled(next, persistView(next));
     }
-
-    case "view.set-sidebar-mode":
-      return setPreference(state, "sidebarMode", input.mode);
 
     case "view.set-activity-project":
       return setPreference(state, "activityProject", input.projectId);

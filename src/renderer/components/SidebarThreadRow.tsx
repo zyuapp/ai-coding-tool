@@ -1,11 +1,10 @@
 import { CommandButton } from "./CommandControl";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
 import { LuActivity as Activity, LuAlarmClock as AlarmClock, LuAlarmClockOff as AlarmClockOff, LuCheck as Check, LuClockAlert as ClockAlert, LuEllipsis as Ellipsis, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass, LuMonitorOff as MonitorOff } from "react-icons/lu";
 import { pauseSummary } from "../../domain/usage-limit";
 import { projectName, type Project } from "../../domain/project";
 import type { Thread } from "../../domain/thread";
-import { attentionUrgency, FOLDER_LABELS, hasUnreadAttention, MEMBER_BLOCKED_LABEL, MEMBER_UNREAD_LABEL, newestUnreadFinding, type AttentionTone } from "../../domain/attention";
+import { hasUnreadAttention, MEMBER_BLOCKED_LABEL, MEMBER_UNREAD_LABEL, newestUnreadFinding, type AttentionTone } from "../../domain/attention";
 import type { ThreadOutcome } from "../../domain/thread-run";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
 import type { AutomationView } from "../../domain/automation";
@@ -97,7 +96,7 @@ function statusMark(status: RowStatus | null): ReactNode {
 }
 
 /**
- * What a row says under its title in activity mode: which computer and folder it lives in, and when
+ * What a row says under its title: which computer and folder it lives in, and when
  * it last moved. A row carrying something a run found says that instead — the headline is why the
  * row is in Priority. A snoozed row says when it comes back.
  */
@@ -343,7 +342,7 @@ function threadRail(row: RowState, status: RowStatus | null, away: boolean, acti
   );
 }
 
-/** The menu's way to do what a drag does: every other folder on the thread's computer, and Recents. */
+/** Every other project on the thread's computer, and no project at all. */
 function moveEntry(row: RowState): MenuEntry[] {
   const { thread, moveTargets, handlers } = row;
   if (!moveTargets) return [];
@@ -354,7 +353,7 @@ function moveEntry(row: RowState): MenuEntry[] {
   });
   const items = [
     ...moveTargets.filter((project) => project.id !== thread.projectId).map((project) => destination(projectName(project), project.id)),
-    ...(thread.projectId ? [destination("Recents", null)] : []),
+    ...(thread.projectId ? [destination("No project", null)] : []),
   ];
   return items.length ? [{ label: "Move to", items }] : [];
 }
@@ -433,10 +432,10 @@ function rowBody(row: RowState, className: string, content: ReactNode, action: R
   );
 }
 
-/** Enter opens the row's thread and F2 renames it, as the menu's Rename does. Space opens it too where dragging does not claim it. */
-function rowKeys(event: React.KeyboardEvent<HTMLElement>, row: RowState, space = false) {
+/** Enter and Space open the row's thread, and F2 renames it, as the menu's Rename does. */
+function rowKeys(event: React.KeyboardEvent<HTMLElement>, row: RowState) {
   if (event.target !== event.currentTarget) return;
-  if (event.key === "Enter" || (space && event.key === " ")) {
+  if (event.key === "Enter" || event.key === " ") {
     if (event.key === " ") event.preventDefault();
     row.handlers.select(row.thread.id);
   }
@@ -446,37 +445,6 @@ function rowKeys(event: React.KeyboardEvent<HTMLElement>, row: RowState, space =
   }
 }
 
-/** Where a draggable row sits: under its folder, or in Recents with when it last moved. */
-type ThreadRowPlace = "project" | "recent";
-
-const ThreadRow = memo(function ThreadRow({ index, place, ...row }: RowState & { index: number; place: ThreadRowPlace }) {
-  const { thread, host } = row;
-  const content = place === "project"
-    ? <span data-tip={thread.title} data-tip-overflow>{thread.title}</span>
-    : <span className="task-row-text">
-        <span data-tip={thread.title} data-tip-overflow>{thread.title}</span>
-        <small>{hostMeta(host, formatTime(thread.rankedAt))}</small>
-      </span>;
-  return (
-    <Draggable draggableId={thread.id} index={index} isDragDisabled={row.away}>
-      {(provided: DraggableProvided, snapshot) => (
-        <div
-          className={`task-entry ${snapshot.isDragging ? "is-dragging" : ""}`}
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          {...provided.dragHandleProps}
-          data-pinned={row.pinned ?? undefined}
-          aria-current={row.active || undefined}
-          onKeyDown={(event) => rowKeys(event, row)}
-        >
-          {rowBody(row, `${place === "project" ? "project-task-row" : "task-row"} ${row.active ? "active" : ""}`, content, "none")}
-        </div>
-      )}
-    </Draggable>
-  );
-});
-
-/** Activity mode ranks its rows itself, so nothing there is dragged and no list places it. */
 const ActivityRow = memo(function ActivityRow({ projectLabel, action, priority, ...row }: RowState & { projectLabel: string | undefined; action: RowAction; priority: boolean }) {
   const { thread } = row;
   return (
@@ -484,7 +452,7 @@ const ActivityRow = memo(function ActivityRow({ projectLabel, action, priority, 
       className="task-entry"
       tabIndex={0}
       aria-current={row.active || undefined}
-      onKeyDown={(event) => rowKeys(event, row, true)}
+      onKeyDown={(event) => rowKeys(event, row)}
     >
       {rowBody(row, `task-row ${row.active ? "active" : ""}`, (
         <span className="task-row-text">
@@ -496,7 +464,7 @@ const ActivityRow = memo(function ActivityRow({ projectLabel, action, priority, 
   );
 });
 
-/** Both lists draw the same row, so both of them ask this for one: only the placement differs. */
+/** Draws a sidebar row for a thread. */
 export function useThreadRows({
   projects,
   currentId,
@@ -599,35 +567,12 @@ export function useThreadRows({
     };
   };
 
-  /** A folded folder's one mark: what most wants the user among the threads it hides. */
-  const folderStatus = (threads: Thread[]): ReactNode => {
-    let pressing: RowStatus | null = null;
-    for (const thread of threads) {
-      if (offline(thread.id)) continue;
-      const status = rowStatus(rowState(thread));
-      if (status && (!pressing || attentionUrgency(statusTone(status)) < attentionUrgency(statusTone(pressing)))) pressing = status;
-      if (pressing && attentionUrgency(statusTone(pressing)) === 0) break;
-    }
-    if (!pressing) return null;
-    const label = FOLDER_LABELS[statusTone(pressing)];
-    return <span className="row-mark folder-status" data-tip={label}>{statusMark({ ...pressing, label })}</span>;
-  };
-
-  const threadRow = Object.assign((thread: Thread, index: number, place: ThreadRowPlace) => (
-    <ThreadRow key={thread.id} index={index} place={place} {...rowState(thread)} />
-  ), { folderStatus });
-
   const activityRow = (thread: Thread, action: RowAction, priority: boolean) => {
     const project = projects.find((item) => item.id === thread.projectId);
     return <ActivityRow key={thread.id} projectLabel={project && projectName(project)} action={action} priority={priority} {...rowState(thread)} />;
   };
 
-  return { threadRow, activityRow };
+  return activityRow;
 }
 
-function statusTone(status: RowStatus): AttentionTone {
-  return status.kind === "dot" ? status.tone ?? "unread" : status.kind;
-}
-
-export type ThreadRowRenderer = ReturnType<typeof useThreadRows>["threadRow"];
-export type ActivityRowRenderer = ReturnType<typeof useThreadRows>["activityRow"];
+export type ActivityRowRenderer = ReturnType<typeof useThreadRows>;

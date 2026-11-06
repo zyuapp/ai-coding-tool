@@ -15,10 +15,6 @@ test("in Priority, Dismiss covers the engine slot and the menu the one beside it
   assert.doesNotMatch(css, /\.task-dismiss \{ margin-right/);
 });
 
-test("a draggable thread shows its grip on the open row too", () => {
-  assert.match(css, /:is\(\.project-task-row, \.task-row\):not\(\.offline\)::after/);
-});
-
 test("a row's meta line steps up on the hover fill, and the open Settings wears the selected row's fill", () => {
   assert.match(css, /\.task-row:hover:not\(\.offline\) \.task-row-text > small \{ color: var\(--quiet-strong\); \}/);
   assert.match(css, /\.sidebar-settings\.active \{ background: var\(--row-selected\);/);

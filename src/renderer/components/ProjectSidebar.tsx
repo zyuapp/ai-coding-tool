@@ -1,11 +1,10 @@
 import { memo, useLayoutEffect, useMemo, useRef } from "react";
-import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import { LuPlus as Plus, LuSearch as Search, LuSquarePen as SquarePen } from "react-icons/lu";
 import type { Project, ThreadDropTarget } from "../../domain/project";
 import { hasUnreadAttention } from "../../domain/attention";
 import { isAgentEngine } from "../../domain/agent-engine";
 import type { Thread } from "../../domain/thread";
-import type { SidebarMode, SidebarSection, SidebarSections } from "../../domain/sidebar";
+import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
 import type { ActivitySections } from "../../application/thread-order";
 import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
@@ -13,7 +12,6 @@ import { SidebarActivity } from "./SidebarActivity";
 import { SidebarHeader, SidebarResizer } from "./SidebarChrome";
 import type { ThreadHost } from "../../application/computers";
 import { offlineMessage, type ComputerFilter, type ComputerLink } from "../../domain/computers";
-import { PROJECT_DRAG, RECENTS_DROPPABLE, SidebarProjects, useShownThreads } from "./SidebarProjects";
 import { useThreadRows, type SidebarCoordination } from "./SidebarThreadRow";
 import type { SnoozeHours } from "../../domain/thread-snooze";
 import type { ThreadRole } from "../../domain/thread-role";
@@ -30,11 +28,7 @@ export type ProjectSidebarProps = {
   open: boolean;
   inactive: boolean;
   projects: Project[];
-  orderedThreads: Thread[];
-  recentThreads: Thread[];
   currentId: string | null;
-  draftProjectId: string | null;
-  expandedProjects: Set<string>;
   runningThreadIds: Set<string>;
   /** Threads not running whose background shell or monitor will wake them. */
   monitoringThreadIds: Set<string>;
@@ -46,9 +40,9 @@ export type ProjectSidebarProps = {
   /** Each thread waiting out its usage limit, by its place in line. */
   limitPositions: Map<string, number>;
   worktreeThreadIds: Set<string>;
-  /** The checkouts each project has, with the threads in each. A project offers starting one more there. */
+  /** The checkouts each project has, with the threads in each. */
   worktreeGroups: WorktreeGroup[];
-  /** The same threads ranked by what wants the user, which is what activity mode draws. */
+  /** The threads ranked by what wants the user, which is what the sidebar draws. */
   activityThreads: ActivitySections;
   /** Which paired computer holds each thread and folder that is not this computer's own. */
   threadHosts: Map<string, ThreadHost>;
@@ -60,7 +54,6 @@ export type ProjectSidebarProps = {
   /** The one project the activity lists are narrowed to, or null for every project. */
   activityProject: string | null;
   onSetActivityProject: (projectId: string | null) => void;
-  mode: SidebarMode;
   sections: SidebarSections;
   openMenu: string | null;
   settingsOpen: boolean;
@@ -68,15 +61,8 @@ export type ProjectSidebarProps = {
   canGoForward: boolean;
   onGoBack: () => void;
   onGoForward: () => void;
-  /** A thread in the project, or in one of its checkouts when `worktreeId` names one. */
-  onNewThread: (projectId?: string, worktreeId?: string) => void;
+  onNewThread: () => void;
   onOpenFolder: () => void;
-  onToggleProject: (projectId: string) => void;
-  /** The name typed on the row itself. Blank gives the folder its own name back. */
-  onRenameProject: (projectId: string, name: string) => void;
-  onEditProject: (projectId: string) => void;
-  onRemoveProject: (projectId: string) => void;
-  onSetMode: (mode: SidebarMode) => void;
   onSetSectionOpen: (section: SidebarSection, open: boolean) => void;
   onSetOpenMenu: (menu: string | null) => void;
   onSelectThread: (threadId: string) => void;
@@ -93,7 +79,6 @@ export type ProjectSidebarProps = {
   onForkThread: (threadId: string, worktree: boolean) => void;
   onSetThreadRole: (threadId: string, role: ThreadRole | null) => void;
   sidebarCoordination: SidebarCoordination;
-  onMoveProject: (projectId: string, index: number) => void;
   onOpenSettings: () => void;
   appUpdate: AppUpdate;
   onDownloadUpdate: () => void;
@@ -122,48 +107,9 @@ function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "block
   }, 1);
 }
 
-/** The threads the sidebar draws a row for in its mode: those in the lists and folders left open. */
-function drawnThreads(mode: SidebarMode, sections: SidebarSections, activityThreads: ActivitySections, threadsByProject: Map<string, Thread[]>, expandedProjects: Set<string>, recentThreads: Thread[]): Thread[] {
-  if (mode === "activity") return (["priority", "running", "threads", "snoozed"] as const).flatMap((key) => sections[key] ? activityThreads[key] : []);
-  return [
-    ...(sections.projects ? [...expandedProjects].flatMap((projectId) => threadsByProject.get(projectId) ?? []) : []),
-    ...(sections.recents ? recentThreads : []),
-  ];
-}
-
-/** One context carries both drags; `type` says which list the drop belongs to. */
-function dropHandler(onMoveProject: ProjectSidebarProps["onMoveProject"], onMoveThread: ProjectSidebarProps["onMoveThread"]) {
-  return ({ draggableId, type, source, destination }: DropResult) => {
-    if (!destination) return;
-    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
-    if (type.startsWith(`${PROJECT_DRAG}:`)) {
-      if (destination.droppableId === source.droppableId) onMoveProject(draggableId, destination.index);
-      return;
-    }
-    onMoveThread(draggableId, {
-      projectId: destination.droppableId === RECENTS_DROPPABLE ? null : destination.droppableId,
-      index: destination.index,
-    });
-  };
-}
-
-function groupedBy<T>(items: T[], keyFor: (item: T) => string | undefined): Map<string, T[]> {
-  const grouped = new Map<string, T[]>();
-  for (const item of items) {
-    const key = keyFor(item);
-    if (key) grouped.get(key)?.push(item) ?? grouped.set(key, [item]);
-  }
-  return grouped;
-}
-
-/** Each folder's threads, short of those drawn beneath a coordinator instead, and each folder's checkouts. */
-function useProjectGroups(orderedThreads: Thread[], worktreeGroups: WorktreeGroup[], threadsByCoordinator: Map<string, Thread[]>) {
-  const threadsByProject = useMemo(() => {
-    const members = new Set([...threadsByCoordinator.values()].flat().map((thread) => thread.id));
-    return groupedBy(members.size ? orderedThreads.filter((thread) => !members.has(thread.id)) : orderedThreads, (thread) => thread.projectId);
-  }, [orderedThreads, threadsByCoordinator]);
-  const checkoutsByProject = useMemo(() => groupedBy(worktreeGroups, (group) => group.worktree.projectId), [worktreeGroups]);
-  return { threadsByProject, checkoutsByProject };
+/** The threads the sidebar draws a row for: those in the lists left open. */
+function drawnThreads(sections: SidebarSections, activityThreads: ActivitySections): Thread[] {
+  return (["priority", "running", "threads", "snoozed"] as const).flatMap((key) => sections[key] ? activityThreads[key] : []);
 }
 
 function NewThreadBar({ onNewThread }: { onNewThread: () => void }) {
@@ -184,11 +130,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   open,
   inactive,
   projects,
-  orderedThreads,
-  recentThreads,
   currentId,
-  draftProjectId,
-  expandedProjects,
   runningThreadIds,
   monitoringThreadIds,
   blockedThreadIds,
@@ -202,7 +144,6 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   computerLinks, computerName,
   computerFilter, onSetComputerFilter,
   activityProject, onSetActivityProject,
-  mode,
   sections,
   openMenu,
   settingsOpen,
@@ -212,11 +153,6 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   onGoForward,
   onNewThread,
   onOpenFolder,
-  onToggleProject,
-  onRenameProject,
-  onEditProject,
-  onRemoveProject,
-  onSetMode,
   onSetSectionOpen,
   onSetOpenMenu,
   onSelectThread,
@@ -229,7 +165,6 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   onForkThread,
   onSetThreadRole,
   sidebarCoordination,
-  onMoveProject,
   onOpenSettings,
   appUpdate,
   onDownloadUpdate,
@@ -237,11 +172,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
 }: ProjectSidebarProps) {
   const selectedComputer = computerLinks.find((link) => link.id === computerFilter);
   const list = useRef<HTMLElement>(null);
-  const shownThreads = useShownThreads();
-
-  const { threadsByProject, checkoutsByProject } = useProjectGroups(orderedThreads, worktreeGroups, sidebarCoordination.threadsByCoordinator);
-
-  const { threadRow, activityRow } = useThreadRows({
+  const activityRow = useThreadRows({
     projects,
     currentId,
     runningThreadIds,
@@ -266,24 +197,23 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   });
 
   const railSlots = useMemo(
-    () => railSlotsFor(drawnThreads(mode, sections, activityThreads, threadsByProject, expandedProjects, recentThreads), { blockedThreadIds, runningThreadIds, monitoringThreadIds, sideChatAttention, worktreeThreadIds, schedules, threadHosts }, sidebarCoordination),
-    [mode, sections, activityThreads, threadsByProject, expandedProjects, recentThreads, blockedThreadIds, runningThreadIds, monitoringThreadIds, sideChatAttention, worktreeThreadIds, schedules, threadHosts, sidebarCoordination],
+    () => railSlotsFor(drawnThreads(sections, activityThreads), { blockedThreadIds, runningThreadIds, monitoringThreadIds, sideChatAttention, worktreeThreadIds, schedules, threadHosts }, sidebarCoordination),
+    [sections, activityThreads, blockedThreadIds, runningThreadIds, monitoringThreadIds, sideChatAttention, worktreeThreadIds, schedules, threadHosts, sidebarCoordination],
   );
 
   /** Stepping through threads from the keyboard is blind unless the list follows the one now open. */
   useLayoutEffect(() => {
-    list.current?.querySelector<HTMLElement>(".task-row.active, .project-task-row.active")?.scrollIntoView({ block: "nearest" });
+    list.current?.querySelector<HTMLElement>(".task-row.active")?.scrollIntoView({ block: "nearest" });
   }, [currentId]);
 
   return (
-    <DragDropContext onDragEnd={dropHandler(onMoveProject, onMoveThread)}>
     <aside
       ref={list}
       className={`sidebar ${open ? "compact-open" : "hidden"}`}
       inert={inactive || !open}
       style={{ "--row-slots": railSlots } as React.CSSProperties}
     >
-      <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
+      <SidebarHeader canGoBack={canGoBack} canGoForward={canGoForward} onGoBack={onGoBack} onGoForward={onGoForward} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
       <NewThreadBar onNewThread={onNewThread} />
 
       <div className="sidebar-scroll">
@@ -292,7 +222,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
             ? <><p role="alert">{offlineMessage(selectedComputer)}</p><button type="button" className="sidebar-empty-action" onClick={() => onSetComputerFilter("all")}>Show all computers</button></>
             : <><p>{computerFilter === "all" ? "No projects yet" : `${selectedComputer?.name ?? (computerName || "This computer")} has no projects yet`}</p><button type="button" className="sidebar-empty-action" onClick={onOpenFolder}><Plus size={14} aria-hidden="true" />Add project</button></>}
         </div>}
-        {mode === "activity" && <SidebarActivity
+        <SidebarActivity
           activityThreads={activityThreads}
           sections={sections}
           blockedThreadIds={blockedThreadIds}
@@ -301,35 +231,10 @@ export const ProjectSidebar = memo(function ProjectSidebar({
           onDismissAll={() => onDismissAll(activityProject)}
           renderRow={activityRow}
           projectFilter={{ projects, projectHosts, project: activityProject, onSetProject: onSetActivityProject, openMenu, onSetOpenMenu }}
-        />}
-
-        {mode === "projects" && <SidebarProjects
-          projects={projects}
-          computerName={computerName}
-          threadsByProject={threadsByProject}
-          checkoutsByProject={checkoutsByProject}
-          recentThreads={recentThreads}
-          currentId={currentId}
-          draftProjectId={draftProjectId}
-          expandedProjects={expandedProjects}
-          projectHosts={projectHosts}
-          sections={sections}
-          shownThreads={shownThreads}
-          openMenu={openMenu}
-          renderRow={threadRow}
-          onSetSectionOpen={onSetSectionOpen}
-          onSetOpenMenu={onSetOpenMenu}
-          onNewThread={onNewThread}
-          onOpenFolder={onOpenFolder}
-          onToggleProject={onToggleProject}
-          onRenameProject={onRenameProject}
-          onEditProject={onEditProject}
-          onRemoveProject={onRemoveProject}
-        />}
+        />
       </div>
       <SidebarFooter settingsOpen={settingsOpen} onOpenSettings={onOpenSettings} update={appUpdate} onDownloadUpdate={onDownloadUpdate} onInstallUpdate={onInstallUpdate} />
       <SidebarResizer />
     </aside>
-    </DragDropContext>
   );
 });

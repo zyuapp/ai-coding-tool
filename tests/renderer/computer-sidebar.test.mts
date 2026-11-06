@@ -12,7 +12,7 @@ import { renderProjectSidebar } from "../support/sidebar.mts";
 const linux = { id: "linux", name: "linux-box", offline: false };
 const gone = { id: "old", name: "old-laptop", offline: true };
 
-test("remote worktree marks keep their names and colors across sidebar modes, filters, and host updates", async () => {
+test("remote worktree marks keep their names and colors across filters and host updates", async () => {
   const held = (host: string) => workspace({
     projects: [{ id: `${host}-project`, root: `/${host}/app` }],
     threads: ["claude", "codex"].map((engine) => task(`${host}-${engine}`, {
@@ -23,31 +23,31 @@ test("remote worktree marks keep their names and colors across sidebar modes, fi
   });
   const local = held("mac");
   const remote = held("linux");
-  let state: WorkspaceState = { ...local, expandedProjects: new Set(["mac-project", "linux-project"]), computers: {
+  let state: WorkspaceState = { ...local, computers: {
     ...local.computers, paired: [{ id: "linux", name: "Linux", host: "linux.ts.net", status: "connected", error: null, pairedAt: 1, state: remote }],
   } };
   const view = await mount(renderProjectSidebar({}));
   try {
-    for (const active of [null, "linux"]) for (const mode of ["activity", "projects"] as const) for (const filter of ["all", "this", "linux"] as const) {
-      const projected = deriveView({ ...state, sidebarMode: mode, computers: { ...state.computers, active, filter } });
-      await view.render(renderProjectSidebar({ ...projected, mode }));
+    for (const active of [null, "linux"]) for (const filter of ["all", "this", "linux"] as const) {
+      const projected = deriveView({ ...state, computers: { ...state.computers, active, filter } });
+      await view.render(renderProjectSidebar(projected));
       const hosts = filter === "all" ? ["mac", "linux"] : [filter === "this" ? "mac" : filter];
       for (const host of hosts) {
         const marks = view.container.querySelectorAll(`.task-worktree[aria-label="Works in ${host} checkout"]`);
-        assert.ok(marks.length >= 2, `${mode}/${filter}/${active}: both engines show ${host}'s checkout`);
+        assert.ok(marks.length >= 2, `${filter}/${active}: both engines show ${host}'s checkout`);
         for (const mark of marks) assert.ok(mark.classList.contains(`hue-${worktreeHue(`${host}-wt`)}`));
       }
       if (filter === "this") assert.equal(view.container.querySelector('.task-worktree[aria-label="Works in linux checkout"]') === null, true);
     }
     const renderRemote = async () => {
       const projected = deriveView({ ...state, computers: { ...state.computers, active: "linux", filter: "linux" } });
-      await view.render(renderProjectSidebar({ ...projected, mode: "projects" }));
+      await view.render(renderProjectSidebar(projected));
     };
     state = { ...state, computers: { ...state.computers, paired: [{ ...state.computers.paired[0], state: { ...remote, worktrees: [{ ...remote.worktrees[0], name: "Renamed checkout" }] } }] } };
     await renderRemote();
     assert.ok(view.container.querySelector('.task-worktree[aria-label="Works in Renamed checkout"]'));
     const offline = deriveView({ ...state, computers: { ...state.computers, paired: [{ ...state.computers.paired[0], status: "offline" }] } });
-    await view.render(renderProjectSidebar({ ...offline, mode: "projects" }));
+    await view.render(renderProjectSidebar(offline));
     assert.equal(view.container.querySelector('.task-worktree[aria-label="Works in Renamed checkout"]') === null, false, "an unreachable computer keeps its cached rows and their marks, dimmed");
     assert.equal(view.container.querySelector('[aria-disabled="true"]') === null, false, "the cached rows are drawn as away");
     await renderRemote();
@@ -62,97 +62,12 @@ test("remote worktree marks keep their names and colors across sidebar modes, fi
   } finally { await view.unmount(); }
 });
 
-test("overlapping project orders stay grouped and repeated filter changes replace the visible rows", async () => {
-  const projects = (host: string) => [
-    { id: `${host}-b`, root: `/${host}/b`, sortIndex: 1 },
-    { id: `${host}-a`, root: `/${host}/a`, sortIndex: 0 },
-  ];
-  const held = (host: string) => workspace({
-    projects: projects(host),
-    threads: projects(host).map((project) => task(`${project.id}-thread`, { projectId: project.id })),
-  });
-  const state = held("mac");
-  state.sidebarMode = "projects";
-  state.expandedProjects = new Set(["mac-a", "mac-b", "linux-a", "linux-b", "old-a", "old-b"]);
-  state.computers = { ...state.computers, name: "My Mac", paired: [linux, gone].map((host) => ({
-    id: host.id, name: host.name, host: `${host.id}.ts.net`, status: host.offline ? "offline" : "connected",
-    error: null, pairedAt: 1, state: held(host.id),
-  })) };
-  const view = await mount(renderProjectSidebar({}));
-  try {
-    for (const filter of ["all", "this", "linux", "old", "all", "this", "all"] as const) {
-      const projected = deriveView({ ...state, computers: { ...state.computers, filter } });
-      /** The computer that cannot be reached still lists what it last sent, under its own heading. */
-      const hosts = filter === "all" ? ["mac", "linux", "old"] : [filter === "this" ? "mac" : filter];
-      const ids = hosts.flatMap((host) => [`${host}-a`, `${host}-b`]);
-      assert.deepEqual(projected.projects.map((project) => project.id), ids);
-      await view.render(renderProjectSidebar({ ...projected, mode: "projects" }));
-      const groups = [...view.container.querySelectorAll(".computer-group")];
-      assert.equal(groups.length, hosts.length);
-      assert.deepEqual([...view.container.querySelectorAll(".project-group")].map((row) => row.getAttribute("data-rfd-draggable-id")), ids);
-      assert.deepEqual([...view.container.querySelectorAll(".project-task-row > span:first-child")].map((row) => row.textContent), ids.map((id) => `${id}-thread`));
-    }
-  } finally {
-    await view.unmount();
-  }
-});
-
-test("folders sit under the computer that holds them, this computer's first, and each row stays its own button", async () => {
-  const toggled: string[] = [];
-  const projects = [
-    { id: "local", root: "/local/app", name: "Local app" },
-    { id: "remote", root: "/linux/app", name: "A long remote project name" },
-    { id: "remote-two", root: "/linux/other", name: "Other" },
-    { id: "offline", root: "/old/app", name: "Offline app" },
-  ];
-  const view = await mount(renderProjectSidebar({
-    projects,
-    computerName: "My Mac",
-    projectHosts: new Map([["remote", linux], ["remote-two", linux], ["offline", gone]]),
-    onToggleProject: (id) => toggled.push(id),
-  }));
-  try {
-    const groups = [...view.container.querySelectorAll<HTMLElement>(".project-list .computer-group")];
-    assert.deepEqual(groups.map((group) => group.getAttribute("aria-label")), ["My Mac", "linux-box", "old-laptop"]);
-    assert.deepEqual(groups.map((group) => query(group, ".computer-heading .host-mark").textContent), ["My Mac", "linux-box", "old-laptop"]);
-    assert.deepEqual(groups.map((group) => query(group, ".computer-heading .host-mark").classList.contains("offline")), [false, false, true]);
-    assert.equal(query(groups[2]!, ".host-mark").dataset.tip, "old-laptop · Offline");
-    assert.equal(query(groups[2]!, ".host-mark > svg").getAttribute("aria-label"), "Offline");
-    assert.equal(query(groups[0]!, ".host-mark").dataset.tip, "My Mac");
-    assert.equal("tipOverflow" in query(groups[0]!, ".host-mark").dataset, true);
-    assert.deepEqual(groups.map((group) => [...group.querySelectorAll(".project-main")].map((button) => button.textContent)), [
-      ["Local app"], ["A long remote project name", "Other"], ["Offline app"],
-    ], "a row carries the folder name alone");
-    const buttons = [...view.container.querySelectorAll<HTMLButtonElement>(".project-main")];
-    assert.deepEqual(buttons.map((button) => button.dataset.tip), ["/local/app", "/linux/app on linux-box", "/linux/other on linux-box", "/old/app on old-laptop (offline)"]);
-    for (const button of buttons.slice(1)) await act(async () => { button.click(); });
-    assert.deepEqual(toggled, ["remote", "remote-two", "offline"]);
-  } finally {
-    await view.unmount();
-  }
-});
-
-test("folders all on this computer carry no computer heading", async () => {
-  const view = await mount(renderProjectSidebar({
-    projects: [{ id: "local", root: "/local/app", name: "Local app" }],
-    computerName: "My Mac",
-  }));
-  try {
-    assert.equal(view.container.querySelector(".computer-heading") === null, true);
-    assert.equal(query(view.container, ".computer-group").getAttribute("role"), null);
-    assert.equal(query(view.container, ".project-main").textContent, "Local app");
-  } finally {
-    await view.unmount();
-  }
-});
-
 test("rows on a paired computer carry its name, and rows on one that cannot be reached are greyed and only say why when chosen", async () => {
   const selected: string[] = [];
   const here = task("here", { title: "Local work" });
   const there = task("there", { title: "Remote work", projectId: "remote-project" });
   const elsewhere = task("elsewhere", { title: "Unreachable work" });
   const view = await mount(renderProjectSidebar({
-    mode: "activity",
     projects: [{ id: "remote-project", root: "/linux/app" }],
     activityThreads: { priority: [], running: [], threads: [here, there, elsewhere], snoozed: [] },
     threadHosts: new Map([["there", linux], ["elsewhere", gone]]),
@@ -199,12 +114,12 @@ test("the header's computer button names every computer and narrows the lists to
   }
   const view = await mount(createElement(Sidebar));
   try {
-    const trigger = query<HTMLButtonElement>(view.container, ".traffic-space .sidebar-modes .computer-switch-trigger");
+    const trigger = query<HTMLButtonElement>(view.container, ".traffic-space .computer-switch-trigger");
     const choicesInMenu = () => [...view.container.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')];
     const press = async (target: HTMLElement, key: string) => {
       await act(async () => { target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true })); });
     };
-    assert.equal(trigger.parentElement?.previousElementSibling?.getAttribute("aria-label"), "Sidebar view", "it sits beside the view switch");
+    assert.ok(trigger.parentElement?.nextElementSibling?.classList.contains("thread-nav"), "it sits before the back and forward buttons");
     assert.ok(trigger.classList.contains("thread-nav-button"));
     assert.equal(trigger.getAttribute("aria-label"), "Computers, 1 offline");
     assert.equal(trigger.dataset.tip, "Computers · old-laptop offline", "every computer listed flags the one out of reach");
@@ -296,7 +211,6 @@ test("the Priority view narrows to one project from its own list, naming the com
   const dismissed: (string | null)[] = [];
   const projects = [{ id: "web", root: "/work/web" }, { id: "remote-api", root: "/linux/api" }];
   const props = (activityProject: string | null, openMenu: string | null = null) => renderProjectSidebar({
-    mode: "activity",
     projects,
     projectHosts: new Map([["remote-api", linux]]),
     activityThreads: { priority: [task("done", { projectId: "web", outcome: "finished" })], running: [], threads: [], snoozed: [] },
@@ -308,7 +222,7 @@ test("the Priority view narrows to one project from its own list, naming the com
   const view = await mount(props(null));
   try {
     const trigger = () => query<HTMLButtonElement>(view.container, ".sidebar-scroll .activity-filter-trigger");
-    assert.equal(view.container.querySelector(".traffic-space .activity-filter-trigger"), null, "the header stays the same in both views");
+    assert.equal(view.container.querySelector(".traffic-space .activity-filter-trigger"), null, "the filter stays out of the header");
     assert.equal(query(view.container, ".activity-filter").nextElementSibling?.querySelector(".section-toggle")?.textContent, "Priority", "it heads the Priority list");
     assert.deepEqual([trigger().textContent, trigger().classList.contains("narrowed")], ["All projects", false]);
     await view.render(props(null, "activity:project"));
@@ -321,9 +235,7 @@ test("the Priority view narrows to one project from its own list, naming the com
     assert.deepEqual([trigger().textContent, trigger().classList.contains("narrowed")], ["apilinux-box", true]);
     await act(async () => { query<HTMLButtonElement>(view.container, '.dismiss-all').click(); });
     assert.deepEqual(dismissed, ["remote-api"], "dismiss all keeps to the project shown");
-    await view.render(renderProjectSidebar({ mode: "projects", projects }));
-    assert.equal(view.container.querySelector(".activity-filter"), null, "the projects view is untouched");
-    await view.render(renderProjectSidebar({ mode: "activity", projects: projects.slice(0, 1) }));
+    await view.render(renderProjectSidebar({ projects: projects.slice(0, 1) }));
     assert.equal(view.container.querySelector(".activity-filter"), null, "one project has nothing to narrow to");
   } finally {
     await view.unmount();
@@ -335,8 +247,7 @@ test("an unreachable computer's row offers nothing: no rename, no menu", async (
   const here = task("here", { title: "Local work" });
   const elsewhere = task("elsewhere", { title: "Unreachable work" });
   const view = await mount(renderProjectSidebar({
-    mode: "projects",
-    recentThreads: [here, elsewhere],
+    activityThreads: { priority: [], running: [], threads: [here, elsewhere], snoozed: [] },
     threadHosts: new Map([["elsewhere", gone]]),
     computerLinks: [{ id: "old", name: "old-laptop", host: "old.tail.ts.net", status: "offline", error: "Timed out", pairedAt: 1 }],
     onSetOpenMenu: (menu) => menus.push(menu),
@@ -360,8 +271,7 @@ test("a row whose computer goes away takes back the menu it had open", async () 
   const menus: (string | null)[] = [];
   const elsewhere = task("elsewhere", { title: "Unreachable work" });
   const view = await mount(renderProjectSidebar({
-    mode: "projects",
-    recentThreads: [elsewhere],
+    activityThreads: { priority: [], running: [], threads: [elsewhere], snoozed: [] },
     threadHosts: new Map([["elsewhere", gone]]),
     computerLinks: [{ id: "old", name: "old-laptop", host: "old.tail.ts.net", status: "offline", error: "Timed out", pairedAt: 1 }],
     openMenu: "task:elsewhere",
@@ -380,7 +290,7 @@ test("a paired computer's thread offers to move under only that computer's coord
   const there = task("there", { title: "Linux thread" });
   const coordination = (byComputer: ReadonlyMap<string | null, readonly Thread[]>) => ({ threadsByCoordinator: new Map(), waitingLines: new Map(), coordinatorsByComputer: byComputer, onSetCoordinator() {}, notifications: true, onSetMuted() {}, stoppable: new Set<string>(), onStopAll() {} });
   const offered = async (byComputer: ReadonlyMap<string | null, readonly Thread[]>) => {
-    const view = await mount(renderProjectSidebar({ mode: "projects", recentThreads: [there], threadHosts: new Map([["there", linux]]), computerLinks: [{ id: "linux", name: "linux", host: "linux.tail.ts.net", status: "connected", error: null, pairedAt: 1 }], openMenu: "task:there", sidebarCoordination: coordination(byComputer) }));
+    const view = await mount(renderProjectSidebar({ activityThreads: { priority: [], running: [], threads: [there], snoozed: [] }, threadHosts: new Map([["there", linux]]), computerLinks: [{ id: "linux", name: "linux", host: "linux.tail.ts.net", status: "connected", error: null, pairedAt: 1 }], openMenu: "task:there", sidebarCoordination: coordination(byComputer) }));
     const labels = [...dom.window.document.querySelectorAll("[role=menu] button")].map((item) => item.textContent ?? "");
     await view.unmount();
     return labels;

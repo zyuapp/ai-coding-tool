@@ -37,7 +37,7 @@ async function host(t: { onTestFinished(callback: () => void | Promise<void>): v
   const folder = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-computers-"));
   await writeFile(path.join(folder, "index.html"), "<!doctype html><title>phone</title>");
   const devices = new PairingStore(path.join(folder, "mobile-devices.v1.json"));
-  let state: WorkspaceState = { ...emptyWorkspaceState(), threads: [task("first", { title: "First" })], expandedProjects: new Set(["p1"]) };
+  let state: WorkspaceState = { ...emptyWorkspaceState(), threads: [task("first", { title: "First" })] };
   let revision = 0;
   const listeners = new Set<(update: WorkspaceUpdate) => void>();
   const inputs: WorkspaceInput[] = [];
@@ -135,7 +135,6 @@ test("a computer trades the code for a token, is handed the workspace whole, and
   assert.equal(served.devices.list()[0]?.kind, "computer", "a computer is remembered as one, apart from the phones");
   const first = await until(() => mac.states[0], "the snapshot");
   assert.deepEqual(first.threads.map((thread) => thread.title), ["First"]);
-  assert.ok(first.expandedProjects instanceof Set, "a set crosses the wire as a set");
   assert.equal(mac.link.status, "connected");
 
   served.publish({ threads: [task("first", { title: "Renamed there" })] });
@@ -488,7 +487,6 @@ test.for([false, true])("a client reads old state and uses advertised support wh
   });
   const first = await until(() => mac.states[0], "the older snapshot");
   assert.deepEqual(first.sideChats, []);
-  assert.ok(first.expandedProjects instanceof Set);
   const snooze = { type: "task.snooze", taskId: "old", hours: 1 } as const;
   if (advertise) {
     await assert.rejects(mac.link.send([snooze]), /unavailable/);

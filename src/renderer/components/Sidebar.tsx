@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { ProjectSidebar } from "./ProjectSidebar";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 
@@ -9,10 +9,6 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
   settingsVisible: boolean;
   onOpenSettings: () => void;
 }) {
-  const renameProject = useCallback((projectId: string, name: string) => {
-    void workspace.actions.editProject(projectId, { name });
-  }, [workspace.actions]);
-
   const { threadsByCoordinator, waitingLines, coordinatorsByComputer, notifications, stoppableCoordinatorIds: stoppable, actions } = workspace;
   const sidebarCoordination = useMemo(() => ({ threadsByCoordinator, waitingLines, coordinatorsByComputer, onSetCoordinator: actions.setCoordinator, notifications, onSetMuted: actions.setMuted, stoppable, onStopAll: actions.stopAll }), [threadsByCoordinator, waitingLines, coordinatorsByComputer, notifications, stoppable, actions]);
 
@@ -21,11 +17,7 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       open={open}
       inactive={settingsVisible}
       projects={workspace.projects}
-      orderedThreads={workspace.orderedThreads}
-      recentThreads={workspace.recentThreads}
       currentId={workspace.currentThread?.id ?? null}
-      draftProjectId={workspace.currentProject?.id ?? null}
-      expandedProjects={workspace.expandedProjects}
       runningThreadIds={workspace.runningThreadIds}
       monitoringThreadIds={workspace.monitoringThreadIds}
       blockedThreadIds={workspace.blockedThreadIds}
@@ -43,7 +35,6 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       onSetComputerFilter={workspace.actions.setComputerFilter}
       activityProject={workspace.activityProject}
       onSetActivityProject={workspace.actions.setActivityProject}
-      mode={workspace.sidebarMode}
       sections={workspace.sections}
       openMenu={workspace.openMenu}
       settingsOpen={settingsVisible}
@@ -53,12 +44,6 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       onGoForward={workspace.actions.goForward}
       onNewThread={workspace.actions.newThread}
       onOpenFolder={workspace.actions.openFolder}
-      onToggleProject={workspace.actions.toggleProject}
-      onRenameProject={renameProject}
-      onEditProject={workspace.actions.editProjectOpen}
-      onRemoveProject={workspace.actions.removeProject}
-      onMoveProject={workspace.actions.moveProject}
-      onSetMode={workspace.actions.setSidebarMode}
       onSetSectionOpen={workspace.actions.setSectionOpen}
       onSetOpenMenu={workspace.actions.setOpenMenu}
       onSelectThread={workspace.actions.selectThread}

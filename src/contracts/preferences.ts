@@ -2,7 +2,7 @@ import type { EngineModel } from "../domain/agent-engine.js";
 import type { BrowserImportMemory } from "../domain/browser-import.js";
 import type { ShortcutOverrides } from "../domain/shortcuts.js";
 import type { ThemeMode } from "../domain/theme.js";
-import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
+import type { SidebarSections } from "../domain/sidebar.js";
 import type { SubagentGroups } from "../domain/run.js";
 
 /** Presentation choices the window remembers between launches. */
@@ -25,11 +25,9 @@ export type ViewPreferences = {
   captureSound: boolean;
   /** Whether grabbing a window brings AI Coding Tool forward, so the caption can be typed where the shot landed. */
   captureFocus: boolean;
-  /** Which shape the sidebar reopens in. */
-  sidebarMode: SidebarMode;
   /** The one project the activity lists are narrowed to. Every project when absent. */
   activityProject?: string;
-  /** Which of the sidebar's lists are unfolded, across both shapes. */
+  /** Which of the sidebar's lists are unfolded. */
   sections: SidebarSections;
   /** Which subagent groups are unfolded: the sidebar's list, and each status heading in the panel. */
   subagentGroups: SubagentGroups;

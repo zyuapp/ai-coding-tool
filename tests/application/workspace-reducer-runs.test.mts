@@ -157,7 +157,6 @@ test("a dot can be dismissed without opening the thread it is on", () => {
 
 test("filing away the thread on screen in Priority moves on to the row that takes its place", () => {
   const state = workspace({
-    sidebarMode: "activity",
     threads: [
       task("lead", { outcome: "finished", createdAt: 30, updatedAt: 30 }),
       task("next", { outcome: "failed", outcomeUnread: true, createdAt: 20, updatedAt: 20 }),
@@ -181,7 +180,6 @@ test("filing away the thread on screen in Priority moves on to the row that take
 
 test("the row above takes over when the one filed away was at the end of Priority", () => {
   const state = workspace({
-    sidebarMode: "activity",
     threads: [
       task("lead", { outcome: "finished", createdAt: 30, updatedAt: 30 }),
       task("last", { outcome: "finished", createdAt: 10, updatedAt: 10 }),
@@ -193,14 +191,11 @@ test("the row above takes over when the one filed away was at the end of Priorit
   assert.equal(filed.currentId, "lead");
 });
 
-test("filing away a row the user is not on never moves them, in either sidebar", () => {
+test("filing away a row the user is not on never moves them", () => {
   const threads = [task("task-a", { outcome: "finished" }), task("task-b", { outcome: "finished" })];
 
-  const ranked = reduce(workspace({ sidebarMode: "activity", threads, currentId: "task-b" }), { type: "task.dismiss", taskId: "task-a" });
+  const ranked = reduce(workspace({ threads, currentId: "task-b" }), { type: "task.dismiss", taskId: "task-a" });
   assert.equal(ranked.state.currentId, "task-b");
-
-  const foldered = reduce(workspace({ threads, currentId: "task-a" }), { type: "task.dismiss", taskId: "task-a" });
-  assert.equal(foldered.state.currentId, "task-a", "the folder sidebar has no queue to move along");
 });
 
 test("one dismissal takes the dot off every thread carrying one", () => {

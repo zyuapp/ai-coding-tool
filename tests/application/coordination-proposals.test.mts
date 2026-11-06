@@ -265,7 +265,6 @@ test("the coordination view counts what waits on the user as the sidebar does, a
 
 test("Dismiss all files away what each row's own Dismiss would, a coordinator's threads with it, and leaves what waits on the user", () => {
   const state = workspace({
-    sidebarMode: "activity",
     threads: [
       lead({ proposals: [proposal("p1")] }),
       task("finished", { parentId: "lead", outcome: "finished" }),
@@ -281,10 +280,10 @@ test("Dismiss all files away what each row's own Dismiss would, a coordinator's 
 
 test("a thread under a coordinator waiting on an approval is neither a reason to dismiss it nor filed away with it", () => {
   const blockedMember = { activeRuns: { asked: activeRun("asked", "run-asked", { status: "awaiting-approval" }) } };
-  const only = workspace({ sidebarMode: "activity", threads: [lead(), task("asked", { parentId: "lead", outcome: "failed" })], ...blockedMember });
+  const only = workspace({ threads: [lead(), task("asked", { parentId: "lead", outcome: "failed" })], ...blockedMember });
   const lists = sidebarLists(only, [], only.threads, new Set(), new Set(["asked"]));
   assert.equal(canDismiss(coordinator(only), lists.threadsByCoordinator.get("lead") ?? [], new Set(["asked"])), false);
-  const both = workspace({ sidebarMode: "activity", threads: [lead(), task("asked", { parentId: "lead", outcome: "failed" }), task("finished", { parentId: "lead", outcome: "finished" })], ...blockedMember });
+  const both = workspace({ threads: [lead(), task("asked", { parentId: "lead", outcome: "failed" }), task("finished", { parentId: "lead", outcome: "finished" })], ...blockedMember });
   for (const input of [{ type: "task.dismiss" as const, taskId: "lead" }, { type: "task.dismiss-all" as const }]) {
     const after = reduce(both, input).state;
     const outcome = (id: string) => required(after.threads.find((thread) => thread.id === id)).outcome ?? null;

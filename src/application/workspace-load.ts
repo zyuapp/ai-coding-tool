@@ -34,7 +34,6 @@ export function stateFromData(data: ThreadStoreData, storageError: string | null
     history: firstThread ? [firstThread.id] : [],
     historyIndex: firstThread ? 0 : -1,
     draftProjectId: firstProject,
-    expandedProjects: new Set(firstProject ? [firstProject] : []),
   }, {
     engine: firstThread?.engine ?? DEFAULT_ENGINE,
     model: firstThread?.model,
@@ -84,7 +83,6 @@ export function withStoreData(state: WorkspaceState, data: ThreadStoreData): Wor
     history: landing.history,
     historyIndex: landing.historyIndex,
     draftProjectId: landing.draftProjectId,
-    expandedProjects: landing.expandedProjects,
   }, draftOf(landing));
 }
 

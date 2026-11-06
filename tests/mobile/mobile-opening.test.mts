@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { act } from "react";
-import { click, lastCommand, live, openPhone, patchView, view } from "../support/mobile-phone.mts";
+import { addThread, click, lastCommand, live, openPhone, patchView, tapThread, view } from "../support/mobile-phone.mts";
 
 function withSecondThread() {
-  const body = view();
-  body.groups[0]!.threads.push({ id: "t2", title: "Rewrite the docs", projectId: "p", projectName: "App", attention: false, status: "idle", lastActivityAt: 1, unread: false });
-  return body;
+  return addThread(view(), { id: "t2", title: "Rewrite the docs", projectId: "p", projectName: "App", attention: false, status: "idle", lastActivityAt: 1, unread: false });
 }
 
 test("a thread the Mac never opens leaves the thread it shows, with no notice", () => {
@@ -14,7 +12,7 @@ test("a thread the Mac never opens leaves the thread it shows, with no notice", 
   try {
     const line = openPhone({ paired: true });
     live(line, withSecondThread());
-    click(".thread-row:nth-of-type(2) .thread-open");
+    tapThread("Rewrite the docs");
     assert.match(document.querySelector(".empty[role=status]")?.textContent ?? "", /Opening the thread/);
     act(() => void vi.advanceTimersByTime(3000));
     assert.equal(document.querySelector(".bar-title h1")?.textContent, "Fix the parser");
@@ -31,7 +29,7 @@ test("a thread the Mac never opens, with nothing else open, offers to ask again"
     const body = withSecondThread();
     body.thread = null;
     live(line, body);
-    click(".thread-row:nth-of-type(2) .thread-open");
+    tapThread("Rewrite the docs");
     act(() => void vi.advanceTimersByTime(3000));
     assert.equal(document.querySelector(".bar-title h1")?.textContent, "Rewrite the docs");
     assert.equal(document.querySelector(".banner"), null);
@@ -53,7 +51,7 @@ test("a thread asked for while the line is down keeps waiting for it", () => {
     const line = openPhone({ paired: true });
     live(line, withSecondThread());
     act(() => line.onclose?.());
-    click(".thread-row:nth-of-type(2) .thread-open");
+    tapThread("Rewrite the docs");
     act(() => void vi.advanceTimersByTime(10_000));
     assert.match(document.querySelector(".empty")?.textContent ?? "", /Opening the thread/);
     assert.doesNotMatch(document.body.textContent ?? "", /Couldn't open/);

@@ -36,8 +36,7 @@ function end(state: WorkspaceState, taskId: string, sequence: number): Workspace
 
 function lists(state: WorkspaceState) {
   const busy = new Set(Object.keys(state.activeRuns));
-  const { activityThreads, recentThreads } = sidebarLists(state, [], state.threads, busy, new Set());
-  return { threads: activityThreads.threads.map((thread) => thread.id), recents: recentThreads.map((thread) => thread.id) };
+  return sidebarLists(state, [], state.threads, busy, new Set()).activityThreads.threads.map((thread) => thread.id);
 }
 
 test("a run moves its thread when it starts and when it ends, never while it speaks", () => {
@@ -46,7 +45,7 @@ test("a run moves its thread when it starts and when it ends, never while it spe
   at(100);
   state = start(state, "reviewer");
   assert.equal(state.threads.find((thread) => thread.id === "reviewer")!.rankedAt, 100);
-  assert.deepEqual(lists(state), { threads: ["reviewer", "other"], recents: ["reviewer", "other"] });
+  assert.deepEqual(lists(state), ["reviewer", "other"]);
 
   state = { ...state, threads: state.threads.map((thread) => thread.id === "other" ? { ...thread, rankedAt: 150 } : thread) };
   at(200);
@@ -54,12 +53,12 @@ test("a run moves its thread when it starts and when it ends, never while it spe
   at(300);
   state = speak(state, "reviewer", 2);
   assert.equal(state.threads.find((thread) => thread.id === "reviewer")!.rankedAt, 100);
-  assert.deepEqual(lists(state), { threads: ["other", "reviewer"], recents: ["other", "reviewer"] }, "a working thread holds its row in Threads and Recents while it speaks");
+  assert.deepEqual(lists(state), ["other", "reviewer"], "a working thread holds its row in Threads while it speaks");
 
   at(400);
   state = end(state, "reviewer", 3);
   assert.equal(state.threads.find((thread) => thread.id === "reviewer")!.rankedAt, 400);
-  assert.deepEqual(lists(state), { threads: ["reviewer", "other"], recents: ["reviewer", "other"] });
+  assert.deepEqual(lists(state), ["reviewer", "other"]);
 });
 
 test("a thread saved or sent before threads were ranked ranks by when it last spoke", () => {
@@ -95,7 +94,6 @@ test("a row says when its thread was ranked, not when it last spoke", async () =
   const ranked = Date.UTC(2026, 0, 1, 9, 5);
   const working = task("task-a", { projectId: "project-1", rankedAt: ranked, messages: [{ id: "m", kind: "assistant", text: "Still reading.", at: Date.UTC(2026, 0, 1, 14, 40) }] });
   const view = await mount(renderProjectSidebar({
-    mode: "activity",
     projects: [{ id: "project-1", root: "/work/api" }],
     activityThreads: { priority: [], running: [], threads: [working], snoozed: [] },
   }));

@@ -96,7 +96,7 @@ test("dismiss all clears local and remote Priority with one scoped request per c
       engine: engine as "claude" | "codex", outcome: "finished", outcomeUnread: true,
       findings: [{ id: `finding-${index}`, headline: "Review", key: `issue-${index}`, at: 1 }],
     }));
-    return paired(engine, workspace({ threads, currentId: threads[0].id, sidebarMode: "activity" }), { capabilities: COMPUTER_CAPABILITIES });
+    return paired(engine, workspace({ threads, currentId: threads[0].id }), { capabilities: COMPUTER_CAPABILITIES });
   });
   const state = withComputers(workspace({ threads: [task("local", { outcome: "finished" })], currentId: "local" }), computers, { active: "codex" });
   const dismissed = reduce(state, { type: "task.dismiss-all" });
@@ -131,7 +131,7 @@ test("a forwarded dismissal stays on its host regardless of its filter or paired
     task("archived", { outcome: "finished", archivedAt: 1 }), task("snoozed", { outcome: "finished", snoozedUntil: Date.now() + 3_600_000 }),
     task("chat", { outcome: "finished" })];
   const state = withComputers(workspace({
-    threads, currentId: "done", sidebarMode: "activity",
+    threads, currentId: "done",
     activeRuns: { busy: activeRun("busy", "r1"), blocked: activeRun("blocked", "r2", { status: "awaiting-approval" }) },
     sideChats: [{ id: "chat", sourceThreadId: "done", error: null }],
   }), [paired("other", workspace({ threads: [task("elsewhere", { outcome: "finished" })] }))], { filter: "other", active: "other" });
@@ -377,8 +377,8 @@ test("a thread ranks and marks the same on a paired computer as on this one", ()
     ["a live watch", { automations: [{ ...automation("remote-thread"), endsWhen: "it merges" }] }, "running", false],
   ];
   for (const [condition, overrides, section, working] of conditions) {
-    const here = workspace({ ...remoteState, threads: [finished], sidebarMode: "activity", ...overrides });
-    const there = withComputers(workspace({ sidebarMode: "activity" }), [paired("linux", { ...remoteState, threads: [finished], ...overrides })]);
+    const here = workspace({ ...remoteState, threads: [finished], ...overrides });
+    const there = withComputers(workspace(), [paired("linux", { ...remoteState, threads: [finished], ...overrides })]);
     for (const view of [deriveView(here), deriveView(there)]) {
       assert.deepEqual(view.activityThreads[section].map((thread) => thread.id), ["remote-thread"], condition);
       assert.equal(view.runningThreadIds.has("remote-thread"), working, condition);
@@ -399,7 +399,7 @@ test("an unreachable computer's threads stay listed, dimmed, while only a connec
   const remote: WorkspaceState = { ...remoteState, threads: ["claude", "codex"].map((engine) => ({
     ...remoteThread, id: engine, engine: engine as "claude" | "codex", outcome: "finished" as const, outcomeUnread: true,
   })) };
-  let state = withComputers(workspace({ threads: [local], sidebarMode: "activity" }), [paired("linux", remote)]);
+  let state = withComputers(workspace({ threads: [local] }), [paired("linux", remote)]);
   for (const status of ["connected", "offline", "connecting", "connected"] as const) {
     state = reduce(state, { type: "computers.changed", name: "This Mac", links: [link("linux", { status })] }).state;
     const connected = status === "connected";
@@ -450,7 +450,7 @@ test("filter changes update local lists even when neither selection has remote c
     const view = deriveView({ ...state, computers: { ...state.computers, filter } });
     const own = filter !== "missing";
     assert.deepEqual(view.projects.map((project) => project.id), own ? ["local"] : []);
-    assert.deepEqual(view.recentThreads.map((thread) => thread.id), own ? ["local-chat"] : []);
+    assert.deepEqual(view.activityThreads.threads.map((thread) => thread.id), own ? ["local-chat"] : []);
   }
 });
 

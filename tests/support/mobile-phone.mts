@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
-import type { MobileClientMessage, MobilePatch, MobileView } from "../../src/contracts/mobile.ts";
+import type { MobileClientMessage, MobilePatch, MobileThreadEntry, MobileView } from "../../src/contracts/mobile.ts";
 import { MOBILE_CREDENTIAL_KEY, MOBILE_FOLDED_KEY } from "../../src/mobile/client/storage.ts";
 import { App } from "../../src/mobile/App.tsx";
 
@@ -49,7 +49,7 @@ Object.defineProperty(globalThis, "WebSocket", { configurable: true, value: Fake
 export function view(): MobileView {
   return {
     groups: [{ projectId: "p", name: "App", threads: [{ id: "t1", title: "Fix the parser", projectId: "p", projectName: "App", attention: false, status: "awaiting-approval", lastActivityAt: Date.now(), unread: true }] }],
-    activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, engines: {},
+    activity: { priority: [{ id: "t1", title: "Fix the parser", projectId: "p", projectName: "App", attention: false, status: "awaiting-approval", lastActivityAt: Date.now(), unread: true }], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, engines: {},
     thread: {
       id: "t1",
       title: "Fix the parser",
@@ -127,6 +127,20 @@ export function clickButton(text: string, within = "body") {
   const node = [...document.querySelectorAll(`${within} button`)].find((button) => button.textContent === text);
   assert.ok(node, `no button ${text}`);
   act(() => void node.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
+}
+
+/** Opens the list row titled `title`. */
+export function tapThread(title: string) {
+  const node = [...document.querySelectorAll(".thread-open")].find((button) => button.querySelector(".thread-title")?.textContent === title);
+  assert.ok(node, `no thread row ${title}`);
+  act(() => void node.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
+}
+
+/** Adds `entry` to the first project and to the list's `section`. */
+export function addThread(body: MobileView, entry: MobileThreadEntry, section: keyof MobileView["activity"] = "threads") {
+  body.groups[0]!.threads.push(entry);
+  body.activity[section].push(entry);
+  return body;
 }
 
 /** Taps the menu row whose label starts with `text`, inside React's own turn. */

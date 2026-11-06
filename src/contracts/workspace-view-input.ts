@@ -20,7 +20,7 @@ import type { FindTarget } from "../domain/find.js";
 import { isReviewTarget } from "../domain/review.js";
 import { isSubagentGroup } from "../domain/run.js";
 import { isSettingsSection } from "../domain/settings-section.js";
-import { isSidebarMode, isSidebarSection } from "../domain/sidebar.js";
+import { isSidebarSection } from "../domain/sidebar.js";
 import { isThemeMode } from "../domain/theme.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
 import type { RemoteSender } from "../domain/message-origin.js";
@@ -327,7 +327,6 @@ const commands = {
   "view.add-project-submit": { fields: {}, at: "local" },
   "view.add-project-key": { fields: { key: literals("ArrowUp", "ArrowDown", "Tab", "Enter", "Escape") }, at: "local" },
   "view.add-project-accept": { fields: { index: (value): value is number => number(value) && Number.isInteger(value) && value >= 0 && value < 20 }, at: "local" },
-  "project.move": { fields: { projectId: text, index: number }, at: "project" },
   "project.edit": { fields: { projectId: text, name: optional(nullableText), root: optionalText }, at: "project" },
   "project.remove": { fields: { projectId: text }, at: "project" },
   "worktree.menu-open": { fields: { list: literals("threads", "destinations") }, at: "own" },
@@ -422,7 +421,6 @@ const commands = {
   "view.dismiss-hidden-tasks": { fields: {}, at: "local" },
   "view.dismiss-toast": { fields: { id: number }, at: "local" },
   "view.hold-toasts": { fields: { held: boolean }, at: "local" },
-  "view.toggle-project": { fields: { projectId: text }, at: "local" },
   "view.edit-project": { fields: { projectId: nullableText }, at: "local" },
   "view.move-worktree": { fields: { worktree: nullable(boolean) }, at: "local" },
   "view.fork-name": { fields: { sourceId: nullableText, worktree: optionalBoolean }, at: "local" },
@@ -442,7 +440,6 @@ const commands = {
   "view.set-mono-font": { fields: { font: text }, at: "local" },
   "view.set-reading-size": { fields: { size: number }, at: "local" },
   "view.set-terminal-size": { fields: { size: number }, at: "local" },
-  "view.set-sidebar-mode": { fields: { mode: isSidebarMode }, at: "local" },
   "view.set-activity-project": { fields: { projectId: nullableText }, at: "local" },
   "view.set-sidebar-open": { fields: { open: boolean }, at: "local" },
   "view.set-session-panel-open": { fields: { open: boolean }, at: "local" },

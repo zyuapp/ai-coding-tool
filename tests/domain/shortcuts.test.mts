@@ -256,20 +256,16 @@ test("a number shortcut opens the thread in that position when the panel has no 
   const state = workspace({
     threads: [thread("a", { projectId: "p1" }), thread("b", { projectId: "p1" }), thread("c")],
     projects: [{ id: "p1", root: "/repo" }],
-    expandedProjects: new Set(["p1"]),
     currentId: "a",
   });
-  assert.deepEqual(deriveView(state).threadSlots, ["a", "b", "c"], "the folder's threads are counted before the ones outside it");
+  assert.deepEqual(deriveView(state).threadSlots, ["a", "b", "c"], "the lists are counted top to bottom");
   assert.deepEqual(shortcutCommands(state, "slot-2", "any"), [{ type: "task.select", taskId: "b" }]);
   assert.deepEqual(shortcutCommands(state, "slot-3", "any"), [{ type: "task.select", taskId: "c" }]);
   assert.deepEqual(shortcutCommands(state, "slot-4", "any"), [], "a position with no thread in it does nothing");
 
-  const folded = { ...state, expandedProjects: new Set<string>() };
-  assert.deepEqual(deriveView(folded).threadSlots, ["c"], "a folded folder draws no rows, so its threads have no shortcut slot");
-  assert.deepEqual(shortcutCommands(folded, "slot-1", "any"), [{ type: "task.select", taskId: "c" }]);
-
-  const ranked = { ...state, sidebarMode: "activity" as const };
-  assert.deepEqual(deriveView(ranked).threadSlots, ["a", "b", "c"], "activity mode counts its own lists, top to bottom");
+  const folded = { ...state, sections: { ...state.sections, threads: false } };
+  assert.deepEqual(deriveView(folded).threadSlots, [], "a folded list draws no rows, so its threads have no shortcut slot");
+  assert.deepEqual(shortcutCommands(folded, "slot-1", "any"), []);
 
   const settings = { ...state, settingsOpen: true };
   assert.deepEqual(shortcutCommands(settings, "slot-3", "any"), [

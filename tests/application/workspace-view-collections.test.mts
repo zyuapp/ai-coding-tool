@@ -33,7 +33,6 @@ test("composer and streaming updates reuse workspace lists, counts, and worktree
     assert.equal(view.orderedThreads, before.orderedThreads);
     assert.equal(view.archivedThreads, before.archivedThreads);
     assert.equal(view.activityThreads, before.activityThreads);
-    assert.equal(view.threadsByProject, before.threadsByProject);
     assert.equal(view.runningThreadIds, before.runningThreadIds);
     assert.equal(view.blockedThreadIds, before.blockedThreadIds);
     assert.equal(view.worktreeGroups, before.worktreeGroups);
@@ -61,7 +60,6 @@ test("typing over a paired computer's thread reuses this computer's and that com
   const typing = deriveView({ ...state, prompts: { remote: "x" } });
   assert.equal(typing.prompt, "x");
   assert.equal(typing.orderedThreads, before.orderedThreads);
-  assert.equal(typing.threadsByProject, before.threadsByProject);
   assert.equal(typing.worktreeGroups, before.worktreeGroups);
   assert.equal(typing.runningThreadIds, before.runningThreadIds);
   assert.equal(typing.coordination, before.coordination);

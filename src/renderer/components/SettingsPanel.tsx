@@ -28,6 +28,7 @@ import type { ComputerUsePermission } from "../../contracts/ipc";
 import type { WorktreeSettingsPage } from "../../application/worktree-settings";
 import type { WorktreeCommand } from "../../contracts/commands";
 import { WorktreeSettings } from "./WorktreeSettings";
+import { ProjectSettings, type ProjectSettingsProps } from "./ProjectSettings";
 
 export type SettingsPanelProps = {
   onClose: () => void;
@@ -118,9 +119,13 @@ export type SettingsPanelProps = {
   onRefreshRemote: () => void;
   /** The other computers, as the Devices page draws them. Absent where a test has none. */
   computers?: ComputerSettingsProps;
+  /** The Projects page. Absent where a test has none. */
+  projects?: ProjectSettingsProps;
 };
 
 /** A Devices page with no computers to speak of, for a caller with nothing to say about them. */
+const NO_PROJECT_SETTINGS: ProjectSettingsProps = { projects: [], projectHosts: new Map(), threads: [], onAdd() {}, onEdit() {}, onRemove() {} };
+
 const NO_COMPUTER_SETTINGS: ComputerSettingsProps = { found: [], searching: false, searchError: null, name: "", links: [], pairing: null, onDiscover() {}, onPair() {}, onCancelPairing() {}, onForget() {}, onReconnect() {}, onRename() {}, onLabel() {} };
 
 export function SettingsPanel({
@@ -183,6 +188,7 @@ export function SettingsPanel({
   onRevokeRemoteDevice,
   onRefreshRemote,
   computers = NO_COMPUTER_SETTINGS,
+  projects = NO_PROJECT_SETTINGS,
 }: SettingsPanelProps) {
   const search = useRef<HTMLInputElement>(null);
   useFocusReturn(search);
@@ -234,6 +240,8 @@ export function SettingsPanel({
       )}
 
       {section === "engines" && <EngineSettings reloadStatus={agentSettingsReload} reloadError={agentSettingsReloadError} onReload={onReloadAgentSettings} engineAccess={engineAccess} checking={engineChecking} updating={engineUpdating} onRefresh={onRefreshEngines} onSignIn={onSignInEngine} onUpdate={onUpdateEngine} />}
+
+      {section === "projects" && <ProjectSettings {...projects} />}
 
       {section === "worktrees" && (
         <WorktreeSettings

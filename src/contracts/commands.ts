@@ -10,7 +10,7 @@ import type { CaptureOptions } from "../domain/capture.js";
 import type { DiffMode, DiffRange } from "../domain/diff.js";
 import type { FindTarget } from "../domain/find.js";
 import type { SettingsSection } from "../domain/settings-section.js";
-import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
+import type { SidebarSection } from "../domain/sidebar.js";
 import type { ThemeMode } from "../domain/theme.js";
 import type { AgentEngine, AgentModel } from "../domain/agent-engine.js";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../domain/run.js";
@@ -265,7 +265,6 @@ export type ProjectCommand =
   | { type: "view.add-project-key"; key: "ArrowUp" | "ArrowDown" | "Tab" | "Enter" | "Escape" }
   | { type: "view.add-project-accept"; index: number }
   /** `index` counts the folders in the sidebar with the moved one already taken out. */
-  | { type: "project.move"; projectId: string; index: number }
   /**
    * Names the folder in the sidebar, points it at another directory, or both. A blank `name` takes
    * the name off, so the folder goes by its own again. A `root` that is not a folder the app can
@@ -493,7 +492,6 @@ export type ViewCommand =
   | { type: "view.edit-automation"; taskId: string; base: AutomationFields; fields: AutomationFields }
   /** Stops the toasts' time while the pointer or the caret is on them; letting go gives each its time again. */
   | { type: "view.hold-toasts"; held: boolean }
-  | { type: "view.toggle-project"; projectId: string }
   /** Opens the folder editor on one project, or closes whichever it was on with a null. */
   | { type: "view.edit-project"; projectId: string | null }
   /**
@@ -532,7 +530,6 @@ export type ViewCommand =
   /** The two sizes that follow the user, in px, clamped to the range each one offers. */
   | { type: "view.set-reading-size"; size: number }
   | { type: "view.set-terminal-size"; size: number }
-  | { type: "view.set-sidebar-mode"; mode: SidebarMode }
   /** Narrows the activity lists to one project, or null for every project. */
   | { type: "view.set-activity-project"; projectId: string | null }
   | { type: "view.set-sidebar-open"; open: boolean }

@@ -59,7 +59,7 @@ async function packageFixture() {
   await cp(path.resolve("node_modules/electron/dist/LICENSE"), path.join(resources, "legal/ELECTRON-MIT.txt"));
   await cp(path.resolve("node_modules/electron/dist/LICENSES.chromium.html"), path.join(resources, "legal/ELECTRON-THIRD-PARTY-NOTICES.html"));
   await writeFile(path.join(resources, "legal/RENDERER-THIRD-PARTY-LICENSES.md"), [
-    ...["@hello-pangea/dnd", "@xterm/xterm", "mermaid", "react", "shiki"]
+    ...["@xterm/xterm", "mermaid", "react", "shiki"]
       .map((name) => `## ${name} - ${lockedPackageVersion(name)} (MIT)`),
   ].join("\n"));
   await writeFile(path.join(resources, "legal/MOBILE-THIRD-PARTY-LICENSES.md"), [

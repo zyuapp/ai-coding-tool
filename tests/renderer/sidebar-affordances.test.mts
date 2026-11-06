@@ -15,6 +15,10 @@ function menuItem(label: string) {
   return menuItems().find((button) => (button.querySelector(".menu-label") ?? button).textContent === label);
 }
 
+function listed(...threads: ReturnType<typeof task>[]) {
+  return { priority: [], running: [], threads, snoozed: [] };
+}
+
 function Harness(props: Partial<ProjectSidebarProps>) {
   const [openMenu, onSetOpenMenu] = useState<string | null>(null);
   return renderProjectSidebar({ ...props, openMenu, onSetOpenMenu });
@@ -26,8 +30,7 @@ test("a thread row's ellipsis opens the same menu a right-click does, and an unr
   const archived: string[] = [];
   const view = await mount(React.createElement(Harness, {
     projects: [{ id: "p", root: "/work/p" }],
-    expandedProjects: new Set(["p"]),
-    orderedThreads: [here, away],
+    activityThreads: listed(here, away),
     threadHosts: new Map([["away", { id: "laptop", name: "laptop", offline: true, reconnecting: false }]]),
     onArchiveThread: (id) => { archived.push(id); },
   }));
@@ -40,7 +43,7 @@ test("a thread row's ellipsis opens the same menu a right-click does, and an unr
     await act(async () => { more.click(); });
     assert.equal(more.getAttribute("aria-expanded"), "true");
     assert.ok(menuItem("Rename") && menuItem("Fork"));
-    assert.equal(view.container.querySelector(".project-task-row.active"), null, "opening the menu does not open the thread");
+    assert.equal(view.container.querySelector(".task-row.active"), null, "opening the menu does not open the thread");
 
     assert.equal(menuItem("Snooze"), undefined, "outside Priority the menu leaves snoozing out");
     await act(async () => { menuItem("Archive…")!.click(); });
@@ -54,28 +57,14 @@ test("a thread row's ellipsis opens the same menu a right-click does, and an unr
 test("every row's rail holds its marks and its actions, the open thread's included", async () => {
   const view = await mount(React.createElement(Harness, {
     projects: [{ id: "p", root: "/work/p" }],
-    expandedProjects: new Set(["p"]),
-    orderedThreads: [task("open", { projectId: "p" }), task("other", { projectId: "p" })],
+    activityThreads: listed(task("open", { projectId: "p" }), task("other", { projectId: "p" })),
     currentId: "open",
   }));
   try {
-    const rails = [...view.container.querySelectorAll<HTMLElement>(".project-task-row .row-rail")];
+    const rails = [...view.container.querySelectorAll<HTMLElement>(".task-row .row-rail")];
     assert.ok(rails[0]!.closest(".active") && rails[0]!.querySelector(".task-more"));
     assert.equal(rails[1]!.closest(".active"), null);
     assert.ok(rails.every((rail) => rail.querySelector(".row-marks") && rail.querySelector(".row-actions")), "marks and actions share one rail");
-  } finally { await view.unmount(); }
-});
-
-test("a thread that cannot leave its folder says so while dragged", async () => {
-  const view = await mount(renderProjectSidebar({
-    projects: [{ id: "p", root: "/work/p" }],
-    expandedProjects: new Set(["p"]),
-    orderedThreads: [task("free", { projectId: "p" }), task("checkout", { projectId: "p", worktreeId: "w" })],
-  }));
-  try {
-    const entry = (id: string) => query<HTMLElement>(view.container, `[data-rfd-drag-handle-draggable-id="${id}"]`);
-    assert.equal(entry("free").dataset.pinned, undefined);
-    assert.equal(entry("checkout").dataset.pinned, "Stays in its worktree's folder");
   } finally { await view.unmount(); }
 });
 
@@ -86,17 +75,16 @@ test("a row's title shows whole only when cut short, and each mark names itself"
   const away = task("away", { projectId: "p" });
   const view = await mount(renderProjectSidebar({
     projects: [{ id: "p", root: "/work/p" }],
-    expandedProjects: new Set(["p"]),
-    orderedThreads: [asked, scheduled, plain, away],
+    activityThreads: listed(asked, scheduled, plain, away),
     runningThreadIds: new Set(["asked"]),
     blockedThreadIds: new Set(["asked"]),
     schedules: new Map([["scheduled", automationView({ taskId: "scheduled", lastStatus: "failed" })]]),
     threadHosts: new Map([["away", { id: "laptop", name: "laptop", offline: true, reconnecting: false }]]),
   }));
   try {
-    const rows = [...view.container.querySelectorAll<HTMLElement>(".project-task-row")];
+    const rows = [...view.container.querySelectorAll<HTMLElement>(".task-row")];
     assert.ok(rows.every((row) => !row.querySelector("[title]")), "one tooltip system on a row");
-    const titles = rows.map((row) => query<HTMLElement>(row, ":scope > span:first-child"));
+    const titles = rows.map((row) => query<HTMLElement>(row, ".task-row-text > span"));
     assert.deepEqual(titles.map((title) => title.dataset.tip), ["asked", "scheduled", "plain", "away"]);
     assert.ok(titles.every((title) => title.hasAttribute("data-tip-overflow")));
     assert.deepEqual([...rows[0]!.querySelectorAll<HTMLElement>(".row-mark")].map((mark) => mark.dataset.tip).slice(0, 1), ["Needs approval"]);
@@ -106,166 +94,19 @@ test("a row's title shows whole only when cut short, and each mark names itself"
   } finally { await view.unmount(); }
 });
 
-test("a folder's menu asks before removing one that holds threads, and moves it among its computer's folders", async () => {
-  const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
-  const sent: unknown[] = [];
-  const controls = { available: () => true, dispatch: (command: unknown) => { sent.push(command); } };
-  const removed: string[] = [];
-  const view = await mount(React.createElement(CommandControlsProvider, { value: controls }, React.createElement(Harness, {
-    projects: [{ id: "first", root: "/work/first" }, { id: "middle", root: "/work/middle" }, { id: "last", root: "/work/last" }],
-    expandedProjects: new Set(["first"]),
-    orderedThreads: [task("one", { projectId: "first" })],
-    onRemoveProject: (id) => { removed.push(id); },
-  })));
-  try {
-    const open = async (name: string) => {
-      const trigger = query<HTMLButtonElement>(view.container, `[aria-label="More options for ${name}"]`);
-      await act(async () => { trigger.focus(); trigger.click(); });
-    };
-    await open("first");
-    assert.equal(menuItem("Move up"), undefined, "the first folder has nowhere up to go");
-    assert.equal(menuItem("Remove")!.getAttribute("aria-haspopup"), "menu", "a folder holding threads asks first");
-    assert.equal(menuItem("Remove")!.querySelector(".menu-shortcut"), null, "the confirm names what removing costs, once");
-    await act(async () => { menuItem("Remove")!.click(); });
-    assert.deepEqual(menuItems().slice(-2).map((item) => item.textContent), ["Keep project", "Remove and archive 1 thread"]);
-    await act(async () => { menuItem("Keep project")!.click(); });
-    assert.deepEqual(removed, []);
-    await open("first");
-    await act(async () => { menuItem("Remove")!.click(); });
-    await act(async () => { menuItem("Remove and archive 1 thread")!.click(); });
-    assert.deepEqual(removed, ["first"]);
-
-    await open("last");
-    assert.equal(menuItem("Remove")!.getAttribute("aria-haspopup"), null, "an empty folder goes in one choice");
-    assert.equal(menuItem("Remove")!.querySelector(".menu-shortcut"), null);
-    await act(async () => { menuItem("Remove")!.click(); });
-    assert.deepEqual(removed, ["first", "last"]);
-
-    await open("middle");
-    await act(async () => { menuItem("Move up")!.click(); });
-    await open("middle");
-    await act(async () => { menuItem("Move down")!.click(); });
-    assert.deepEqual(sent, [
-      { type: "project.move", projectId: "middle", index: 0 },
-      { type: "project.move", projectId: "middle", index: 2 },
-    ]);
-
-    await open("last");
-    assert.equal(menuItem("Move down"), undefined, "the last folder has nowhere down to go");
-  } finally { await view.unmount(); }
-});
-
-test("a right-click on a folder opens its menu, and F2 renames it", async () => {
-  const view = await mount(React.createElement(Harness, { projects: [{ id: "p", root: "/work/p" }] }));
-  try {
-    const row = query<HTMLElement>(view.container, ".project-row");
-    await act(async () => { row.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true, cancelable: true })); });
-    assert.equal(query(view.container, '[aria-label="More options for p"]').getAttribute("aria-expanded"), "true");
-    assert.equal(query(menuItem("Rename")!, ".menu-shortcut").textContent, "F2");
-    await act(async () => { document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
-    assert.equal(row.tabIndex, -1, "the row's buttons are its only stops");
-    assert.equal(row.getAttribute("role"), null);
-
-    const main = query<HTMLButtonElement>(view.container, ".project-main");
-    await act(async () => { main.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
-    assert.equal(view.container.querySelector(".project-rename"), null, "Enter is the button's own");
-    await act(async () => { main.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "F2", bubbles: true, cancelable: true })); });
-    const rename = query<HTMLInputElement>(view.container, ".project-rename");
-    assert.equal(document.activeElement, rename);
-    assert.deepEqual([rename.selectionStart, rename.selectionEnd], [0, rename.value.length], "typing replaces the name");
-  } finally { await view.unmount(); }
-});
-
-test("double-clicking a folder renames it and leaves its fold as it was, while a single click folds it", async () => {
-  const toggled: string[] = [];
-  const view = await mount(React.createElement(Harness, { projects: [{ id: "p", root: "/work/p" }], onToggleProject: (id) => { toggled.push(id); } }));
-  try {
-    const main = query<HTMLButtonElement>(view.container, ".project-main");
-    await act(async () => {
-      for (const detail of [1, 2]) main.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, detail }));
-      main.dispatchEvent(new dom.window.MouseEvent("dblclick", { bubbles: true, detail: 2 }));
-    });
-    assert.deepEqual(toggled, ["p", "p"], "the first click's fold is put back");
-    assert.ok(view.container.querySelector(".project-rename"));
-  } finally { await view.unmount(); }
-
-  const single = await mount(React.createElement(Harness, { projects: [{ id: "p", root: "/work/p" }], onToggleProject: (id) => { toggled.push(id); } }));
-  try {
-    toggled.length = 0;
-    await act(async () => { query<HTMLButtonElement>(single.container, ".project-main").dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, detail: 1 })); });
-    assert.deepEqual(toggled, ["p"]);
-    assert.equal(single.container.querySelector(".project-rename"), null);
-  } finally { await single.unmount(); }
-});
-
-test("with no projects at all, the sidebar offers adding one, and the heading's add button is always there", async () => {
+test("with no projects at all, the sidebar offers adding one, and says nothing once there is one", async () => {
   let opened = 0;
   const view = await mount(renderProjectSidebar({ projects: [], onOpenFolder: () => { opened += 1; } }));
   try {
     assert.equal(query(view.container, ".sidebar-project-empty p").textContent, "No projects yet");
     await act(async () => { query<HTMLButtonElement>(view.container, ".sidebar-project-empty .sidebar-empty-action").click(); });
-    const add = query<HTMLButtonElement>(view.container, '.projects-heading [aria-label="Add project"]');
-    assert.equal(add.dataset.tip, "Add project");
-    await act(async () => { add.click(); });
-    assert.equal(opened, 2);
+    assert.equal(opened, 1);
   } finally { await view.unmount(); }
 
-  const listed = await mount(renderProjectSidebar({ projects: [{ id: "p", root: "/work/p" }] }));
+  const withProject = await mount(renderProjectSidebar({ projects: [{ id: "p", root: "/work/p" }] }));
   try {
-    assert.equal(listed.container.querySelector(".sidebar-project-empty"), null);
-    assert.ok(listed.container.querySelector('.projects-heading [aria-label="Add project"]'));
-  } finally { await listed.unmount(); }
-});
-
-test("Recents leaves starting a thread to the New thread button, and offers it when empty", async () => {
-  const started: (string | undefined)[] = [];
-  const view = await mount(renderProjectSidebar({ onNewThread: (projectId) => { started.push(projectId); } }));
-  try {
-    const heading = query(view.container, ".recents-heading");
-    assert.equal(heading.querySelector(".menu-trigger, .section-action"), null);
-    const start = query<HTMLButtonElement>(view.container, '[aria-label="Project-less tasks"] .empty-tasks');
-    assert.equal(start.textContent, "Start a thread");
-    assert.ok(start.querySelector("svg"), "it reads as an action");
-    await act(async () => { start.click(); });
-    assert.deepEqual(started, [undefined]);
-  } finally { await view.unmount(); }
-
-  const listed = await mount(renderProjectSidebar({ recentThreads: [task("loose")] }));
-  try {
-    assert.equal(listed.container.querySelector('[aria-label="Project-less tasks"] .empty-tasks'), null);
-  } finally { await listed.unmount(); }
-});
-
-test("an open folder with no threads offers to start one there", async () => {
-  const started: (string | undefined)[] = [];
-  const view = await mount(renderProjectSidebar({
-    projects: [{ id: "p", root: "/work/p" }],
-    expandedProjects: new Set(["p"]),
-    onNewThread: (projectId) => { started.push(projectId); },
-  }));
-  try {
-    const start = query<HTMLButtonElement>(view.container, ".project-group .empty-tasks");
-    assert.equal(start.textContent, "Start a thread");
-    await act(async () => { start.click(); });
-    assert.deepEqual(started, ["p"]);
-  } finally { await view.unmount(); }
-});
-
-test("a folder's menu renames it in place, as a double-click does", async () => {
-  const renamed: [string, string][] = [];
-  const view = await mount(React.createElement(Harness, {
-    projects: [{ id: "p", root: "/work/p" }],
-    onRenameProject: (id, name) => { renamed.push([id, name]); },
-  }));
-  try {
-    await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="More options for p"]').click(); });
-    await act(async () => { menuItem("Rename")!.click(); });
-    const input = query<HTMLInputElement>(view.container, ".project-rename");
-    assert.equal(document.activeElement, input);
-    input.value = "Work";
-    await act(async () => { input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
-    assert.deepEqual(renamed, [["p", "Work"]]);
-  } finally { await view.unmount(); }
+    assert.equal(withProject.container.querySelector(".sidebar-project-empty"), null);
+  } finally { await withProject.unmount(); }
 });
 
 test("the sidebar's edge says how to reset it, and Enter resets it as a double-click does", async () => {
@@ -313,23 +154,8 @@ test("the header's buttons name themselves and their keystrokes", async () => {
     assert.match(query(view.container, '[aria-label="Go back"]').dataset.tip ?? "", /^Back \(.+\[\)$/);
     assert.match(query(view.container, '[aria-label="Go forward"]').dataset.tip ?? "", /^Forward \(.+\]\)$/);
     assert.match(query(view.container, '.new-task-button').dataset.tip ?? "", /^New thread \(.+N\)$/);
-    const modes = () => [...view.container.querySelectorAll<HTMLButtonElement>('[role="group"][aria-label="Sidebar view"] > button')];
-    assert.deepEqual(modes().map((mode) => [mode.getAttribute("aria-label"), mode.dataset.tip, mode.getAttribute("aria-pressed")]), [
-      ["Group by project", "Group by project", "true"],
-      ["Rank threads by activity", "Rank by activity", "false"],
-    ], "both views are on show, the one in effect pressed");
+    assert.equal(view.container.querySelector('[aria-label="Sidebar view"]'), null, "the sidebar has one view, so nothing switches it");
   } finally { await view.unmount(); }
-
-  const modes: string[] = [];
-  const activity = await mount(renderProjectSidebar({ mode: "activity", onSetMode: (mode) => { modes.push(mode); } }));
-  try {
-    const button = (label: string) => query<HTMLButtonElement>(activity.container, `[aria-label="${label}"]`);
-    assert.equal(button("Rank threads by activity").getAttribute("aria-pressed"), "true");
-    await act(async () => { button("Rank threads by activity").click(); });
-    assert.deepEqual(modes, [], "choosing the view in effect changes nothing");
-    await act(async () => { button("Group by project").click(); });
-    assert.deepEqual(modes, ["projects"]);
-  } finally { await activity.unmount(); }
 });
 
 test("the search button beside New thread opens the jump palette and names its keystroke", async () => {
@@ -347,29 +173,14 @@ test("the search button beside New thread opens the jump palette and names its k
   } finally { await view.unmount(); }
 });
 
-test("the folder a new thread would start in is marked, and an open folder draws open", async () => {
-  const view = await mount(renderProjectSidebar({
-    projects: [{ id: "a", root: "/work/a" }, { id: "b", root: "/work/b" }],
-    expandedProjects: new Set(["a"]),
-    draftProjectId: "b",
-  }));
-  try {
-    const rows = [...view.container.querySelectorAll<HTMLElement>(".project-row")];
-    assert.deepEqual(rows.map((row) => row.classList.contains("current")), [false, true]);
-    const [open, shut] = rows.map((row) => query(row, ".folder-icon path").getAttribute("d"));
-    assert.notEqual(open, shut);
-  } finally { await view.unmount(); }
-});
-
-test("a thread's menu moves it to another folder or to Recents, as a drag does", async () => {
+test("a thread's menu moves it to another folder or out of its project", async () => {
   const here = task("here", { projectId: "a" });
   const checkout = task("checkout", { projectId: "a", worktreeId: "w" });
   const moved: [string, { projectId: string | null; index: number }][] = [];
   const view = await mount(React.createElement(Harness, {
     projects: [{ id: "a", root: "/work/a" }, { id: "b", root: "/work/b" }, { id: "remote", root: "/work/remote" }],
     projectHosts: new Map([["remote", { id: "laptop", name: "laptop", offline: false, reconnecting: false }]]),
-    expandedProjects: new Set(["a"]),
-    orderedThreads: [here, checkout],
+    activityThreads: listed(here, checkout),
     onMoveThread: (id, target) => { moved.push([id, target]); },
   }));
   try {
@@ -382,7 +193,7 @@ test("a thread's menu moves it to another folder or to Recents, as a drag does",
 
     await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="More options for here"]').click(); });
     await act(async () => { menuItem("Move to")!.click(); });
-    await act(async () => { menuItem("Recents")!.click(); });
+    await act(async () => { menuItem("No project")!.click(); });
     assert.deepEqual(moved.at(-1), ["here", { projectId: null, index: 0 }]);
 
     await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="More options for checkout"]').click(); });
@@ -410,13 +221,12 @@ test("a focused thread row renames on F2 and opens on Enter, and Enter on its ow
   const archived: string[] = [];
   const view = await mount(React.createElement(Harness, {
     projects: [{ id: "p", root: "/work/p" }],
-    expandedProjects: new Set(["p"]),
-    orderedThreads: [here],
+    activityThreads: listed(here),
     onSelectThread: (id) => { selected.push(id); },
     onArchiveThread: (id) => { archived.push(id); },
   }));
   try {
-    const entry = query<HTMLElement>(view.container, '[data-rfd-drag-handle-draggable-id="here"]');
+    const entry = query<HTMLElement>(view.container, 'nav[aria-label="Threads"] > .task-entry');
     const press = async (target: HTMLElement, key: string) => {
       await act(async () => { target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })); });
     };
@@ -436,11 +246,10 @@ test("a focused thread row renames on F2 and opens on Enter, and Enter on its ow
 test("the menu key opens a thread row's menu under the row, and Rename there names F2", async () => {
   const view = await mount(React.createElement(Harness, {
     projects: [{ id: "p", root: "/work/p" }],
-    expandedProjects: new Set(["p"]),
-    orderedThreads: [task("here", { projectId: "p" })],
+    activityThreads: listed(task("here", { projectId: "p" })),
   }));
   try {
-    const row = query<HTMLElement>(view.container, ".project-task-row");
+    const row = query<HTMLElement>(view.container, ".task-row");
     await act(async () => { row.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 0, clientY: 0 })); });
     const menu = query<HTMLElement>(document, ".context-menu-popover");
     assert.ok(menu);
@@ -451,12 +260,11 @@ test("the menu key opens a thread row's menu under the row, and Rename there nam
 test("a row on a computer that is away carries a mark saying so, and every mark names itself", async () => {
   const view = await mount(renderProjectSidebar({
     projects: [{ id: "p", root: "/work/p" }],
-    expandedProjects: new Set(["p"]),
-    orderedThreads: [task("here", { projectId: "p" }), task("away", { projectId: "p" })],
+    activityThreads: listed(task("here", { projectId: "p" }), task("away", { projectId: "p" })),
     threadHosts: new Map([["away", { id: "laptop", name: "laptop", offline: true, reconnecting: false }]]),
   }));
   try {
-    const [here, away] = [...view.container.querySelectorAll<HTMLElement>(".project-task-row")];
+    const [here, away] = [...view.container.querySelectorAll<HTMLElement>(".task-row")];
     assert.equal(here!.querySelector(".task-away"), null);
     const mark = query<HTMLElement>(away!, ".task-away");
     assert.equal(mark.getAttribute("aria-label"), "laptop is offline");
@@ -469,14 +277,13 @@ test("a rail shows every mark a row carries, with status and engine at the right
   const busy = task("busy", { projectId: "p", role: "coordinator", worktreeId: "w" });
   const view = await mount(renderProjectSidebar({
     projects: [{ id: "p", root: "/work/p" }],
-    expandedProjects: new Set(["p"]),
-    orderedThreads: [busy, task("plain", { projectId: "p" })],
+    activityThreads: listed(busy, task("plain", { projectId: "p" })),
     worktreeThreadIds: new Set(["busy"]),
     schedules: new Map([["busy", automationView({ taskId: "busy" })]]),
     runningThreadIds: new Set(["busy"]),
   }));
   try {
-    const [first, second] = [...view.container.querySelectorAll<HTMLElement>(".project-task-row")];
+    const [first, second] = [...view.container.querySelectorAll<HTMLElement>(".task-row")];
     const tips = (row: HTMLElement) => [...row.querySelectorAll<HTMLElement>(".row-mark")].map((mark) => mark.dataset.tip);
     assert.deepEqual(tips(first!), ["Coordinator", "Works in a worktree", "Runs on a schedule", "Working", "Claude thread"]);
     assert.deepEqual(tips(second!), ["Claude thread"]);
@@ -487,7 +294,6 @@ test("a rail shows every mark a row carries, with status and engine at the right
 test("in Priority, Dismiss takes the engine's slot so the status mark stays in view, and the menu never repeats it", async () => {
   const dismissed: string[] = [];
   const view = await mount(React.createElement(Harness, {
-    mode: "activity",
     activityThreads: { priority: [task("done", { outcome: "finished", outcomeUnread: true })], running: [task("busy")], threads: [], snoozed: [] },
     onDismissThread: (id) => { dismissed.push(id); },
   }));
@@ -507,40 +313,16 @@ test("in Priority, Dismiss takes the engine's slot so the status mark stays in v
   } finally { await view.unmount(); }
 });
 
-test("a folded folder carries the most pressing status of the threads it hides", async () => {
-  const projects = [{ id: "asks", root: "/work/asks" }, { id: "runs", root: "/work/runs" }, { id: "quiet", root: "/work/quiet" }];
-  const orderedThreads = [
-    task("working", { projectId: "asks" }), task("asked", { projectId: "asks" }),
-    task("busy", { projectId: "runs" }), task("idle", { projectId: "quiet" }),
-  ];
-  const marks = { runningThreadIds: new Set(["working", "asked", "busy"]), blockedThreadIds: new Set(["asked"]) };
-  const view = await mount(renderProjectSidebar({ projects, orderedThreads, ...marks }));
-  try {
-    const status = (name: string) => [...view.container.querySelectorAll<HTMLElement>(".project-main")]
-      .find((row) => row.textContent?.startsWith(name))!.querySelector<HTMLElement>(".folder-status");
-    assert.equal(status("asks")!.dataset.tip, "A thread needs your approval");
-    assert.ok(status("asks")!.querySelector(".task-attention.approval"));
-    assert.equal(status("runs")!.dataset.tip, "A thread is working");
-    assert.equal(status("quiet"), null);
-  } finally { await view.unmount(); }
-
-  const open = await mount(renderProjectSidebar({ projects, orderedThreads, expandedProjects: new Set(["asks"]), ...marks }));
-  try {
-    assert.equal(query(open.container, '.project-main[aria-expanded="true"]').querySelector(".folder-status"), null, "an open folder leaves status to its rows");
-  } finally { await open.unmount(); }
-});
-
 test("a thread rename refuses a blank name with a mark, and a blank field left behind keeps the old name", async () => {
   const renamed: string[] = [];
   const view = await mount(renderProjectSidebar({
     projects: [{ id: "p", root: "/work/p" }],
-    expandedProjects: new Set(["p"]),
-    orderedThreads: [task("t", { projectId: "p", title: "Old title" })],
+    activityThreads: listed(task("t", { projectId: "p", title: "Old title" })),
     onRenameThread: (_id, title) => { renamed.push(title); },
   }));
   try {
     const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")!.set!;
-    await act(async () => { query(view.container, ".project-task-row").dispatchEvent(new dom.window.MouseEvent("dblclick", { bubbles: true })); });
+    await act(async () => { query(view.container, ".task-row").dispatchEvent(new dom.window.MouseEvent("dblclick", { bubbles: true })); });
     const input = query<HTMLInputElement>(view.container, ".task-rename");
     assert.equal(input.placeholder, "Old title");
     await act(async () => {
@@ -568,7 +350,6 @@ test("a thread rename refuses a blank name with a mark, and a blank field left b
 test("an activity row holds its buttons without being one, is marked current when open, and Space and Enter open it", async () => {
   const selected: string[] = [];
   const view = await mount(renderProjectSidebar({
-    mode: "activity",
     currentId: "open",
     activityThreads: { priority: [], running: [], threads: [task("open"), task("other")], snoozed: [] },
     onSelectThread: (id) => { selected.push(id); },
@@ -596,7 +377,6 @@ test("an activity row holds its buttons without being one, is marked current whe
 test("a narrowed activity filter clears in one press beside it, and focus lands back on the filter", async () => {
   const picked: (string | null)[] = [];
   const view = await mount(renderProjectSidebar({
-    mode: "activity",
     projects: [{ id: "web", root: "/work/web" }, { id: "api", root: "/work/api" }],
     activityProject: "web",
     onSetActivityProject: (id) => { picked.push(id); },
@@ -608,7 +388,7 @@ test("a narrowed activity filter clears in one press beside it, and focus lands 
     assert.equal(document.activeElement, query(view.container, ".activity-filter-trigger"));
   } finally { await view.unmount(); }
 
-  const all = await mount(renderProjectSidebar({ mode: "activity", projects: [{ id: "web", root: "/work/web" }, { id: "api", root: "/work/api" }] }));
+  const all = await mount(renderProjectSidebar({ projects: [{ id: "web", root: "/work/web" }, { id: "api", root: "/work/api" }] }));
   try {
     assert.equal(all.container.querySelector(".activity-filter-clear"), null, "nothing to clear while every project is listed");
   } finally { await all.unmount(); }

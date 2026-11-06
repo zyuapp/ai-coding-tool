@@ -30,7 +30,6 @@ test("a store answer opens on its first thread", () => {
   assert.equal(state.currentId, "first");
   assert.deepEqual(state.history, ["first"]);
   assert.equal(state.draftProjectId, "project-1");
-  assert.deepEqual([...state.expandedProjects], ["project-1"]);
 });
 
 test("a reviewer's own mode never becomes the new-thread draft", () => {

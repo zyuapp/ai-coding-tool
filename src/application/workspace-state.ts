@@ -48,7 +48,7 @@ import type { FindResults, FindTarget } from "../domain/find.js";
 import { shortcutSettings, type ShortcutOverrides } from "../domain/shortcuts.js";
 import type { SettingsSection } from "../domain/settings-section.js";
 import type { SettingMark } from "../domain/settings-catalog.js";
-import { OPEN_SIDEBAR_SECTIONS, type SidebarMode, type SidebarSections } from "../domain/sidebar.js";
+import { OPEN_SIDEBAR_SECTIONS, type SidebarSections } from "../domain/sidebar.js";
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
@@ -273,7 +273,6 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   images: Record<string, StagedImage[]>;
   /** Files and folders waiting in each composer, keyed the way `prompts` is. */
   files: Record<string, AttachedFile[]>;
-  expandedProjects: Set<string>;
   /** The folder the editor is open on, if any, and what came back the last time it tried to save. */
   projectEdit: ProjectEdit | null;
   /** The move the confirmation is open on: the thread asked to move, and where it would go. */
@@ -282,7 +281,7 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   forkName: ForkName | null;
   /** The thread the archive confirmation is open on. */
   archivePrompt: string | null;
-  /** Which of the sidebar's lists are unfolded, across both of its modes. */
+  /** Which of the sidebar's lists are unfolded. */
   sections: SidebarSections;
   /** Which subagent groups are unfolded: the sidebar's list, and each status heading in the panel. */
   subagentGroups: SubagentGroups;
@@ -296,8 +295,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   monoFont: string;
   readingSize: number;
   terminalSize: number;
-  /** The sidebar's shape, and the one project its activity lists are narrowed to, or null for every project. */
-  sidebarMode: SidebarMode; activityProject: string | null;
+  /** The one project the sidebar's lists are narrowed to, or null for every project. */
+  activityProject: string | null;
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
   /** Whether grabbing a window plays the shutter, and whether it brings the window forward. */
@@ -469,7 +468,6 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     pastes: {},
     images: {},
     files: {},
-    expandedProjects: new Set(),
     ...NO_PROJECT_ADD,
     projectEdit: null,
     worktreeMove: null,
@@ -482,7 +480,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     monoFont: DEFAULT_MONO_FONT,
     readingSize: READING_SIZE.default,
     terminalSize: TERMINAL_SIZE.default,
-    sidebarMode: "projects", activityProject: null,
+    activityProject: null,
     sidebarOpen: true,
     subagentGroups: OPEN_SUBAGENT_GROUPS,
     overviewFolds: {},
@@ -787,7 +785,6 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     actionErrorPage: state.actionErrorPage,
     restored: state.restored,
     computerUseSetup: state.computerUseSetup,
-    expandedProjects: state.expandedProjects,
     ...workspaceDialogsView(state),
     sections: state.sections,
     subagentGroups: state.subagentGroups,
@@ -797,7 +794,6 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     monoFont: state.monoFont,
     readingSize: state.readingSize,
     terminalSize: state.terminalSize,
-    sidebarMode: state.sidebarMode,
     sidebarOpen: state.sidebarOpen,
     sessionPanelOpen: state.sessionPanelOpen,
     captureSound: state.captureSound,

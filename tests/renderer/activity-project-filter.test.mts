@@ -15,7 +15,6 @@ const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.pro
 test("the Priority view's project menu is searched by project or computer name, and Enter picks the top match", async () => {
   const picked: (string | null)[] = [];
   const view = await mount(renderProjectSidebar({
-    mode: "activity",
     projects,
     projectHosts: new Map([["ml", linux]]),
     activityThreads: { priority: [task("done", { projectId: "web", outcome: "finished" })], running: [], threads: [], snoozed: [] },

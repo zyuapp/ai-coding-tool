@@ -9,7 +9,7 @@ import type { ComputerUsePermission } from "../../domain/computer-use";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../../domain/run";
 import type { OverviewSection } from "../../domain/coordination";
 import type { SettingsSection } from "../../domain/settings-section";
-import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
+import type { SidebarSection } from "../../domain/sidebar";
 import type { RunAttachment } from "../../domain/conversation";
 import type { ThreadDropTarget } from "../../domain/project";
 import type { ThemeMode } from "../../domain/theme";
@@ -61,8 +61,6 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     forkThread: (threadId: string, worktree = false) => dispatch({ type: "view.fork-name", sourceId: threadId, ...(worktree ? { worktree } : {}) }),
     confirmFork: (title: string) => dispatch({ type: "view.fork-confirm", title }),
     closeForkName: () => dispatch({ type: "view.fork-name", sourceId: null }),
-    toggleProject: (projectId: string) => dispatch({ type: "view.toggle-project", projectId }),
-    moveProject: (projectId: string, index: number) => dispatch({ type: "project.move", projectId, index }),
     removeProject: (projectId: string) => dispatch({ type: "project.remove", projectId }),
     editProject: (projectId: string, edit: { name?: string | null; root?: string }) => dispatch({ type: "project.edit", projectId, ...edit }),
     editProjectOpen: (projectId: string) => dispatch({ type: "view.edit-project", projectId }),
@@ -78,7 +76,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     setMonoFont: (font: string) => dispatch({ type: "view.set-mono-font", font }),
     setReadingSize: (size: number) => dispatch({ type: "view.set-reading-size", size }),
     setTerminalSize: (size: number) => dispatch({ type: "view.set-terminal-size", size }),
-    setSidebarMode: (mode: SidebarMode) => dispatch({ type: "view.set-sidebar-mode", mode }), setActivityProject: (projectId: string | null) => dispatch({ type: "view.set-activity-project", projectId }),
+    setActivityProject: (projectId: string | null) => dispatch({ type: "view.set-activity-project", projectId }),
     setSessionPanelOpen: (open: boolean) => dispatch({ type: "view.set-session-panel-open", open }),
     setChromeBrowser: (enabled: boolean) => dispatch({ type: "view.set-chrome-browser", enabled }),
     setComputerUse: (enabled: boolean) => dispatch({ type: "view.set-computer-use", enabled }),

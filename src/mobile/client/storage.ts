@@ -127,19 +127,6 @@ export function writeFolded(store: CredentialStore, folded: Set<string>): void {
   store.setItem(MOBILE_FOLDED_KEY, JSON.stringify([...folded]));
 }
 
-/** Which shape the list is in: grouped by folder, or ranked by what wants the user. */
-export const MOBILE_LIST_KEY = "aicodingtool.mobile.list";
-
-export type MobileListMode = "projects" | "activity";
-
-export function readListMode(store: CredentialStore): MobileListMode {
-  return store.getItem(MOBILE_LIST_KEY) === "activity" ? "activity" : "projects";
-}
-
-export function writeListMode(store: CredentialStore, mode: MobileListMode): void {
-  store.setItem(MOBILE_LIST_KEY, mode);
-}
-
 /** The one project the activity list is narrowed to. Absent for every project. */
 export const MOBILE_ACTIVITY_PROJECT_KEY = "aicodingtool.mobile.activity-project";
 

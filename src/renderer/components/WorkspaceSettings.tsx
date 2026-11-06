@@ -66,6 +66,14 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       }}
       onCaptureShortcut={(action) => void workspace.actions.captureShortcut(action)}
       onSetShortcut={(action, binding) => void workspace.actions.setShortcut(action, binding)}
+      projects={{
+        projects: workspace.projects,
+        projectHosts: workspace.projectHosts,
+        threads: workspace.orderedThreads,
+        onAdd: workspace.actions.openFolder,
+        onEdit: workspace.actions.editProjectOpen,
+        onRemove: workspace.actions.removeProject,
+      }}
       computers={{
         found: workspace.computersFound, searching: workspace.computersSearching, searchError: workspace.computersSearchError,
         name: workspace.computerName, links: workspace.computerLinks, pairing: workspace.computerPairing,

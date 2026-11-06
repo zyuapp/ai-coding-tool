@@ -14,7 +14,7 @@ test("each snooze duration moves Priority into Snoozed without dismissing its at
   try {
     for (const { hours } of SNOOZE_OPTIONS) {
       const thread = task("waiting", { outcome: "finished", outcomeUnread: true, findings: [{ id: "finding", headline: "Needs review", at }] });
-      const state = workspace({ threads: [thread], currentId: thread.id, sidebarMode: "activity" });
+      const state = workspace({ threads: [thread], currentId: thread.id });
       const input = { type: "task.snooze", taskId: thread.id, hours } as const;
       assert.equal(isWorkspaceViewInput(input), true);
       const snoozed = reduce(state, input);

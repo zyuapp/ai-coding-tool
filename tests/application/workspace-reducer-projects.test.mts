@@ -227,32 +227,14 @@ test("an automation waits for a send that is still finding its checkout", () => 
   assert.deepEqual(fired.effects, [{ type: "automation.ack", ack: { automationId: "automation-1", runId: "run-b", started: false } }], "two runs would make two checkouts");
 });
 
-test("a dropped thread moves without unfolding the sidebar the user folded", () => {
+test("a moved thread joins its new project", () => {
   const state = workspace({
     projects: [{ id: "project-1", root: "/project" }],
     threads: [task("task-a"), task("task-b", { projectId: "project-1" })],
-    expandedProjects: new Set(),
   });
 
   const moved = reduce(state, { type: "task.move", taskId: "task-a", target: { projectId: "project-1", index: 0 } });
   assert.equal(required(moved.state.threads.find((item) => item.id === "task-a")).projectId, "project-1");
-  assert.deepEqual([...moved.state.expandedProjects], []);
-});
-
-test("a dropped folder takes its new place in the sidebar and keeps it", () => {
-  const state = workspace({
-    projects: [
-      { id: "project-1", root: "/one", sortIndex: 0 },
-      { id: "project-2", root: "/two", sortIndex: 1 },
-      { id: "project-3", root: "/three", sortIndex: 2 },
-    ],
-  });
-
-  const moved = reduce(state, { type: "project.move", projectId: "project-3", index: 0 });
-  assert.deepEqual(deriveView(moved.state).projects.map((project) => project.id), ["project-3", "project-1", "project-2"]);
-
-  const again = reduce(moved.state, { type: "project.move", projectId: "project-3", index: 0 });
-  assert.equal(again.state, moved.state, "a drop that changes nothing leaves the state alone");
 });
 
 test("a folder just opened lands above the ones the user already ordered", () => {
