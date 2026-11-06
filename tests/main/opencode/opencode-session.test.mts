@@ -392,3 +392,42 @@ test("a feed lost because its server died reports what the server died of", asyn
   server().die("Error: invalid config: mcp.app.url is not a URL");
   assert.deepEqual(await result, { status: "failed", message: "OpenCode stopped: Error: invalid config: mcp.app.url is not a URL" });
 });
+
+test("archiving files the session on the thread's own server and lets its warm session go; with none, a server is started for it alone", async () => {
+  const warm = await started();
+  warm.server().emit("session.inbox.delivered", { sessionID: "ses_new", inboxID: "msg_1" });
+  warm.server().emit("session.execution.succeeded", { sessionID: "ses_new" });
+  await warm.result;
+  const opened = warm.servers.length;
+  assert.equal(warm.provider.archiveThread("task-1", { provider: "opencode", value: "ses_new" }, true), true);
+  await until(() => warm.server().closed, "the warm session going");
+  assert.equal(warm.servers.length, opened, "no server was started to file it");
+  assert.deepEqual(warm.server().sent("PATCH", "/ses_new").at(-1)!.body, { archived: true });
+
+  const cold = setup();
+  assert.equal(cold.provider.archiveThread("task-9", { provider: "opencode", value: "ses_old" }, false), true);
+  await until(() => cold.servers.length === 1 && cold.server().closed, "a server started and stopped for it");
+  assert.deepEqual(cold.server().sent("PATCH", "/ses_old")[0]!.body, { archived: false });
+  assert.equal(cold.provider.archiveThread("task-9", { provider: "codex", value: "thread-1" }, true), false, "another engine's thread is not this one's to file");
+  assert.equal(cold.provider.archiveThread("task-8", undefined, true), false, "a thread with no session has nothing to file");
+});
+
+test("a run waits for its thread's filing to land before it starts", async () => {
+  const { provider, servers } = setup();
+  provider.archiveThread("task-1", { provider: "opencode", value: "ses_old" }, false);
+  const run = input({ continuation: { provider: "opencode", value: "ses_old" } });
+  void provider.execute(run.run);
+  await until(() => servers.length === 2 && servers[1]!.sent("POST", "/prompt").length === 1, "the run's prompt");
+  assert.equal(servers[0]!.closed, true, "the filing's server was done before the run's started");
+});
+
+test("a thread archived before its session was saved is filed under the session it has", async () => {
+  const { provider, server, result } = await started();
+  assert.equal(provider.archiveThread("task-1", undefined, true), true);
+  await until(() => server().sent("PATCH", "/ses_new").some((call) => (call.body as { archived?: boolean }).archived === true), "the filing");
+  assert.equal(server().closed, false, "the session waits out the turn it is answering");
+  server().emit("session.inbox.delivered", { sessionID: "ses_new", inboxID: "msg_1" });
+  server().emit("session.execution.succeeded", { sessionID: "ses_new" });
+  await result;
+  await until(() => server().closed, "the warm session going once its turn answered");
+});

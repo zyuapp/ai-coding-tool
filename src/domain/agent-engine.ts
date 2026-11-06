@@ -316,6 +316,27 @@ export function unknownModel(model: AgentModel): string {
   return `No engine here offers the ${model} model. Pick another model.`;
 }
 
+/** A name with case, spaces and punctuation dropped, so "GLM 5.3 Flash" and "glm-5.3-flash" read alike. */
+function plainName(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * The model a name means: the id itself, else the one model whose own id or label reads the same.
+ * Where several do, the pinned one wins; otherwise the name is refused with the ones it could mean,
+ * since the same model from two providers differs in price and limits.
+ */
+export function resolveModel(catalog: ModelCatalog, name: AgentModel, favorites: readonly AgentModel[]): { model: AgentModel } | { error: string } {
+  if (catalog.entries.has(name)) return { model: name };
+  const plain = plainName(name);
+  const matches = plain ? [...catalog.entries.values()].filter(({ spec }) => plainName(spec.id.slice(spec.id.lastIndexOf("/") + 1)) === plain || plainName(spec.label) === plain).map(({ spec }) => spec.id) : [];
+  const pinned = matches.filter((model) => favorites.includes(model));
+  const meant = pinned.length ? pinned : matches;
+  if (meant.length === 1) return { model: meant[0]! };
+  if (meant.length > 1) return { error: `${name} could mean ${meant.join(", ")}. Name one of them, or pin the one you mean in the model picker.` };
+  return { error: unknownModel(name) };
+}
+
 /** Manual context compaction belongs to the model, so an engine that does not offer it cannot ask. */
 export function modelSupportsManualCompaction(catalog: ModelCatalog, engine: AgentEngine, model: AgentModel) {
   const entry = catalog.entries.get(model);

@@ -17,7 +17,9 @@ const UNBOUNDED = MAX_PROMPT_LENGTH + 1;
 const strings = new Map<number, string>();
 const repeated = (length: number) => strings.get(length) ?? strings.set(length, "x".repeat(length)).get(length)!;
 
+/** The field an agent fills in: optional and nullable unwrapped, and a transformed field read as what it takes. */
 function inner(schema: z.ZodType): z.ZodType {
+  if (schema instanceof z.ZodPipe) return inner(schema.in as z.ZodType);
   return schema instanceof z.ZodOptional || schema instanceof z.ZodNullable ? inner(schema.unwrap() as z.ZodType) : schema;
 }
 

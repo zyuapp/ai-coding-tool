@@ -7,6 +7,9 @@ const START_TIMEOUT_MS = 30_000;
 const STOP_GRACE_MS = 5_000;
 /** No request the app makes waits on a model, so one that takes this long is stuck. */
 const REQUEST_TIMEOUT_MS = 60_000;
+/** How the server says where it listens and the password it made up. */
+const LISTENING = /listening on (https?:\/\/\S+)/i;
+const PASSWORD = /server password (\S+)/i;
 /** The stderr kept for a failure, enough for the error a server dies with. */
 const STDERR_LIMIT = 8_192;
 
@@ -29,6 +32,20 @@ export class OpenCodeExited extends Error {
   constructor(readonly exit: ExitStatus) {
     super(firstLine(exit.stderr) || (exit.signal ? `signal ${exit.signal}` : `exit code ${exit.code}`));
   }
+}
+
+/**
+ * For a server that never said how to reach it in words this build reads: the last line that names
+ * what is still missing, where it listens or its password, in other words. None for a slow start.
+ */
+export function unreadLine(output: string) {
+  const missing = [...LISTENING.test(output) ? [] : [/listening/i], ...PASSWORD.test(output) ? [] : [/password/i]];
+  return output.split("\n").filter((line) => missing.some((word) => word.test(line))).at(-1)?.trim();
+}
+
+/** What to say of a server that started but said how to reach it in words this build cannot read. */
+function unreadStartup(line: string) {
+  return `OpenCode started, but this version of the app cannot read how to reach it ("${line}"). Update AI Coding Tool, or use the OpenCode version it was built for.`;
 }
 
 function firstLine(text: string) {
@@ -113,12 +130,15 @@ class OpenCodeServer implements OpenCodeClient {
     child.stderr?.on("data", (chunk: Buffer) => { this.stderr = (this.stderr + chunk.toString()).slice(-STDERR_LIMIT); });
     this.ready = new Promise<void>((resolve, reject) => {
       let output = "";
-      const timer = setTimeout(() => reject(new Error("OpenCode did not start in time.")), START_TIMEOUT_MS);
+      const timer = setTimeout(() => {
+        const unread = unreadLine(output);
+        reject(new Error(unread ? unreadStartup(unread) : "OpenCode did not start in time."));
+      }, START_TIMEOUT_MS);
       child.stdout?.on("data", (chunk: Buffer) => {
         if (this.url) return;
         output += chunk.toString();
-        const url = /listening on (https?:\/\/\S+)/i.exec(output)?.[1];
-        const password = /server password (\S+)/i.exec(output)?.[1];
+        const url = LISTENING.exec(output)?.[1];
+        const password = PASSWORD.exec(output)?.[1];
         if (!url || !password) return;
         this.url = url.replace(/\/$/, "");
         this.authorization = `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`;

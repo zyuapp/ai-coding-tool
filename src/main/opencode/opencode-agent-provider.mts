@@ -28,6 +28,7 @@ export class OpenCodeAgentProvider implements AgentProvider {
   private readonly connect: OpenCodeConnect;
   private readonly host: ToolHost;
   private readonly pool: SessionPool;
+  private readonly filings = new Map<string, Promise<void>>();
 
   constructor(options: OpenCodeProviderOptions = {}) {
     this.connect = options.connect ?? startOpenCodeServer;
@@ -35,7 +36,9 @@ export class OpenCodeAgentProvider implements AgentProvider {
     this.pool = options.pool ?? new SessionPool(options.idleMs);
   }
 
-  execute(input: ProviderRunInput): Promise<ProviderResult> {
+  async execute(input: ProviderRunInput): Promise<ProviderResult> {
+    /** A thread still being filed away or brought back is held by that filing until it lands. */
+    await this.filings.get(input.taskId);
     const key = sessionKey(input);
     return this.pool.execute(input, key, { open: ({ ended, rested }) => new OpenCodeSession(key, this.connect, this.host, ended, rested) });
   }
@@ -56,17 +59,33 @@ export class OpenCodeAgentProvider implements AgentProvider {
     void this.pool.retireOutOfRole(taskId, role);
   }
 
-  /** Files the session away in OpenCode's own history too, or brings it back, on a server started for that alone. */
-  archiveThread(_taskId: string, continuation: Continuation | undefined, archived: boolean) {
-    if (continuation?.provider !== "opencode") return false;
-    void (async () => {
-      const client = await this.connect({ cwd: process.cwd() });
-      try {
-        await client.request("PATCH", `/api/session/${continuation.value}`, { archived });
-      } finally {
-        await client.close();
-      }
-    })().catch(() => {});
+  /**
+   * Files the session away in OpenCode's own history too, or brings it back: on the thread's own
+   * server while it has one, else on one started for that alone. An archived thread's warm session
+   * goes with it. Filings of one thread land in the order asked.
+   */
+  archiveThread(taskId: string, continuation: Continuation | undefined, archived: boolean) {
+    if (continuation && continuation.provider !== "opencode") return false;
+    const live = this.pool.liveSession(taskId);
+    const session = live instanceof OpenCodeSession ? live : undefined;
+    const sessionId = continuation?.value ?? session?.sessionId;
+    if (!sessionId) return false;
+    const previous = this.filings.get(taskId) ?? Promise.resolve();
+    const filing = previous
+      .then(async () => {
+        if (!await session?.file(sessionId, archived)) {
+          const client = await this.connect({ cwd: process.cwd() });
+          try {
+            await client.request("PATCH", `/api/session/${sessionId}`, { archived });
+          } finally {
+            await client.close();
+          }
+        }
+        if (archived) await this.pool.retire(taskId);
+      })
+      .catch(() => {})
+      .finally(() => { if (this.filings.get(taskId) === filing) this.filings.delete(taskId); });
+    this.filings.set(taskId, filing);
     return true;
   }
 

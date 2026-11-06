@@ -207,6 +207,13 @@ export class OpenCodeSession {
     if (this.client && this.sessionId) void this.client.request("PATCH", `/api/session/${this.sessionId}`, { title }).catch(() => {});
   }
 
+  /** Files a session away in OpenCode's history, or brings it back, on this session's server. False when it has none to ask. */
+  async file(sessionId: string, archived: boolean) {
+    if (!this.client || this.ended) return false;
+    await this.client.request("PATCH", `/api/session/${sessionId}`, { archived });
+    return true;
+  }
+
   private async begin(turn: Turn) {
     try {
       await (this.opening ??= this.open(turn.input));

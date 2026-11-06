@@ -4,7 +4,7 @@ import { chmod, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
-import { OpenCodeError, readLoaded, startOpenCodeServer, WATCHED_SERVE, type OpenCodeEvent } from "../../../src/main/opencode/opencode-server.mts";
+import { OpenCodeError, readLoaded, startOpenCodeServer, unreadLine, WATCHED_SERVE, type OpenCodeEvent } from "../../../src/main/opencode/opencode-server.mts";
 import { temporaryDirectory } from "../../support/temporary-directory.mts";
 
 /** An `opencode` that serves the few routes these tests read, behind a password, and notes its pid. */
@@ -126,6 +126,27 @@ test("a server that ignores being asked to stop is killed", async () => {
   }
 }, 15_000);
 
+test("a server that also mentions its password elsewhere still starts once both lines are read", async () => {
+  const fake = await fakeOpenCode();
+  try {
+    const binary = path.join(fake.directory, "opencode");
+    /** Each line in a tick of its own, so the warning and the address arrive before the password does. */
+    const spaced = [
+      'console.log("Warning: OPENCODE_SERVER_PASSWORD is not set, generating one");',
+      'setTimeout(() => console.log("Server listening on http://127.0.0.1:" + server.address().port), 50);',
+      'setTimeout(() => console.log("server password " + password), 100);',
+    ].join("\n  ");
+    await writeFile(binary, (await readFile(binary, "utf8"))
+      .replace('console.log("Server listening on http://127.0.0.1:" + server.address().port);\n  console.log("server password " + password);', spaced));
+    assert.match(await readFile(binary, "utf8"), /setTimeout\(\(\) => console\.log\("server password/);
+    const client = await startOpenCodeServer({ cwd: fake.directory });
+    assert.ok(Array.isArray(await client.request("GET", "/api/model")));
+    await client.close();
+  } finally {
+    fake.restore();
+  }
+});
+
 test("a server that dies before it is ready reports why", async () => {
   const fake = await fakeOpenCode();
   try {
@@ -145,4 +166,12 @@ test("a list read while the server loads its folder is read again until it settl
   let never = 0;
   assert.deepEqual(await readLoaded<string>({ request: async () => { never += 1; return [] as never; } }, "/api/skill", 1), []);
   assert.equal(never, 10, "an empty folder is believed after a few seconds");
+});
+
+test("a start that never said how to reach it blames the last line naming what is missing, and a slow start blames nothing", () => {
+  assert.equal(unreadLine("Loading models…\n"), undefined);
+  assert.equal(unreadLine("Server listening on http://127.0.0.1:5555\n"), undefined, "a password never mentioned is a slow start");
+  assert.equal(unreadLine("Ready, listening at port 5555\nserver password abc\n"), "Ready, listening at port 5555");
+  assert.equal(unreadLine("Warning: OPENCODE_SERVER_PASSWORD is not set\nServer listening on http://127.0.0.1:5555\npassword: abc\n"), "password: abc", "the last such line, not a warning before it");
+  assert.equal(unreadLine("Warning: OPENCODE_SERVER_PASSWORD is not set\nReady, listening at port 5555\nserver password abc\n"), "Ready, listening at port 5555", "a read password leaves only the address to blame");
 });

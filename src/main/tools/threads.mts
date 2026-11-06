@@ -32,9 +32,10 @@ const effortIds = [...new Set(AGENT_ENGINES.flatMap((engine) => modelsFor(BUILT_
  * Models an engine names for itself are only known to the window, which refuses one no engine
  * offers, so any well-formed id is taken here and the built-in ones are named to the caller.
  */
-const modelFieldOf = (ids: AgentModel[], omitted: string) => z.string().trim().max(256)
+/** A name said with spaces, as "GLM 5.3 Flash", is taken hyphenated, which the window reads as the same name. */
+const modelFieldOf = (ids: AgentModel[], omitted: string) => z.string().trim().max(256).transform((name) => name.replace(/\s+/g, "-"))
   .refine((id) => isModelId(id) && (ids.includes(id) || !modelIds.includes(id)), "Not a model this thread can start on.").optional().describe(
-    `Model for the new thread: one of ${ids.join(", ")}; an engine (${AGENT_ENGINES.join(", ")}) for that engine's default model; or a model id from the app's model picker, such as openrouter/z-ai/glm-5.3-flash. Omit to ${omitted}`,
+    `Model for the new thread: one of ${ids.join(", ")}; an engine (${AGENT_ENGINES.join(", ")}) for that engine's default model; or a model from the app's model picker, by its id such as openrouter/z-ai/glm-5.3-flash or by its name such as glm-5.3-flash, which resolves to the one the user pinned when several providers offer it. Omit to ${omitted}`,
   );
 const modelField = modelFieldOf(modelIds, "inherit the calling thread's model.");
 /** A thread that will work under a coordinator never runs on a model one may not hand work to. */
