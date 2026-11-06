@@ -664,13 +664,19 @@ test("a role named on a send belongs to the thread it creates, never to one that
   assert.equal(again.state.threads[0].role, "reviewer");
 });
 
-test("a reviewer runs unasked whatever mode this thread is in, so a round never waits on an approval", () => {
+test("a reviewer starts in Bypass whatever mode this thread is in, and every other role keeps the draft mode", () => {
+  const start = (role: "reviewer" | "implementer" | "researcher" | "coordinator", draftPolicy: "confirm" | "plan" | "autonomous" | "bypass") => {
+    const sending = reduce(workspace({ draftPolicy }), { type: "task.send", text: "Review the diff", attachments: [], role });
+    return reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  };
   for (const draftPolicy of ["confirm", "plan", "autonomous", "bypass"] as const) {
-    const sending = reduce(workspace({ draftPolicy }), { type: "task.send", text: "Review the diff", attachments: [], role: "reviewer" });
-    const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+    const started = start("reviewer", draftPolicy);
     assert.equal(started.state.threads[0].executionPolicy, "bypass", `a reviewer started on ${draftPolicy}`);
     assert.equal(effectAt(started, "start-run").command.policy, "bypass", "and its first run runs that way too");
   }
+  assert.equal(start("implementer", "confirm").state.threads[0].executionPolicy, "confirm", "any other role keeps the draft mode");
+  assert.equal(start("researcher", "plan").state.threads[0].executionPolicy, "plan");
+  assert.equal(start("coordinator", "autonomous").state.threads[0].executionPolicy, "autonomous");
 });
 
 test("a draft made a coordinator starts as one, and the next draft starts without a role", () => {

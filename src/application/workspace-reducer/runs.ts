@@ -315,7 +315,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     id: crypto.randomUUID(),
     title: pending.title ? clampTitle(pending.title) : threadTitleFor(pending.text || pasteTitle(pending.pastes ?? []) || fileTitle(pending.files ?? []), pending.attachments.map((path) => ({ path, labels: [] }))),
     ...(pending.projectId ? { projectId: pending.projectId } : {}),
-    /** A reviewer reads and judges and never writes, so it runs unasked: a mode that asks before each look would stall the round it was started for. */
+    /** A reviewer starts in Bypass, whatever mode the draft carries, so its round never waits on an approval. */
     executionPolicy: policyFor(engine, pending.role === "reviewer" ? "bypass" : state.draftPolicy),
     engine,
     model,
