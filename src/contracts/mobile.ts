@@ -1,7 +1,7 @@
 import type { PendingQuestion } from "../domain/agent-question.js";
 import type { AppCommand } from "./commands.js";
 import type { MobilePairingOffer, MobileServerState } from "../domain/mobile.js";
-import { isAgentEffort, isAgentEngine, isModelId, type AgentEngine, type AgentModel } from "../domain/agent-engine.js";
+import { isAgentEffort, isAgentEngine, isModelId, type AgentEngine, type AgentModel, type EngineId } from "../domain/agent-engine.js";
 import type { AgentEffort, ExecutionPolicy } from "../domain/run.js";
 import type { Annotation, AnnotationAnchor, PastedText } from "../domain/conversation.js";
 import { isDiffRange, type DiffRange } from "../domain/diff.js";
@@ -132,7 +132,8 @@ export type MobileChanges = {
 
 /** What the open thread is set to run as, which the phone can change like any other command. */
 export type MobileThreadSettings = {
-  engine: AgentEngine;
+  /** A thread on a paired computer may run on an engine only a newer build knows. */
+  engine: EngineId;
   /** Absent while the thread's engine has yet to name the model it runs on. */
   model?: AgentModel;
   effort: AgentEffort;

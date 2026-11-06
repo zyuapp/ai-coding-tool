@@ -4,7 +4,7 @@
  * that tells one call from the next, so the view leads with it and the name becomes a glyph.
  */
 
-import type { AgentEngine } from "./agent-engine.js";
+import { isAgentEngine, type AgentEngine, type EngineId } from "./agent-engine.js";
 
 export type ToolFamily = "shell" | "read" | "write" | "search" | "web" | "agent" | "other";
 
@@ -64,8 +64,8 @@ const NAMING: Record<AgentEngine, ToolNaming> = {
  */
 const GENERIC_NAMING: ToolNaming = { families: {}, namingKeys: ["command", "file_path", "path", "pattern", "url", "query"] };
 
-function namingOf(engine: AgentEngine): ToolNaming {
-  return Object.hasOwn(NAMING, engine) ? NAMING[engine] : GENERIC_NAMING;
+function namingOf(engine: EngineId): ToolNaming {
+  return isAgentEngine(engine) ? NAMING[engine] : GENERIC_NAMING;
 }
 
 /** Longer than any row can show, and short enough that a heredoc cannot bloat the transcript. */
@@ -77,7 +77,7 @@ function ownToolFamily(name: string): ToolFamily | undefined {
   return undefined;
 }
 
-export function toolFamily(engine: AgentEngine, name: string): ToolFamily {
+export function toolFamily(engine: EngineId, name: string): ToolFamily {
   return namingOf(engine).families[name] ?? ownToolFamily(name) ?? "other";
 }
 
@@ -103,7 +103,7 @@ function namingValue(namingKeys: readonly string[], input: Record<string, unknow
   return strings.length === 1 ? { key: strings[0][0], value: strings[0][1].trim() } : null;
 }
 
-export function describeToolCall(engine: AgentEngine, name: string, detail?: string): ToolCall {
+export function describeToolCall(engine: EngineId, name: string, detail?: string): ToolCall {
   const family = toolFamily(engine, name);
   const input = parseInput(detail);
   const naming = input && namingValue(namingOf(engine).namingKeys, input);

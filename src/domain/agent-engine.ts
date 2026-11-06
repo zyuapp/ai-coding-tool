@@ -3,6 +3,13 @@ import type { AgentEffort, ExecutionPolicy } from "./run.js";
 
 /** The backends that can run a task. Each offers its own models, efforts, and context windows. */
 export type AgentEngine = "claude" | "codex" | "opencode";
+
+/**
+ * An engine as another computer or a newer build names it, which may be one this build does not know.
+ * What only reads about an engine takes one; anything that runs on it narrows it with `isAgentEngine` first.
+ */
+export type EngineId = AgentEngine | (string & {});
+
 export const DEFAULT_ENGINE: AgentEngine = "claude";
 
 /**
@@ -433,14 +440,14 @@ export function effortForModel(catalog: ModelCatalog, engine: AgentEngine, model
  * The engine's own record, or none for an engine only a newer build on a paired computer knows. What
  * is read off it below falls back to what keeps the window drawing, for a thread it shows read-only.
  */
-function engineSpec(engine: AgentEngine): EngineSpec | undefined {
-  return Object.hasOwn(ENGINES, engine) ? ENGINES[engine] : undefined;
+function engineSpec(engine: EngineId): EngineSpec | undefined {
+  return isAgentEngine(engine) ? ENGINES[engine] : undefined;
 }
 
 const NO_CAPABILITIES: EngineCapabilities = { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, policies: [], unattendedPolicy: "confirm" };
 
-export function modelsFor(catalog: ModelCatalog, engine: AgentEngine): readonly ModelSpec[] {
-  return Object.hasOwn(catalog.models, engine) ? catalog.models[engine] : [];
+export function modelsFor(catalog: ModelCatalog, engine: EngineId): readonly ModelSpec[] {
+  return isAgentEngine(engine) ? catalog.models[engine] : [];
 }
 
 /**
@@ -455,7 +462,7 @@ export function effortsFor(catalog: ModelCatalog, engine: AgentEngine, model: Ag
 }
 
 /** The default this build ships for the engine; none for one whose models are only known once it names them. */
-export function defaultModelFor(engine: AgentEngine): AgentModel | undefined {
+export function defaultModelFor(engine: EngineId): AgentModel | undefined {
   const models = engineSpec(engine)?.models;
   return models?.kind === "built-in" ? models.default : undefined;
 }
@@ -471,12 +478,12 @@ export function threadModel(catalog: ModelCatalog, thread: { engine: AgentEngine
   return thread.model ?? defaultModelIn(catalog, thread.engine);
 }
 
-export function defaultEffortFor(engine: AgentEngine): AgentEffort {
+export function defaultEffortFor(engine: EngineId): AgentEffort {
   return (engineSpec(engine) ?? ENGINES[DEFAULT_ENGINE]).defaultEffort;
 }
 
 /** An engine only a newer build knows can do nothing here. */
-export function capabilitiesFor(engine: AgentEngine): EngineCapabilities {
+export function capabilitiesFor(engine: EngineId): EngineCapabilities {
   return engineSpec(engine)?.capabilities ?? NO_CAPABILITIES;
 }
 
@@ -489,12 +496,12 @@ export function policyFor(engine: AgentEngine, policy: ExecutionPolicy): Executi
 }
 
 /** What the engine is called wherever the app speaks of the agent running a thread; one only a newer build knows, by its own id. */
-export function engineLabel(engine: AgentEngine): string {
+export function engineLabel(engine: EngineId): string {
   return engineSpec(engine)?.label ?? engine;
 }
 
 /** What stands in for the composer of a thread on an engine only a newer build knows, which this one shows read-only. */
-export function unopenableEngine(engine: string): string {
+export function unopenableEngine(engine: EngineId): string {
   return `Runs on ${engine}, which this version can't open. Update to work in it here.`;
 }
 

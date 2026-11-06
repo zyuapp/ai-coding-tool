@@ -72,6 +72,17 @@ test("a thread's settings start a thread on the other engine in the same place",
   assert.equal(document.querySelector(".bar-title h1")?.textContent, "New thread");
 });
 
+test("a thread on an engine only a newer build knows offers none of its settings, only new threads on this build's engines", () => {
+  const line = openPhone({ paired: true });
+  const newer = view();
+  newer.thread = { ...newer.thread!, settings: { engine: "gemini", model: "opus", effort: "high", policy: "confirm" } };
+  live(line, newer);
+  click(".thread-row .thread-open");
+  click(".composer-settings");
+  assert.equal(document.querySelectorAll(".sheet-option").length, 0, "no mode, model or effort to pick");
+  assert.deepEqual([...document.querySelectorAll(".sheet-new-engine strong")].map((node) => node.textContent), ["New thread with Claude", "New thread with Codex"]);
+});
+
 test("a tapped setting the Mac never echoes goes back to what it is", () => {
   vi.useFakeTimers();
   try {
@@ -500,6 +511,7 @@ test("the phone wears the theme the Mac sends and remembers it for the next visi
 test("the phone names a mode, model or effort only a newer build knows as it was sent", () => {
   assert.deepEqual(settingsSummary({ engine: "claude", model: "opus-next" as never, effort: "galaxy" as never, policy: "yolo" as never }), { mode: "yolo", model: "opus-next", effort: "galaxy" });
   assert.deepEqual(settingsSummary({ engine: "claude", model: "opus", effort: "high", policy: "confirm" }).effort, "High");
+  assert.deepEqual(settingsSummary({ engine: "gemini", model: "opus", effort: "high", policy: "confirm" }), { mode: "Confirm", model: "opus", effort: "high" }, "an engine it does not know offers none of this build's models");
 });
 
 function frameOf(line: FakeSocket, type: string) {

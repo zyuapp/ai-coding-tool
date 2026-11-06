@@ -2,7 +2,7 @@ import { LuCheck as Check, LuChevronRight as ChevronRight, LuSquarePen as Square
 import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import type { MobileThreadSettings } from "../../contracts/mobile";
 import { Sheet } from "./Sheet";
-import { AGENT_ENGINES, BUILT_IN_MODELS, capabilitiesFor, byEngine, effortForModel, effortsFor, engineLabel, modelsFor, type AgentEngine, type AgentModel, type EffortSpec } from "../../domain/agent-engine";
+import { AGENT_ENGINES, BUILT_IN_MODELS, capabilitiesFor, byEngine, effortForModel, effortsFor, engineLabel, isAgentEngine, modelsFor, type AgentEngine, type AgentModel, type EffortSpec } from "../../domain/agent-engine";
 import { POLICIES, POLICY_CHOICES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 
 type Choice<T extends string> = { value: T; label: string; description?: string };
@@ -61,7 +61,7 @@ function Group<T extends string>({ heading, choices, value, refused, onChange }:
  * A thread that already has an engine offers only that engine's models. Each other engine keeps its
  * heading in the same list, with the one way to reach its models: a new thread on it.
  */
-function ModelGroup({ engine, model, locked, refused, onModel, onNewWith }: { engine: AgentEngine; model: AgentModel | undefined; locked: boolean; refused: boolean; onModel: (engine: AgentEngine, model: AgentModel) => void; onNewWith?: (engine: AgentEngine) => void }) {
+function ModelGroup({ engine, model, locked, refused, onModel, onNewWith }: { engine: AgentEngine | undefined; model: AgentModel | undefined; locked: boolean; refused: boolean; onModel: (engine: AgentEngine, model: AgentModel) => void; onNewWith?: (engine: AgentEngine) => void }) {
   const shown = modelGroups.filter((group) => !locked || group.engine === engine);
   const known = shown.some((group) => group.engine === engine && group.choices.some((choice) => choice.value === model));
   const others = locked && onNewWith ? modelGroups.filter((group) => group.engine !== engine) : [];
@@ -144,12 +144,14 @@ export function ThreadSettings({ settings: given, live, locked, onNewWith, onClo
 }) {
   const [settings, choose, refused] = usePending(given, live);
   const { model } = settings;
-  const efforts = model === undefined ? NO_EFFORTS : (settings.coordinating ? coordinatorEffortsOf : effortsOf)[settings.engine]?.get(model) ?? NO_EFFORTS;
+  /** A thread on an engine only a newer build knows offers none of its settings here, only new threads on this build's engines. */
+  const engine = isAgentEngine(settings.engine) ? settings.engine : undefined;
+  const efforts = model === undefined || !engine ? NO_EFFORTS : (settings.coordinating ? coordinatorEffortsOf : effortsOf)[engine].get(model) ?? NO_EFFORTS;
   return (
     <Sheet title="Settings" label="Thread settings" onClose={onClose}>
-      <Group heading="Mode" choices={modesOf[settings.engine] ?? []} value={settings.policy} refused={refused.has("policy")} onChange={(policy) => { choose({ policy }); onPolicy(policy); }} />
-      <ModelGroup engine={settings.engine} model={settings.model} locked={locked} refused={refused.has("model") || refused.has("engine")} onNewWith={onNewWith} onModel={(engine, model) => { choose({ engine, model }); onModel(engine, model); }} />
-      {model !== undefined && efforts.length > 0 && <Group heading="Effort" choices={efforts} value={effortForModel(catalog, settings.engine, model, settings.effort, settings.coordinating ? "coordinator" : undefined)} refused={refused.has("effort")} onChange={(effort) => { choose({ effort }); onEffort(settings.engine, effort); }} />}
+      <Group heading="Mode" choices={engine ? modesOf[engine] : []} value={settings.policy} refused={refused.has("policy")} onChange={(policy) => { choose({ policy }); onPolicy(policy); }} />
+      <ModelGroup engine={engine} model={settings.model} locked={locked} refused={refused.has("model") || refused.has("engine")} onNewWith={onNewWith} onModel={(engine, model) => { choose({ engine, model }); onModel(engine, model); }} />
+      {engine && model !== undefined && efforts.length > 0 && <Group heading="Effort" choices={efforts} value={effortForModel(catalog, engine, model, settings.effort, settings.coordinating ? "coordinator" : undefined)} refused={refused.has("effort")} onChange={(effort) => { choose({ effort }); onEffort(engine, effort); }} />}
       {capabilitiesFor(settings.engine).fastMode && <button type="button" className="sheet-option fast-mode-switch" role="switch" aria-label="Fast mode" aria-checked={settings.fastMode ?? false} onClick={() => { const fastMode = !settings.fastMode; choose({ fastMode }); onFastMode(fastMode); }}>
         <Zap size={20} aria-hidden="true" />
         <span><strong>Fast mode</strong></span>

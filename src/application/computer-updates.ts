@@ -5,7 +5,7 @@
  */
 import { supportsComputerCommand } from "../contracts/computer-capabilities.js";
 import type { AppCommand } from "../contracts/commands.js";
-import { AGENT_ENGINES, engineLabel, engineUpdate, isAgentEngine, type EngineReadiness } from "../domain/agent-engine.js";
+import { AGENT_ENGINES, engineLabel, engineUpdate, isAgentEngine, type EngineId, type EngineReadiness } from "../domain/agent-engine.js";
 import type { AppBuild } from "../domain/app-update.js";
 import { compareVersions } from "../domain/engine-version.js";
 import type { PairedComputer } from "./computers.js";
@@ -19,7 +19,7 @@ export type UpkeepAction = { label: string; command: AppCommand };
 
 /** One piece of software on that computer: the app, or an engine by the id that computer names it by. */
 export type UpkeepItem = {
-  key: string;
+  key: "app" | EngineId;
   label: string;
   /** What it runs now, or null when that computer cannot say. */
   version: string | null;
@@ -71,8 +71,8 @@ function appItem(computer: PairedComputer, remote: WorkspaceState, own: AppBuild
  * The engines that computer reports or is updating, by its own ids: the ones this build knows in their
  * order, then any only a newer build knows. Until it has reported any, this build's own, to be checked.
  */
-function reportedEngines(remote: WorkspaceState, status: Readonly<Partial<Record<string, EngineReadiness>>>): readonly string[] {
-  const reported: string[] = [...new Set([...Object.keys(status), ...remote.engineUpdating ? [remote.engineUpdating] : [], ...remote.engineUpdateQueue])];
+function reportedEngines(remote: WorkspaceState, status: Readonly<Partial<Record<EngineId, EngineReadiness>>>): readonly EngineId[] {
+  const reported: EngineId[] = [...new Set([...Object.keys(status), ...remote.engineUpdating ? [remote.engineUpdating] : [], ...remote.engineUpdateQueue])];
   if (!reported.length) return AGENT_ENGINES;
   return [...AGENT_ENGINES.filter((engine) => reported.includes(engine)), ...reported.filter((engine) => !isAgentEngine(engine))];
 }
@@ -81,10 +81,10 @@ function reportedEngines(remote: WorkspaceState, status: Readonly<Partial<Record
  * Where an engine stands there: missing, too old to run, behind, or current, and whether the app can
  * move it on. One only a newer build knows is named by its id and updated there.
  */
-function engineItem(computer: PairedComputer, remote: WorkspaceState, status: Readonly<Partial<Record<string, EngineReadiness>>>, engine: string): UpkeepItem {
+function engineItem(computer: PairedComputer, remote: WorkspaceState, status: Readonly<Partial<Record<EngineId, EngineReadiness>>>, engine: EngineId): UpkeepItem {
   const readiness = status[engine];
   const known = isAgentEngine(engine) ? engine : undefined;
-  const item = { key: engine, label: known ? engineLabel(known) : engine, version: readiness?.version ?? null };
+  const item = { key: engine, label: engineLabel(engine), version: readiness?.version ?? null };
   if (remote.engineUpdating === engine) return { ...item, state: { text: "Updating…", tone: "progress" }, action: null };
   if (remote.engineUpdateQueue.some((queued) => queued === engine)) return { ...item, state: { text: "Waiting to update", tone: "progress" }, action: null };
   if (!readiness) return { ...item, state: { text: "Checking…", tone: "quiet" }, action: null };
@@ -122,7 +122,8 @@ export function computerUpkeep(paired: readonly PairedComputer[], own: AppBuild 
       return { id: computer.id, status, action: restarting ? null : { label: "Reconnect", command: { type: "computers.reconnect", id: computer.id } }, items: [] };
     }
     if (!remote) return { id: computer.id, status, action: null, items: [] };
-    const engines: Readonly<Partial<Record<string, EngineReadiness>>> = remote.engineStatus ?? {};
+    /** Keyed by the engines that computer knows, which may include one this build does not. */
+    const engines: Readonly<Partial<Record<EngineId, EngineReadiness>>> = remote.engineStatus ?? {};
     return { id: computer.id, status, action: null, items: [appItem(computer, remote, own), ...reportedEngines(remote, engines).map((engine) => engineItem(computer, remote, engines, engine))] };
   });
 }

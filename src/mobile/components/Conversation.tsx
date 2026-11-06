@@ -2,7 +2,7 @@ import type { IconType } from "react-icons";
 import { LuBot as Bot, LuChevronDown as ChevronDown, LuCornerDownRight as CornerDownRight, LuFileText as FileText, LuGlobe as Globe, LuHistory as History, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench, LuX as X, LuZap as Zap } from "react-icons/lu";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MobileMessage, MobileThreadView } from "../../contracts/mobile";
-import type { AgentEngine } from "../../domain/agent-engine";
+import type { EngineId } from "../../domain/agent-engine";
 import type { ToolFamily } from "../../domain/tool-call";
 import { CopyButton } from "../../renderer/components/CopyButton";
 import { clockTime, runFamily, summariseTools, transcriptBlocks } from "../format";
@@ -20,7 +20,7 @@ const FAMILY_ICONS: Record<ToolFamily, IconType> = {
 };
 
 /** A run of more than one call is a card that opens to every call in the order it was made; a lone call is a plain line. */
-function ToolRun({ engine, calls }: { engine: AgentEngine; calls: MobileMessage[] }) {
+function ToolRun({ engine, calls }: { engine: EngineId; calls: MobileMessage[] }) {
   const [open, setOpen] = useState(false);
   const Icon = FAMILY_ICONS[runFamily(engine, calls)];
   const row = (

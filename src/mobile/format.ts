@@ -1,6 +1,6 @@
 import type { MobileChanges, MobileLocation, MobileMessage, MobileRunStatus, MobileThreadEntry, MobileThreadSettings } from "../contracts/mobile";
 import type { ThreadOutcome } from "../domain/thread-run";
-import { BUILT_IN_MODELS, capabilitiesFor, effortForModel, isAgentEffort, modelsFor, type AgentEngine } from "../domain/agent-engine";
+import { BUILT_IN_MODELS, capabilitiesFor, effortForModel, isAgentEffort, isAgentEngine, modelsFor, type EngineId } from "../domain/agent-engine";
 import { POLICIES } from "../domain/run";
 import { toolFamily, type ToolFamily } from "../domain/tool-call";
 
@@ -41,7 +41,7 @@ export function summariseTools(calls: MobileMessage[]): string {
 }
 
 /** The family of the run's first call, which is what the row draws a glyph for. */
-export function runFamily(engine: AgentEngine, calls: MobileMessage[]): ToolFamily {
+export function runFamily(engine: EngineId, calls: MobileMessage[]): ToolFamily {
   return toolFamily(engine, calls[0]?.text ?? "");
 }
 
@@ -123,12 +123,13 @@ export function relativeTime(at: number, now: number): string {
 
 /** A thread's settings as the composer's bottom edge reads them. Effort is null for a model that takes none. */
 export function settingsSummary(settings: MobileThreadSettings): { mode: string; model: string; effort: string | null } {
-  const spec = modelsFor(BUILT_IN_MODELS, settings.engine).find((candidate) => candidate.id === settings.model);
+  const engine = isAgentEngine(settings.engine) ? settings.engine : undefined;
+  const spec = engine && modelsFor(BUILT_IN_MODELS, engine).find((candidate) => candidate.id === settings.model);
   return {
     /** A mode, model or effort only a newer build knows is named as it was sent. */
     mode: Object.hasOwn(POLICIES, settings.policy) ? POLICIES[settings.policy].label : settings.policy,
     model: `${spec?.label ?? settings.model ?? "No model"}${capabilitiesFor(settings.engine).fastMode && settings.fastMode ? " · Fast" : ""}`,
     effort:
-      spec?.efforts.find((candidate) => candidate.id === effortForModel(BUILT_IN_MODELS, settings.engine, spec.id, settings.effort))?.label ?? (spec && isAgentEffort(settings.effort) ? null : settings.effort),
+      (engine && spec?.efforts.find((candidate) => candidate.id === effortForModel(BUILT_IN_MODELS, engine, spec.id, settings.effort)))?.label ?? (spec && isAgentEffort(settings.effort) ? null : settings.effort),
   };
 }
