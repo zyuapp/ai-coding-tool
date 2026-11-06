@@ -43,7 +43,7 @@ export type WorkspaceEvent =
   | { type: "store.persisted" }
   | { type: "preferences.loaded"; preferences: ViewPreferences }
   | { type: "store.failed"; message: string }
-  | { type: "action.failed"; message: string }
+  | { type: "action.failed"; message: string; page?: import("../../domain/settings-section.js").SettingsSection }
   | import("../project-add.js").ProjectAddEvent
   | ProjectEvent
   | { type: "run.event"; event: RunEvent }

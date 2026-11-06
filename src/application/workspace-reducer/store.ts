@@ -54,7 +54,9 @@ export function reduceStore(state: WorkspaceState, input: StoreInput): Workspace
     case "store.failed":
       return settled({ ...state, writable: false, storageError: input.message, restored: true });
 
-    case "action.failed":
-      return rejected(state, input.message);
+    case "action.failed": {
+      const transition = rejected(state, input.message);
+      return { ...transition, state: { ...transition.state, actionErrorPage: input.page ?? null } };
+    }
   }
 }

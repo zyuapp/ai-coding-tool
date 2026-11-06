@@ -90,8 +90,10 @@ export const computerEffects = {
         return;
       }
       const composer = effect.draft?.attachments?.key;
+      /** A project is removed from Settings, so that computer's refusal is shown on the Projects page. */
+      const page = effect.inputs.some((input) => input.type === "project.remove") ? { page: "projects" as const } : {};
       await dispatch(composer === undefined
-        ? { type: "action.failed", message: errorMessage(error) }
+        ? { type: "action.failed", message: errorMessage(error), ...page }
         : { type: "attachments.failed", ...(composer ? { taskId: composer } : {}), message: errorMessage(error) });
     }
   },

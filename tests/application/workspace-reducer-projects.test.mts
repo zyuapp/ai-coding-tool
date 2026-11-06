@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { reduce, WORKSPACE_ERRORS } from "../../src/application/workspace-reducer.ts";
+import { reduce, WORKSPACE_ERRORS, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
+import { computerEffects } from "../../src/host/computer-effects.ts";
+import type { EffectHost } from "../../src/host/effect-host.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import { RUNNING_PROJECT_ERROR } from "../../src/application/workspace-reducer/errors.ts";
 import { task, workspace, activeRun, effectAt, required, run, PROJECT, projected, madeWorktree, heldWorktree, inside, send } from "./workspace-reducer-fixtures.mts";
@@ -261,4 +263,15 @@ test("a refused removal is shown on the Projects page, and a removal that goes t
   assert.deepEqual(removed.state.projects, []);
   assert.equal(removed.state.actionError, null);
   assert.equal(removed.state.actionErrorPage, null);
+});
+
+test("a project removal that computer refused is shown on the Projects page, and a later failure takes the page back", async () => {
+  const raised: WorkspaceInput[] = [];
+  const host = { dispatch: async (input: WorkspaceInput) => { raised.push(input); }, desktop: { sendToComputer: async () => ({ ok: false, message: "Stop the running tasks before removing this project." }) } } as unknown as EffectHost;
+  await computerEffects["computer.forward"]({ type: "computer.forward", id: "linux", inputs: [{ type: "project.remove", projectId: "ml" }] }, host);
+  assert.deepEqual(raised, [{ type: "action.failed", message: "Stop the running tasks before removing this project.", page: "projects" }]);
+  const refused = reduce(workspace(), raised[0]!).state;
+  assert.equal(refused.actionError, "Stop the running tasks before removing this project.");
+  assert.equal(refused.actionErrorPage, "projects");
+  assert.equal(reduce(refused, { type: "action.failed", message: "Refused there" }).state.actionErrorPage, null);
 });

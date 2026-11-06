@@ -501,7 +501,7 @@ const commands = {
 const declarations: Readonly<Record<AppCommand["type"], Declared>> = commands;
 
 const events = {
-  "action.failed": { message: text },
+  "action.failed": { message: text, page: optional(isSettingsSection) },
   "find.results": { target: isFindTarget, results: object({ matches: number, index: optional(number), counting: optionalBoolean }) },
   "shortcut.captured": { binding: nullableText },
   "shortcut.unavailable": { refusal: object({ reason: literals("unsupported"), binding: text, message: text }) },

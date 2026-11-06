@@ -136,6 +136,9 @@ test("a paired computer's project offers no Edit, and one whose computer is away
   assert.equal(view.container.querySelector('[aria-label="Edit ml"]'), null, "a paired computer's project is edited on that computer");
   assert.equal(query<HTMLButtonElement>(view.container, '[aria-label="Remove ml"]').disabled, false, "a connected computer's project can be removed");
   assert.equal(query<HTMLButtonElement>(view.container, '[aria-label="Remove away"]').disabled, true, "an away computer's cannot");
+  const paths = [...view.container.querySelectorAll(".project-settings-path")].map((path) => path.textContent);
+  assert.ok(paths.includes("Studio (offline) · /studio/away"), "the row says why its Remove is out of reach");
+  assert.ok(paths.includes("linux-box · /linux/ml"));
   await view.unmount();
 });
 

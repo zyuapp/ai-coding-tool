@@ -60,7 +60,7 @@ export function ProjectSettings({ projects, projectHosts, threads, error, onDism
               <div className="setting-row plain" key={project.id}>
                 <div>
                   <strong>{name}</strong>
-                  <p className="project-settings-path">{host ? `${host.name} · ${project.root}` : project.root}</p>
+                  <p className="project-settings-path">{host ? `${host.name}${host.offline ? ` (${host.reconnecting ? "reconnecting" : "offline"})` : ""} · ${project.root}` : project.root}</p>
                 </div>
                 {/** A paired computer's project is edited on that computer, and removed only while it answers. */}
                 <div className="setting-row-action project-actions">
