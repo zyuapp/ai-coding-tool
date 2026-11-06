@@ -151,8 +151,11 @@ const reads: { [K in Kind]: Read<K> } = {
   },
   commits: {
     here: async (query, host) => {
+      const resolution = await host.workspaces().resolve(query.workspaceId);
+      /** A checkout that is gone holds no commits. */
+      if (resolution.status !== "available") return [];
       const { knownCommits } = await import("./workspace/git.mjs");
-      return knownCommits((await resolved(host, query.workspaceId)).root, query.hashes);
+      return knownCommits(resolution.workspace.root, query.hashes);
     },
     received: (value, query) => isStrings(value) && value.every((hash) => query.hashes.includes(hash)) ? value : refuse("commit"),
   },

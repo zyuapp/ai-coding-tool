@@ -190,6 +190,7 @@ test("every read answers in one shape from this computer, over a link, and when 
   const blob = (await execFileAsync("git", ["rev-parse", "--short=9", "HEAD:tracked.txt"], { cwd: checkout })).stdout.trim();
   const commits = { kind: "commits", workspaceId: "repo", hashes: [head, "35995b7", blob] } as const;
   assert.deepEqual(await readsHere(local).read({ ...commits, hashes: [...commits.hashes] }, { workspace: "repo" }), [head], "only a commit this repository holds is known");
+  assert.deepEqual(await readsHere(local).read({ ...commits, workspaceId: "gone", hashes: [head] }, { workspace: "gone" }), [], "a missing checkout holds no commits");
   const rows: Row[] = [
     { query: { kind: "thread-read", threadId: "remote", limit: 5 }, owner: { thread: "remote" }, settles: false },
     { query: { kind: "thread-list", search: "needle" }, owner: { computer: "holder" }, settles: false },
