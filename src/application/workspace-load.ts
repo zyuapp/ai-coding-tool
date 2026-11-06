@@ -18,6 +18,8 @@ export function stateFromData(data: ThreadStoreData, storageError: string | null
   const { threads, subagents, cutOff } = restoredThreads(retainedThreads(data.tasks, at));
   /** A thread under a coordinator is shown in the coordinator's dock, so the app never opens on one. */
   const firstThread = threads.find((thread) => !coordinatorOf(threads, thread));
+  /** A reviewer's mode is the app's, not the user's, so the new-thread draft never takes it. */
+  const draftThread = threads.find((thread) => !coordinatorOf(threads, thread) && thread.role !== "reviewer");
   const firstProject = firstThread?.projectId ?? (firstThread ? null : projects.find((project) => project.root === data.lastFolder)?.id ?? null);
   const restored: WorkspaceState = {
     ...emptyWorkspaceState(storageError),
@@ -31,7 +33,7 @@ export function stateFromData(data: ThreadStoreData, storageError: string | null
     history: firstThread ? [firstThread.id] : [],
     historyIndex: firstThread ? 0 : -1,
     draftProjectId: firstProject,
-    draftPolicy: firstThread?.executionPolicy ?? "confirm",
+    draftPolicy: draftThread?.executionPolicy ?? "confirm",
     draftEngine: firstThread?.engine ?? DEFAULT_ENGINE,
     draftModel: firstThread ? firstThread.model ?? defaultModelFor(firstThread.engine) : DEFAULT_MODEL,
     draftEffort: firstThread?.effort ?? DEFAULT_EFFORT,

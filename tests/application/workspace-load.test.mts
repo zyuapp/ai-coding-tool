@@ -33,6 +33,14 @@ test("a store answer opens on its first thread", () => {
   assert.deepEqual([...state.expandedProjects], ["project-1"]);
 });
 
+test("a reviewer's own mode never becomes the new-thread draft", () => {
+  const reviewer: Thread = { ...task("review"), role: "reviewer", executionPolicy: "bypass" };
+  const state = stateFromData(data([reviewer, task("older")]));
+  assert.equal(state.currentId, "review", "the app still opens on the newest thread");
+  assert.equal(state.draftPolicy, "confirm", "but the draft keeps the mode the user chose on the thread before it");
+  assert.equal(stateFromData(data([reviewer])).draftPolicy, "confirm", "and a store holding only a reviewer falls back");
+});
+
 test("a last folder no project holds comes back as a project", () => {
   const state = stateFromData(data([], "/older"));
   assert.deepEqual(state.projects.map((project) => project.id), ["project-1", legacyProjectId("/older")]);
