@@ -11,7 +11,6 @@ import { dom, item, mount, place, query } from "../support/renderer-dom.mts";
 vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
 const { App } = await import("../../src/renderer/App.tsx");
-const { ProjectSidebar } = await import("../../src/renderer/components/ProjectSidebar.tsx");
 
 test("project drags reorder within their computer using that computer's indices", async () => {
   const moves: Array<[string, number]> = [];

@@ -24,7 +24,7 @@ import { effortRoleOf } from "../domain/coordination.js";
 
 export type { CoordinationAnswer, WorkspaceCommandResult, WorkspaceEffect, WorkspaceEvent, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 export { coordinatorAskRefusal, WORKSPACE_ERRORS } from "./workspace-reducer/errors.js";
-export { AUTOMATION_PANEL, DIFF_PANEL, OVERVIEW_PANEL, WORKFLOW_PANEL } from "./workspace-state.js";
+export { AUTOMATION_PANEL, DIFF_PANEL, OVERVIEW_PANEL } from "./workspace-state.js";
 
 /**
  * The single writer for workspace state. Commands come from the UI (and, later, from anything else

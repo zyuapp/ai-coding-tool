@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { act } from "react";
-import { click, clickButton, clickRow, dom, lastCommand, live, openPhone, patchView, typeInto, view } from "../support/mobile-phone.mts";
+import { click, clickButton, clickRow, dom, lastCommand, live, openPhone, typeInto, view } from "../support/mobile-phone.mts";
 
 /** A one-finger touch as React reads it: the event's `touches` and `changedTouches` lists. */
 function touch(node: Element, type: "touchstart" | "touchmove" | "touchend", x: number, y: number) {

@@ -8,13 +8,9 @@ import { renderAnnotated, type Annotation, type AnnotationKind, type Frame } fro
 import { useAnnotatorImage, useMarkPointer, usePaintedMarks } from "../annotate/use-annotator";
 
 export {
-  arrowBetween,
   badgeRadius,
   drawAnnotations,
-  normalizeRect,
   placeBadges,
-  renderAnnotated,
-  renderAnnotatedSource,
 } from "../annotate/marks";
 export type { Annotation, AnnotationKind } from "../annotate/marks";
 

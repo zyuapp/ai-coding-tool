@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { act } from "react";
-import { click, clickRow, lastCommand, live, openPhone, patchView, view } from "../support/mobile-phone.mts";
+import { click, clickRow, lastCommand, live, openPhone, view } from "../support/mobile-phone.mts";
 
 test("every row carries a visible options button that opens the row's options", () => {
   const line = openPhone({ paired: true });

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { AGENT_ENGINES, BUILT_IN_MODELS, capabilitiesFor, catalogHasModel, contextWindowLimit, defaultEffortFor, defaultModelFor, effortForModel, effortsFor, engineCatalog, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isModelId, modelDelegable, modelEngine, modelLabel, modelSupportsManualCompaction, modelTakesEffort, modelsFor, resolveModel, type AgentEngine, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.js";
+import { AGENT_ENGINES, BUILT_IN_MODELS, capabilitiesFor, catalogHasModel, contextWindowLimit, defaultEffortFor, defaultModelFor, effortForModel, effortsFor, engineCatalog, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isModelId, modelDelegable, modelEngine, modelLabel, modelSupportsManualCompaction, modelTakesEffort, modelsFor, resolveModel, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.js";
 
 const catalog = BUILT_IN_MODELS;
 

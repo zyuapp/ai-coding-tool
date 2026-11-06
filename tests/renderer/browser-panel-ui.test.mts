@@ -11,7 +11,6 @@ import { dom, item, mount, place, placed, query } from "../support/renderer-dom.
 
 vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
-const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await import("../../src/renderer/App.tsx");
 const { ImageAnnotator } = await import("../../src/renderer/components/ImageAnnotator.tsx");
 

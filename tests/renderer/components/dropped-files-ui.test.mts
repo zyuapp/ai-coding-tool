@@ -13,7 +13,6 @@ Object.defineProperty(window, "desktop", { value: {
   projectlessWorkspace: async () => ({ id: "workspace-1", kind: "projectless", root: "/project" } as const),
 } satisfies Pick<DesktopAPI, "commands" | "projectlessWorkspace"> });
 
-const { ConversationComposer } = await import("../../../src/renderer/components/ConversationComposer.tsx");
 const { useFileDrop } = await import("../../../src/renderer/file-drop.ts");
 
 const files: AttachedFile[] = [

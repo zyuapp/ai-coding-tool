@@ -19,8 +19,7 @@ import type { ActiveGoal } from "../domain/goal.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
 import type { AttachedFileDraft } from "../domain/conversation.js";
 import { capabilitiesFor, isAgentEffort, isAgentEngine, isModelId, type AgentEngine, type AgentModel, type EngineStatus } from "../domain/agent-engine.js";
-import { isThreadRole } from "../domain/thread-role.js";
-import { isThreadBrief, type CoordinationRole } from "../domain/coordination.js";
+import type { CoordinationRole } from "../domain/coordination.js";
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RetryNotice, RunStatus, SubagentActivity, SubagentReport, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
@@ -35,7 +34,7 @@ import type { LoadedTaskStore, TaskStoreDelta } from "./task-store.js";
 import type { TerminalDataEvent, TerminalOutputRead, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
 export type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
 export type { LoadedTaskStore, PersistedSubagent, PersistedTask, TaskStoreDelta } from "./task-store.js";
-export type { ComputerUseMcp, ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
+export type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
 
 /** What the window needs of a theme: the ground its frame is drawn on, and the colour it paints bare. */
 export type WindowTheme = {

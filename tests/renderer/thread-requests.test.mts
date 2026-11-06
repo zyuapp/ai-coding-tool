@@ -12,7 +12,6 @@ import { settleFrame } from "../support/settle.mts";
 
 vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
-const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
 
 function startCommand(command: RunCommand | undefined): Extract<RunCommand, { type: "start" }> {
   assert.equal(command?.type, "start");

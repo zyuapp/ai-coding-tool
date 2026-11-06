@@ -13,7 +13,6 @@ import { settleFrame } from "../support/settle.mts";
 
 vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
-const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
 const { AutomationPanel, automationStatusLabel, describeSchedule, formatCountdown } = await import("../../src/renderer/components/AutomationPanel.tsx");
 const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
 

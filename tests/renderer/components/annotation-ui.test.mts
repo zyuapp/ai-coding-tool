@@ -15,7 +15,6 @@ Object.defineProperty(window, "desktop", { value: {
 } satisfies Pick<DesktopAPI, "commands" | "projectlessWorkspace"> });
 
 const { AnnotationRow } = await import("../../../src/renderer/components/AnnotationRow.tsx");
-const { ConversationComposer } = await import("../../../src/renderer/components/ConversationComposer.tsx");
 
 function item<E>(items: ArrayLike<E>, index: number): E {
   const item = items[index];

@@ -1,6 +1,6 @@
 import type { IconType } from "react-icons";
 import { LuBot as Bot, LuFileText as FileText, LuGlobe as Globe, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench } from "react-icons/lu";
-import { createContext, memo, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, memo, useContext, useState, type ReactNode } from "react";
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { AgentEngine } from "../../domain/agent-engine";
 import type { ConversationMessage } from "../../domain/conversation";

@@ -22,7 +22,7 @@ import type { WorkspaceRuntimeHost } from "./runtime-desktop.js";
 import { drainLatestPersistence, hasPersistenceChanges, persistedStoreState, persistenceState, type PersistenceQueue } from "./workspace-persistence.js";
 import { localThreadReader } from "./thread-reads.js";
 
-export type { RuntimeDesktop, WorkspaceRuntimeHost } from "./runtime-desktop.js";
+export type { WorkspaceRuntimeHost } from "./runtime-desktop.js";
 
 function initialState(storage: KeyValueStorage, viewportWidth: number | undefined): WorkspaceState {
   const loaded = createTaskStore(storage).load();

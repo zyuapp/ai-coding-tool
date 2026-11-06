@@ -12,8 +12,6 @@ import { useWorkspaceSubscriptions } from "./workspace-subscriptions";
 import { createWorkspaceConnection } from "./workspace-connection";
 import { computerCommandAvailable, createComputerCapabilitySnapshot } from "../../application/computers";
 
-export type { ApprovalView } from "../../application/thread-run-state";
-
 function sameKeys(previous: object, next: object) {
   const keys = Object.keys(next);
   return keys.length === Object.keys(previous).length && keys.every((key) => Object.hasOwn(previous, key));

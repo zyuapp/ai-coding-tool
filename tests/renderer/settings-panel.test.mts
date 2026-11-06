@@ -11,12 +11,7 @@ import { EVERY_ENGINE_READY } from "../../src/domain/model-library.ts";
 import type { PlanUsage } from "../../src/domain/plan-usage.ts";
 import { shortcutSettings } from "../../src/domain/shortcuts.ts";
 
-import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import { reduce } from "../../src/application/workspace-reducer.ts";
-import type { SettingsSection } from "../../src/domain/settings-section.ts";
-import type { SettingsPanelProps } from "../../src/renderer/components/SettingsPanel.tsx";
 import { openSettingsPage, renderSettingsPanel } from "../support/settings-panel.mts";
-import { task } from "../application/workspace-reducer-fixtures.mts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 import { settleUntil } from "../support/settle.mts";
@@ -25,7 +20,6 @@ import { everyEngine } from "../support/engines.mts";
 vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
 const { App } = await import("../../src/renderer/App.tsx");
-const { SettingsPanel } = await import("../../src/renderer/components/SettingsPanel.tsx");
 
 function startCommand(command: RunCommand | undefined): Extract<RunCommand, { type: "start" }> {
   assert.equal(command?.type, "start");

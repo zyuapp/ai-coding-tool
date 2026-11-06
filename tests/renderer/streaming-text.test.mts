@@ -1,4 +1,4 @@
-import { type TimelineProps, transcript, timelineView } from "../support/timeline.mts";
+import { transcript, timelineView } from "../support/timeline.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";

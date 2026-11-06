@@ -20,11 +20,11 @@ import type { ReviewTarget } from "../domain/review.js";
 import type { ActiveGoal } from "../domain/goal.js";
 
 export type { ReadingPoint, ThreadWait };
-import { AUTOMATION_PANEL, DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockSubject, dockTabKind, frontDock, type ThreadDock } from "./workspace-dock.js";
+import { AUTOMATION_PANEL, DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockSubject, type ThreadDock } from "./workspace-dock.js";
 export {
-  AUTOMATION_PANEL, DIFF_PANEL, DOCK_PICKER, DRAFT_DOCK, EMPTY_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, activeBrowserTab, activeTerminal, browserTarget,
+  AUTOMATION_PANEL, DIFF_PANEL, DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, browserTarget,
   dockFor, dockSubject, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock,
-  keyboardTerminalId, keyboardThreadId, ownerOfBrowserTab, ownerOfTerminal, shownThreadTab, tabHolderOf, terminalTarget, withDock, type ThreadDock,
+  keyboardTerminalId, keyboardThreadId, ownerOfBrowserTab, ownerOfTerminal, shownThreadTab, terminalTarget, withDock, type ThreadDock,
 } from "./workspace-dock.js";
 import { diffFor, type DiffState } from "./workspace-diff.js";
 import { jumpView } from "./workspace-jump.js";
@@ -32,7 +32,7 @@ import { shownViewCollections, workspaceViewCollections } from "./workspace-view
 import { findView } from "./workspace-find.js";
 export { findTargetFor } from "./workspace-find.js";
 export type { FindView } from "./workspace-find.js";
-export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff, type DiffState } from "./workspace-diff.js";
+export { diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff, type DiffState } from "./workspace-diff.js";
 import type { AutomationEdit, AutomationView } from "../domain/automation.js";
 import { NO_APP_UPDATE, type AppBuild, type AppUpdate, type AppUpdateRequest } from "../domain/app-update.js";
 import type { Toast } from "../domain/toast.js";
@@ -45,7 +45,7 @@ import { workspaceDialogsView } from "./workspace-dialogs.js";
 export type { ArchivePromptView, ProjectEditorView, WorktreeMoveView } from "./workspace-dialogs.js";
 import type { BrowserApproval } from "../domain/browser.js";
 import type { FindResults, FindTarget } from "../domain/find.js";
-import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
+import { shortcutSettings, type ShortcutOverrides } from "../domain/shortcuts.js";
 import type { SettingsSection } from "../domain/settings-section.js";
 import type { SettingMark } from "../domain/settings-catalog.js";
 import { OPEN_SIDEBAR_SECTIONS, type SidebarMode, type SidebarSections } from "../domain/sidebar.js";
@@ -69,21 +69,10 @@ import {
   threadWorkspaceId,
   threadWorkspaceRoot,
   worktreeById,
-  worktreeClaimants,
-  worktreeFor,
 } from "./thread-location.js";
 import type { WorktreeSettingsState } from "./worktree-settings.js";
 import { heldViews } from "./view-reuse.js";
 import { linePositions, type HeldMessage } from "../domain/usage-limit.js";
-export type { WorktreeSettingsView } from "./worktree-settings.js";
-export {
-  locationOf,
-  projectFor,
-  worktreeById,
-  worktreeClaimants,
-  worktreeFor,
-} from "./thread-location.js";
-export type { ThreadLocation } from "./thread-location.js";
 
 /** A desktop-wide binding whose action this session cannot safely perform on the active platform. */
 export type DesktopShortcutUnavailable = Extract<DesktopShortcutRefusal, { reason: "unsupported" }>;

@@ -13,9 +13,7 @@ import { settleFrame, settleUntil } from "../support/settle.mts";
 
 vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
-const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await import("../../src/renderer/App.tsx");
-const { ProjectSidebar } = await import("../../src/renderer/components/ProjectSidebar.tsx");
 
 function startCommand(command: RunCommand | undefined): Extract<RunCommand, { type: "start" }> {
   assert.equal(command?.type, "start");

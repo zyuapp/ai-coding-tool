@@ -3,8 +3,6 @@ import { EventEmitter } from "node:events";
 import { test } from "vitest";
 import { registered, startMainProcess, tick, waitFor, type MainHarness } from "../support/electron-harness.mjs";
 
-type IpcEvent = { sender: unknown };
-
 function onPlatform<T>(platform: NodeJS.Platform, action: () => T): T {
   const original = Object.getOwnPropertyDescriptor(process, "platform")!;
   Object.defineProperty(process, "platform", { value: platform });
