@@ -1,6 +1,12 @@
 import type { EngineId } from "./agent-engine.js";
 
-export type ExecutionPolicy = "confirm" | "plan" | "allow-edits" | "autonomous" | "bypass";
+export const EXECUTION_POLICIES = ["confirm", "plan", "allow-edits", "autonomous", "bypass"] as const;
+
+export type ExecutionPolicy = (typeof EXECUTION_POLICIES)[number];
+
+export function isExecutionPolicy(value: unknown): value is ExecutionPolicy {
+  return EXECUTION_POLICIES.some((policy) => policy === value);
+}
 
 /** How a mode reads wherever it is named, so one setting means one thing on every screen. */
 export const POLICIES: Record<ExecutionPolicy, { label: string; description: string }> = {

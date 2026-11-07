@@ -3,7 +3,6 @@ import { NeedsYouCard } from "./NeedsYouCard";
 import { ThreadStartOptions } from "./ThreadStartOptions";
 import { attachDroppedFiles, imageSources } from "../dropped-files";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
-import { capabilitiesFor, modelSupportsManualCompaction } from "../../domain/agent-engine";
 import { sentPrompts } from "../../domain/conversation";
 import { attachmentSendFor } from "../../application/composer-attachments";
 import { useCommandControls } from "./CommandControl";
@@ -18,18 +17,10 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
   const controls = useCommandControls();
   /** A thread on a paired computer spends that computer's plan, which only it can read. */
   usePlanUsageReads(workspace.runActive, () => void workspace.dispatch({ type: "usage.read", ...(workspace.activeComputer ? { everywhere: true } : {}) }));
-  const compact = controls.available({ type: "run.compact" }) && thread && workspace.model !== undefined && modelSupportsManualCompaction(workspace.models, thread.engine, workspace.model)
-    && thread.continuation?.provider === thread.engine
-    && thread.contextUsage !== undefined
-    && !workspace.runActive
-    && workspace.waitingOn === null
+  const compact = workspace.canCompact && controls.available({ type: "run.compact" })
     ? [{ name: "compact", description: "Compact the current chat's context.", run: workspace.actions.compactContext }]
     : [];
-  const review = controls.available({ type: "review.open" }) && thread && capabilitiesFor(thread.engine).review
-    && thread.continuation?.provider === thread.engine
-    && workspace.workspaceId
-    && !workspace.runActive
-    && workspace.waitingOn === null
+  const review = workspace.canReview && controls.available({ type: "review.open" })
     ? [{ name: "review", description: "Review changes in the current project.", run: workspace.actions.openReview }]
     : [];
   return (

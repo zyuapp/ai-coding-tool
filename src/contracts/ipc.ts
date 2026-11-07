@@ -20,7 +20,7 @@ import type { TerminalUpdate } from "../domain/terminal.js";
 import type { AttachedFileDraft } from "../domain/conversation.js";
 import { capabilitiesFor, isAgentEffort, isAgentEngine, isModelId, type AgentEngine, type AgentModel, type EngineStatus } from "../domain/agent-engine.js";
 import type { CoordinationRole } from "../domain/coordination.js";
-import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RetryNotice, RunStatus, SubagentActivity, SubagentReport, ToolIntent } from "../domain/run.js";
+import { isExecutionPolicy, type AgentEffort, type BackgroundProcess, type BackgroundProcessKind, type Continuation, type ExecutionPolicy, type RetryNotice, type RunStatus, type SubagentActivity, type SubagentReport, type ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
 import type { ShortcutOverrides, ShortcutSurface } from "../domain/shortcuts.js";
@@ -564,10 +564,6 @@ export function isCount(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
-function isPolicy(value: unknown): value is ExecutionPolicy {
-  return value === "confirm" || value === "plan" || value === "allow-edits" || value === "autonomous" || value === "bypass";
-}
-
 function isRunChannel(value: unknown): value is RunChannel {
   return value === "main" || value === "side";
 }
@@ -667,7 +663,7 @@ function isStartCommand(command: Record<string, unknown>, internal: boolean) {
     && isContinuation(command.continuation) && command.continuation.provider === command.engine
     && (command.forkContinuation === undefined || command.forkContinuation === true);
   const operationOnly = compact || review;
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isModelId(command.model) && isAgentEffort(command.effort) && (command.operation === undefined || operationOnly) && (command.chromeBrowser === undefined || (command.chromeBrowser === true && capabilitiesFor(command.engine).chromeBrowser)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.freshSession === undefined || (command.freshSession === true && command.continuation === undefined && command.forkContinuation === undefined)) && (command.unattended === undefined || command.unattended === true) && (command.coordinationRole === undefined || command.coordinationRole === "coordinator" || command.coordinationRole === "member") && (command.projectWorkspaceId === undefined || (command.coordinationRole === "member" && isString(command.projectWorkspaceId)));
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isExecutionPolicy(command.policy) && isAgentEngine(command.engine) && isModelId(command.model) && isAgentEffort(command.effort) && (command.operation === undefined || operationOnly) && (command.chromeBrowser === undefined || (command.chromeBrowser === true && capabilitiesFor(command.engine).chromeBrowser)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.freshSession === undefined || (command.freshSession === true && command.continuation === undefined && command.forkContinuation === undefined)) && (command.unattended === undefined || command.unattended === true) && (command.coordinationRole === undefined || command.coordinationRole === "coordinator" || command.coordinationRole === "member") && (command.projectWorkspaceId === undefined || (command.coordinationRole === "member" && isString(command.projectWorkspaceId)));
   if (!base || !(command.fastMode === undefined || isAgentEngine(command.engine) && capabilitiesFor(command.engine).fastMode && typeof command.fastMode === "boolean")) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "projectRoot", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse) && (command.projectRoot === undefined || isString(command.projectRoot, 4_096));

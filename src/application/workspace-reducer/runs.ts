@@ -24,9 +24,10 @@ import { threadBusy, threadToBegin } from "../run-record.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, draftOf, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree, RunEvent } from "../../contracts/ipc.js";
-import { capabilitiesFor, modelSupportsManualCompaction, noModel, threadModel, unknownModel } from "../../domain/agent-engine.js";
+import { capabilitiesFor, noModel, threadModel, unknownModel } from "../../domain/agent-engine.js";
 import { normalizeDraft } from "../../domain/agent-draft.js";
 import { catalogOf, engineOffersModel } from "../engine-access.js";
+import { compactableSession, reviewableSession } from "../session-operations.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
@@ -89,7 +90,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
     case "run.compact": {
       const taskId = targetId(state, input.taskId);
       const thread = state.threads.find((item) => item.id === taskId);
-      if (!thread || !compactable(state, thread) || thread.continuation?.provider !== thread.engine || !thread.contextUsage || threadBusy(state, thread.id)) return settled(state);
+      if (!thread || !compactableSession(state, thread) || threadBusy(state, thread.id)) return settled(state);
       if (state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
       if (leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
       const project = projectFor(state, thread);
@@ -262,14 +263,9 @@ function modelGone(state: WorkspaceState, pending: PendingRun): WorkspaceTransit
   return pending.origin === "automation" ? settled(state, ack(pending, false)) : rejected(withUnsent(state, pending), model === undefined ? noModel(thread.engine) : unknownModel(model));
 }
 
-function compactable(state: WorkspaceState, thread: Thread) {
-  const model = threadModel(catalogOf(state), thread);
-  return model !== undefined && modelSupportsManualCompaction(catalogOf(state), thread.engine, model);
-}
-
 function startCompaction(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {
   const thread = pending.taskId ? state.threads.find((item) => item.id === pending.taskId) : undefined;
-  if (!thread || !compactable(state, thread) || thread.continuation?.provider !== thread.engine || !thread.contextUsage || state.activeRuns[thread.id]) return settled(state);
+  if (!thread?.contextUsage || !compactableSession(state, thread) || state.activeRuns[thread.id]) return settled(state);
   const command = {
     ...startRunCommand(state, thread, pending.runId, "", workspace.id),
     operation: { type: "compact" as const, preTokens: thread.contextUsage.tokens },
@@ -279,12 +275,7 @@ function startCompaction(state: WorkspaceState, pending: PendingRun, workspace: 
 
 function reviewableThread(state: WorkspaceState, taskId: string | null) {
   const thread = state.threads.find((item) => item.id === taskId);
-  return thread && capabilitiesFor(thread.engine).review
-    && thread.continuation?.provider === thread.engine
-    && threadWorkspaceId(state, thread)
-    && !threadBusy(state, thread.id)
-    ? thread
-    : undefined;
+  return thread && reviewableSession(state, thread) && !threadBusy(state, thread.id) ? thread : undefined;
 }
 
 function startReview(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {

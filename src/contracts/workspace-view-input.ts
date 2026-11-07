@@ -18,7 +18,7 @@ import { isDiffRange } from "../domain/diff.js";
 import { isCommitHash, isImageSource } from "../domain/message-artifacts.js";
 import type { FindTarget } from "../domain/find.js";
 import { isReviewTarget } from "../domain/review.js";
-import { isSubagentGroup } from "../domain/run.js";
+import { EXECUTION_POLICIES, isSubagentGroup } from "../domain/run.js";
 import { isSettingsSection } from "../domain/settings-section.js";
 import { isSidebarSection } from "../domain/sidebar.js";
 import { isThemeMode } from "../domain/theme.js";
@@ -72,7 +72,7 @@ function object<T>(fields: Shape<T>): Validator<T> {
   return (value): value is T => record(value) && hasFields(value, fields);
 }
 
-const policy = literals("confirm", "plan", "allow-edits", "autonomous", "bypass");
+const policy = literals(...EXECUTION_POLICIES);
 const optionalText = optional(text);
 const optionalBoolean = optional(boolean);
 const nullableText = nullable(text);

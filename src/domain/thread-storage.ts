@@ -3,7 +3,7 @@ import type { Annotation, AttachedFile, ConversationMessage, ConversationMessage
 import { legacyOrigin, type MessageOrigin } from "./message-origin.js";
 import type { AutomationFinding } from "./finding.js";
 import { isProject, legacyProjectId, normalizeProjectRoot, type Project } from "./project.js";
-import type { Continuation, ExecutionPolicy, Subagent } from "./run.js";
+import { isExecutionPolicy, type Continuation, type ExecutionPolicy, type Subagent } from "./run.js";
 import { isThreadUsage, type ContextUsage, type ContinuationStatus, type ThreadOutcome } from "./thread-run.js";
 import { threadLastOutputAt, type Thread } from "./thread.js";
 import { isThreadRole } from "./thread-role.js";
@@ -709,10 +709,6 @@ function isAttachedFile(value: unknown): value is AttachedFile {
 
 function isContinuation(value: unknown): value is Continuation {
   return isRecord(value) && nonEmptyString(value.provider) && nonEmptyString(value.value);
-}
-
-function isExecutionPolicy(value: unknown): value is ExecutionPolicy {
-  return value === "confirm" || value === "plan" || value === "allow-edits" || value === "autonomous" || value === "bypass";
 }
 
 function isContextUsage(value: unknown): value is ContextUsage {

@@ -4,6 +4,7 @@ import type { ThreadRole } from "../domain/thread-role.js";
 import type { ApprovalView, RunTransitionState } from "./thread-run-state.js";
 import { runStatus } from "./run-record.js";
 import { threadActivity, threadLists, waitingOn, type ThreadWait } from "./thread-activity.js";
+import { compactableSession, reviewableSession } from "./session-operations.js";
 import { sidebarLists } from "./sidebar-lists.js";
 import { worktreeChoices } from "./worktree-choices.js";
 import type { MobileWorktreeChoice } from "../contracts/mobile.js";
@@ -670,6 +671,17 @@ function modelView(state: WorkspaceState, currentThread: Thread | undefined) {
   return { model, coordinating: role === "coordinator", effort: model === undefined ? effort : effortForModel(catalogOf(state), engine, model, effort, role) };
 }
 
+/** What the thread in front waits on, and what its composer offers, which is nothing while a run is going or on its way. */
+function waitView(state: WorkspaceState, currentThread: Thread | undefined, running: boolean) {
+  const waiting = waitingOn(state, currentThread?.id, promptKey(state));
+  const settled = currentThread && !running && waiting === null ? currentThread : undefined;
+  return {
+    waitingOn: waiting,
+    canCompact: settled !== undefined && compactableSession(state, settled),
+    canReview: settled !== undefined && reviewableSession(state, settled),
+  };
+}
+
 /**
  * The threads ⌘1 through ⌘9 reach, read straight from state so each keystroke follows the current
  * visible order.
@@ -770,7 +782,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     location: locationOf(state, currentThread),
     worktreeMenu: worktreeMenuView(state, currentThread, visibleThreads, window),
     worktreeDeleteConfirmation: managedWorktrees?.find((item) => item.root === state.worktreeSettings.confirming && !item.deleting) ?? null,
-    waitingOn: waitingOn(state, currentThread?.id, promptKey(state)),
+    ...waitView(state, currentThread, Boolean(currentRun)),
     /** The checkout the current thread works in, which is what Git is read from and moved. */
     workspaceId,
     draftBranch: state.draftBranch, draftWorktree: state.draftWorktree, draftWorktreeId: state.draftWorktreeId, draftRole: state.draftRole,

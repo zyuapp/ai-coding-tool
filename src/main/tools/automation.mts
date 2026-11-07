@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../../domain/finding.js";
 import { MAX_ENDS_WHEN, MAX_SURFACE_WHEN, type AutomationView } from "../../domain/automation.js";
+import { EXECUTION_POLICIES } from "../../domain/run.js";
 import type { CoordinationRole } from "../../domain/coordination.js";
 import type { AutomationBridge, FindingBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
@@ -11,7 +12,7 @@ const scheduleField = z.string().describe(
   "A five-field cron expression in local time (\"0 8 * * *\" = 8AM daily, \"* * * * *\" = every minute), or an ISO 8601 timestamp for a single run. Seconds are not supported.",
 );
 
-const policyField = z.enum(["confirm", "plan", "allow-edits", "autonomous", "bypass"]).optional().describe(
+const policyField = z.enum(EXECUTION_POLICIES).optional().describe(
   "Permission policy for scheduled runs. Defaults to this run's policy and cannot exceed it. Ask the user to change the task's permissions before scheduling work that needs stronger permissions.",
 );
 

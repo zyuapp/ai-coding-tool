@@ -1,4 +1,4 @@
-import type { ExecutionPolicy } from "./run.js";
+import { isExecutionPolicy, type ExecutionPolicy } from "./run.js";
 
 export const MAX_AUTOMATION_PROMPT = 100_000;
 export const MAX_AUTOMATION_SCHEDULE = 200;
@@ -89,10 +89,6 @@ export type AutomationPatch = {
   paused?: boolean;
 };
 
-function isPolicy(value: unknown): value is ExecutionPolicy {
-  return value === "confirm" || value === "plan" || value === "allow-edits" || value === "autonomous" || value === "bypass";
-}
-
 function isText(value: unknown, maxLength: number) {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength;
 }
@@ -109,7 +105,7 @@ export function isAutomation(value: unknown): value is Automation {
     && isText(record.prompt, MAX_AUTOMATION_PROMPT)
     && isText(record.schedule, MAX_AUTOMATION_SCHEDULE)
     && (record.timezone === undefined || isText(record.timezone, MAX_AUTOMATION_TIMEZONE))
-    && (record.policy === undefined || isPolicy(record.policy))
+    && (record.policy === undefined || isExecutionPolicy(record.policy))
     && (record.surfaceWhen === undefined || isText(record.surfaceWhen, MAX_SURFACE_WHEN))
     && (record.endsWhen === undefined || isText(record.endsWhen, MAX_ENDS_WHEN))
     && typeof record.paused === "boolean"
@@ -134,7 +130,7 @@ export function isAutomationDraft(value: unknown): value is AutomationDraft {
     && isText(draft.prompt, MAX_AUTOMATION_PROMPT)
     && isText(draft.schedule, MAX_AUTOMATION_SCHEDULE)
     && (draft.timezone === undefined || isText(draft.timezone, MAX_AUTOMATION_TIMEZONE))
-    && (draft.policy === undefined || isPolicy(draft.policy))
+    && (draft.policy === undefined || isExecutionPolicy(draft.policy))
     /** Absent keeps whatever the schedule already surfaces for; empty is what takes the quiet off. */
     && (draft.surfaceWhen === undefined || isText(draft.surfaceWhen, MAX_SURFACE_WHEN))
     && (draft.endsWhen === undefined || isText(draft.endsWhen, MAX_ENDS_WHEN))
@@ -147,7 +143,7 @@ export function isAutomationPatch(value: unknown): value is AutomationPatch {
   return (patch.prompt === undefined || isText(patch.prompt, MAX_AUTOMATION_PROMPT))
     && (patch.schedule === undefined || isText(patch.schedule, MAX_AUTOMATION_SCHEDULE))
     && (patch.timezone === undefined || isText(patch.timezone, MAX_AUTOMATION_TIMEZONE))
-    && (patch.policy === undefined || isPolicy(patch.policy))
+    && (patch.policy === undefined || isExecutionPolicy(patch.policy))
     && (patch.surfaceWhen === undefined || patch.surfaceWhen === "" || isText(patch.surfaceWhen, MAX_SURFACE_WHEN))
     && (patch.endsWhen === undefined || patch.endsWhen === "" || isText(patch.endsWhen, MAX_ENDS_WHEN))
     && (patch.paused === undefined || typeof patch.paused === "boolean");

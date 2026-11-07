@@ -1,5 +1,5 @@
 import type { CoordinationRole } from "./coordination.js";
-import { POLICY_CHOICES, type AgentEffort, type ExecutionPolicy } from "./run.js";
+import { EXECUTION_POLICIES, POLICY_CHOICES, type AgentEffort, type ExecutionPolicy } from "./run.js";
 
 /** The backends that can run a task. Each offers its own models, efforts, and context windows. */
 export type AgentEngine = "claude" | "codex" | "opencode";
@@ -112,8 +112,6 @@ export type EngineCapabilities = {
   unattendedPolicy: ExecutionPolicy;
 };
 
-const EVERY_POLICY: readonly ExecutionPolicy[] = ["confirm", "plan", "allow-edits", "autonomous", "bypass"];
-
 /**
  * Asking least first. A mode an engine lacks falls to the nearest one after it. Plan is a different
  * kind of run rather than a step here, so it falls to confirm like any mode with none offered after it.
@@ -138,13 +136,13 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     label: "Claude",
     models: { kind: "built-in", list: CLAUDE_MODELS, default: DEFAULT_MODEL },
     defaultEffort: "high",
-    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false, chromeBrowser: true, policies: EVERY_POLICY, unattendedPolicy: "autonomous" },
+    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false, chromeBrowser: true, policies: EXECUTION_POLICIES, unattendedPolicy: "autonomous" },
   },
   codex: {
     label: "Codex",
     models: { kind: "built-in", list: CODEX_MODELS, default: "gpt-6.1-sol" },
     defaultEffort: "high",
-    capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true, chromeBrowser: false, policies: EVERY_POLICY, unattendedPolicy: "autonomous" },
+    capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true, chromeBrowser: false, policies: EXECUTION_POLICIES, unattendedPolicy: "autonomous" },
   },
   opencode: {
     label: "OpenCode",

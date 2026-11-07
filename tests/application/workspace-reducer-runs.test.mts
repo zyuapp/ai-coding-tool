@@ -547,3 +547,46 @@ test("approval decisions cannot move to a newer run or prompt or a different tas
   assert.equal(accepted.effects.length, 1);
   assert.deepEqual(reduce(accepted.state, { type: "run.decide", ...identity, allow: true }).effects, []);
 });
+
+test("the view offers compact and review exactly when the reducer would start them", () => {
+  const sol = task("task-a", {
+    projectId: "project-1",
+    engine: "codex",
+    model: "gpt-6.1-sol",
+    continuation: { provider: "codex", value: "thread-1" },
+    continuationStatus: "available",
+    contextUsage: { tokens: 125_000, limit: 272_000, model: "gpt-6.1-sol" },
+  });
+  const state = workspace({ projects: [{ id: "project-1", root: "/project", workspaceId: "workspace-1" }], threads: [sol], currentId: "task-a" });
+  const offered = (next: typeof state) => {
+    const { canCompact, canReview } = deriveView(next);
+    return { canCompact, canReview };
+  };
+  const starts = (next: typeof state) => ({
+    canCompact: reduce(next, { type: "run.compact" }).effects.length > 0,
+    canReview: deriveView(reduce(next, { type: "review.open" }).state).reviewPicker !== null,
+  });
+
+  assert.deepEqual(offered(state), { canCompact: true, canReview: true });
+  assert.deepEqual(starts(state), offered(state));
+
+  const running = { ...state, activeRuns: { "task-a": activeRun("task-a", "run-1") } };
+  assert.deepEqual(offered(running), { canCompact: false, canReview: false }, "a run going offers neither");
+  assert.deepEqual(starts(running), offered(running));
+
+  const starting = reduce(state, { type: "run.compact" }).state;
+  assert.deepEqual(offered(starting), { canCompact: false, canReview: false }, "a run on its way offers neither");
+  assert.deepEqual(starts(starting), offered(starting));
+
+  const unheld = { ...state, threads: [{ ...sol, continuation: undefined, continuationStatus: "none" as const }] };
+  assert.deepEqual(offered(unheld), { canCompact: false, canReview: false }, "a session the engine does not hold offers neither");
+  assert.deepEqual(starts(unheld), offered(unheld));
+
+  const unmeasured = { ...state, threads: [{ ...sol, contextUsage: undefined }] };
+  assert.deepEqual(offered(unmeasured), { canCompact: false, canReview: true }, "review needs no context reading");
+  assert.deepEqual(starts(unmeasured), offered(unmeasured));
+
+  const projectless = { ...state, threads: [{ ...sol, projectId: undefined }] };
+  assert.deepEqual(offered(projectless), { canCompact: true, canReview: false }, "compact needs no checkout");
+  assert.deepEqual(starts(projectless), offered(projectless));
+});

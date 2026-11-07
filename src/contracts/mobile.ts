@@ -2,7 +2,7 @@ import type { PendingQuestion } from "../domain/agent-question.js";
 import type { AppCommand } from "./commands.js";
 import type { MobilePairingOffer, MobileServerState } from "../domain/mobile.js";
 import { isAgentEffort, isAgentEngine, isModelId, type AgentEngine, type AgentModel, type EngineAccess, type EngineId } from "../domain/agent-engine.js";
-import type { AgentEffort, ExecutionPolicy } from "../domain/run.js";
+import { isExecutionPolicy, type AgentEffort, type ExecutionPolicy } from "../domain/run.js";
 import type { Annotation, AnnotationAnchor, PastedText } from "../domain/conversation.js";
 import { isDiffRange, type DiffRange } from "../domain/diff.js";
 import type { ThemeMode } from "../domain/theme.js";
@@ -304,10 +304,6 @@ function isCount(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
 
-function isPolicy(value: unknown): value is ExecutionPolicy {
-  return value === "confirm" || value === "plan" || value === "allow-edits" || value === "autonomous" || value === "bypass";
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -389,7 +385,7 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
     case "task.fork":
       return named && (command.worktree === undefined || typeof command.worktree === "boolean");
     case "task.set-policy":
-      return named && isPolicy(command.policy);
+      return named && isExecutionPolicy(command.policy);
     case "task.set-model":
       return named && isAgentEngine(command.engine) && (command.model === undefined || isModelId(command.model));
     case "task.set-fast-mode":
