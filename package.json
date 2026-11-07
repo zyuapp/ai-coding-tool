@@ -36,7 +36,7 @@
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@trycua/cua-driver": "0.41.3",
     "@xterm/headless": "^6.0.0",
-    "croner": "^10.0.1",
+    "croner": "^11.0.0",
     "electron-updater": "^6.8.11",
     "mdast-util-from-markdown": "^2.1.0",
     "qrcode": "^1.5.4",
