@@ -10,7 +10,7 @@ function themeBlocks(css: string) {
   const blocks = new Map<string, Map<string, string>>();
   const pattern = /\[data-theme="([a-z-]+)"\] \{([^}]*)\}/g;
   for (const [, id, body] of css.matchAll(pattern)) {
-    const tokens = new Map<string, string>();
+    const tokens = blocks.get(id) ?? new Map<string, string>();
     for (const [, name, value] of body.matchAll(/(--[a-z0-9-]+|color-scheme):\s*([^;]+);/g)) tokens.set(name, value.trim());
     blocks.set(id, tokens);
   }
