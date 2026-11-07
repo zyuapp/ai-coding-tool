@@ -5,9 +5,6 @@
 .worktree-toolbar h3 { display: flex; align-items: center; gap: 9px; margin: 0; font-size: var(--text-control); font-weight: 600; color: var(--ink-soft); }
 .worktree-count { padding: 1px 7px; border-radius: 5px; color: var(--muted); background: var(--wash); font-size: var(--text-meta); font-weight: 500; font-variant-numeric: tabular-nums; }
 .worktree-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; }
-.worktree-project-select { position: relative; min-width: 0; }
-.worktree-project-select select { appearance: none; max-width: 260px; padding: 8px 34px 8px 12px; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--ink); background: var(--surface); font: inherit; font-size: var(--text-meta); cursor: pointer; text-overflow: ellipsis; }
-.worktree-project-select > svg { position: absolute; top: 50%; right: 11px; transform: translateY(-50%); pointer-events: none; color: var(--muted); }
 .worktree-delete-actions button { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--ink-dim); background: transparent; font-size: var(--text-meta); font-weight: 550; white-space: nowrap; cursor: pointer; }
 .worktree-delete-actions button:hover:not(:disabled) { background: var(--wash); border-color: var(--line-bright); }
 .worktree-settings button:is(:disabled, [aria-disabled="true"]):not([aria-busy="true"]), .worktree-delete-actions button:disabled:not([aria-busy="true"]) { opacity: .5; cursor: default; }
@@ -81,7 +78,7 @@
 }
 @container (max-width: 480px) {
   .worktree-controls { width: 100%; }
-  .worktree-project-select { flex: 1; }
-  .worktree-project-select select { width: 100%; max-width: 100%; }
+  .worktree-controls .settings-select { flex: 1; }
+  .worktree-controls .settings-select select { width: 100%; max-width: 100%; }
   .worktree-metadata { flex-wrap: wrap; }
 }

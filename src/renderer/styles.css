@@ -2532,6 +2532,9 @@ pre {
 .settings-group-heading p.settings-status.done { color: var(--success-soft); }
 .settings-group-heading p.settings-status.failed { color: var(--danger-soft); }
 .settings-group-action { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
+.settings-select { position: relative; min-width: 0; }
+.settings-select select { appearance: none; max-width: 260px; padding: 8px 34px 8px 12px; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--ink); background: var(--surface); font: inherit; font-size: var(--text-meta); cursor: pointer; text-overflow: ellipsis; }
+.settings-select > svg { position: absolute; top: 50%; right: 11px; transform: translateY(-50%); pointer-events: none; color: var(--muted); }
 .settings-group-action > span { color: var(--quiet-strong); font-size: var(--text-meta); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .settings-group-action button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 11px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
 .settings-group-action button:hover:not(:disabled) { border-color: var(--line-bright); background: var(--control-hover); }
@@ -2600,14 +2603,8 @@ pre {
 .usage-window-fill.high { background: var(--accent); }
 .usage-window-share { flex: 0 0 auto; min-width: 84px; color: var(--ink-faint); font-size: var(--text-control); }
 .usage-window-share.high, .usage-card-label span.high { color: var(--accent-soft); font-weight: 650; }
-.usage-computers { border-top: 1px solid var(--line); }
-.usage-computer { padding-top: 22px; }
-.usage-computer + .usage-computer { margin-top: 12px; border-top: 1px solid var(--line); }
-.usage-computer-heading { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; color: var(--ink); font-size: var(--text-control); font-weight: 650; }
-.usage-computer-heading svg { color: var(--quiet-strong); }
-.usage-computer > .settings-empty { margin: 8px 0 0; padding-bottom: 22px; }
-.usage-computer .usage-providers { border-top: 0; }
-.usage-computer .usage-provider { padding-top: 14px; }
+.usage-computer-empty { border-top: 1px solid var(--line); padding: 20px 0; }
+.usage-computer-empty > .settings-empty { margin: 0; }
 
 .composer-wrap {
   position: relative;

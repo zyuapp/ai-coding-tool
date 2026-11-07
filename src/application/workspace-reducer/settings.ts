@@ -3,6 +3,7 @@ import { TAKE_KEYS, persistView } from "./dock-tabs.js";
 import { settled, targetId, rejected } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
+import { pairedId } from "../computers.js";
 import { withSubagents } from "../thread-run-state.js";
 import { viewPreferences } from "../view-preferences.js";
 import { dockOwner, withDock, type WorkspaceState } from "../workspace-state.js";
@@ -20,7 +21,7 @@ export const SETTINGS_INPUTS = [
   "view.set-reading-size", "view.set-terminal-size", "view.set-activity-project", "view.set-sidebar-open",
   "view.focus-composer", "view.set-shortcut", "view.reset-shortcuts", "view.capture-shortcut", "shortcut.captured", "shortcut.unavailable",
   "view.inspect-subagent", "subagent.activity.loaded", "view.set-capture-options", "view.set-chrome-browser", "view.set-computer-use",
-  "view.set-browser-tools", "view.set-notifications", "view.set-session-panel-open", "view.set-settings-open", "view.set-subagent-group",
+  "view.set-browser-tools", "view.set-notifications", "view.set-session-panel-open", "view.set-settings-open", "view.set-usage-computer", "view.set-subagent-group",
   "view.set-section-open"
 ] as const;
 type SettingsInput = Extract<WorkspaceInput, { type: (typeof SETTINGS_INPUTS)[number] }>;
@@ -126,6 +127,12 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
     case "view.set-sidebar-open":
       return setPreference(state, "sidebarOpen", input.open);
 
+    case "view.set-usage-computer": {
+      const usageComputer = pairedId(state.computers, input.computerId);
+      if (usageComputer !== input.computerId || usageComputer === state.usageComputer) return settled(state);
+      return settled({ ...state, usageComputer });
+    }
+
     case "view.set-section-open": {
       if (!isSidebarSection(input.section) || state.sections[input.section] === input.open) return settled(state);
       const next = { ...state, sections: { ...state.sections, [input.section]: input.open } };
@@ -218,6 +225,8 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
         worktreeSettings: input.open ? state.worktreeSettings : { project: null, confirming: null, missingOpen: null, expandedThreads: [], confirmingSafe: false, bulk: state.worktreeSettings.bulk },
         settingsSection: input.open ? section : null,
         settingsFocus: input.open && section && input.settingId ? { id: input.settingId, visit: (state.settingsFocus?.visit ?? 0) + 1 } : null,
+        /** Usage opens on the computer whose thread is on screen. */
+        ...(input.open && section === "usage" ? { usageComputer: pairedId(state.computers, state.computers.active) } : {}),
         /** Naming a page takes over from the computer-use setup that held settings open on its own. */
         ...(input.open ? section ? { computerUseSetup: false } : {} : { computerUseSetup: false, capturingShortcut: null }),
       };

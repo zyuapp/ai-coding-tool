@@ -463,6 +463,7 @@ const commands = {
   "view.set-notifications": { fields: { enabled: boolean }, at: "local" },
   "view.inspect-subagent": { fields: { taskId: optionalText, subagentId: text }, at: "thread" },
   "view.set-settings-open": { fields: { open: boolean, section: optional(isSettingsSection), settingId: optionalText }, at: "local" },
+  "view.set-usage-computer": { fields: { computerId: nullableText }, at: "local" },
   "view.close-tab": { fields: {}, at: "thread" },
   "view.new-tab": { fields: {}, at: "thread" },
   "view.set-dock-open": { fields: { open: boolean }, at: "thread" },

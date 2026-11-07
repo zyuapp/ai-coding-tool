@@ -41,7 +41,7 @@ import { NO_APP_UPDATE, type AppBuild, type AppUpdate, type AppUpdateRequest } f
 import type { Toast } from "../domain/toast.js";
 import { visibleToasts } from "./toasts.js";
 import { emptyMobileServerState, type MobileServerState } from "../domain/mobile.js";
-import { selectedComputer, NO_COMPUTERS, type ComputersState } from "./computers.js";
+import { pairedId, selectedComputer, NO_COMPUTERS, type ComputersState } from "./computers.js";
 import { overlaidView } from "./workspace-view-overlay.js";
 import { NO_PROJECT_ADD, type ProjectAddWorkspaceState } from "./project-add.js";
 import { workspaceDialogsView } from "./workspace-dialogs.js";
@@ -318,6 +318,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   settingsSection: SettingsSection | null;
   /** The control on that page to scroll to and mark, when something named one. */
   settingsFocus: SettingMark | null;
+  /** The paired computer the Usage page shows. Null shows this one. */
+  usageComputer: string | null;
   /** Pinned models, each on its engine, since two engines may name the same id. */
   favoriteModels: EngineModel[];
   /** The projects last picked in the new-thread picker, newest first. Kept between launches. */
@@ -497,6 +499,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     settingsOpen: false,
     settingsSection: null,
     settingsFocus: null,
+    usageComputer: null,
     favoriteModels: [],
     recentProjects: [],
     shortcuts: {},
@@ -829,7 +832,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     /** Asking for computer use opens settings whether or not the user did. */
     settingsOpen: state.settingsOpen || state.computerUseSetup,
     settingsSection: state.computerUseSetup ? "computer-use" : state.settingsSection,
-    settingsFocus: state.computerUseSetup ? null : state.settingsFocus,
+    settingsFocus: state.computerUseSetup ? null : state.settingsFocus, usageComputer: pairedId(state.computers, state.usageComputer),
     engineChecking: state.engineChecking,
     engineUpdating: state.engineUpdating,
     /** Where the composer's engine notice sends the user to fix it. */

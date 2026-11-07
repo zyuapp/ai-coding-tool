@@ -115,7 +115,7 @@ export function WorktreeSettings({ page, error, notice, dispatch }: WorktreeSett
         <div className="worktree-toolbar">
           <h3 id="worktrees-heading">On this device{!page.loading && <span className="worktree-count">{page.available.length}</span>}</h3>
           <div className="worktree-controls">
-            {page.projects.length > 1 && <div className="worktree-project-select">
+            {page.projects.length > 1 && <div className="settings-select">
               <select aria-label="Filter by project" value={page.project ?? ""} disabled={page.loading} onChange={(event) => dispatch({ type: "worktree.filter-project", project: event.target.value || null })}>
                 <option value="">All projects{!page.loading && ` · ${page.total}`}</option>
                 {page.projects.map((project) => <option value={project.key} key={project.key}>{project.name}{!page.loading && ` · ${project.count}`}</option>)}

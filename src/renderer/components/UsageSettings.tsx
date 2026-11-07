@@ -1,7 +1,7 @@
-import { LuMonitor as Monitor, LuRefreshCw as RefreshCw } from "react-icons/lu";
+import { LuChevronDown as ChevronDown, LuRefreshCw as RefreshCw } from "react-icons/lu";
 import { SettingGroup } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
-import { useEffect, type ReactNode } from "react";
+import { useEffect } from "react";
 import type { ComputerUsage, PlanUsageState } from "../../application/plan-limits";
 import { AGENT_ENGINES, engineLabel, type AgentEngine } from "../../domain/agent-engine";
 import { barShare, formatReset, formatShare, planLabel, type PlanUsage } from "../../domain/plan-usage";
@@ -23,18 +23,24 @@ function UsageBar({ label, share }: { label: string; share: number | null }) {
 
 export type UsageSettingsProps = {
   usage: PlanUsageState;
-  /** What this computer calls itself, which heads its own limits once other computers are listed. */
+  /** What this computer calls itself, which names it in the computer picker. */
   name?: string;
   /** Each paired computer's own limits. With none, the page is this computer's alone. */
   computers?: readonly ComputerUsage[];
+  /** The paired computer shown. Null shows this one. */
+  selected?: string | null;
+  onSelect?: (computerId: string | null) => void;
   onRefresh: () => void;
   timeZone?: string;
 };
 
-export function UsageSettings({ usage, name = "", computers = [], onRefresh, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone }: UsageSettingsProps) {
+const THIS_COMPUTER = "";
+
+export function UsageSettings({ usage, name = "", computers = [], selected = null, onSelect = () => {}, onRefresh, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone }: UsageSettingsProps) {
   useEffect(() => { onRefresh(); }, []);
-  /** Only this computer's own read holds the button: a slow computer elsewhere says so in its own section. */
-  const reading = usage.reading.length > 0;
+  const computer = computers.find((candidate) => candidate.id === selected) ?? null;
+  /** Only the computer on screen holds the button: another computer's slow read does not. */
+  const reading = computer ? Boolean(computer.usage?.reading.length) : usage.reading.length > 0;
 
   return (
     <SettingGroup setting="usage.plan-limits" aria-labelledby="plan-limits-heading" aria-live="polite">
@@ -44,6 +50,15 @@ export function UsageSettings({ usage, name = "", computers = [], onRefresh, tim
           <p>Usage and reset times reported by each provider.</p>
         </div>
         <div className="settings-group-action">
+          {computers.length > 0 && (
+            <div className="settings-select">
+              <select aria-label="Computer" value={computer?.id ?? THIS_COMPUTER} onChange={(event) => onSelect(event.target.value || null)}>
+                <option value={THIS_COMPUTER}>{name ? `This computer · ${name}` : "This computer"}</option>
+                {computers.map((paired) => <option key={paired.id} value={paired.id}>{paired.name}{paired.status === "connected" ? "" : " · Offline"}</option>)}
+              </select>
+              <ChevronDown size={14} aria-hidden="true" />
+            </div>
+          )}
           <button type="button" disabled={reading} aria-busy={reading || undefined} onClick={onRefresh}>
             <SpinningIcon icon={RefreshCw} spinning={reading} size={14} aria-hidden="true" />
             <span>{reading ? "Reading…" : "Refresh"}</span>
@@ -51,40 +66,21 @@ export function UsageSettings({ usage, name = "", computers = [], onRefresh, tim
         </div>
       </div>
 
-      {computers.length === 0
-        ? <Providers usage={usage} scope="this" asked onRetry={onRefresh} timeZone={timeZone} />
-        : (
-          <div className="usage-computers">
-            <ComputerSection id="this" name={name ? `This computer · ${name}` : "This computer"}>
-              <Providers usage={usage} scope="this" asked onRetry={onRefresh} timeZone={timeZone} />
-            </ComputerSection>
-            {computers.map((computer) => (
-              <ComputerSection key={computer.id} id={computer.id} name={computer.name}>
-                <PairedUsage computer={computer} timeZone={timeZone} />
-              </ComputerSection>
-            ))}
-          </div>
-        )}
+      {computer
+        ? <PairedUsage key={computer.id} computer={computer} timeZone={timeZone} />
+        : <Providers usage={usage} scope="this" asked onRetry={onRefresh} timeZone={timeZone} />}
     </SettingGroup>
-  );
-}
-
-function ComputerSection({ id, name, children }: { id: string; name: string; children: ReactNode }) {
-  const heading = `usage-computer-${id}-heading`;
-  return (
-    <section className="usage-computer" aria-labelledby={heading} data-usage-computer={id}>
-      <h4 id={heading} className="usage-computer-heading"><Monitor size={14} aria-hidden="true" />{name}</h4>
-      {children}
-    </section>
   );
 }
 
 /** A paired computer's limits, or why there are none to draw. */
 function PairedUsage({ computer, timeZone }: { computer: ComputerUsage; timeZone: string }) {
-  if (computer.status !== "connected") return <p className="settings-empty">{computer.status === "connecting" ? "Reconnecting…" : "Offline"}</p>;
-  if (!computer.supported) return <p className="settings-empty">Update AI Coding Tool on that computer to see its limits.</p>;
-  if (!computer.usage) return <p className="settings-empty">Reading usage…</p>;
-  return <Providers usage={computer.usage} scope={computer.id} timeZone={timeZone} />;
+  if (computer.status === "connected" && computer.supported && computer.usage) return <Providers usage={computer.usage} scope={computer.id} timeZone={timeZone} />;
+  const empty = computer.status === "connecting" ? "Reconnecting…"
+    : computer.status !== "connected" ? "Offline"
+    : !computer.supported ? "Update AI Coding Tool on that computer to see its limits."
+    : "Reading usage…";
+  return <div className="usage-computer-empty"><p className="settings-empty">{empty}</p></div>;
 }
 
 /** `asked` marks this computer's own limits, which opening the page always reads and `onRetry` reads again. */

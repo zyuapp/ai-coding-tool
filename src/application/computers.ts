@@ -59,6 +59,11 @@ export function activeComputer(state: Pick<WorkspaceState, "computers">): Paired
   return computer?.status === "connected" ? computer : null;
 }
 
+/** `id` while it names a paired computer, else null. */
+export function pairedId(computers: Pick<ComputersState, "paired">, id: string | null): string | null {
+  return id !== null && computers.paired.some((computer) => computer.id === id) ? id : null;
+}
+
 /** The selected host may stay on screen offline while its terminal waits to reconnect. */
 export function selectedComputer(state: Pick<WorkspaceState, "computers">): PairedComputer | null {
   const computer = state.computers.paired.find((computer) => computer.id === state.computers.active);

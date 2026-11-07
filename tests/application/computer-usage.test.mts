@@ -52,3 +52,18 @@ test("each paired computer's limits are drawn from the state it publishes", () =
   state = reduce(state, { type: "computer.state", id: "mac", state: reported }).state;
   assert.equal(deriveView(state).computerUsage[0]!.usage, reported.planUsage);
 });
+
+test("Usage opens on the computer whose thread is on screen, and its picker keeps to paired computers", () => {
+  const usage = { type: "view.set-settings-open", open: true, section: "usage" } as const;
+  const here = withComputers([paired("linux")]);
+  const remote = { ...here, computers: { ...here.computers, active: "linux" } };
+  const opened = reduce(remote, usage).state;
+  assert.equal(deriveView(opened).usageComputer, "linux");
+
+  const picked = reduce(opened, { type: "view.set-usage-computer", computerId: null }).state;
+  assert.equal(deriveView(picked).usageComputer, null);
+  assert.equal(reduce(picked, { type: "view.set-usage-computer", computerId: "gone" }).state, picked, "an unpaired computer cannot be picked");
+  assert.equal(deriveView(reduce(picked, { type: "view.set-settings-open", open: true, section: "appearance" }).state).usageComputer, null, "another page leaves the pick alone");
+
+  assert.equal(deriveView(reduce(here, usage).state).usageComputer, null);
+});

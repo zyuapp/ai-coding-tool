@@ -50,6 +50,8 @@ export type SettingsPanelProps = {
   planUsage: PlanUsageState;
   /** Each paired computer's own plan limits. Absent where a test has none. */
   computerUsage?: readonly ComputerUsage[];
+  usageComputer?: string | null;
+  onSelectUsageComputer?: (computerId: string | null) => void;
   onReadPlanUsage: () => void;
   /** What the platform lets the app see and operate, and the two things settings can do about it. */
   computerUseAccess: ComputerUseAccessState;
@@ -134,7 +136,7 @@ export function SettingsPanel({
   settingMark,
   onLand,
   archivedThreads,
-  cli, onReadCli, onSetCliInstalled, planUsage, computerUsage, onReadPlanUsage,
+  cli, onReadCli, onSetCliInstalled, planUsage, computerUsage, usageComputer = null, onSelectUsageComputer = () => {}, onReadPlanUsage,
   computerUseAccess, onEnableComputerUse, onRestartForComputerUse,
   worktreeSettings,
   worktreeManagementError,
@@ -235,7 +237,7 @@ export function SettingsPanel({
           <p>Plan limits across your signed-in accounts.</p>
         </div>
 
-        <UsageSettings usage={planUsage} name={computers.name} computers={computerUsage} onRefresh={onReadPlanUsage} />
+        <UsageSettings usage={planUsage} name={computers.name} computers={computerUsage} selected={usageComputer} onSelect={onSelectUsageComputer} onRefresh={onReadPlanUsage} />
       </main>
       )}
 

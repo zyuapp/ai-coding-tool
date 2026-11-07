@@ -20,6 +20,8 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       onSetCliInstalled={(installed) => void workspace.actions.setCliInstalled(installed)}
       planUsage={workspace.planUsage}
       computerUsage={workspace.computerUsage}
+      usageComputer={workspace.usageComputer}
+      onSelectUsageComputer={(computerId) => void workspace.dispatch({ type: "view.set-usage-computer", computerId })}
       onReadPlanUsage={() => void workspace.actions.readPlanUsage()}
       computerUseAccess={workspace.computerUsePermissions}
       onEnableComputerUse={(permission) => void workspace.actions.enableComputerUse(permission)}

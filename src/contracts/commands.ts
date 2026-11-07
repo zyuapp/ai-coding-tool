@@ -548,6 +548,7 @@ export type ViewCommand =
    * names a control on that page for the sheet to scroll to and mark.
    */
   | { type: "view.set-settings-open"; open: boolean; section?: SettingsSection; settingId?: string }
+  | { type: "view.set-usage-computer"; computerId: string | null }
   /**
    * Closes whatever is in front, the way ⌘W does everywhere else on the desktop: settings, then the
    * page the browser panel is showing, then the dock tab, then the dock. Only with nothing left in
