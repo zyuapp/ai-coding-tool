@@ -30,7 +30,8 @@ import { clampTitle, type Thread } from "../../domain/thread.js";
 import { asCoordinator, coordinatorOf, effortRoleOf } from "../../domain/coordination.js";
 import { isSnoozeHours, withoutSnooze } from "../../domain/thread-snooze.js";
 import { cancelPause } from "../limit-pauses.js";
-import { capabilitiesFor, defaultModelIn, engineHasModel, modelHasEffort, threadModel } from "../../domain/agent-engine.js";
+import { capabilitiesFor, defaultModelIn, engineHasModel, modelHasEffort, threadModel, type EngineId } from "../../domain/agent-engine.js";
+import type { AgentDraft } from "../../domain/agent-draft.js";
 import type { AgentEffort } from "../../domain/run.js";
 import { catalogOf } from "../engine-access.js";
 
@@ -377,43 +378,54 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
     }
 
     case "task.set-policy": {
-      const taskId = targetId(state, input.taskId);
-      if (!capabilitiesFor(state.threads.find((thread) => thread.id === taskId)?.engine ?? state.draftEngine).policies.includes(input.policy)) return settled(state);
-      const drafted = input.taskId === undefined ? withDraft(state, { policy: input.policy }) : state;
-      return settled(taskId ? updateThread(drafted, taskId, (thread) => ({ ...thread, executionPolicy: input.policy, updatedAt: now() })) : drafted);
+      const target = settingsTarget(state, input.taskId);
+      if (!capabilitiesFor(target.engine).policies.includes(input.policy)) return settled(state);
+      return withSetting(state, target, { policy: input.policy }, { executionPolicy: input.policy });
     }
 
     case "task.set-model": {
-      const taskId = targetId(state, input.taskId);
-      /** A thread keeps the engine it started on, so the model must be one that engine offers too. */
-      const engine = state.threads.find((thread) => thread.id === taskId)?.engine, catalog = catalogOf(state);
+      const target = settingsTarget(state, input.taskId), catalog = catalogOf(state);
       const model = input.model ?? defaultModelIn(catalog, input.engine);
-      if (model === undefined || !engineHasModel(catalog, input.engine, model) || engine && !engineHasModel(catalog, engine, model)) return settled(state);
+      /** A thread keeps the engine it started on, so the model must be one that engine offers too. */
+      if (model === undefined || !engineHasModel(catalog, input.engine, model) || target.thread && !engineHasModel(catalog, target.thread.engine, model)) return settled(state);
       /** A draft keeps its effort where the new model takes it, and drops to the nearest one below where it does not. */
-      const drafted = input.taskId === undefined ? withDraft(state, { engine: input.engine, model }) : state;
-      return settled(taskId ? updateThread(drafted, taskId, (thread) => ({ ...thread, model, updatedAt: now() })) : drafted);
+      return withSetting(state, target, { engine: input.engine, model }, { model });
     }
 
     case "task.set-fast-mode": {
-      const taskId = targetId(state, input.taskId);
-      const thread = state.threads.find((item) => item.id === taskId);
-      if (taskId && !thread || !capabilitiesFor(thread?.engine ?? state.draftEngine).fastMode) return settled(state);
-      const drafted = input.taskId === undefined ? withDraft(state, { fastMode: input.fastMode }) : state;
-      return settled(taskId ? updateThread(drafted, taskId, (item) => ({ ...item, fastMode: input.fastMode, updatedAt: now() })) : drafted);
+      const target = settingsTarget(state, input.taskId);
+      if (target.taskId && !target.thread || !capabilitiesFor(target.engine).fastMode) return settled(state);
+      return withSetting(state, target, { fastMode: input.fastMode }, { fastMode: input.fastMode });
     }
 
     case "task.set-effort": {
-      const taskId = targetId(state, input.taskId);
-      const thread = state.threads.find((item) => item.id === taskId);
+      const target = settingsTarget(state, input.taskId);
       /** Effort belongs to the model, and to the part the thread plays, so only one the target takes can be set on it. */
-      if (thread && !threadTakesEffort(state, thread, input.effort)) return settled(state);
+      if (target.thread && !threadTakesEffort(state, target.thread, input.effort)) return settled(state);
       const draftTakes = modelHasEffort(catalogOf(state), state.draftEngine, state.draftModel, input.effort, effortRoleOf(undefined, state.draftRole));
-      if (!thread && !draftTakes) return settled(state);
+      if (!target.thread && !draftTakes) return settled(state);
       /** The draft keeps its own model, so it takes the effort only where that model offers it. */
-      const drafted = input.taskId === undefined && draftTakes ? withDraft(state, { effort: input.effort }) : state;
-      return settled(taskId ? updateThread(drafted, taskId, (thread) => ({ ...thread, effort: input.effort, updatedAt: now() })) : drafted);
+      return withSetting(state, target, draftTakes ? { effort: input.effort } : null, { effort: input.effort });
     }
   }
+}
+
+/**
+ * What a setting command changes: the thread it names, or with none named the draft and the thread on
+ * screen. `engine` is what that thread runs on, else the draft's.
+ */
+type SettingsTarget = { named: boolean; taskId: string | null; thread: Thread | undefined; engine: EngineId };
+
+function settingsTarget(state: WorkspaceState, taskId: string | undefined): SettingsTarget {
+  const target = targetId(state, taskId);
+  const thread = state.threads.find((item) => item.id === target);
+  return { named: taskId !== undefined, taskId: target, thread, engine: thread?.engine ?? state.draftEngine };
+}
+
+/** Writes a setting to its target; `draft` is what an unnamed one changes on the draft, or null where the draft does not take it. */
+function withSetting(state: WorkspaceState, target: SettingsTarget, draft: Partial<AgentDraft> | null, setting: Partial<Thread>): WorkspaceTransition {
+  const drafted = !target.named && draft ? withDraft(state, draft) : state;
+  return settled(target.taskId ? updateThread(drafted, target.taskId, (thread) => ({ ...thread, ...setting, updatedAt: now() })) : drafted);
 }
 
 function threadTakesEffort(state: WorkspaceState, thread: Thread, effort: AgentEffort) {

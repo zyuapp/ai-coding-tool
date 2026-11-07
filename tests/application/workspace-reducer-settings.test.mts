@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { readViewPreferences, VIEW_PREFERENCES_KEY } from "../../src/application/view-preferences.ts";
-import { workspace, preferences, effectAt, run } from "./workspace-reducer-fixtures.mts";
+import { workspace, preferences, effectAt, run, task } from "./workspace-reducer-fixtures.mts";
 import type { ComputerUsePermissions } from "../../src/domain/computer-use.ts";
 import type { PlanUsage } from "../../src/domain/plan-usage.ts";
 import { AGENT_ENGINES } from "../../src/domain/agent-engine.ts";
@@ -246,4 +246,20 @@ test("picked projects lead a recent list of five that persists and restores", ()
 test("a stored recent list drops what it cannot read and keeps five", () => {
   const storage = new Map<string, string>([[VIEW_PREFERENCES_KEY, JSON.stringify({ recentProjects: ["a", 3, "", "a", "b", "c", "d", "e", "f"] })]]);
   assert.deepEqual(readViewPreferences({ getItem: (key) => storage.get(key) ?? null, setItem: () => {} }).recentProjects, ["a", "b", "c", "d", "e"]);
+});
+
+test("a setting changes the thread it names, or with none named the draft and the thread on screen", () => {
+  const state = workspace({ threads: [task("a", { engine: "codex", model: "gpt-6.1-sol" }), task("b", { engine: "codex", model: "gpt-6.1-sol" }), task("o", { engine: "opencode" })], currentId: "a" });
+  const policy = (next: typeof state, id: string) => next.threads.find((thread) => thread.id === id)?.executionPolicy;
+
+  const unnamed = reduce(state, { type: "task.set-policy", policy: "bypass" }).state;
+  assert.deepEqual([policy(unnamed, "a"), policy(unnamed, "b"), unnamed.draftPolicy], ["bypass", "confirm", "bypass"]);
+
+  const named = reduce(state, { type: "task.set-policy", taskId: "b", policy: "autonomous" }).state;
+  assert.deepEqual([policy(named, "a"), policy(named, "b"), named.draftPolicy], ["confirm", "autonomous", state.draftPolicy]);
+
+  assert.equal(reduce(state, { type: "task.set-policy", taskId: "o", policy: "autonomous" }).state, state, "a mode the thread's engine lacks is refused");
+  assert.equal(reduce(state, { type: "task.set-fast-mode", taskId: "missing", fastMode: true }).state, state, "a thread that is gone takes nothing");
+  assert.equal(reduce(state, { type: "task.set-fast-mode", taskId: "b", fastMode: true }).state.threads.find((thread) => thread.id === "b")?.fastMode, true);
+  assert.equal(reduce(state, { type: "task.set-model", taskId: "b", engine: "claude", model: "opus" }).state, state, "a thread keeps the engine it started on");
 });
