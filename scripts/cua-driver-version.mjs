@@ -20,6 +20,18 @@ if (project.dependencies?.["@trycua/cua-driver"] !== CUA_DRIVER_VERSION) {
 if (lockedPackageVersion("@ubjs/node") !== UBJS_VERSION) throw new Error("The UBJS packages must resolve to the same version.");
 
 const releases = {
+  "0.41.3": {
+    sourceCommit: "bd0e299c67dec6397b3d41a259452b2ea13a1cd5",
+    archiveSha256: "ab386ceb5504b3b4e4a50cd7c7f2b9c50008024d7602926cd4d1e29dce50df12",
+    linuxX64ArchiveSha256: "a00a7bc4a648adbcbc93bfbf5a058daf71ce8838ee172e33b197aaf649ecee14",
+    linuxArm64ArchiveSha256: "9fe4b3a28eb0e1df9b48b26ba56c1c454966824bdd6e0f077d59d283d7c76cc4",
+    ubjsVersion: "0.31.0-3",
+    ubjsCommit: "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+    uniffiVersion: "0.31.0",
+    uniffiCommit: "309762f55db3f0548194a9ceba3027fa64b18a93",
+    libffiVersion: "3.5.2",
+    libffiSysVersion: "4.1.0",
+  },
   "0.40.6": {
     sourceCommit: "6d840c54da418192fc2f4fd61b7140893da24a2d",
     archiveSha256: "e2cb3a9cb4f4c83612749af46b21ee833d0825b3c68c85437841eae3af071632",
