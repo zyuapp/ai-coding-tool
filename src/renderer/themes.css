@@ -32,7 +32,8 @@
  * whichever ink reads at 4.5:1 on the alert fill. --p-wash-alpha weighs the hover wash, heavier on
  * a light ground, where a dark ink thinned to a few percent barely registers. --p-disabled-opacity
  * fades a disabled control only as far as keeps its muted label at 3:1. --p-row-hover and
- * --p-row-selected give a theme list-row tints of its own where its bg-6 reads too heavy as a fill. Nord Snow Storm and
+ * --p-row-selected give a theme list-row tints of its own where its bg-6 reads too heavy as a fill,
+ * and the --p-syntax-* hues let a theme colour code apart from its terminal's ansi slots. Nord Snow Storm and
  * Monokai Light have no published editor theme to copy, so they are built from their family's own
  * colours rather than borrowed.
  */
@@ -84,6 +85,13 @@
   --p-syntax-comment: #6b7580;
   --p-syntax-string: #9ec97f;
   --p-syntax-punctuation: #8b939c;
+  --p-syntax-keyword: #e3917a;
+  --p-syntax-function: #8db6e6;
+  --p-syntax-type: #7fc8c1;
+  --p-syntax-number: #e2b46f;
+  --p-syntax-constant: #e2b46f;
+  --p-syntax-tag: #e8877f;
+  --p-syntax-attribute: #d8b27c;
 
   --p-shadow: 0 0 0;
   --p-shadow-scale: 1;
@@ -160,6 +168,13 @@
   --p-syntax-comment: #8a8f98;
   --p-syntax-string: #3f7a2e;
   --p-syntax-punctuation: #6b6f78;
+  --p-syntax-keyword: #a94a29;
+  --p-syntax-function: #2b5f9f;
+  --p-syntax-type: #27706b;
+  --p-syntax-number: #8a5a0c;
+  --p-syntax-constant: #8a5a0c;
+  --p-syntax-tag: #a8424a;
+  --p-syntax-attribute: #80580f;
 
   --p-shadow: 24 26 32;
   --p-shadow-scale: 0.26;

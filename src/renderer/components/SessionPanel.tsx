@@ -85,7 +85,7 @@ function BranchRow({ branch, workspaceId, openMenu, onSetOpenMenu, onCheckoutBra
       >
         <span className="session-row-icon"><GitBranch size={18} /></span>
         <span>Branch</span>
-        <ChevronDown size={14} />
+        <ChevronDown size={12} />
         <code title={branch ?? undefined}>{branch ?? "—"}</code>
       </button>
       {open && (
@@ -178,7 +178,7 @@ function CheckoutRows({ environment, workspaceId, pullRequest, openMenu, onToggl
             <strong>+{available.additions}</strong><em>−{available.deletions}</em>
           </span>
         )}
-        <ChevronRight className="session-row-go" size={14} aria-hidden="true" />
+        <ChevronRight className="session-row-go" size={12} aria-hidden="true" />
       </button>
       <BranchRow
         branch={available?.branch ?? null}
@@ -204,7 +204,7 @@ function SessionEnvironment({ hasProject, locationRow, automationCount, onOpenAu
         <span className="session-row-icon"><AlarmClock size={18} /></span>
         <span>Automations</span>
         <span className="session-count">{automationCount}</span>
-        <ChevronRight className="session-row-go" size={14} aria-hidden="true" />
+        <ChevronRight className="session-row-go" size={12} aria-hidden="true" />
       </button>
     </div>
   );
