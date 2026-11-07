@@ -2113,8 +2113,7 @@ button.thread-start-project:active {
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
-  background: var(--surface-glass);
-  backdrop-filter: blur(18px);
+  background: color-mix(in srgb, var(--p-bg-1) 82%, var(--p-bg-0));
 }
 
 .changes-toolbar .segmented {
