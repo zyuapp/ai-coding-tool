@@ -2,7 +2,7 @@
 import { resolveWorkspaceEffect, withPending } from "./run-queue.js";
 import { now, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { coordinationNote } from "../coordination.js";
+import { coordinationNote } from "../coordination-messages.js";
 import { declinedTick, raisedFinding, whyTickCannotRun } from "../findings.js";
 import { withNothingToReport } from "../run-testimony.js";
 import { threadOnScreen } from "../thread-attention.js";

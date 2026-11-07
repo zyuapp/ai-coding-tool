@@ -15,7 +15,7 @@ import { expandThreadHandles } from "../../domain/thread-handles.js";
 import { withoutSnooze } from "../../domain/thread-snooze.js";
 import { updateThread } from "../thread-run-state.js";
 import { runsInWorkspace } from "../run-record.js";
-import { coordinationSendOf, senderPrompt, type CoordinationSend } from "../coordination.js";
+import { coordinationSendOf, senderPrompt, type CoordinationSend } from "../coordination-messages.js";
 import type { RemoteLead } from "../../domain/coordination.js";
 import { originFields, type MessageOrigin } from "../../domain/message-origin.js";
 import { heldByLimit, nudged } from "../limit-pauses.js";

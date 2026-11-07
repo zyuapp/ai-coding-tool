@@ -7,7 +7,7 @@ import { CommandButton } from "./CommandControl";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { ThreadTabStrip } from "./ThreadTabStrip";
 import { threadAsking } from "../../application/pull-request-view";
-import { canResolve, type CoordinatedThreadStatus } from "../../application/coordination";
+import { canResolve, type CoordinatedThreadStatus } from "../../application/coordinated-thread-status";
 import { AUTOMATION_PANEL } from "../../application/workspace-reducer";
 import { usePullRequestReads } from "../task-workspace/pull-request-reads";
 import { pullRequestSettled } from "../../domain/pull-request";

@@ -6,7 +6,7 @@ import type { PendingQuestion } from "../domain/agent-question.js";
 import { type ApprovalView, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
 import { annotationRevealFor, annotationsFor, filesFor, imagesFor, pastesFor, type AnnotationReveal } from "./composer-drafts.js";
 import { runStatus } from "./run-record.js";
-import { coordinatedThreadStatus, type CoordinatedThreadStatus } from "./coordination.js";
+import { coordinatedThreadStatus, type CoordinatedThreadStatus } from "./coordinated-thread-status.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
 import { pullRequestFor } from "./pull-request-view.js";
 import type { Thread } from "../domain/thread.js";

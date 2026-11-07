@@ -6,7 +6,7 @@
  */
 import { drainQueue, type QueueIntent } from "./workspace-reducer/run-queue.js";
 import type { WorkspaceTransition } from "./workspace-reducer/types.js";
-import { withNewsQuieted } from "./coordination.js";
+import { withNewsQuieted } from "./coordination-messages.js";
 import { withFactsHeard } from "./member-facts.js";
 import { withRunAnswered } from "./outstanding-stops.js";
 import { whyTurnSurfaces, withVerdict, type RunSurfacing } from "./run-testimony.js";

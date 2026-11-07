@@ -8,7 +8,7 @@ import { compactableSession, reviewableSession } from "./session-operations.js";
 import { sidebarLists } from "./sidebar-lists.js";
 import { worktreeChoices } from "./worktree-choices.js";
 import type { MobileWorktreeChoice } from "../contracts/mobile.js";
-import type { CoordinationSend } from "./coordination.js";
+import type { CoordinationSend } from "./coordination-messages.js";
 import { effortRoleOf, type OverviewFolds } from "../domain/coordination.js";
 import type { ChangedFilesResult, DesktopShortcutRefusal, InstalledApp } from "../contracts/ipc.js";
 import type { PullRequestRead } from "../domain/pull-request.js";

@@ -2,7 +2,7 @@
 import { reduceSending } from "./sending.js";
 import { now, settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { coordinationNote, memoryPrompt, requestHeadline } from "../coordination.js";
+import { coordinationNote, memoryPrompt, requestHeadline } from "../coordination-messages.js";
 import { announced } from "../notices.js";
 import { caughtStartComputer, catchesStart, withoutCaughtStart, withStartLanded } from "../outstanding-stops.js";
 import { updateThread } from "../thread-run-state.js";

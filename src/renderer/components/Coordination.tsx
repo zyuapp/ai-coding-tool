@@ -7,7 +7,7 @@ import type { AgentEffort } from "../../domain/run";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
 import type { PullRequestState } from "../../domain/pull-request";
 import type { Thread } from "../../domain/thread";
-import { canResolve, pullRequestLine, type CoordinatedThreadStatus } from "../../application/coordination";
+import { canResolve, pullRequestLine, type CoordinatedThreadStatus } from "../../application/coordinated-thread-status";
 import { overviewGroups, type CoordinationUsage, type CoordinatedThreadView, type CoordinationView, type CoordinatorMemoryView } from "../../application/coordination-view";
 import type { ThreadHost } from "../../application/computers";
 import type { MemberWorktree } from "../../application/member-worktrees";

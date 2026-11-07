@@ -4,7 +4,7 @@
  * here the same way: the notes its coordinator wakes to and what the user is told.
  */
 import type { WorkspaceEffect, WorkspaceTransition } from "./workspace-reducer/types.js";
-import { coordinationNote, decisionHeadline, decisionNote, reportHeadline, reportNote, turnNote } from "./coordination.js";
+import { coordinationNote, decisionHeadline, decisionNote, reportHeadline, reportNote, turnNote } from "./coordination-messages.js";
 import { announced, waitingHeadline } from "./notices.js";
 import { settledHeadline, type RunSurfacing } from "./run-testimony.js";
 import type { TurnStatus } from "./run-settlement.js";

@@ -1,7 +1,7 @@
 /** What a run starting under a coordinator, or a coordinator's own, adds to the start every run makes. */
 import { now } from "./shared.js";
 import { withoutStarting } from "./proposals.js";
-import { briefPrompt, coordinationNote, coordinatorPrompt } from "../coordination.js";
+import { briefPrompt, coordinationNote, coordinatorPrompt } from "../coordination-messages.js";
 import { sessionHoldsWork } from "../thread-activity.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import { createConversationMessage, type ConversationMessage } from "../../domain/conversation.js";

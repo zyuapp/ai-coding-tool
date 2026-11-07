@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { coordinatedThreadStatus, coordinationContext } from "../../src/application/coordination.ts";
+import { coordinationContext } from "../../src/application/coordination-messages.ts";
+import { coordinatedThreadStatus } from "../../src/application/coordinated-thread-status.ts";
 import { coordinationView } from "../../src/application/coordination-view.ts";
 import { threadMark, withdrawRun } from "../../src/application/thread-run-state.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";

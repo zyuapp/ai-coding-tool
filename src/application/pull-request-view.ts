@@ -4,7 +4,8 @@ import type { Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import type { Worktree } from "../domain/worktree.js";
 import { threadWorkspaceId } from "./thread-location.js";
-import { coordinationMembers, ownPullRequest, ownsPullRequest, type CoordinationMember, type OwnPullRequest } from "./coordination.js";
+import { coordinationMembers, type CoordinationMember } from "./coordination.js";
+import { ownPullRequest, ownsPullRequest, type OwnPullRequest } from "./coordinated-thread-status.js";
 import type { ComputersState, PairedComputer } from "./computers.js";
 
 /** The branch a checkout sits on, or null while Git has not said or could not. */

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
-import { coordinationContext } from "../../src/application/coordination.ts";
+import { coordinationContext } from "../../src/application/coordination-messages.ts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
 import { COORDINATOR_CONTEXT_TOKENS, type ThreadBrief } from "../../src/domain/coordination.ts";
 import { createConversationMessage, createSentMessage } from "../../src/domain/conversation.ts";

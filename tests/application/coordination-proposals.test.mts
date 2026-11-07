@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceEffect, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
-import { canDismiss, coordinationContext } from "../../src/application/coordination.ts";
+import { canDismiss } from "../../src/application/coordination.ts";
+import { coordinationContext } from "../../src/application/coordination-messages.ts";
 import { sidebarLists } from "../../src/application/sidebar-lists.ts";
 import { isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";

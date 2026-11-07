@@ -2,7 +2,8 @@
 import type { WorkspaceState } from "./workspace-state.js";
 import type { ApprovalView } from "./thread-run-state.js";
 import { ledStartRefusal, threadHostOf, type PairedComputer, type ThreadHost } from "./computers.js";
-import { checkoutAnswer, coordinatedThreadStatus, coordinationMembers, GROUP_OF, memberActivity, nextSteps, ownPullRequest, waitingLine, type CoordinatedThreadStanding, type CoordinationMember, type OwnPullRequest } from "./coordination.js";
+import { coordinationMembers, memberActivity, waitingLine, type CoordinationMember } from "./coordination.js";
+import { checkoutAnswer, coordinatedThreadStatus, GROUP_OF, nextSteps, ownPullRequest, type CoordinatedThreadStanding, type OwnPullRequest } from "./coordinated-thread-status.js";
 import { coordinationDecisions, coordinatorOf, isCoordinator, openDecisions, remoteLeadOf, threadModelOf, waitingOnUser, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadModelChoice, type ThreadProposal, type WaitingOnUser } from "../domain/coordination.js";
 import { threadCreatedAt, type Thread } from "../domain/thread.js";
 import { currentModel, type AgentEngine } from "../domain/agent-engine.js";

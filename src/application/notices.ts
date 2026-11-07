@@ -5,7 +5,7 @@
 import type { ThreadNotice } from "../contracts/ipc.js";
 import { coordinatorOf, isCoordinator, remoteLeadOf, worksUnderCoordinator } from "../domain/coordination.js";
 import type { Thread } from "../domain/thread.js";
-import { lastReply } from "./coordination.js";
+import { lastReply } from "./coordination-messages.js";
 import { replyLine } from "./reply-line.js";
 import type { WorkspaceEffect } from "./workspace-reducer.js";
 import type { WorkspaceState } from "./workspace-state.js";
