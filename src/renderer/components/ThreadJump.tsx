@@ -76,7 +76,8 @@ export function ThreadJump({ jump, actions }: ThreadJumpProps) {
           <div id={listId} className="thread-jump-list" role="listbox" aria-label="Threads and settings">
             {jump.options.map((option, index) => (
               <Fragment key={option.id}>
-                {index === firstSetting && index > 0 && <p className="thread-jump-heading" role="presentation">Settings</p>}
+                {index === 0 && firstSetting !== 0 && <p className="thread-jump-heading" role="presentation">Threads</p>}
+                {index === firstSetting && <p className="thread-jump-heading" role="presentation">Settings</p>}
                 <button
                   ref={index === jump.index ? picked : undefined}
                   id={`${listId}-${index}`}
@@ -106,6 +107,7 @@ export function ThreadJump({ jump, actions }: ThreadJumpProps) {
             {jump.query && <button type="button" onClick={() => { actions.setJumpQuery(""); input.current?.focus(); }}>Clear search</button>}
           </div>
         )}
+        <div className="thread-jump-foot" aria-hidden="true"><span><kbd>↑↓</kbd>Move</span><span><kbd>↵</kbd>Open</span><span><kbd>esc</kbd>Close</span></div>
       </div>
     </div>,
     document.body,

@@ -31,7 +31,8 @@
  * --p-accent-hover and, where that ink cannot sit on danger, --p-danger-ink. --p-alert-ink is
  * whichever ink reads at 4.5:1 on the alert fill. --p-wash-alpha weighs the hover wash, heavier on
  * a light ground, where a dark ink thinned to a few percent barely registers. --p-disabled-opacity
- * fades a disabled control only as far as keeps its muted label at 3:1. Nord Snow Storm and
+ * fades a disabled control only as far as keeps its muted label at 3:1. --p-row-hover and
+ * --p-row-selected give a theme list-row tints of its own where its bg-6 reads too heavy as a fill. Nord Snow Storm and
  * Monokai Light have no published editor theme to copy, so they are built from their family's own
  * colours rather than borrowed.
  */
@@ -118,6 +119,8 @@
   --p-bg-4: #eeece5;
   --p-bg-5: #e6e4db;
   --p-bg-6: #dcd9cf;
+  --p-row-hover: #efeeea;
+  --p-row-selected: #e3e2de;
 
   --p-line-0: #eceae3;
   --p-line-1: #dedbd2;

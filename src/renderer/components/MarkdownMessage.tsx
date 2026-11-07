@@ -82,8 +82,10 @@ function MarkdownPre({ children, node, ...props }: ComponentProps<"pre"> & Extra
       </Copyable>
     );
   }
+  const language = languages.find((name) => name.startsWith("language-"))?.slice("language-".length);
   return (
-    <Copyable text={copied} label="Copy the code">
+    <Copyable text={copied} label="Copy the code" className={language ? "code-block" : undefined}>
+      {language && <div className="code-block-head" aria-hidden="true">{language}</div>}
       <CodeBlock.Provider value><pre {...props}>{children}</pre></CodeBlock.Provider>
     </Copyable>
   );

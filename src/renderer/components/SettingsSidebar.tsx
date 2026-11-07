@@ -1,4 +1,4 @@
-import { LuArchive as Archive, LuArrowLeft as ArrowLeft, LuBot as Bot, LuFolder as Folder, LuFolderGit2 as FolderGit2, LuGauge as Gauge, LuGlobe as Globe, LuKeyboard as Keyboard, LuMonitorCog as MonitorCog, LuPalette as Palette, LuSearch as Search, LuSlidersHorizontal as SlidersHorizontal, LuSmartphone as Smartphone } from "react-icons/lu";
+import { LuArchive as Archive, LuArrowLeft as ArrowLeft, LuCpu as Cpu, LuFolder as Folder, LuFolderGit2 as FolderGit2, LuGauge as Gauge, LuGlobe as Globe, LuKeyboard as Keyboard, LuMonitorCog as MonitorCog, LuPalette as Palette, LuSearch as Search, LuSlidersHorizontal as SlidersHorizontal, LuSmartphone as Smartphone } from "react-icons/lu";
 import type { IconType } from "react-icons";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { SETTINGS_JUMP_OPTIONS, SETTINGS_PAGE_LABELS, type SettingsJumpOption } from "../../domain/settings-catalog";
@@ -10,7 +10,7 @@ const PAGE_ICONS: Record<SettingsSection, IconType> = {
   general: SlidersHorizontal,
   appearance: Palette,
   usage: Gauge,
-  engines: Bot,
+  engines: Cpu,
   projects: Folder,
   worktrees: FolderGit2,
   shortcuts: Keyboard,

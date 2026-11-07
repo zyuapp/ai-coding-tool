@@ -46,7 +46,7 @@ test("a row names its thread, the folder it lives in, and whether it is working"
   assert.equal(rows()[1]!.querySelector(".task-spinner"), null);
   assert.deepEqual(rows().map((row) => row.querySelector("svg")?.getAttribute("aria-label")), ["Claude thread", "Codex thread", "Setting", "Setting"]);
   assert.deepEqual(rows().map((row) => row.getAttribute("aria-selected")), ["false", "true", "false", "false"]);
-  assert.equal(document.querySelector(".thread-jump-heading")?.textContent, "Settings");
+  assert.deepEqual([...document.querySelectorAll(".thread-jump-heading")].map((heading) => heading.textContent), ["Threads", "Settings"]);
   assert.equal(document.activeElement, document.querySelector(".thread-jump-search input"));
   await view.unmount();
 });

@@ -18,7 +18,7 @@ import {
  * the user has narrowed it; below here each side is down to a few words a line and one column reads
  * better, so the review falls back whatever the thread last chose.
  */
-const SPLIT_MIN_WIDTH = 520;
+const SPLIT_MIN_WIDTH = 760;
 
 /** Whether the panel is wide enough to be read in two columns. */
 export function useRoomForTwo(panel: RefObject<HTMLElement | null>) {

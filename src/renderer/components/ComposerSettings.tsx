@@ -8,6 +8,7 @@ import { useModelCatalog } from "../model-catalog";
 import { POLICIES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 import { CopyButton } from "./CopyButton";
+import { engineIcon } from "./ThreadEngineIcon";
 
 type Choice<T extends string> = { value: T; label: string; description?: string; icon: IconType; danger?: true };
 
@@ -27,6 +28,12 @@ const MODEL_ICONS: Partial<Record<AgentEngine, Readonly<Record<string, IconType>
   claude: { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather },
   codex: { "gpt-6-astra": Brain, "gpt-6.1-sol": Sparkles, "gpt-6.1-terra": Gauge, "gpt-6-luna": Moon },
 };
+
+/** An engine's own group wears its glyph; a provider served through an engine wears a generic one. */
+function ProviderMark({ engine, groupKey }: { engine: AgentEngine; groupKey: string }) {
+  const Icon = groupKey === engine ? engineIcon(engine) : Sparkles;
+  return <Icon className="model-provider-glyph" size={16} aria-hidden="true" />;
+}
 
 function modelIcon(engine: AgentEngine, model: AgentModel): IconType {
   const icons = MODEL_ICONS[engine];
@@ -267,7 +274,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
         <button type="button" aria-pressed={!search && filter === "favorites"} onClick={() => { setFilter("favorites"); setQuery(""); }}><Star size={16} />Favorites<span>{favoriteCount}</span></button>
         <button type="button" aria-pressed={!search && filter === "all"} onClick={() => { setFilter("all"); setQuery(""); }}><Grid size={16} />All models<span>{total}</span></button>
         <hr />
-        {available.map((group) => <button key={group.key} type="button" aria-pressed={!search && filter === group.key} onClick={() => { setFilter(group.key); setQuery(""); }}><span className="model-provider-initial" aria-hidden="true">{group.label[0]}</span>{group.label}<span>{group.models.length}</span></button>)}
+        {available.map((group) => <button key={group.key} type="button" aria-pressed={!search && filter === group.key} onClick={() => { setFilter(group.key); setQuery(""); }}><ProviderMark engine={group.engine} groupKey={group.key} />{group.label}<span>{group.models.length}</span></button>)}
       </nav>
       <div className="model-results" ref={results} onKeyDown={navigate}>
         <div className="model-results-heading"><span>{heading}</span><span aria-live="polite">{count} models</span></div>

@@ -86,7 +86,7 @@ test("text on a hovered row reads at AA down to --quiet-strong and --quiet at 4:
 });
 
 test("a hovered row is a visible step past the active one, and the selected row a step past hover", () => {
-  assert.equal(tokens.get("--row-hover"), "var(--p-bg-6)");
+  assert.equal(tokens.get("--row-hover"), "var(--p-row-hover, var(--p-bg-6))");
   const failed: string[] = [];
   for (const theme of THEMES) {
     const palette = primitives(theme.id);

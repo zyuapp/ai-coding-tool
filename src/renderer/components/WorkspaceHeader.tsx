@@ -82,7 +82,7 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
                 <span>{currentThread.title}</span>
                 <Pencil size={14} aria-hidden="true" data-tip="Rename" />
               </button>
-            : <span className="heading-thread">New task</span>}
+            : <span className="heading-thread">{folder ? "New thread" : "New chat"}</span>}
       </h1>
       {currentThread && <PopoverMenu
         id={`thread-heading:${currentThread.id}`}
