@@ -25,6 +25,8 @@ import { isThemeMode } from "../domain/theme.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
 import type { RemoteSender } from "../domain/message-origin.js";
 import { sendStaysInReach } from "./task-send.js";
+import * as phone from "./phone-commands.js";
+import type { PhoneRule } from "./phone-commands.js";
 
 type ViewEvent = Extract<WorkspaceEvent, { type: "action.failed" | "find.results" | "shortcut.captured" | "shortcut.unavailable" }>;
 export type WorkspaceViewInput = AppCommand | ViewEvent;
@@ -204,17 +206,20 @@ type Declaration<C extends AppCommand> = {
   leaves?: true;
   /** What an agent's command must also satisfy. A command without one is the window's alone. */
   agent?: (command: C) => boolean;
+  /** What a paired phone's command must satisfy. A command without one is never a phone's. */
+  phone?: PhoneRule;
 };
 
 type Declarations = { [Type in AppCommand["type"]]: Declaration<Extract<AppCommand, { type: Type }>> };
 type EventShapes = { [Type in ViewEvent["type"]]: Shape<Omit<Extract<ViewEvent, { type: Type }>, "type">> };
-type Declared = { fields: Record<string, Validator<unknown>>; at: CommandPlacement; leaves?: true; agent?: (command: never) => boolean };
+type Declared = { fields: Record<string, Validator<unknown>>; at: CommandPlacement; leaves?: true; agent?: (command: never) => boolean; phone?: PhoneRule };
 type Commands = typeof commands;
 type PlacedType<At extends CommandPlacement> = { [Type in keyof Commands]: Commands[Type]["at"] extends At ? Type : never }[keyof Commands];
 
 /** The commands declared at a placement. */
 export type PlacedCommand<At extends CommandPlacement> = Extract<AppCommand, { type: PlacedType<At> }>;
 export type AgentCommandType = { [Type in keyof Commands]: Commands[Type] extends { agent: unknown } ? Type : never }[keyof Commands];
+export type PhoneCommandType = { [Type in keyof Commands]: Commands[Type] extends { phone: unknown } ? Type : never }[keyof Commands];
 
 /** Whether an input is a command rather than something that happened, which is what may be carried to another computer. */
 export function isAppCommandType(type: string): type is AppCommand["type"] {
@@ -252,7 +257,14 @@ export function isExternalCommand(value: unknown): value is ExternalCommand {
   return agent !== undefined && agent(value as never);
 }
 
-/** Every command, declared once: the fields it carries, where it is carried out, and whether an agent may send it. */
+/** The command surface open to a paired phone: the commands that declare a phone rule, passing that rule. */
+export function isPhoneCommand(value: unknown): value is Extract<AppCommand, { type: PhoneCommandType }> {
+  if (!record(value) || typeof value.type !== "string" || !isAppCommandType(value.type)) return false;
+  const rule = declarations[value.type].phone;
+  return rule !== undefined && rule(value);
+}
+
+/** Every command, declared once: the fields it carries, where it is carried out, and whether an agent or a paired phone may send it. */
 const commands = {
   "view.mounted": { fields: {}, at: "local" },
   "diff.toggle": { fields: { taskId: optionalText }, at: "thread" },
@@ -263,12 +275,12 @@ const commands = {
   "diff.set-viewed": { fields: { path: text, viewed: boolean }, at: "thread" },
   "diff.set-split": { fields: { split: boolean }, at: "thread" },
   "diff.set-ignore-whitespace": { fields: { ignore: boolean }, at: "thread" },
-  "task.new": { fields: { projectId: optionalText, worktreeId: optionalText }, at: "own", leaves: true },
-  "task.select": { fields: { taskId: text }, at: "select", leaves: true },
-  "task.archive": { fields: { taskId: text }, at: "thread", agent: namesThread },
-  "task.restore": { fields: { taskId: text }, at: "thread" },
+  "task.new": { fields: { projectId: optionalText, worktreeId: optionalText }, at: "own", leaves: true, phone: phone.starts },
+  "task.select": { fields: { taskId: text }, at: "select", leaves: true, phone: phone.namesThread },
+  "task.archive": { fields: { taskId: text }, at: "thread", agent: namesThread, phone: phone.namesThread },
+  "task.restore": { fields: { taskId: text }, at: "thread", phone: phone.namesThread },
   "task.clear-archive": { fields: {}, at: "thread" },
-  "task.rename": { fields: { taskId: text, title: text }, at: "thread" },
+  "task.rename": { fields: { taskId: text, title: text }, at: "thread", phone: phone.renames },
   "task.set-role": { fields: { taskId: optionalText, role: nullable(isThreadRole), sender: optional(remoteSender) }, at: "thread", agent: givesRole },
   "task.set-coordinator": { fields: { taskId: text, coordinatorId: nullableText }, at: "thread" },
   "task.set-lead-away": { fields: { taskId: text, away: boolean }, at: "thread" },
@@ -285,36 +297,36 @@ const commands = {
   "coordination.next-step": { fields: { taskId: text, step: isNextStep }, at: "thread" },
   "proposal.start": { fields: { taskId: text, proposalId: optionalText, proposalIds: optional(proposalIds), place: optional(proposalPlace) }, at: "thread" },
   "proposal.dismiss": { fields: { taskId: text, proposalId: optionalText, proposalIds: optional(proposalIds) }, at: "thread" },
-  "task.dismiss": { fields: { taskId: text }, at: "thread" },
+  "task.dismiss": { fields: { taskId: text }, at: "thread", phone: phone.namesThread },
   "task.snooze": { fields: { taskId: text, hours: isSnoozeHours }, at: "thread" },
   "task.unsnooze": { fields: { taskId: text }, at: "thread" },
   /** The reducer itself carries this to the computers shown in the sidebar. */
-  "task.dismiss-all": { fields: { localOnly: optionalBoolean, projectId: optionalText }, at: "local" },
+  "task.dismiss-all": { fields: { localOnly: optionalBoolean, projectId: optionalText }, at: "local", phone: phone.dismissesAll },
   "task.read-all": { fields: { localOnly: optionalBoolean }, at: "local" },
   "task.move": { fields: { taskId: text, target: dropTarget }, at: "thread" },
-  "task.fork": { fields: { taskId: optionalText, worktree: optionalBoolean, title: optional(startTitle) }, at: "thread" },
-  "task.set-policy": { fields: { taskId: optionalText, policy: policy }, at: "thread" },
-  "task.set-model": { fields: { taskId: optionalText, engine: isAgentEngine, model: optional(isModelId) }, at: "thread" },
-  "task.set-fast-mode": { fields: { taskId: optionalText, fastMode: boolean }, at: "thread" },
-  "task.set-effort": { fields: { taskId: optionalText, engine: isAgentEngine, effort: isAgentEffort }, at: "thread" },
-  "task.set-worktree": { fields: { taskId: optionalText, worktree: boolean }, at: "thread" },
-  "task.move-worktree": { fields: { taskId: optionalText, destination: isWorktreeDestination, afterRun: optional(literals(true)), sender: optional(remoteSender), then: optional(promptText) }, at: "thread", agent: movesToCheckout },
+  "task.fork": { fields: { taskId: optionalText, worktree: optionalBoolean, title: optional(startTitle) }, at: "thread", phone: phone.forks },
+  "task.set-policy": { fields: { taskId: optionalText, policy: policy }, at: "thread", phone: phone.setsPolicy },
+  "task.set-model": { fields: { taskId: optionalText, engine: isAgentEngine, model: optional(isModelId) }, at: "thread", phone: phone.setsModel },
+  "task.set-fast-mode": { fields: { taskId: optionalText, fastMode: boolean }, at: "thread", phone: phone.setsFastMode },
+  "task.set-effort": { fields: { taskId: optionalText, engine: isAgentEngine, effort: isAgentEffort }, at: "thread", phone: phone.setsEffort },
+  "task.set-worktree": { fields: { taskId: optionalText, worktree: boolean }, at: "thread", phone: phone.setsWorktree },
+  "task.move-worktree": { fields: { taskId: optionalText, destination: isWorktreeDestination, afterRun: optional(literals(true)), sender: optional(remoteSender), then: optional(promptText) }, at: "thread", agent: movesToCheckout, phone: phone.movesWorktree },
   "task.set-branch": { fields: { branch: nullableText, create: optionalBoolean }, at: "thread" },
   "task.checkout-branch": { fields: { taskId: optionalText, branch: text, create: optionalBoolean }, at: "thread" },
   "attachments.send": { fields: { taskId: optionalText, steer: optionalBoolean, attachments: array(outgoingAttachment) }, at: "own" },
   "attachments.notice": { fields: { taskId: optionalText, message: nullableText }, at: "local" },
-  "task.send": { fields: { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isModelId), engine: optional(isAgentEngine), effort: optional(isAgentEffort), role: optional(isThreadRole), coordinatorId: optionalText, brief: optional(isThreadBrief), title: optional(startTitle), from: optionalText, sender: optional(remoteSender), lead: optional(remoteLead), memory: optional(memoryText) }, at: "own", agent: agentSend },
-  "task.steer-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread" },
-  "task.drop-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread" },
+  "task.send": { fields: { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isModelId), engine: optional(isAgentEngine), effort: optional(isAgentEffort), role: optional(isThreadRole), coordinatorId: optionalText, brief: optional(isThreadBrief), title: optional(startTitle), from: optionalText, sender: optional(remoteSender), lead: optional(remoteLead), memory: optional(memoryText) }, at: "own", agent: agentSend, phone: phone.sends },
+  "task.steer-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread", phone: phone.namesQueued },
+  "task.drop-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread", phone: phone.namesQueued },
   "task.edit-queued": { fields: { taskId: optionalText, messageId: text }, at: "own" },
-  "annotation.add": { fields: { taskId: optionalText, quote: text, note: optionalText, anchor: optional(isAnnotationAnchor) }, at: "local" },
-  "annotation.note": { fields: { taskId: optionalText, annotationId: text, note: text }, at: "local" },
-  "annotation.remove": { fields: { taskId: optionalText, annotationId: text }, at: "local" },
-  "annotation.recall": { fields: { taskId: optionalText, annotations: array(annotation) }, at: "local" },
+  "annotation.add": { fields: { taskId: optionalText, quote: text, note: optionalText, anchor: optional(isAnnotationAnchor) }, at: "local", phone: phone.annotates },
+  "annotation.note": { fields: { taskId: optionalText, annotationId: text, note: text }, at: "local", phone: phone.notesAnnotation },
+  "annotation.remove": { fields: { taskId: optionalText, annotationId: text }, at: "local", phone: phone.removesAnnotation },
+  "annotation.recall": { fields: { taskId: optionalText, annotations: array(annotation) }, at: "local", phone: phone.recallsAnnotations },
   "annotation.reveal": { fields: { taskId: optionalText, annotationId: text }, at: "local" },
-  "paste.add": { fields: { taskId: optionalText, text: text }, at: "local" },
-  "paste.remove": { fields: { taskId: optionalText, pasteId: text }, at: "local" },
-  "paste.recall": { fields: { taskId: optionalText, pastes: array(pastedText) }, at: "local" },
+  "paste.add": { fields: { taskId: optionalText, text: text }, at: "local", phone: phone.pastes },
+  "paste.remove": { fields: { taskId: optionalText, pasteId: text }, at: "local", phone: phone.removesPaste },
+  "paste.recall": { fields: { taskId: optionalText, pastes: array(pastedText) }, at: "local", phone: phone.recallsPastes },
   "image.add": { fields: { taskId: optionalText, path: text, label: text, source: optionalText }, at: "local" },
   "image.remove": { fields: { taskId: optionalText, imageId: text }, at: "local" },
   "image.recall": { fields: { taskId: optionalText, paths: array(text) }, at: "local" },
@@ -341,12 +353,12 @@ const commands = {
   "worktree.open-thread": { fields: { taskId: text }, at: "select", leaves: true },
   "worktree.reveal": { fields: { root: text }, at: "own" },
   "worktree.delete": { fields: { taskId: optionalText, root: optionalText, worktreeId: optionalText, missingOnly: optionalBoolean }, at: "own", agent: deletesWorktreeById },
-  "run.cancel": { fields: { taskId: optionalText }, at: "thread", agent: agentThread },
+  "run.cancel": { fields: { taskId: optionalText }, at: "thread", agent: agentThread, phone: phone.cancels },
   "run.compact": { fields: { taskId: optionalText }, at: "thread" },
   "question.set-answer": { fields: { taskId: text, runId: text, requestId: text, questionId: text, text }, at: "thread" },
-  "question.answer": { fields: { taskId: text, runId: text, requestId: text, questionId: text, text: optionalText }, at: "thread" },
-  "run.decide": { fields: { allow: boolean, taskId: text, runId: text, approvalId: text }, at: "thread" },
-  "run.stop-process": { fields: { taskId: optionalText, processId: text }, at: "thread" },
+  "question.answer": { fields: { taskId: text, runId: text, requestId: text, questionId: text, text: optionalText }, at: "thread", phone: phone.answers },
+  "run.decide": { fields: { allow: boolean, taskId: text, runId: text, approvalId: text }, at: "thread", phone: phone.decides },
+  "run.stop-process": { fields: { taskId: optionalText, processId: text }, at: "thread", phone: phone.stopsProcess },
   "limit.resume": { fields: { taskId: text }, at: "thread" },
   "limit.cancel": { fields: { taskId: text }, at: "thread" },
   "review.open": { fields: { taskId: optionalText }, at: "thread" },
@@ -415,7 +427,7 @@ const commands = {
   "engine.reload-settings": { fields: {}, at: "local" },
   "engine.sign-in": { fields: { engine: isAgentEngine }, at: "local" },
   "engine.update": { fields: { engine: isAgentEngine, computerId: optionalText }, at: "own" },
-  "view.set-prompt": { fields: { taskId: optionalText, prompt: text }, at: "local" },
+  "view.set-prompt": { fields: { taskId: optionalText, prompt: text }, at: "local", phone: phone.setsPrompt },
   "view.reading-point": { fields: { taskId: text, point: readingPoint }, at: "local" },
   "view.dismiss-action-error": { fields: {}, at: "local" },
   "view.dismiss-hidden-tasks": { fields: {}, at: "local" },

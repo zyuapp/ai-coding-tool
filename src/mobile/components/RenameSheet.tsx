@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MAX_TITLE_LENGTH } from "../../contracts/mobile";
+import { MAX_TITLE_LENGTH } from "../../contracts/phone-commands";
 import { Sheet } from "./Sheet";
 
 export function RenameSheet({ title, onClose, onRename }: { title: string; onClose: () => void; onRename: (title: string) => void }) {

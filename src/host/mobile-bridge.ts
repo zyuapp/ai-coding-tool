@@ -3,8 +3,8 @@ import type { WorkspaceState } from "../application/workspace-state.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
 import type { WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
 import type { AppCommand } from "../contracts/commands.js";
-import { isMobileCommand, isMobileQuery, isMobileRequest, type MobileQuery, type MobileRequest, type MobileResponse, type MobileView, type MobileViewUpdate } from "../contracts/mobile.js";
-import { isWorkspaceViewInput } from "../contracts/workspace-view-input.js";
+import { isMobileQuery, isMobileRequest, type MobileQuery, type MobileRequest, type MobileResponse, type MobileView, type MobileViewUpdate } from "../contracts/mobile.js";
+import { isPhoneCommand, isWorkspaceViewInput } from "../contracts/workspace-view-input.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
 import type { MobileServerState } from "../domain/mobile.js";
 import { threadWorkspaceId } from "../application/thread-location.js";
@@ -72,7 +72,7 @@ export async function answerMobileRequest(host: MobileBridgeHost, request: Mobil
       return ok(await answerQuery(host, request.query));
     }
     /** What a phone may send, and then every field as the window's own checks read it. */
-    if (!isMobileCommand(request.command) || !isWorkspaceViewInput(request.command)) return failed(MOBILE_REFUSED);
+    if (!isPhoneCommand(request.command) || !isWorkspaceViewInput(request.command)) return failed(MOBILE_REFUSED);
     const taskId = "taskId" in request.command ? request.command.taskId : undefined;
     if (taskId !== undefined && !phoneReaches(host.state(), request.command, taskId)) return failed(`No thread has the ID ${taskId}.`);
     const execution = host.execute(request.command);

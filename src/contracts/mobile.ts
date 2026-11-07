@@ -1,15 +1,14 @@
 import type { PendingQuestion } from "../domain/agent-question.js";
 import type { AppCommand } from "./commands.js";
 import type { MobilePairingOffer, MobileServerState } from "../domain/mobile.js";
-import { isAgentEffort, isAgentEngine, isModelId, type AgentEngine, type AgentModel, type EngineAccess, type EngineId } from "../domain/agent-engine.js";
-import { isExecutionPolicy, type AgentEffort, type ExecutionPolicy } from "../domain/run.js";
-import type { Annotation, AnnotationAnchor, PastedText } from "../domain/conversation.js";
+import type { AgentEngine, AgentModel, EngineAccess, EngineId } from "../domain/agent-engine.js";
+import type { AgentEffort, ExecutionPolicy } from "../domain/run.js";
 import { isDiffRange, type DiffRange } from "../domain/diff.js";
 import type { ThemeMode } from "../domain/theme.js";
 import type { ThreadOutcome } from "../domain/thread-run.js";
-import type { WorktreeDestination } from "../domain/worktree.js";
 import type { TaskMessageKind } from "./threads.js";
-import { sendStaysInReach } from "./task-send.js";
+import { isBlankable, isCount, isRecord, isString, MAX_PATH_LENGTH, MAX_PROMPT_LENGTH } from "./phone-commands.js";
+import { isPhoneCommand, type PhoneCommandType } from "./workspace-view-input.js";
 
 /**
  * The commands a paired phone may dispatch. The phone is the user on a small screen, not an agent,
@@ -22,17 +21,7 @@ import { sendStaysInReach } from "./task-send.js";
  * one would be felt on a machine nobody is watching. Changes are read through a query instead, so
  * a phone reviewing a diff moves nothing on the desktop.
  */
-export type MobileCommand = Extract<AppCommand, {
-  type:
-    | "task.new" | "task.select" | "task.send" | "task.archive" | "task.restore" | "task.rename"
-    | "task.dismiss" | "task.dismiss-all" | "task.fork" | "task.set-policy" | "task.set-model"
-    | "task.set-effort" | "task.set-fast-mode" | "task.set-worktree" | "task.move-worktree"
-    | "task.steer-queued" | "task.drop-queued"
-    | "run.cancel" | "run.decide" | "run.stop-process" | "question.answer"
-    | "annotation.add" | "annotation.note" | "annotation.remove" | "annotation.recall"
-    | "paste.add" | "paste.remove" | "paste.recall"
-    | "view.set-prompt";
-}>;
+export type MobileCommand = Extract<AppCommand, { type: PhoneCommandType }>;
 
 /** A thread's state as one row: what it is doing outranks what it last did. */
 export type MobileRunStatus = "idle" | "running" | "stopped" | "awaiting-approval";
@@ -281,141 +270,8 @@ export type MobilePatch = {
  */
 export const MOBILE_PROTOCOL_VERSION = 7;
 
-const MAX_ID_LENGTH = 256;
-const MAX_PROMPT_LENGTH = 1_000_000;
-/** The longest title a phone may give a thread, which its rename field holds it to. */
-export const MAX_TITLE_LENGTH = 1_000;
-const MAX_QUOTE_LENGTH = 100_000;
 const MAX_DEVICE_NAME_LENGTH = 128;
 const MAX_TOKEN_LENGTH = 512;
-const MAX_PATH_LENGTH = 4_096;
-/** How many drafted annotations or pastes one recall may carry. */
-const MAX_RECALL = 100;
-
-function isString(value: unknown, maxLength = MAX_ID_LENGTH): value is string {
-  return typeof value === "string" && value.length > 0 && value.length <= maxLength;
-}
-
-function isBlankable(value: unknown, maxLength: number): value is string {
-  return typeof value === "string" && value.length <= maxLength;
-}
-
-function isCount(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function isAnchor(value: unknown): value is AnnotationAnchor {
-  if (!isRecord(value)) return false;
-  if (value.kind === "message") return isString(value.messageId) && isCount(value.start) && isCount(value.end);
-  if (value.kind !== "diff") return false;
-  return isString(value.comparison, 4_096)
-    && isString(value.path, 4_096)
-    && isString(value.start)
-    && isString(value.end)
-    && (value.side === "old" || value.side === "new");
-}
-
-function isAnnotation(value: unknown): value is Annotation {
-  if (!isRecord(value)) return false;
-  return isString(value.id)
-    && isString(value.quote, MAX_QUOTE_LENGTH)
-    && isBlankable(value.note, MAX_QUOTE_LENGTH)
-    && (value.anchor === undefined || isAnchor(value.anchor));
-}
-
-function isPastedText(value: unknown): value is PastedText {
-  return isRecord(value) && isString(value.id) && isString(value.text, MAX_PROMPT_LENGTH);
-}
-
-function isBoundedList<T>(value: unknown, item: (entry: unknown) => entry is T): value is T[] {
-  return Array.isArray(value) && value.length <= MAX_RECALL && value.every(item);
-}
-
-/** The command surface open to a paired phone. Everything else is the desktop window's alone. */
-export function isMobileCommand(value: unknown): value is MobileCommand {
-  if (!isRecord(value)) return false;
-  const command = value;
-  const named = command.taskId === undefined || isString(command.taskId);
-  if (typeof command.type !== "string") return false;
-  if (command.type.startsWith("question.")) return isQuestionCommand(command);
-  if (command.type.startsWith("task.") || command.type.startsWith("run.")) return isThreadCommand(command, named);
-  if (command.type.startsWith("annotation.")) return isAnnotationCommand(command, named);
-  if (command.type.startsWith("paste.")) return isPasteCommand(command, named);
-  if (command.type === "view.set-prompt") return named && isBlankable(command.prompt, MAX_PROMPT_LENGTH);
-  return false;
-}
-
-function isQuestionCommand(command: Record<string, unknown>) {
-  if (!isString(command.taskId) || !isString(command.runId)) return false;
-  return command.type === "question.answer" && isString(command.requestId) && isString(command.questionId)
-    && (command.text === undefined || isString(command.text, MAX_PROMPT_LENGTH)) && command.attachments === undefined;
-}
-
-function isThreadCommand(command: Record<string, unknown>, named: boolean) {
-  switch (command.type) {
-    /**
-     * A phone sends a message and nothing else: never files, never the shape of a thread being started,
-     * which the draft's settings set, and never who the message is from or who the thread works under.
-     */
-    case "task.send":
-      return named
-        && (command.project === undefined || isString(command.project, MAX_PATH_LENGTH))
-        && (command.text === undefined || isString(command.text, MAX_PROMPT_LENGTH))
-        && (command.steer === undefined || typeof command.steer === "boolean")
-        && (command.worktree === undefined || typeof command.worktree === "boolean")
-        && (command.worktreeId === undefined || isString(command.worktreeId))
-        && sendStaysInReach(command, "phone");
-    case "task.new":
-      return (command.projectId === undefined || isString(command.projectId))
-        && (command.worktreeId === undefined || isString(command.worktreeId));
-    case "task.select":
-    case "task.archive":
-    case "task.restore":
-    case "task.dismiss":
-      return isString(command.taskId);
-    case "task.dismiss-all":
-      return (command.localOnly === undefined || typeof command.localOnly === "boolean")
-        && (command.projectId === undefined || isString(command.projectId));
-    case "task.rename":
-      return isString(command.taskId) && isBlankable(command.title, MAX_TITLE_LENGTH);
-    case "task.fork":
-      return named && (command.worktree === undefined || typeof command.worktree === "boolean");
-    case "task.set-policy":
-      return named && isExecutionPolicy(command.policy);
-    case "task.set-model":
-      return named && isAgentEngine(command.engine) && (command.model === undefined || isModelId(command.model));
-    case "task.set-fast-mode":
-      return named && typeof command.fastMode === "boolean";
-    case "task.set-effort":
-      return named && isAgentEngine(command.engine) && isAgentEffort(command.effort);
-    case "task.set-worktree":
-      return named && typeof command.worktree === "boolean";
-    /** Only an agent moving its own thread waits for its run to end or says what it goes on with, and only the link names a thread elsewhere that asked: the host says each, never the caller. */
-    case "task.move-worktree":
-      return named && isDestination(command.destination) && command.afterRun === undefined && command.sender === undefined && command.then === undefined;
-    case "task.steer-queued":
-    case "task.drop-queued":
-      return named && isString(command.messageId);
-    case "run.cancel":
-      return named;
-    case "run.decide":
-      return isString(command.taskId) && isString(command.runId) && isString(command.approvalId) && typeof command.allow === "boolean";
-    case "run.stop-process":
-      return named && isString(command.processId);
-    default:
-      return false;
-  }
-}
-
-function isDestination(value: unknown): value is WorktreeDestination {
-  if (!isRecord(value)) return false;
-  if (value.kind === "local" || value.kind === "new") return true;
-  return value.kind === "worktree" && isString(value.id);
-}
 
 /**
  * What a phone reads that is content rather than state: a review's file list and one file's patch.
@@ -429,27 +285,6 @@ export function isMobileQuery(value: unknown): value is MobileQuery {
   if (!isRecord(value) || !isString(value.taskId) || !isDiffRange(value.range)) return false;
   if (value.kind === "diff-summary") return true;
   return value.kind === "diff-patch" && isString(value.path, MAX_PATH_LENGTH) && (value.previousPath === undefined || isString(value.previousPath, MAX_PATH_LENGTH));
-}
-
-function isAnnotationCommand(command: Record<string, unknown>, named: boolean) {
-  if (!named) return false;
-  if (command.type === "annotation.add") {
-    return isString(command.quote, MAX_QUOTE_LENGTH)
-      && (command.note === undefined || isBlankable(command.note, MAX_QUOTE_LENGTH))
-      && (command.anchor === undefined || isAnchor(command.anchor));
-  }
-  if (command.type === "annotation.note") return isString(command.annotationId) && isBlankable(command.note, MAX_QUOTE_LENGTH);
-  if (command.type === "annotation.remove") return isString(command.annotationId);
-  if (command.type === "annotation.recall") return isBoundedList(command.annotations, isAnnotation);
-  return false;
-}
-
-function isPasteCommand(command: Record<string, unknown>, named: boolean) {
-  if (!named) return false;
-  if (command.type === "paste.add") return isString(command.text, MAX_PROMPT_LENGTH);
-  if (command.type === "paste.remove") return isString(command.pasteId);
-  if (command.type === "paste.recall") return isBoundedList(command.pastes, isPastedText);
-  return false;
 }
 
 /** Why the server refused. The phone shows the message; the code decides whether it retries. */
@@ -558,7 +393,7 @@ export function isMobileClientMessage(value: unknown): value is MobileClientMess
       && (value.sessionId === undefined || isString(value.sessionId))
       && isCount(value.lastSequence);
   }
-  if (value.kind === "command") return isString(value.requestId) && isMobileCommand(value.command);
+  if (value.kind === "command") return isString(value.requestId) && isPhoneCommand(value.command);
   if (value.kind === "query") return isString(value.requestId) && isMobileQuery(value.query);
   if (value.kind === "pong" || value.kind === "ping") return isCount(value.at);
   return false;
@@ -610,7 +445,7 @@ export function isMobileRequest(value: unknown): value is MobileRequest {
   if (!isRecord(value)) return false;
   if (value.type !== "mobile.request" || !isString(value.requestId) || !isString(value.sessionId)) return false;
   if (value.op === "snapshot") return true;
-  if (value.op === "command") return isMobileCommand(value.command);
+  if (value.op === "command") return isPhoneCommand(value.command);
   if (value.op === "query") return isMobileQuery(value.query);
   return false;
 }

@@ -2,15 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { COMPUTER_CAPABILITIES, supportsComputerCommand, supportsComputerQuery } from "../../src/contracts/computer-capabilities.ts";
 import { isComputerClientMessage, isComputerQuery } from "../../src/contracts/computers.ts";
-import { isExternalCommand, isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
-import { isMobileCommand } from "../../src/contracts/mobile.ts";
+import { isExternalCommand, isPhoneCommand, isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
 
 test("dismiss-all scope is validated and advertised across command entry points", () => {
   for (const localOnly of [undefined, false, true, "true", 1, null]) {
     const command = { type: "task.dismiss-all", localOnly };
     const valid = localOnly === undefined || typeof localOnly === "boolean";
     assert.equal(isWorkspaceViewInput(command), valid);
-    assert.equal(isMobileCommand(command), valid);
+    assert.equal(isPhoneCommand(command), valid);
     assert.equal(isComputerClientMessage({ kind: "input", requestId: "dismiss", inputs: [command] }), valid);
   }
   assert.ok(supportsComputerCommand(COMPUTER_CAPABILITIES, { type: "task.dismiss-all", localOnly: true }));

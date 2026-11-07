@@ -7,7 +7,7 @@ import type { Thread } from "../../src/domain/thread.ts";
 import { parseThreadStore, serializeThreadStore } from "../../src/domain/thread-storage.ts";
 import type { AgentModel } from "../../src/domain/agent-engine.ts";
 import { EVERY_ENGINE_READY } from "../../src/domain/model-library.ts";
-import { isMobileCommand } from "../../src/contracts/mobile.ts";
+import { isPhoneCommand } from "../../src/contracts/workspace-view-input.ts";
 import { task, workspace, activeRun, effectAt, heldWorktree, inside, projected, PROJECT, required, run, running, queueMessage } from "./workspace-reducer-fixtures.mts";
 
 test("a composer send waits for its workspace, then starts the run and clears the draft", () => {
@@ -747,7 +747,7 @@ test("the user writing to an archived thread still on screen brings it back and 
   restoredAndSent(reduce(reduce(tabbed, { type: "view.set-prompt", taskId: "worker", prompt: "Keep going" }).state, { type: "task.send", taskId: "worker", attachments: [] }), "worker");
 
   const phone = { type: "task.send", taskId: "gone", text: "Carry on" } as const;
-  assert.equal(isMobileCommand(phone), true);
+  assert.equal(isPhoneCommand(phone), true);
   restoredAndSent(reduce(workspace({ threads: [task("gone", { archivedAt: 5, continuation })], activeRuns: {} }), phone), "gone");
 });
 

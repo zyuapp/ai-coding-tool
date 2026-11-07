@@ -1,6 +1,5 @@
 import { applyMobilePatch, emptyMobileView } from "../../application/mobile-projection";
 import {
-  isMobileCommand,
   MOBILE_PROTOCOL_VERSION,
   type MobileClientMessage,
   type MobileCommand,
@@ -8,6 +7,7 @@ import {
   type MobileServerMessage,
   type MobileView,
 } from "../../contracts/mobile";
+import { isPhoneCommand } from "../../contracts/workspace-view-input";
 import type { MobileConnectionState } from "../../domain/mobile";
 
 /**
@@ -254,7 +254,7 @@ function closed(state: MobileClientState): MobileClientStep {
  * asked after it depends on: a new thread a message is sent into stays.
  */
 function dispatch(state: MobileClientState, requestId: string, command: MobileCommand, at: number): MobileClientStep {
-  if (!isMobileCommand(command)) return { state: { ...state, notice: "That could not be sent to your computer." }, effects: [] };
+  if (!isPhoneCommand(command)) return { state: { ...state, notice: "That could not be sent to your computer." }, effects: [] };
   const live = state.connection === "live";
   const kept = live || !VIEW_COMMANDS.has(command.type) ? state.outbox : withoutTrailingMoves(state.outbox);
   if (kept.length >= MOBILE_OUTBOX_LIMIT) {

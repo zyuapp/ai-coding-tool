@@ -1,4 +1,4 @@
-import { isMobileCommand } from "../../contracts/mobile";
+import { isPhoneCommand } from "../../contracts/workspace-view-input";
 import { PAIRING_CODE_LENGTH } from "../../domain/mobile";
 import type { MobileCredential, OutboxEntry } from "./protocol";
 
@@ -44,7 +44,7 @@ export function readOutbox(store: CredentialStore): OutboxEntry[] {
   return parsed.flatMap((value): OutboxEntry[] => {
     if (!value || typeof value !== "object") return [];
     const { requestId, command, queuedAt, writes, instance } = value as Record<string, unknown>;
-    if (typeof requestId !== "string" || !requestId || !isMobileCommand(command)) return [];
+    if (typeof requestId !== "string" || !requestId || !isPhoneCommand(command)) return [];
     const written = typeof writes === "number" ? writes : 0;
     return [{ requestId, command, sent: written > 0, queuedAt: typeof queuedAt === "number" ? queuedAt : 0, writes: written, ...(typeof instance === "string" && instance ? { instance } : {}) }];
   });

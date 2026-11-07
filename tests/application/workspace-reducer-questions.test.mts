@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import { isRunCommand, isRunEvent } from "../../src/contracts/ipc.ts";
-import { isMobileCommand } from "../../src/contracts/mobile.ts";
+import { isPhoneCommand } from "../../src/contracts/workspace-view-input.ts";
 import { running, effectAt } from "./workspace-reducer-fixtures.mts";
 
 const request = { type: "question.requested" as const, taskId: "task-a", runId: "run-a", sequence: 1, requestId: "request", request: { blocking: false, questions: [
@@ -74,6 +74,6 @@ test("question events and external answers validate their addresses and content"
   assert.equal(isRunEvent({ ...request, request: { ...request.request, questions: [request.request.questions[0], request.request.questions[0]] } }), false);
   assert.equal(isRunCommand({ ...answer, type: "answer-question", text: "Chicago" }), true);
   assert.equal(isRunCommand({ ...answer, type: "answer-question", text: " " }), false);
-  assert.equal(isMobileCommand({ ...answer, text: "Chicago" }), true);
-  assert.equal(isMobileCommand({ ...answer, runId: null, text: "Chicago" }), false);
+  assert.equal(isPhoneCommand({ ...answer, text: "Chicago" }), true);
+  assert.equal(isPhoneCommand({ ...answer, runId: null, text: "Chicago" }), false);
 });

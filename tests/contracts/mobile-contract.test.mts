@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { isMobileClientMessage, isMobileCommand, isMobileRequest, isMobileResponse, isMobileServerMessage, MOBILE_PROTOCOL_VERSION } from "../../src/contracts/mobile.ts";
+import { isMobileClientMessage, isMobileRequest, isMobileResponse, isMobileServerMessage, MOBILE_PROTOCOL_VERSION, type MobileCommand } from "../../src/contracts/mobile.ts";
+import { isPhoneCommand } from "../../src/contracts/workspace-view-input.ts";
 import {
   addressOrigin,
   createPairingCode,
@@ -52,7 +53,7 @@ test("a phone may drive the conversation and nothing outside it", () => {
     { type: "paste.recall", pastes: [{ id: "paste-1", text: "pasted" }] },
     { type: "view.set-prompt", prompt: "" },
   ];
-  for (const command of allowed) assert.equal(isMobileCommand(command), true, JSON.stringify(command));
+  for (const command of allowed) assert.equal(isPhoneCommand(command), true, JSON.stringify(command));
 
   const refused: unknown[] = [
     { type: "terminal.open" },
@@ -71,32 +72,32 @@ test("a phone may drive the conversation and nothing outside it", () => {
     { type: "task.move", taskId: "task-1", target: { projectId: null, index: 0 } },
     { type: "task.checkout-branch", branch: "main" },
   ];
-  for (const command of refused) assert.equal(isMobileCommand(command), false, JSON.stringify(command));
+  for (const command of refused) assert.equal(isPhoneCommand(command), false, JSON.stringify(command));
 });
 
 test("mobile command guard rejects wrong shapes and oversized text", () => {
-  assert.equal(isMobileCommand(null), false);
-  assert.equal(isMobileCommand("task.new"), false);
-  assert.equal(isMobileCommand([{ type: "task.new" }]), false);
-  assert.equal(isMobileCommand({ type: "task.select" }), false, "selecting names a thread");
-  assert.equal(isMobileCommand({ type: "task.select", taskId: "" }), false);
-  assert.equal(isMobileCommand({ type: "task.send", taskId: 7 }), false);
-  assert.equal(isMobileCommand({ type: "task.send", text: "x".repeat(1_000_001) }), false);
-  assert.equal(isMobileCommand({ type: "task.send", attachments: [] }), false, "a phone carries no files");
-  assert.equal(isMobileCommand({ type: "task.set-policy", policy: "yolo" }), false);
-  assert.equal(isMobileCommand({ type: "task.set-model", engine: "claude", model: "two words" }), false);
-  assert.equal(isMobileCommand({ type: "task.set-model", engine: "claude", model: "gpt" }), true, "which models an engine offers is the reducer's to decide");
-  assert.equal(isMobileCommand({ type: "task.set-effort", engine: "claude", effort: "galaxy" }), false);
-  assert.equal(isMobileCommand({ type: "task.set-effort", engine: "claude", effort: "ultra" }), true, "which efforts a model takes is the reducer's to decide");
-  assert.equal(isMobileCommand({ type: "task.set-effort", effort: "high" }), false, "an effort names its engine");
-  assert.equal(isMobileCommand({ type: "run.decide" }), false);
-  assert.equal(isMobileCommand({ type: "run.decide", allow: "yes" }), false);
-  assert.equal(isMobileCommand({ type: "view.set-prompt", prompt: 0 }), false);
-  assert.equal(isMobileCommand({ type: "annotation.add", quote: "" }), false);
-  assert.equal(isMobileCommand({ type: "annotation.add", quote: "q", anchor: { kind: "selection" } }), false);
-  assert.equal(isMobileCommand({ type: "annotation.recall", annotations: [{ id: "a" }] }), false);
-  assert.equal(isMobileCommand({ type: "annotation.recall", annotations: Array.from({ length: 101 }, (_, index) => ({ id: `a-${index}`, quote: "q", note: "" })) }), false);
-  assert.equal(isMobileCommand({ type: "paste.recall", pastes: [{ id: "p", text: "" }] }), false);
+  assert.equal(isPhoneCommand(null), false);
+  assert.equal(isPhoneCommand("task.new"), false);
+  assert.equal(isPhoneCommand([{ type: "task.new" }]), false);
+  assert.equal(isPhoneCommand({ type: "task.select" }), false, "selecting names a thread");
+  assert.equal(isPhoneCommand({ type: "task.select", taskId: "" }), false);
+  assert.equal(isPhoneCommand({ type: "task.send", taskId: 7 }), false);
+  assert.equal(isPhoneCommand({ type: "task.send", text: "x".repeat(1_000_001) }), false);
+  assert.equal(isPhoneCommand({ type: "task.send", attachments: [] }), false, "a phone carries no files");
+  assert.equal(isPhoneCommand({ type: "task.set-policy", policy: "yolo" }), false);
+  assert.equal(isPhoneCommand({ type: "task.set-model", engine: "claude", model: "two words" }), false);
+  assert.equal(isPhoneCommand({ type: "task.set-model", engine: "claude", model: "gpt" }), true, "which models an engine offers is the reducer's to decide");
+  assert.equal(isPhoneCommand({ type: "task.set-effort", engine: "claude", effort: "galaxy" }), false);
+  assert.equal(isPhoneCommand({ type: "task.set-effort", engine: "claude", effort: "ultra" }), true, "which efforts a model takes is the reducer's to decide");
+  assert.equal(isPhoneCommand({ type: "task.set-effort", effort: "high" }), false, "an effort names its engine");
+  assert.equal(isPhoneCommand({ type: "run.decide" }), false);
+  assert.equal(isPhoneCommand({ type: "run.decide", allow: "yes" }), false);
+  assert.equal(isPhoneCommand({ type: "view.set-prompt", prompt: 0 }), false);
+  assert.equal(isPhoneCommand({ type: "annotation.add", quote: "" }), false);
+  assert.equal(isPhoneCommand({ type: "annotation.add", quote: "q", anchor: { kind: "selection" } }), false);
+  assert.equal(isPhoneCommand({ type: "annotation.recall", annotations: [{ id: "a" }] }), false);
+  assert.equal(isPhoneCommand({ type: "annotation.recall", annotations: Array.from({ length: 101 }, (_, index) => ({ id: `a-${index}`, quote: "q", note: "" })) }), false);
+  assert.equal(isPhoneCommand({ type: "paste.recall", pastes: [{ id: "p", text: "" }] }), false);
 });
 
 test("a phone's send carries a message and nothing the window or an agent sets", () => {
@@ -118,16 +119,16 @@ test("a phone's send carries a message and nothing the window or an agent sets",
     { type: "task.send", text: "hi", role: "coordinator" },
     { type: "task.send", text: "hi", project: "x".repeat(4_097) },
   ];
-  for (const command of refused) assert.equal(isMobileCommand(command), false, JSON.stringify(command));
-  assert.equal(isMobileCommand({ type: "task.send", project: "/Users/me/app", worktree: true, worktreeId: "worktree-1", text: "hi" }), true);
-  assert.equal(isMobileCommand({ type: "task.send", taskId: "task-1", text: "hi", steer: true }), true);
-  assert.equal(isMobileCommand({ type: "task.send" }), true, "a draft sends the prompt the phone set");
+  for (const command of refused) assert.equal(isPhoneCommand(command), false, JSON.stringify(command));
+  assert.equal(isPhoneCommand({ type: "task.send", project: "/Users/me/app", worktree: true, worktreeId: "worktree-1", text: "hi" }), true);
+  assert.equal(isPhoneCommand({ type: "task.send", taskId: "task-1", text: "hi", steer: true }), true);
+  assert.equal(isPhoneCommand({ type: "task.send" }), true, "a draft sends the prompt the phone set");
 });
 
 test("a phone's move never waits on a run, which only an agent moving itself does", () => {
-  assert.equal(isMobileCommand({ type: "task.move-worktree", taskId: "task-1", destination: { kind: "new" }, afterRun: true }), false);
-  assert.equal(isMobileCommand({ type: "task.move-worktree", taskId: "task-1", destination: { kind: "new" }, afterRun: "yes" }), false);
-  assert.equal(isMobileCommand({ type: "task.move-worktree", taskId: "task-1", destination: { kind: "new" }, sender: { threadId: "lead", title: "Lead", computer: "Linux" } }), false);
+  assert.equal(isPhoneCommand({ type: "task.move-worktree", taskId: "task-1", destination: { kind: "new" }, afterRun: true }), false);
+  assert.equal(isPhoneCommand({ type: "task.move-worktree", taskId: "task-1", destination: { kind: "new" }, afterRun: "yes" }), false);
+  assert.equal(isPhoneCommand({ type: "task.move-worktree", taskId: "task-1", destination: { kind: "new" }, sender: { threadId: "lead", title: "Lead", computer: "Linux" } }), false);
 });
 
 test("client messages are read defensively, since the phone is the boundary", () => {
@@ -222,7 +223,7 @@ test("a phone may move a thread between checkouts, and nothing else about worktr
     { type: "task.move-worktree", taskId: "task-1", destination: { kind: "local" } },
     { type: "task.move-worktree", destination: { kind: "worktree", id: "worktree-1" } },
   ];
-  for (const command of allowed) assert.equal(isMobileCommand(command), true, JSON.stringify(command));
+  for (const command of allowed) assert.equal(isPhoneCommand(command), true, JSON.stringify(command));
   const refused: unknown[] = [
     { type: "task.set-worktree", worktree: "yes" },
     { type: "task.move-worktree", taskId: "task-1", destination: { kind: "worktree" } },
@@ -230,7 +231,7 @@ test("a phone may move a thread between checkouts, and nothing else about worktr
     { type: "worktree.delete", root: "/tmp/checkout" },
     { type: "task.checkout-branch", branch: "main" },
   ];
-  for (const command of refused) assert.equal(isMobileCommand(command), false, JSON.stringify(command));
+  for (const command of refused) assert.equal(isPhoneCommand(command), false, JSON.stringify(command));
 });
 
 test("a query names a thread and a comparison, and travels to the window like a command", () => {
@@ -245,4 +246,21 @@ test("a query names a thread and a comparison, and travels to the window like a 
   assert.equal(isMobileServerMessage({ kind: "answer", sequence: 3, requestId: "q1", ok: true, result: { status: "available", patch: "" } }), true);
   assert.equal(isMobileServerMessage({ kind: "answer", sequence: 3, requestId: "q1", ok: false, message: "No checkout." }), true);
   assert.equal(isMobileServerMessage({ kind: "answer", sequence: 3, requestId: "q1", ok: true }), false, "an answer carries what was read");
+});
+
+test("a phone may send exactly the commands that declare a phone rule", () => {
+  const types: Record<MobileCommand["type"], true> = {
+    "task.new": true, "task.select": true, "task.send": true, "task.archive": true, "task.restore": true, "task.rename": true,
+    "task.dismiss": true, "task.dismiss-all": true, "task.fork": true, "task.set-policy": true, "task.set-model": true,
+    "task.set-effort": true, "task.set-fast-mode": true, "task.set-worktree": true, "task.move-worktree": true,
+    "task.steer-queued": true, "task.drop-queued": true,
+    "run.cancel": true, "run.decide": true, "run.stop-process": true, "question.answer": true,
+    "annotation.add": true, "annotation.note": true, "annotation.remove": true, "annotation.recall": true,
+    "paste.add": true, "paste.remove": true, "paste.recall": true,
+    "view.set-prompt": true,
+  };
+  assert.equal(Object.keys(types).length, 29);
+  for (const type of ["terminal.input", "worktree.delete", "project.remove", "browser.open", "task.set-role", "run.compact"]) {
+    assert.equal(isPhoneCommand({ type, taskId: "task-1" }), false, type);
+  }
 });
