@@ -3,7 +3,7 @@ import { rankedThread } from "../../src/domain/thread-storage.ts";
 import { test } from "vitest";
 import { applyMobilePatch, diffMobileView, emptyMobileView, mobileEngineView, MOBILE_TRANSCRIPT_MESSAGES, projectMobileView } from "../../src/application/mobile-projection.ts";
 import { BUILT_IN_MODELS, efforts, effortsFor, modelLabel, modelsFor, type EngineStatus } from "../../src/domain/agent-engine.ts";
-import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { workspaceViewCollections } from "../../src/application/workspace-view-collections.ts";
 import type { ActiveRun, ApprovalView } from "../../src/application/thread-run-state.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";
@@ -515,4 +515,21 @@ test("a draft says how it will start: in a checkout of its own, or in one the pr
   assert.equal(existing.worktreeName, "Feature");
   assert.deepEqual(existing.worktrees, [], "the checkout it starts in is not also offered");
   assert.deepEqual(diffMobileView(projectMobileView(base, NOW), projectMobileView({ ...base, draftWorktree: true }, NOW))?.draft?.worktree, true);
+});
+
+test("the desktop's draft offers the project's checkouts, most recently used first, and an open thread offers none", () => {
+  const worktree = (id: string, lastUsedAt: number, projectId = "project-app") => ({ id, projectId, root: `/code/app-${id}`, workspaceId: `ws-${id}`, baseCommit: "abc", createdAt: lastUsedAt, lastUsedAt });
+  const base = workspace([task("open", { projectId: "project-app" })], {
+    draftProjectId: "project-app",
+    projects: [{ id: "project-app", root: "/code/app", name: "App", workspaceId: "ws-app" }, { id: "project-site", root: "/code/site" }],
+    worktrees: [worktree("older", NOW - 10), worktree("newer", NOW - 5), worktree("elsewhere", NOW, "project-site")],
+    environments: { "ws-newer": { status: "available", files: [], branch: "spike", baseline: null, additions: 0, deletions: 0 } },
+  });
+  assert.deepEqual(deriveView(base).draftWorktreeChoices, [
+    { id: "newer", name: "app-newer", branch: "spike" },
+    { id: "older", name: "app-older", branch: null },
+  ]);
+  assert.deepEqual(deriveView({ ...base, draftWorktreeId: "newer" }).draftWorktreeChoices.map((choice) => choice.id), ["older"], "the checkout it starts in is not also offered");
+  assert.deepEqual(deriveView({ ...base, draftProjectId: null }).draftWorktreeChoices, [], "a chat has no checkouts");
+  assert.deepEqual(deriveView({ ...base, currentId: "open" }).draftWorktreeChoices, [], "an open thread is no draft");
 });

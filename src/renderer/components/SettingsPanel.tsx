@@ -123,7 +123,7 @@ export type SettingsPanelProps = {
   projects?: ProjectSettingsProps;
 };
 
-const NO_PROJECT_SETTINGS: ProjectSettingsProps = { projects: [], projectHosts: new Map(), threads: [], error: null, onDismissError() {}, onAdd() {}, onEdit() {}, onRemove() {} };
+const NO_PROJECT_SETTINGS: ProjectSettingsProps = { rows: [], error: null, onDismissError() {}, onAdd() {}, onEdit() {}, onRemove() {} };
 
 /** A Devices page with no computers to speak of, for a caller with nothing to say about them. */
 const NO_COMPUTER_SETTINGS: ComputerSettingsProps = { found: [], searching: false, searchError: null, name: "", links: [], pairing: null, onDiscover() {}, onPair() {}, onCancelPairing() {}, onForget() {}, onReconnect() {}, onRename() {}, onLabel() {} };

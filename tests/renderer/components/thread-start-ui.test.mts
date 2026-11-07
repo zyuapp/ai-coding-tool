@@ -462,3 +462,55 @@ test("the project picker ends with adding a project, and with none to pick the s
   assert.equal(added, 2);
   await view.unmount();
 });
+
+test("with checkouts the project already has, the worktree control picks none, a new one, or one of them", async () => {
+  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  window.desktop = fakeDesktop();
+  const toggled: boolean[] = [];
+  const startedIn: string[] = [];
+  const options = (worktree: boolean) => React.createElement(ThreadStartOptions, {
+    projects: [{ id: "project-a", root: "/repo/ai-coding-tool" }], projectId: "project-a", workspaceId: "workspace-a", branch: null, worktree,
+    onSelectProject() {}, onAddProject() {}, onSelectBranch() {},
+    onSetWorktree: (on) => { toggled.push(on); },
+    worktreeChoices: [{ id: "wt-loader", name: "loader-fix", branch: "fix-loader" }, { id: "wt-old", name: "spike", branch: null }],
+    onStartInWorktree: (id) => { startedIn.push(id); },
+    coordinator: false, onSetCoordinator() {},
+  });
+  const view = await mount(options(false));
+  assert.equal(view.container.querySelector(".thread-start-toggle[aria-pressed]:not(.thread-start-coordinator)"), null, "the toggle gives way to a picker");
+  const trigger = query<HTMLButtonElement>(view.container, 'button[aria-label^="Worktree: "]');
+  assert.equal(trigger.getAttribute("aria-label"), "Worktree: None");
+  assert.equal(trigger.textContent, "Worktree");
+
+  await act(async () => { trigger.click(); });
+  const listbox = query(view.container, '[role="listbox"][aria-label="Worktree"]');
+  assert.deepEqual([...listbox.querySelectorAll('[role="option"]')].map((option) => [option.textContent, option.getAttribute("aria-selected")]), [
+    ["No worktree", "true"],
+    ["New worktree", "false"],
+    ["loader-fixfix-loader", "false"],
+    ["spikeDetached", "false"],
+  ]);
+  assert.ok(listbox.querySelector('[role="group"][aria-label="Existing worktrees"]'));
+  const option = (name: string) => item([...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')].find((candidate) => candidate.textContent?.startsWith(name)));
+
+  await act(async () => { option("loader-fix").click(); });
+  assert.deepEqual(startedIn, ["wt-loader"]);
+  assert.equal(trigger.getAttribute("aria-expanded"), "false", "choosing closes the picker");
+
+  await act(async () => { trigger.click(); });
+  await act(async () => { option("No worktree").click(); });
+  assert.deepEqual(toggled, [], "choosing what is already chosen asks for nothing");
+
+  await act(async () => { trigger.click(); });
+  await act(async () => { option("New worktree").click(); });
+  assert.deepEqual(toggled, [true]);
+
+  await view.render(options(true));
+  const on = query<HTMLButtonElement>(view.container, 'button[aria-label^="Worktree: "]');
+  assert.equal(on.getAttribute("aria-label"), "Worktree: New worktree");
+  assert.equal(on.textContent, "New worktree");
+  await act(async () => { on.click(); });
+  await act(async () => { option("No worktree").click(); });
+  assert.deepEqual(toggled, [true, false]);
+  await view.unmount();
+});

@@ -7,6 +7,7 @@ import { DEFAULT_BRANCH_RANGE } from "../domain/diff.js";
 import { themeFor, themeOrDefault } from "../domain/theme.js";
 import { worktreeName } from "../domain/worktree.js";
 import { orderThreads } from "./thread-order.js";
+import { worktreeChoices } from "./worktree-choices.js";
 import { coordinatorRoster, ownCoordinationSections, rowHeadline, waitingLine } from "./coordination.js";
 import type { ThreadActivity } from "./thread-activity.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
@@ -204,24 +205,9 @@ function projectMobileDraft(state: WorkspaceState, view: ReturnType<typeof deriv
     settings: { engine: view.engine, model: view.model, effort: view.effort, fastMode: view.fastMode, policy: view.policy, ...(view.coordinating ? { coordinating: true as const } : {}) },
     worktree: view.draftWorktree,
     worktreeName: view.draftWorktreeName,
-    worktrees: project ? worktreeChoices(state, project, view.draftWorktreeId ?? undefined) : [],
+    worktrees: view.draftWorktreeChoices,
     canWorktree: Boolean(project?.workspaceId),
   };
-}
-
-/** The project's checkouts a phone can name, most recently used first, without the one it is in. */
-function worktreeChoices(state: WorkspaceState, project: Project, except: string | undefined): MobileWorktreeChoice[] {
-  const managed = state.managedWorktrees ? new Map(state.managedWorktrees.map((item) => [item.root, item])) : null;
-  const deleting = new Set(state.deletingWorktrees);
-  return state.worktrees
-    .filter((worktree) => worktree.projectId === project.id && worktree.id !== except && !deleting.has(worktree.root))
-    .filter((worktree) => !managed || managed.get(worktree.root)?.repository)
-    .sort((left, right) => right.lastUsedAt - left.lastUsedAt)
-    .map((worktree) => {
-      const environment = state.environments[worktree.workspaceId];
-      const branch = environment?.status === "available" ? environment.branch : managed?.get(worktree.root)?.branch ?? null;
-      return { id: worktree.id, name: worktreeName(worktree), branch };
-    });
 }
 
 function locationOf(view: ReturnType<typeof deriveView>): MobileLocation {
@@ -274,7 +260,7 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
     queued: view.queuedMessages.map((message) => ({ id: message.id, text: message.text, ...labelOf(message), ...(message.steering ? { steering: true } : {}) })),
     settings: { engine: view.engine, model: view.model, effort: view.effort, fastMode: view.fastMode, policy: view.policy, ...(view.coordinating ? { coordinating: true as const } : {}) },
     location,
-    worktrees: project ? worktreeChoices(state, project, thread.worktreeId) : [],
+    worktrees: project ? worktreeChoices(state, project.id, thread.worktreeId) : [],
     canMove: Boolean(project?.workspaceId) && location.kind !== "creating" && location.kind !== "releasing" && !view.runningThreadIds.has(thread.id),
     changes: changesOf(view),
     reviewable: threadWorkspaceId(state, thread) !== undefined,

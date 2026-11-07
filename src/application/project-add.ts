@@ -91,9 +91,10 @@ export function reduceProjectAdd(state: WorkspaceState, input: Input): Workspace
         return add?.request === input.request ? startIn({ ...state, projectAdd: null }, input.workspace) : settled(state);
       }
       const opened = reduceProjects(state, { type: "project.opened", workspace: input.workspace }).state;
-      // Registering a folder on a served host must not move its own window away from a thread.
-      const next = { ...opened, currentId: state.currentId, draftProjectId: state.draftProjectId };
-      return settled(input.request !== undefined && add?.request === input.request ? { ...next, projectAdd: null } : next);
+      /** A folder this window's dialog added lands on a draft there, as one picked from the folder panel does. */
+      if (input.request !== undefined && add?.request === input.request) return settled({ ...opened, projectAdd: null });
+      /** Registering a folder on a served host must not move its own window away from a thread. */
+      return settled({ ...opened, currentId: state.currentId, draftProjectId: state.draftProjectId });
     }
     case "project.add-finished": {
       if (input.request === undefined) return input.error ? rejected(state, input.error) : settled(state);

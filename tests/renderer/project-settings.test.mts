@@ -4,21 +4,26 @@ import { readFile } from "node:fs/promises";
 import { test } from "vitest";
 import { act } from "react";
 import { renderSettingsPanel } from "../support/settings-panel.mts";
-import { task } from "../application/workspace-reducer-fixtures.mts";
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 import type { ProjectSettingsProps } from "../../src/renderer/components/ProjectSettings.tsx";
+import type { ProjectSettingsRow } from "../../src/application/project-settings.ts";
+import type { ThreadHost } from "../../src/application/computers.ts";
 
-const linux = { id: "linux", name: "linux-box", offline: false };
+const linux: ThreadHost = { id: "linux", name: "linux-box", offline: false };
+
+function row(id: string, root: string, overrides: { name?: string; host?: ThreadHost; threads?: number } = {}): ProjectSettingsRow {
+  return { project: { id, root, ...(overrides.name ? { name: overrides.name } : {}) }, ...(overrides.host ? { host: overrides.host } : {}), threads: overrides.threads ?? 0 };
+}
 
 function projectSettings(overrides: Partial<ProjectSettingsProps> = {}): ProjectSettingsProps {
-  return { projects: [], projectHosts: new Map(), threads: [], error: null, onDismissError() {}, onAdd() {}, onEdit() {}, onRemove() {}, ...overrides };
+  return { rows: [], error: null, onDismissError() {}, onAdd() {}, onEdit() {}, onRemove() {}, ...overrides };
 }
 
 const button = (root: ParentNode, name: string) => item([...root.querySelectorAll<HTMLButtonElement>("button")].find((candidate) => candidate.textContent === name));
 
 test("Settings lists a Projects page, and choosing it shows the projects", async () => {
   window.desktop = fakeDesktop({});
-  const view = await mount(renderSettingsPanel({ projects: projectSettings({ projects: [{ id: "web", root: "/work/web" }] }) }));
+  const view = await mount(renderSettingsPanel({ projects: projectSettings({ rows: [row("web", "/work/web")] }) }));
   await act(async () => {});
   const nav = query(view.container, 'nav[aria-label="Settings sections"]');
   const page = button(nav, "Projects");
@@ -30,17 +35,12 @@ test("Settings lists a Projects page, and choosing it shows the projects", async
   await view.unmount();
 });
 
-test("projects are listed this computer's first, then by name, with a paired computer's named before its path", async () => {
+test("rows are drawn in the order given, with a paired computer's named before its path", async () => {
   window.desktop = fakeDesktop({});
   const view = await mount(renderSettingsPanel({
     initialSection: "projects",
     projects: projectSettings({
-      projects: [
-        { id: "ml", root: "/linux/ml" },
-        { id: "zeta", root: "/work/zeta" },
-        { id: "alpha", root: "/work/alpha", name: "Alpha app" },
-      ],
-      projectHosts: new Map([["ml", linux]]),
+      rows: [row("alpha", "/work/alpha", { name: "Alpha app" }), row("zeta", "/work/zeta"), row("ml", "/linux/ml", { host: linux })],
     }),
   }));
   await act(async () => {});
@@ -59,34 +59,33 @@ test("a project's row edits it, and removing asks first, naming the threads it a
   const view = await mount(renderSettingsPanel({
     initialSection: "projects",
     projects: projectSettings({
-      projects: [{ id: "busy", root: "/work/busy" }, { id: "empty", root: "/work/empty" }],
-      threads: [task("one", { projectId: "busy" }), task("two", { projectId: "busy" }), task("loose")],
+      rows: [row("busy", "/work/busy", { threads: 2 }), row("empty", "/work/empty")],
       onAdd: () => { added.push(1); },
       onEdit: (id) => { edited.push(id); },
       onRemove: (id) => { removed.push(id); },
     }),
   }));
   await act(async () => {});
-  const row = (name: string) => item([...view.container.querySelectorAll<HTMLElement>(".setting-row")].find((candidate) => candidate.querySelector("strong")?.textContent === name));
+  const rowNamed = (name: string) => item([...view.container.querySelectorAll<HTMLElement>(".setting-row")].find((candidate) => candidate.querySelector("strong")?.textContent === name));
 
   await act(async () => { button(view.container, "Add project").click(); });
   assert.deepEqual(added, [1]);
 
-  await act(async () => { query<HTMLButtonElement>(row("busy"), '[aria-label="Edit busy"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(rowNamed("busy"), '[aria-label="Edit busy"]').click(); });
   assert.deepEqual(edited, ["busy"]);
 
-  await act(async () => { query<HTMLButtonElement>(row("busy"), '[aria-label="Remove busy"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(rowNamed("busy"), '[aria-label="Remove busy"]').click(); });
   assert.deepEqual(removed, [], "the first press only asks");
-  assert.equal(dom.window.document.activeElement, button(row("busy"), "Cancel"));
-  await act(async () => { button(row("busy"), "Cancel").click(); });
+  assert.equal(dom.window.document.activeElement, button(rowNamed("busy"), "Cancel"));
+  await act(async () => { button(rowNamed("busy"), "Cancel").click(); });
   assert.deepEqual(removed, []);
 
-  await act(async () => { query<HTMLButtonElement>(row("busy"), '[aria-label="Remove busy"]').click(); });
-  await act(async () => { button(row("busy"), "Remove and archive 2 threads").click(); });
+  await act(async () => { query<HTMLButtonElement>(rowNamed("busy"), '[aria-label="Remove busy"]').click(); });
+  await act(async () => { button(rowNamed("busy"), "Remove and archive 2 threads").click(); });
   assert.deepEqual(removed, ["busy"]);
 
-  await act(async () => { query<HTMLButtonElement>(row("empty"), '[aria-label="Remove empty"]').click(); });
-  await act(async () => { button(row("empty"), "Remove").click(); });
+  await act(async () => { query<HTMLButtonElement>(rowNamed("empty"), '[aria-label="Remove empty"]').click(); });
+  await act(async () => { button(rowNamed("empty"), "Remove").click(); });
   assert.deepEqual(removed, ["busy", "empty"], "a project with no threads is removed with a plain confirm");
   await view.unmount();
 });
@@ -107,7 +106,7 @@ test("a refused removal is said on the page, and Dismiss puts it away", async ()
   let dismissed = 0;
   const view = await mount(renderSettingsPanel({
     initialSection: "projects",
-    projects: projectSettings({ projects: [{ id: "web", root: "/work/web" }], error: "Stop the running tasks before removing this project.", onDismissError: () => { dismissed++; } }),
+    projects: projectSettings({ rows: [row("web", "/work/web")], error: "Stop the running tasks before removing this project.", onDismissError: () => { dismissed++; } }),
   }));
   await act(async () => {});
   const alert = query(view.container, '.settings-error[role="alert"]');
@@ -116,7 +115,7 @@ test("a refused removal is said on the page, and Dismiss puts it away", async ()
   assert.equal(dismissed, 1);
   await view.unmount();
 
-  const quiet = await mount(renderSettingsPanel({ initialSection: "projects", projects: projectSettings({ projects: [{ id: "web", root: "/work/web" }] }) }));
+  const quiet = await mount(renderSettingsPanel({ initialSection: "projects", projects: projectSettings({ rows: [row("web", "/work/web")] }) }));
   await act(async () => {});
   assert.equal(quiet.container.querySelector(".settings-error"), null, "no error, no alert");
   await quiet.unmount();
@@ -127,8 +126,7 @@ test("a paired computer's project offers no Edit, and one whose computer is away
   const view = await mount(renderSettingsPanel({
     initialSection: "projects",
     projects: projectSettings({
-      projects: [{ id: "here", root: "/work/here" }, { id: "ml", root: "/linux/ml" }, { id: "away", root: "/studio/away" }],
-      projectHosts: new Map([["ml", linux], ["away", { id: "studio", name: "Studio", offline: true }]]),
+      rows: [row("here", "/work/here"), row("ml", "/linux/ml", { host: linux }), row("away", "/studio/away", { host: { id: "studio", name: "Studio", offline: true } })],
     }),
   }));
   await act(async () => {});
@@ -146,7 +144,7 @@ test("arming Remove takes the row's Edit out of the way, leaving the question an
   const css = await readFile(new URL("../../src/renderer/styles.css", import.meta.url), "utf8");
   assert.match(css, /\.project-actions:has\(> \.armed\) > :not\(\.armed, \.armed \+ button\)/);
   window.desktop = fakeDesktop({});
-  const view = await mount(renderSettingsPanel({ initialSection: "projects", projects: projectSettings({ projects: [{ id: "web", root: "/work/web" }] }) }));
+  const view = await mount(renderSettingsPanel({ initialSection: "projects", projects: projectSettings({ rows: [row("web", "/work/web")] }) }));
   await act(async () => {});
   const actions = query(view.container, ".setting-row-action.project-actions");
   await act(async () => { query<HTMLButtonElement>(actions, '[aria-label="Remove web"]').click(); });

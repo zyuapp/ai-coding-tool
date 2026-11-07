@@ -2,6 +2,7 @@ import { LuChevronDown as ChevronDown, LuCircleAlert as CircleAlert, LuClock as 
 import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import type { ThreadHost } from "../../application/computers";
+import type { MobileWorktreeChoice } from "../../contracts/mobile";
 import { HostMark } from "./HostMark";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { projectName, type Project } from "../../domain/project";
@@ -61,10 +62,58 @@ export type ThreadStartOptionsProps = {
   /** `create` names a branch the repository does not have yet, made when the thread starts. */
   onSelectBranch: (branch: string | null, create?: boolean) => void;
   onSetWorktree: (worktree: boolean) => void;
+  /** The project's existing checkouts, any of which the thread can start in instead of a new one. */
+  worktreeChoices?: readonly MobileWorktreeChoice[];
+  onStartInWorktree?: (worktreeId: string) => void;
   /** Whether the thread starts as a coordinator, which a chat can be too. */
   coordinator: boolean;
   onSetCoordinator: (coordinator: boolean) => void;
 };
+
+const NO_CHOICES: readonly MobileWorktreeChoice[] = [];
+
+/**
+ * Where in the project the thread works: the project itself, a new checkout, or one the project
+ * already has. With no checkout yet it is a plain toggle for a new one.
+ */
+function WorktreeField({ worktree, choices, onSetWorktree, onStartIn }: { worktree: boolean; choices: readonly MobileWorktreeChoice[]; onSetWorktree: (worktree: boolean) => void; onStartIn?: (worktreeId: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  useDismissibleLayer(open, [root], () => setOpen(false), trigger);
+  if (!choices.length || !onStartIn) {
+    return (
+      <button type="button" className="thread-start-toggle" aria-pressed={worktree} onClick={() => onSetWorktree(!worktree)}>
+        <FolderSymlink size={14} />
+        <span>Worktree</span>
+      </button>
+    );
+  }
+  const pick = (act: () => void) => () => { setOpen(false); act(); };
+  return (
+    <div className={`thread-start-field thread-start-worktrees ${open ? "open" : ""}`} ref={root}>
+      <button ref={trigger} type="button" className={worktree ? "chosen" : undefined} aria-label={`Worktree: ${worktree ? "New worktree" : "None"}`} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <FolderSymlink size={14} />
+        <span>{worktree ? "New worktree" : "Worktree"}</span>
+        <ChevronDown size={14} />
+      </button>
+      {open && <PickerPopover className="thread-start-popover">
+        <div role="listbox" aria-label="Worktree">
+          <PickerOption selected={!worktree} onClick={pick(() => { if (worktree) onSetWorktree(false); })}>No worktree</PickerOption>
+          <PickerOption selected={worktree} onClick={pick(() => { if (!worktree) onSetWorktree(true); })}>New worktree</PickerOption>
+          <div role="group" aria-label="Existing worktrees">
+            <div className="thread-start-group-heading" aria-hidden="true"><span className="thread-start-group-label"><span>Existing</span></span></div>
+            {choices.map((choice) => (
+              <PickerOption key={choice.id} selected={false} onClick={pick(() => onStartIn(choice.id))}>
+                {choice.name}<small>{choice.branch ?? "Detached"}</small>
+              </PickerOption>
+            ))}
+          </div>
+        </div>
+      </PickerPopover>}
+    </div>
+  );
+}
 
 function CoordinatorToggle({ coordinator, onSetCoordinator }: Pick<ThreadStartOptionsProps, "coordinator" | "onSetCoordinator">) {
   return (
@@ -80,7 +129,7 @@ function CoordinatorToggle({ coordinator, onSetCoordinator }: Pick<ThreadStartOp
  * from, and whether it gets a checkout of its own. No project makes it a chat. Nothing here touches
  * disk — the first message does that.
  */
-export function ThreadStartOptions({ projects, projectHosts, projectId, recentProjectIds = [], workspaceId, branch, worktree, startsInWorktree, onSelectProject, onAddProject, onSelectBranch, onSetWorktree, coordinator, onSetCoordinator }: ThreadStartOptionsProps) {
+export function ThreadStartOptions({ projects, projectHosts, projectId, recentProjectIds = [], workspaceId, branch, worktree, startsInWorktree, onSelectProject, onAddProject, onSelectBranch, onSetWorktree, worktreeChoices = NO_CHOICES, onStartInWorktree, coordinator, onSetCoordinator }: ThreadStartOptionsProps) {
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [projectQuery, setProjectQuery] = useState("");
   const [branchesOpen, setBranchesOpen] = useState(false);
@@ -203,10 +252,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, recentPr
           )}
         </div>
 
-        <button type="button" className="thread-start-toggle" aria-pressed={worktree} onClick={() => onSetWorktree(!worktree)}>
-          <FolderSymlink size={14} />
-          <span>Worktree</span>
-        </button>
+        <WorktreeField worktree={worktree} choices={worktreeChoices} onSetWorktree={onSetWorktree} onStartIn={onStartInWorktree} />
         </>)}
         <CoordinatorToggle coordinator={coordinator} onSetCoordinator={onSetCoordinator} />
       </div>

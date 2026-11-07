@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
-import { emptyWorkspaceState, deriveView } from "../../src/application/workspace-state.ts";
+import { emptyWorkspaceState, deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { routeInput } from "../../src/application/computers.ts";
 import { isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
@@ -192,6 +192,30 @@ test("starting in a listed folder keeps it listed, and adding an unlisted one li
   assert.equal(state.projects[0]!.unlisted, true);
   state = reduce(state, { type: "project.opened", workspace: workspaceRecord }).state;
   assert.equal(state.projects[0]!.unlisted, undefined);
+});
+
+test("a folder this window's dialog adds lands on a draft there, even while a thread is open", () => {
+  let state: WorkspaceState = { ...emptyWorkspaceState(), threads: [task("open-thread")], currentId: "open-thread", draftProjectId: null };
+  state.computers = { ...state.computers, paired: [{ ...workspace().computers.paired[0]! }] };
+  state = reduce(state, { type: "project.open" }).state;
+  assert.equal(state.projectAdd?.computerId, "this", "a connected computer asks where, so the dialog opens");
+  state = reduce(state, { type: "view.add-project-path", root: "/app" }).state;
+  const submitted = reduce(state, { type: "view.add-project-submit" });
+  const request = state.projectAdd!.request + 1;
+  assert.deepEqual(submitted.effects, [{ type: "add-project", root: "/app", request }]);
+  const added = reduce(submitted.state, { type: "project.added", workspace: { id: "ws", kind: "project", root: "/app" }, request }).state;
+  assert.equal(added.projectAdd, null);
+  assert.equal(added.currentId, null);
+  assert.equal(added.draftProjectId, added.projects[0]!.id);
+  assert.equal(added.projects[0]!.unlisted, undefined, "an added folder is listed");
+});
+
+test("a folder registered on a served host for another window leaves this window where it was", () => {
+  const before = { ...emptyWorkspaceState(), threads: [task("open-thread")], currentId: "open-thread", projects: [{ id: "kept", root: "/kept" }], draftProjectId: "kept" };
+  const added = reduce(before, { type: "project.added", workspace: { id: "ws", kind: "project", root: "/app" } }).state;
+  assert.equal(added.currentId, "open-thread");
+  assert.equal(added.draftProjectId, "kept");
+  assert.ok(added.projects.some((project) => project.root === "/app" && !project.unlisted));
 });
 
 test("Enter submits a path typed out in full and completes a partial one", () => {

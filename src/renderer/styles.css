@@ -1446,6 +1446,10 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 }
 .thread-start-toggle > svg { flex: none; color: inherit; }
 .thread-start .thread-start-toggle[aria-pressed="true"] > svg { color: var(--accent-text); }
+/** A new checkout chosen from the worktree picker takes the same accent as the toggle it replaces. */
+.thread-start .thread-start-worktrees > button.chosen, .thread-start .thread-start-worktrees > button.chosen:hover { background: var(--accent-chip); color: var(--ink); }
+.thread-start .thread-start-worktrees > button.chosen > svg:first-child { color: var(--accent-text); }
+.thread-start-worktrees .picker-label small { margin-left: 8px; color: var(--quiet-strong); font-size: var(--text-meta); }
 .thread-start .thread-start-coordinator[aria-pressed="true"],
 .thread-start .thread-start-coordinator[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--role-coordinator) 16%, transparent); }
 .thread-start .thread-start-coordinator[aria-pressed="true"] > svg { color: var(--role-coordinator); }

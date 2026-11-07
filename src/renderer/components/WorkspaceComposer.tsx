@@ -94,6 +94,8 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
           onAddProject={workspace.actions.openFolder}
           onSelectBranch={workspace.actions.setBranch}
           onSetWorktree={workspace.actions.setWorktree}
+          worktreeChoices={workspace.draftWorktreeChoices}
+          onStartInWorktree={(worktreeId) => void workspace.actions.newThread(workspace.currentProject?.id, worktreeId)}
           coordinator={workspace.draftRole === "coordinator"}
           onSetCoordinator={(coordinator) => workspace.actions.setDraftRole(coordinator ? "coordinator" : null)}
         />

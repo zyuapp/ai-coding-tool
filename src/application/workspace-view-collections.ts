@@ -6,6 +6,7 @@ import type { Project } from "../domain/project.js";
 import { orderProjects } from "./project-order.js";
 import type { ComputerLink } from "../domain/computers.js";
 import { sidebarLists } from "./sidebar-lists.js";
+import { projectSettingsRows } from "./project-settings.js";
 import { stoppableCoordinators } from "./coordination.js";
 import { coordinationView, type CoordinationView } from "./coordination-view.js";
 import { memberPullRequestsView } from "./pull-request-view.js";
@@ -184,6 +185,9 @@ function createViewCollections() {
     },
   );
 
+  /** The Projects page lists every computer's projects, whatever the sidebar is narrowed to. */
+  const projectSettings = selector((state) => [state.projects, state.threads, state.computers.paired], projectSettingsRows);
+
   const managed = selector(
     (state) => [state.managedWorktrees, state.projects, state.worktrees, state.threads, state.deletingWorktrees, state.releasingWorktrees, busy(state)],
     (state) => worktreeSettingsViews(state, busy(state)),
@@ -238,6 +242,7 @@ function createViewCollections() {
       unreadCount: lists.unreadCount + remote(state).unreadCount,
       lists: sidebar(state),
       startProjects: startProjects(state),
+      projectSettings: projectSettings(state),
       busy: busy(state),
       blocked: blocked(state),
       everyBusy: everyBusy(state),

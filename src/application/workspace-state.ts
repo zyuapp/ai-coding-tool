@@ -5,6 +5,8 @@ import type { ApprovalView, RunTransitionState } from "./thread-run-state.js";
 import { runStatus } from "./run-record.js";
 import { threadActivity, threadLists, waitingOn, type ThreadWait } from "./thread-activity.js";
 import { sidebarLists } from "./sidebar-lists.js";
+import { worktreeChoices } from "./worktree-choices.js";
+import type { MobileWorktreeChoice } from "../contracts/mobile.js";
 import type { CoordinationSend } from "./coordination.js";
 import { effortRoleOf, type OverviewFolds } from "../domain/coordination.js";
 import type { ChangedFilesResult, DesktopShortcutRefusal, InstalledApp } from "../contracts/ipc.js";
@@ -691,6 +693,8 @@ export function deriveView(state: WorkspaceState) {
   return own;
 }
 
+const NO_WORKTREE_CHOICES: MobileWorktreeChoice[] = [];
+
 export type OwnWorkspaceView = ReturnType<typeof deriveOwnView>;
 
 /** `window` is whose menu the location row draws: this window's when the thread is a paired computer's. */
@@ -714,6 +718,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     unreadCount: collections.unreadCount,
     ...lists,
     startProjects: collections.startProjects,
+    projectSettings: collections.projectSettings,
     threads: listedThreads,
     archivedThreads: collections.archivedThreads,
     currentThread,
@@ -771,6 +776,8 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     draftBranch: state.draftBranch, draftWorktree: state.draftWorktree, draftWorktreeId: state.draftWorktreeId, draftRole: state.draftRole,
     /** What the composer calls the checkout a draft starts in, when the user picked one. */
     draftWorktreeName: draftWorktree ? worktreeName(draftWorktree) : null,
+    /** The project's existing checkouts a draft can start in instead. */
+    draftWorktreeChoices: !currentThread && currentProject ? worktreeChoices(state, currentProject.id, state.draftWorktreeId ?? undefined) : NO_WORKTREE_CHOICES,
     environment,
     /** The pull request that checkout's work belongs to, drawn only while the answer is still its own. */
     pullRequest: pullRequestFor(state.pullRequest, workspaceId, environment),
