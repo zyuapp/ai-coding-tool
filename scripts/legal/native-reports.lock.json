@@ -4,8 +4,8 @@
     "cua": {
       "inputs": {
         "repository": "trycua/cua",
-        "commit": "85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19",
-        "version": "0.38.0",
+        "commit": "6d840c54da418192fc2f4fd61b7140893da24a2d",
+        "version": "0.40.6",
         "manifest": "libs/cua-driver/rust/crates/cua-driver/Cargo.toml",
         "target": "aarch64-apple-darwin",
         "defaultFeatures": true,
@@ -16,13 +16,13 @@
         "cargoAboutVersion": "0.9.2",
         "uniffiCommit": "309762f55db3f0548194a9ceba3027fa64b18a93",
         "uniffiVersion": "0.31.0",
-        "recipeSha256": "e353a9a80ff84d8ea57f69d9b301d17d9b7927a046a049bc71dd703d011bb95e"
+        "recipeSha256": "1a846de18725ad9f28b68713db7315c9f01f5c9054fe7b69df655a1dc77a0e5e"
       },
-      "inputSha256": "d324dc76a29a2b7b7c218e7faa706796b74d46130363a557085ed5c08db2e7ea",
-      "sourceArchiveSha256": "54d1bd3fbfadea840ebb89b72fd0243baf30610a04e55964dec3ab1fa0f49a19",
-      "lockSha256": "56fab67bb0a0d93eeb7fe71783ed876617462a255a95290f53db322003e94fb0",
-      "reportSha256": "d5e40cf4bbd40b8265934e11e3dd3aeda712ead816cd97bb48d0a4771b29e59a",
-      "verifiedCuaCommit": "85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19"
+      "inputSha256": "165ff041e6507f3e16dd6c91cb67b53128a1507313d8c4501b6b240b0d22bc5a",
+      "sourceArchiveSha256": "0aee81fa6f6ee60c672dc921239cc55a9ad9deb51edd756e27a1705b39f840cc",
+      "lockSha256": "af5def22320e4ad2532d4cd5c64eae0dcff68de6079017d6bd3a86b3de024ffc",
+      "reportSha256": "5488dda87b305de7849cbcc631b9bc5b98c4fa3a8d90f8987f20eb6530ed063e",
+      "verifiedCuaCommit": "6d840c54da418192fc2f4fd61b7140893da24a2d"
     },
     "ubjs": {
       "inputs": {
@@ -41,15 +41,15 @@
         "uniffiVersion": "0.31.0",
         "libffiVersion": "3.5.2",
         "libffiSysVersion": "4.1.0",
-        "buildScriptSha256": "db02ec1345edbf6090f0093ddae3bd41d624d2984af58bcdce3a66cfcad373dc",
+        "buildScriptSha256": "1fea5d05e5096a11cd315e7779df8423dbd21328cf86dd58ace4d7ba78ae6851",
         "mplSha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
-        "recipeSha256": "06e9a6519f572f74ef3282eef527c4e9c93053e48ae296d04c65d750f4093d17"
+        "recipeSha256": "53ef3a29832aa40201d41629c82e8f4f28de4459827898a33cd5f97e3e1c34a2"
       },
-      "inputSha256": "12d069b6dcdea4dea23cd9ffc8e2ce2315bd5429d9d7814adf58494e3ba9dc91",
+      "inputSha256": "ff23c4e8c1b783fe6553d09fc038a6b4a8df42ad6da0907c6e24c0a6b7956079",
       "sourceArchiveSha256": "4c7529a42a1a191107892cee09c3af888fd606f662e9f7ecfd3c025938bcc607",
       "lockSha256": "925e26f606cd906f74675c14687bbe4561844a86c935a4db77dd089a83449316",
       "reportSha256": "4925f4f692fc1cccb7546f3137ddd910fae3b13d45dc8b2313bbd4801b0a6780",
-      "verifiedCuaCommit": "85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19"
+      "verifiedCuaCommit": "6d840c54da418192fc2f4fd61b7140893da24a2d"
     }
   }
 }

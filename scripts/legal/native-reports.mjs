@@ -12,7 +12,7 @@ export const toolchain = "1.97.1";
 export const cargoAboutVersion = "0.9.2";
 // This transformation changes buffer ownership, not the native dependency graph.
 // A changed transformation needs review before the upstream UBJS graph can be reused.
-export const ubjsBuildScriptSha256 = "db02ec1345edbf6090f0093ddae3bd41d624d2984af58bcdce3a66cfcad373dc";
+export const ubjsBuildScriptSha256 = "1fea5d05e5096a11cd315e7779df8423dbd21328cf86dd58ace4d7ba78ae6851";
 export const ubjsBuildScript = "libs/cua-driver/scripts/build-node-runtime.mjs";
 
 export const sha256 = (value) => createHash("sha256").update(value).digest("hex");

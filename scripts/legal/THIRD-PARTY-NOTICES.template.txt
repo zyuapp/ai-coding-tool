@@ -85,9 +85,10 @@ https://crates.io/crates/libffi-sys/{{LIBFFI_SYS_VERSION}}
 
 The cua_driver_node_runtime.node file is CUA's compatibility build of that
 runtime. Its corresponding source also includes CUA's deterministic build and
-transformation script:
+transformation script and the MPL-2.0 source file it adds to the runtime:
 
 https://github.com/trycua/cua/blob/cua-driver-rs-v{{CUA_VERSION}}/libs/cua-driver/scripts/build-node-runtime.mjs
+https://github.com/trycua/cua/blob/cua-driver-rs-v{{CUA_VERSION}}/libs/cua-driver/scripts/node-runtime-trampoline-cache.rs
 
 The CUA source tree pins the upstream package and records its integrity in:
 
@@ -109,9 +110,10 @@ runtime in `uniffi-bindgen-react-native` {{UBJS_VERSION}}, copyright its contrib
 and licensed under the Mozilla Public License 2.0.
 
 The corresponding source is the pinned npm development dependency plus the
-deterministic transformations in `scripts/build-node-runtime.mjs`. The source
-and build script are available in the Cua repository at the release tag that
-matches this package.
+deterministic transformations in `scripts/build-node-runtime.mjs` and the
+source file `scripts/node-runtime-trampoline-cache.rs` they add. The source,
+build script, and added file are available in the Cua repository at the
+release tag that matches this package.
 
 https://www.mozilla.org/MPL/2.0/
 
