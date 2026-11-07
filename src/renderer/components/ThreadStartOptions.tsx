@@ -5,7 +5,7 @@ import type { ThreadHost } from "../../application/computers";
 import type { MobileWorktreeChoice } from "../../contracts/mobile";
 import { HostMark } from "./HostMark";
 import { BranchMenu, useBranches } from "./BranchMenu";
-import { projectName, type Project } from "../../domain/project";
+import { folderName, projectName, type Project } from "../../domain/project";
 import { useDismissibleLayer } from "../focus";
 import { PickerOption, PickerPopover, PickerSearch } from "./Picker";
 
@@ -21,6 +21,19 @@ export function matchProjects(projects: Project[], query: string, projectHosts?:
 export function recentProjects(projects: Project[], recentIds: readonly string[]) {
   const byId = new Map(projects.map((project) => [project.id, project]));
   return recentIds.flatMap((id) => byId.get(id) ?? []);
+}
+
+/** Projects named like another on the same computer, which their parent folder tells apart. */
+function namesakes(projects: Project[], projectHosts?: ReadonlyMap<string, ThreadHost>) {
+  const key = (project: Project) => `${projectHosts?.get(project.id)?.id ?? ""}\0${projectName(project)}`;
+  const counts = new Map<string, number>();
+  for (const project of projects) counts.set(key(project), (counts.get(key(project)) ?? 0) + 1);
+  return new Set(projects.filter((project) => (counts.get(key(project)) ?? 0) > 1).map((project) => project.id));
+}
+
+function parentFolder(root: string) {
+  const trimmed = root.replace(/\/+$/, "");
+  return folderName(trimmed.slice(0, trimmed.lastIndexOf("/")) || "/");
 }
 
 /** Each computer's projects by name, with this computer before the paired computers by name. */
@@ -166,19 +179,27 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, recentPr
   const label = project ? projectName(project) : "No project";
   const recent = projectQuery.trim() ? [] : recentProjects(projects, recentProjectIds);
   const hostName = (item: Project) => projectHosts?.get(item.id)?.name ?? "This computer";
-  const option = (item: Project) => (
-    <PickerOption
-      key={item.id}
-      aria-label={showComputers ? `${projectName(item)} on ${hostName(item)}` : undefined}
-      selected={item.id === projectId}
-      onClick={() => {
-        setProjectsOpen(false);
-        onSelectProject(item.id);
-      }}
-    >
-      {projectName(item)}
-    </PickerOption>
-  );
+  const sharedNames = namesakes(projects, projectHosts);
+  /** Recent rows sit under no computer heading, so they name their computer themselves. */
+  const option = (item: Project, showsHost = false) => {
+    const itemHost = projectHosts?.get(item.id);
+    const parent = sharedNames.has(item.id) ? parentFolder(item.root) : undefined;
+    return (
+      <PickerOption
+        key={item.id}
+        aria-label={showComputers || parent ? `${projectName(item)}${parent ? ` in ${parent}` : ""}${showComputers ? ` on ${hostName(item)}` : ""}` : undefined}
+        selected={item.id === projectId}
+        onClick={() => {
+          setProjectsOpen(false);
+          onSelectProject(item.id);
+        }}
+      >
+        {projectName(item)}
+        {parent && <small>{parent}</small>}
+        {showsHost && showComputers && <HostMark name={hostName(item)} offline={itemHost?.offline} reconnecting={itemHost?.reconnecting} />}
+      </PickerOption>
+    );
+  };
 
   return (
     <div className="thread-start" aria-label="How this thread starts">
@@ -199,7 +220,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, recentPr
             {recent.length > 0 && (
               <div role="group" aria-label="Recent">
                 <div className="thread-start-group-heading" aria-hidden="true"><span className="thread-start-group-label"><Clock size={12} /><span>Recent</span></span></div>
-                {recent.map(option)}
+                {recent.map((item) => option(item, true))}
               </div>
             )}
             {matched.length === 0 && <p className="thread-start-empty">No project matches</p>}
@@ -209,7 +230,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, recentPr
                 {showComputers
                   ? <div className="thread-start-group-heading" aria-hidden="true"><HostMark name={host?.name ?? "This computer"} offline={host?.offline} reconnecting={host?.reconnecting} /></div>
                   : recent.length > 0 && <div className="thread-start-group-heading" aria-hidden="true"><span className="thread-start-group-label"><span>All projects</span></span></div>}
-                {grouped.map(option)}
+                {grouped.map((item) => option(item))}
               </div>
             ))}
           </div>

@@ -431,6 +431,14 @@ test("the project picker leads with recent projects until a search starts", asyn
   await act(async () => { trigger.click(); });
   assert.deepEqual(groups(), ["Recent", "This computer", "Studio Mac"], "computer headings follow Recent");
   assert.equal(rows()[1]?.getAttribute("aria-label"), "beta on Studio Mac", "a recent row names its computer");
+  assert.equal(query(rows()[1]!, ".host-mark").textContent, "Studio Mac", "a recent row shows its computer, which no heading names");
+  assert.equal(rows()[2]?.querySelector(".host-mark"), null, "rows under a computer heading leave the computer to it");
+
+  await view.render(options(["alpha", "twin"], { projects: [...projects, { id: "twin", root: "/other/alpha" }] }));
+  await act(async () => { trigger.click(); });
+  await act(async () => { trigger.click(); });
+  assert.deepEqual(rows().slice(1, 3).map((row) => [row.textContent, row.getAttribute("aria-label")]), [["alpharepo", "alpha in repo"], ["alphaother", "alpha in other"]], "projects named alike on one computer show their parent folder");
+  assert.equal(rows()[5]?.textContent, "beta", "a unique name stays plain");
   await view.unmount();
 });
 
