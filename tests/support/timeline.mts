@@ -25,7 +25,9 @@ export function timelineView(
 ) {
   const scroller = document.createElement("div");
   Object.defineProperty(scroller, "offsetWidth", { value: 860 });
+  Object.defineProperty(scroller, "clientWidth", { configurable: true, value: 860 });
   Object.defineProperty(scroller, "offsetHeight", { value: 900 });
+  Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 900 });
   document.body.append(scroller);
   onTestFinished(() => scroller.remove());
   const task: Thread = {

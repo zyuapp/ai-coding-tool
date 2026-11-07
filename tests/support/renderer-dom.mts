@@ -147,22 +147,29 @@ export function item<T>(value: T | null | undefined): T {
 }
 
 /**
- * Row heights for a virtualised list. Deleting the override would take jsdom's own accessor with it
- * and leave every height `undefined`, so the original descriptor goes back exactly as it was.
+ * Element heights for a virtualised list. `offsetHeight` is jsdom's own accessor on this prototype, so its
+ * descriptor goes back exactly as it was; `clientHeight` is inherited from `Element`, so its override is deleted.
  */
 export function rowHeights(height: (node: HTMLElement) => number) {
-  const original = item(Object.getOwnPropertyDescriptor(dom.window.HTMLElement.prototype, "offsetHeight"));
-  Object.defineProperty(dom.window.HTMLElement.prototype, "offsetHeight", {
-    configurable: true,
-    get(this: HTMLElement) { return height(this); },
-  });
-  return { restore() { Object.defineProperty(dom.window.HTMLElement.prototype, "offsetHeight", original); } };
+  const prototype = dom.window.HTMLElement.prototype;
+  const original = item(Object.getOwnPropertyDescriptor(prototype, "offsetHeight"));
+  for (const name of ["offsetHeight", "clientHeight"]) {
+    Object.defineProperty(prototype, name, { configurable: true, get(this: HTMLElement) { return height(this); } });
+  }
+  return {
+    restore() {
+      Object.defineProperty(prototype, "offsetHeight", original);
+      Reflect.deleteProperty(prototype, "clientHeight");
+    },
+  };
 }
 
 /** A virtualiser reads the scroll box off the element, which jsdom reports at nothing. */
 export function sizeOf(node: Element, width: number, height: number) {
   Object.defineProperty(node, "offsetWidth", { configurable: true, value: width });
+  Object.defineProperty(node, "clientWidth", { configurable: true, value: width });
   Object.defineProperty(node, "offsetHeight", { configurable: true, value: height });
+  Object.defineProperty(node, "clientHeight", { configurable: true, value: height });
 }
 
 /** Every live observer, told its element changed size. jsdom raises none of these on its own. */

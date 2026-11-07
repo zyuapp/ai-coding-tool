@@ -145,6 +145,7 @@ test("a tail renders before the task has a message of its own to attach to", asy
 function scrollHarness({ scrollHeight = 4000, clientHeight = 600 } = {}) {
   const scroller = document.createElement("div");
   Object.defineProperty(scroller, "offsetWidth", { value: 860 });
+  Object.defineProperty(scroller, "clientWidth", { configurable: true, value: 860 });
   Object.defineProperty(scroller, "offsetHeight", { value: 900 });
   Object.defineProperty(scroller, "clientHeight", { configurable: true, value: clientHeight });
   Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: scrollHeight });
