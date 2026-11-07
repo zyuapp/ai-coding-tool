@@ -5,6 +5,7 @@
 import type { ThreadNotice } from "../contracts/ipc.js";
 import { coordinatorOf, isCoordinator, remoteLeadOf, worksUnderCoordinator } from "../domain/coordination.js";
 import type { Thread } from "../domain/thread.js";
+import { toolLabel } from "../domain/tool-call.js";
 import { lastReply } from "./coordination-messages.js";
 import { replyLine } from "./reply-line.js";
 import type { WorkspaceEffect } from "./workspace-reducer.js";
@@ -83,7 +84,7 @@ function latestUserMessage(thread: Thread) {
 
 /** What a run waiting on the user says on the desktop: the tool it asks to use, or the question it asks. */
 export function waitingHeadline(waiting: { toolName: string } | { question: string }): string {
-  return "toolName" in waiting ? `Waiting for your permission to use ${waiting.toolName}` : waiting.question;
+  return "toolName" in waiting ? `Waiting for your permission to use ${toolLabel(waiting.toolName)}` : waiting.question;
 }
 
 /** A line a thread wants in front of the user, kept back while notifications are off or the user does not want it. */

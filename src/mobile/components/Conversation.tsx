@@ -1,9 +1,9 @@
 import type { IconType } from "react-icons";
-import { LuBot as Bot, LuChevronDown as ChevronDown, LuCornerDownRight as CornerDownRight, LuFileText as FileText, LuGlobe as Globe, LuHistory as History, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench, LuX as X, LuZap as Zap } from "react-icons/lu";
+import { LuBell as Bell, LuBot as Bot, LuChevronDown as ChevronDown, LuCornerDownRight as CornerDownRight, LuFileText as FileText, LuGlobe as Globe, LuHistory as History, LuMessagesSquare as MessagesSquare, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench, LuX as X, LuZap as Zap } from "react-icons/lu";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MobileMessage, MobileThreadView } from "../../contracts/mobile";
 import type { EngineId } from "../../domain/agent-engine";
-import type { ToolFamily } from "../../domain/tool-call";
+import { toolLabel, type ToolFamily } from "../../domain/tool-call";
 import { CopyButton } from "../../renderer/components/CopyButton";
 import { clockTime, runFamily, summariseTools, transcriptBlocks } from "../format";
 import { returnToComposer } from "./Composer";
@@ -16,6 +16,8 @@ const FAMILY_ICONS: Record<ToolFamily, IconType> = {
   search: Search,
   web: Globe,
   agent: Bot,
+  thread: MessagesSquare,
+  automation: Bell,
   other: Wrench,
 };
 
@@ -36,7 +38,7 @@ function ToolRun({ engine, calls }: { engine: EngineId; calls: MobileMessage[] }
         {row}
         <span className="work-more"><span className="work-count">{calls.length}</span><ChevronDown className="work-chevron" size={14} strokeWidth={2.2} aria-hidden="true" /></span>
       </button>
-      {open && <ol className="work-calls">{calls.map((call, index) => <li key={index}>{call.text}</li>)}</ol>}
+      {open && <ol className="work-calls">{calls.map((call, index) => <li key={index}>{toolLabel(call.text)}</li>)}</ol>}
     </div>
   );
 }

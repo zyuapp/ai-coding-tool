@@ -1,6 +1,7 @@
 import { LuShieldAlert as ShieldAlert } from "react-icons/lu";
 import { useState } from "react";
 import type { MobileApproval } from "../../contracts/mobile";
+import { toolLabel } from "../../domain/tool-call";
 import { glanceable } from "../format";
 
 /**
@@ -40,7 +41,7 @@ export function ApprovalSheet({ approval, refused = null, onDecide }: {
       </header>
       {approval.detail && (
         <details open={glanceable(approval.detail)}>
-          <summary>{approval.toolName}</summary>
+          <summary>{toolLabel(approval.toolName)}</summary>
           <pre>{approval.detail}</pre>
         </details>
       )}

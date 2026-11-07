@@ -2,7 +2,7 @@ import type { MobileChanges, MobileLocation, MobileMessage, MobileRunStatus, Mob
 import type { ThreadOutcome } from "../domain/thread-run";
 import { capabilitiesFor, effortForModel, isAgentEffort, isAgentEngine, modelsFor, type EngineId, type ModelCatalog } from "../domain/agent-engine";
 import { POLICIES } from "../domain/run";
-import { toolFamily, type ToolFamily } from "../domain/tool-call";
+import { toolFamily, toolLabel, type ToolFamily } from "../domain/tool-call";
 
 /**
  * A transcript as a phone reads it. A run of tool calls is one line saying what was used and how
@@ -33,7 +33,10 @@ export function transcriptBlocks(messages: MobileMessage[]): TranscriptBlock[] {
 /** The tools a run used, commonest first, counted where a tool was used more than once. */
 export function summariseTools(calls: MobileMessage[]): string {
   const counts = new Map<string, number>();
-  for (const call of calls) counts.set(call.text, (counts.get(call.text) ?? 0) + 1);
+  for (const call of calls) {
+    const label = toolLabel(call.text);
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
   return [...counts]
     .sort((left, right) => right[1] - left[1])
     .map(([name, count]) => (count > 1 ? `${name} ×${count}` : name))

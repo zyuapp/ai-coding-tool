@@ -163,7 +163,7 @@ test("every answer keeps its time and copy button out of the way until hovered",
   await settled.unmount();
 });
 
-test("a tool call's output copies as it was printed", async () => {
+test("a tool call's input copies as it was recorded", async () => {
   const written = clipboard();
   const { timelineView, transcript } = await import("../support/timeline.mts");
   const view = await mount(timelineView(transcript({ kind: "user", text: "go" }, { kind: "tool", text: "Bash", detail: "$ ls\nsrc" }), "running"));
@@ -173,7 +173,7 @@ test("a tool call's output copies as it was printed", async () => {
     step.open = true;
     step.dispatchEvent(new Event("toggle"));
   });
-  await copyFrom(step, "Copy the output");
+  await copyFrom(step, "Copy the input");
 
   assert.deepEqual(written, ["$ ls\nsrc"]);
   await view.unmount();

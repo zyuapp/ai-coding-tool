@@ -432,11 +432,11 @@ test("a fold opened for a find match can still be closed by hand", async () => {
   await view.unmount();
 });
 
-test("a call that printed nothing says so when opened", async () => {
+test("a call that carried no input says so when opened", async () => {
   const messages = transcript({ kind: "user", text: "Fix it" }, { kind: "tool", text: "Bash" });
   const view = await mount(timelineView(messages, "running"));
   await expand(query<HTMLDetailsElement>(view.container, ".work-row"));
-  assert.equal(query(view.container, ".work-empty").textContent, "No output");
+  assert.equal(query(view.container, ".work-empty").textContent, "No input");
   assert.equal(view.container.querySelector(".work-row pre"), null);
   await view.unmount();
 });
@@ -531,5 +531,39 @@ test("a thread's folded message keeps one control in its row, and opens its send
   await act(async () => { open.click(); });
   assert.deepEqual(selected, ["t2"]);
   assert.equal(fold.open, true, "opening the sender leaves the fold as it was");
+  await view.unmount();
+});
+
+test("a call about another thread names it by its title, and opens it without opening the row", async () => {
+  const { MessageLinkProvider } = await import("../../src/renderer/components/MarkdownMessage.tsx");
+  const { ThreadNames } = await import("../../src/renderer/thread-names.ts");
+  const selected: string[] = [];
+  const id = "dedaef8d-9c0c-4f99-a08f-52122b6b5875";
+  const messages = transcript(
+    { kind: "user", text: "Review it" },
+    { kind: "tool", text: "mcp__aicodingtool-threads__wait_for_thread", detail: JSON.stringify({ threadId: id, timeoutSeconds: 900 }) },
+  );
+  const names = new Map([[id, "Review arch refactor"]]);
+  const timeline = React.createElement(ThreadNames.Provider, { value: names, children: timelineView(messages, "running") });
+  const view = await mount(React.createElement(MessageLinkProvider, { actions: { selectThread: (thread: string) => { selected.push(thread); } }, children: timeline }));
+  const row = query<HTMLDetailsElement>(view.container, ".work-row");
+  assert.equal(query(row, ".work-tool").textContent, "Wait for thread");
+  const link = query<HTMLAnchorElement>(row, ".work-thread");
+  assert.equal(link.textContent, "Review arch refactor");
+  await act(async () => { link.click(); });
+  assert.deepEqual(selected, [id]);
+  assert.equal(row.open, false, "opening the thread leaves the row folded");
+  await view.unmount();
+});
+
+test("a thread this computer does not know reads as the call named it", async () => {
+  const messages = transcript(
+    { kind: "user", text: "Read it" },
+    { kind: "tool", text: "read_thread", detail: JSON.stringify({ threadId: "Elsewhere" }) },
+  );
+  const view = await mount(timelineView(messages, "running"));
+  const row = query(view.container, ".work-row");
+  assert.equal(query(row, ".work-thread").tagName, "SPAN");
+  assert.equal(query(row, ".work-thread").textContent, "Elsewhere");
   await view.unmount();
 });

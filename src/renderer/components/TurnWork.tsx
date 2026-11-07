@@ -1,5 +1,5 @@
 import type { IconType } from "react-icons";
-import { LuBot as Bot, LuFileText as FileText, LuGlobe as Globe, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench } from "react-icons/lu";
+import { LuBell as Bell, LuBot as Bot, LuFileText as FileText, LuGlobe as Globe, LuMessagesSquare as MessagesSquare, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench } from "react-icons/lu";
 import { createContext, memo, useContext, useState, type ReactNode } from "react";
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { AgentEngine } from "../../domain/agent-engine";
@@ -7,9 +7,10 @@ import type { ConversationMessage } from "../../domain/conversation";
 import { describeToolCall, type ToolCall, type ToolFamily } from "../../domain/tool-call";
 import { timeSteps, toSegments, type TimedStep, type TurnSegment } from "../timeline/grouping";
 import { Copyable } from "./CopyButton";
-import { MarkdownMessage } from "./MarkdownMessage";
+import { MarkdownMessage, useMessageLinks } from "./MarkdownMessage";
 import { StreamingText } from "./StreamingText";
 import { useSecondClock } from "../second-clock";
+import { resolveThread, ThreadNames } from "../thread-names";
 
 /** The message a match is in. Whatever holds it opens, however deep the fold it was written into. */
 export const RevealedMessage = createContext<string | null>(null);
@@ -60,6 +61,8 @@ const FAMILY_ICONS: Record<ToolFamily, IconType> = {
   search: Search,
   web: Globe,
   agent: Bot,
+  thread: MessagesSquare,
+  automation: Bell,
   other: Wrench,
 };
 
@@ -79,25 +82,55 @@ function toolCallOf(engine: AgentEngine, message: ConversationMessage): ToolCall
   return call;
 }
 
+/** A thread the call named, by its title when this computer knows it; clicking it opens the thread. */
+function ThreadName({ reference }: { reference: string }) {
+  const thread = resolveThread(useContext(ThreadNames), reference);
+  const { selectThread } = useMessageLinks();
+  if (!thread || !selectThread) return <span className="work-thread">{reference}</span>;
+  return (
+    <a className="work-thread" href={`aicodingtool://thread/${thread.id}`} onClick={(event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      selectThread(thread.id);
+    }}>{thread.title}</a>
+  );
+}
+
+/** What the call acted on. A call that names nothing falls back to its label, unless the label is already shown. */
+function ToolSubject({ call, labelShown }: { call: ToolCall; labelShown: boolean }) {
+  const fallback = labelShown || call.thread ? "" : call.label;
+  return (
+    <span className="work-arg">
+      {call.sigil && <span className="work-sigil">{call.sigil}</span>}
+      {call.thread && <ThreadName reference={call.thread} />}
+      {call.argument || fallback}
+    </span>
+  );
+}
+
+const tipOf = (call: ToolCall) => [call.label, call.thread, call.argument].filter(Boolean).join(" · ");
+
 /**
  * One call. `named` draws the tool it was, which only a run of mixed tools needs: a run of one tool
  * says so once in its own summary, and repeating it there is what buried the argument to begin with.
+ * A verb is the exception, since it is what tells one call of the app's own tools from the next.
  */
 const ToolStep = memo(function ToolStep({ engine, step, named = true }: { engine: AgentEngine; step: TimedStep; named?: boolean }) {
   const call = toolCallOf(engine, step.message);
-  const label = call.argument || step.message.text;
+  const labelShown = named || call.verb === true;
   const summary = (
     <>
-      {named && <><ToolGlyph family={call.family} /><span className="work-tool">{step.message.text}</span></>}
-      <span className="work-arg">{call.sigil && <span className="work-sigil">{call.sigil}</span>}{label}</span>
+      {named && <ToolGlyph family={call.family} />}
+      {labelShown && <span className="work-tool">{call.label}</span>}
+      <ToolSubject call={call} labelShown={labelShown} />
       <span className="work-meta"><Elapsed startedAt={step.message.at} endsAt={step.endsAt} /></span>
     </>
   );
   return (
-    <Fold className="work-row" tip={`${step.message.text} · ${label}`} holds={[step.message.id]} messageId={step.message.id} summary={summary}>
+    <Fold className="work-row" tip={tipOf(call)} holds={[step.message.id]} messageId={step.message.id} summary={summary}>
       {() => step.message.detail
-        ? <Copyable text={step.message.detail} label="Copy the output"><pre>{step.message.detail}</pre></Copyable>
-        : <p className="work-empty">No output</p>}
+        ? <Copyable text={step.message.detail} label="Copy the input"><pre>{step.message.detail}</pre></Copyable>
+        : <p className="work-empty">No input</p>}
     </Fold>
   );
 });
@@ -109,11 +142,12 @@ const ToolRun = memo(function ToolRun({ engine, steps }: { engine: AgentEngine; 
   const newest = steps.at(-1)!;
   const call = toolCallOf(engine, newest.message);
   const uniform = steps.every((step) => step.message.text === steps[0]!.message.text);
-  const label = call.argument || newest.message.text;
+  const labelShown = call.verb === true;
   const summary = (
     <>
       <ToolGlyph family={call.family} />
-      <span className="work-arg">{call.sigil && <span className="work-sigil">{call.sigil}</span>}{label}</span>
+      {labelShown && <span className="work-tool">{call.label}</span>}
+      <ToolSubject call={call} labelShown={labelShown} />
       <span className="work-meta">
         <span className="work-count" role="img" aria-label={`${hidden} earlier tool ${hidden === 1 ? "call" : "calls"}`}>+{hidden}</span>
         <Elapsed startedAt={steps[0]!.message.at} endsAt={newest.endsAt} />
@@ -121,7 +155,7 @@ const ToolRun = memo(function ToolRun({ engine, steps }: { engine: AgentEngine; 
     </>
   );
   return (
-    <Fold className="work-run" tip={`${newest.message.text} · ${label}`} holds={steps.map((step) => step.message.id)} summary={summary}>
+    <Fold className="work-run" tip={tipOf(call)} holds={steps.map((step) => step.message.id)} summary={summary}>
       {() => (
         <div className="work-steps">
           {steps.map((step) => <ToolStep key={step.message.id} engine={engine} step={step} named={!uniform} />)}

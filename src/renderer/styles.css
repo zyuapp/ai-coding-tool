@@ -1914,6 +1914,8 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
   white-space: nowrap;
 }
 .work-sigil { margin-right: 6px; color: var(--quiet-soft); }
+.work-thread { margin-right: 8px; color: var(--ink); font-family: var(--ui-font); font-weight: 550; text-decoration: none; }
+a.work-thread:hover { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
 .message.turn { display: flex; flex-direction: column; gap: 17px; }
 .work-count {
   flex: none;

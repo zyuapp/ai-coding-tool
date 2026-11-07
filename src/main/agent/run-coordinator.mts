@@ -2,6 +2,7 @@ import { isQuestionRequest, type QuestionAnswers, type QuestionRequest } from ".
 import { randomUUID } from "node:crypto";
 import type { AgentEvent, BackgroundReport, GoalReport, InternalStartRunCommand, RunEvent, WorkflowReport } from "../../contracts/ipc.js";
 import { capabilitiesFor } from "../../domain/agent-engine.js";
+import { toolLabel } from "../../domain/tool-call.js";
 import type { Continuation, SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, AgentTurn, AutomationBridge, CoordinationBridge, FindingBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
@@ -356,7 +357,7 @@ export class RunCoordinator {
         type: "approval.requested",
         approvalId,
         intent,
-        title: `${intent.name} needs approval`,
+        title: `${toolLabel(intent.name)} needs approval`,
         description: "Review this action before it runs.",
       });
       this.publish(active, { type: "run.status", status: "awaiting-approval" });

@@ -3,6 +3,7 @@ import { CommandControlsProvider } from "./components/CommandControl";
 import { ModelCatalogProvider } from "./model-catalog";
 import { LuFocus as Focus, LuX as X } from "react-icons/lu";
 import { MessageLinkProvider } from "./components/MarkdownMessage";
+import { ThreadNames } from "./thread-names";
 import { AttachmentViewer } from "./components/AttachmentViewer";
 import { DiagramViewerHost } from "./components/MermaidBlock";
 import { FindBar } from "./components/FindBar";
@@ -176,7 +177,7 @@ export function App() {
   const shownKey = workspace.currentThread?.id ?? `draft:${workspace.currentProject?.id ?? ""}`;
 
   return (
-    <CommandControlsProvider value={workspace.commandControls}><ModelCatalogProvider value={workspace.models}><MessageLinkProvider actions={messageLinks}>
+    <CommandControlsProvider value={workspace.commandControls}><ModelCatalogProvider value={workspace.models}><MessageLinkProvider actions={messageLinks}><ThreadNames.Provider value={workspace.threadNames}>
     {workspace.viewingImage && <AttachmentViewer source={workspace.viewingImage} gallery={workspace.viewingGallery} onStep={(delta) => void workspace.dispatch({ type: "image.step", delta })} onClose={() => void workspace.dispatch({ type: "image.close" })} onDownload={() => void workspace.dispatch({ type: "image.download" })} />}
     <DiagramViewerHost>
     <main className={`app-shell ${workspace.zen ? "zen" : ""}`.trimEnd()}>
@@ -264,6 +265,6 @@ export function App() {
       <TooltipLayer />
     </main>
     </DiagramViewerHost>
-    </MessageLinkProvider></ModelCatalogProvider></CommandControlsProvider>
+    </ThreadNames.Provider></MessageLinkProvider></ModelCatalogProvider></CommandControlsProvider>
   );
 }

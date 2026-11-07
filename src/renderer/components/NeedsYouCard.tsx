@@ -3,6 +3,7 @@ import { LuArrowUpRight as ArrowUpRight, LuChevronLeft as ChevronLeft, LuChevron
 import type { AppCommand } from "../../contracts/commands";
 import type { ThreadModelChoice } from "../../domain/coordination";
 import { modelLabel } from "../../domain/agent-engine";
+import { toolLabel } from "../../domain/tool-call";
 import { useModelCatalog } from "../model-catalog";
 import { projectName } from "../../domain/project";
 import type { Thread } from "../../domain/thread";
@@ -344,7 +345,7 @@ function ApprovalForm({ view, bindings, position, onStep, onDecide, onSelect }: 
         {approval.description && <p className="decision-context" id={ids.context}>{approval.description}</p>}
         {subject
           ? <pre className="decision-command" id={ids.command}>{subject}</pre>
-          : <details className="decision-tool"><summary>{approval.toolName}</summary><pre>{JSON.stringify(approval.input, null, 2)}</pre></details>}
+          : <details className="decision-tool"><summary>{toolLabel(approval.toolName)}</summary><pre>{JSON.stringify(approval.input, null, 2)}</pre></details>}
       </div>
       <div className="decision-foot">
         {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}

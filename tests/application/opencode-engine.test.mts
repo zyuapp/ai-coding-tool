@@ -135,11 +135,11 @@ test("an agent can start a thread on an engine by name, which means that engine'
 });
 
 test("OpenCode's tool calls read as the app's own rows do", () => {
-  assert.deepEqual(describeToolCall("opencode", "shell", JSON.stringify({ command: "npm test" })), { family: "shell", sigil: "$", argument: "npm test" });
-  assert.deepEqual(describeToolCall("opencode", "write", JSON.stringify({ path: "/repo/src/app/main.ts", content: "x" })), { family: "write", argument: "…/app/main.ts" });
-  assert.deepEqual(describeToolCall("opencode", "read", JSON.stringify({ filePath: "/repo/src/index.ts" })), { family: "read", argument: "…/src/index.ts" });
-  assert.deepEqual(describeToolCall("opencode", "grep", JSON.stringify({ pattern: "TODO", path: "/repo/src" })), { family: "search", argument: "TODO in /repo/src" });
-  assert.deepEqual(describeToolCall("opencode", "browser_open", JSON.stringify({ url: "https://example.com" })), { family: "web", argument: "https://example.com" });
+  assert.deepEqual(describeToolCall("opencode", "shell", JSON.stringify({ command: "npm test" })), { family: "shell", label: "shell", sigil: "$", argument: "npm test" });
+  assert.deepEqual(describeToolCall("opencode", "write", JSON.stringify({ path: "/repo/src/app/main.ts", content: "x" })), { family: "write", label: "write", argument: "…/app/main.ts" });
+  assert.deepEqual(describeToolCall("opencode", "read", JSON.stringify({ filePath: "/repo/src/index.ts" })), { family: "read", label: "read", argument: "…/src/index.ts" });
+  assert.deepEqual(describeToolCall("opencode", "grep", JSON.stringify({ pattern: "TODO", path: "/repo/src" })), { family: "search", label: "grep", argument: "TODO in /repo/src" });
+  assert.deepEqual(describeToolCall("opencode", "browser_open", JSON.stringify({ url: "https://example.com" })), { family: "web", label: "Open page", verb: true, argument: "https://example.com" });
 });
 
 const glm = (id: string, label: string, provider: string): ModelSpec => ({ id, label, description: id, provider, contextWindow: 1, efforts: [] });

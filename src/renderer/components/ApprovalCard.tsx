@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { shortcutAction } from "../../domain/shortcuts";
+import { toolLabel } from "../../domain/tool-call";
 import { shortcutTip } from "./TooltipLayer";
 
 export type ApprovalCardProps = {
@@ -52,7 +53,7 @@ export function ApprovalCard({ approval, onDecide, bindings = DEFAULT_BINDINGS }
         {subject
           ? <pre className="approval-command">{subject}</pre>
           : <details>
-              <summary>{approval.toolName}</summary>
+              <summary>{toolLabel(approval.toolName)}</summary>
               <pre>{JSON.stringify(approval.input, null, 2)}</pre>
             </details>}
         <div className="approval-actions">

@@ -7,6 +7,7 @@ import type { WorkspaceInput } from "../../application/workspace-reducer";
 import type { AppCommand } from "../../contracts/commands";
 import { applyTheme } from "../theme";
 import { applyTypography } from "../typography";
+import { threadNamesOf } from "../thread-names";
 import { workspaceActions } from "./workspace-actions";
 import { useWorkspaceSubscriptions } from "./workspace-subscriptions";
 import { createWorkspaceConnection } from "./workspace-connection";
@@ -77,6 +78,9 @@ export function useTaskWorkspace() {
     return options;
   }, []);
 
+  const threadNames = useRef<{ threads: readonly unknown[]; names: ReadonlyMap<string, string> }>({ threads: [], names: new Map() });
+  if (threadNames.current.threads !== state.threads) threadNames.current = { threads: state.threads, names: threadNamesOf(state.threads, threadNames.current.names) };
+
   useEffect(() => { applyTheme(view.theme, view.themeMode === "auto"); }, [view.theme, view.themeMode]);
 
   /**
@@ -110,6 +114,7 @@ export function useTaskWorkspace() {
     ...view,
     threadHandles: threadHandlesFor(promptKey(state)),
     threadHandlesFor,
+    threadNames: threadNames.current.names,
     /** The one door into the application. The named actions below are shorthand for the same commands. */
     dispatch: dispatchCommand,
     actions,
