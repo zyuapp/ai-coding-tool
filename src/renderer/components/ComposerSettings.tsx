@@ -152,7 +152,7 @@ function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]
   const fraction = (event: PointerEvent<HTMLElement>) => {
     const box = rail.current?.getBoundingClientRect();
     if (!box?.width) return at(index);
-    const knob = box.height + 4;
+    const knob = rail.current?.querySelector<HTMLElement>(".effort-knob")?.offsetWidth ?? box.height;
     return Math.min(1, Math.max(0, (event.clientX - box.left - knob / 2) / Math.max(1, box.width - knob)));
   };
   const keyDown = (event: KeyboardEvent<HTMLElement>) => {

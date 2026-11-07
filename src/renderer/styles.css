@@ -299,7 +299,7 @@ button, select { color: inherit; }
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 18%, transparent);
 }
 .thread-jump-search:has(input:focus-visible) { outline: none; }
-.settings-search:has(input:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *) { outline: none; border-color: color-mix(in srgb, var(--focus-ring) 35%, var(--line-mid)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 10%, transparent); }
+.settings-search:has(input:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *) { outline: none; border-color: var(--focus-ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 18%, transparent); }
 /** On a filled button the ring takes the label's colour, which already reads against the fill. */
 :where(button.primary, .annotator-action.danger, .empty-state button, .approval-actions button, .send-button, .toast-action, .sidebar-update.ready, .coordination-bar-answer, .decision-foot button:not(.secondary), button.suggestion-start, .question-answer button):focus-visible {
   outline-color: currentColor;
@@ -1734,8 +1734,8 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 .markdown-body h3 { font-size: 1.13em; }
 .markdown-body h4, .markdown-body h5, .markdown-body h6 { font-size: 1em; }
 .markdown-body strong { color: var(--ink); font-weight: 650; }
-.markdown-body a { color: var(--accent-text); text-decoration: none; }
-.markdown-body a:hover { color: var(--accent-soft); text-decoration: underline; text-underline-offset: 3px; }
+.markdown-body a { color: var(--accent-text); text-decoration-color: color-mix(in srgb, var(--accent-text) 40%, transparent); text-underline-offset: 3px; }
+.markdown-body a:hover { color: var(--accent-soft); text-decoration-color: currentColor; }
 /* A link into the app or the checkout carries a glyph, so it reads apart from a web address. */
 .message-link-glyph { width: 0.85em; height: 0.85em; vertical-align: -0.08em; }
 .message-link-file > .message-link-glyph { margin-right: 0.2em; }
@@ -2108,7 +2108,7 @@ pre {
   align-items: center;
   gap: 8px;
   margin: 0 0 10px;
-  border: 1px solid var(--line-mid);
+  border: 1px solid var(--line-input);
   border-radius: 9px;
   padding: 0 10px;
   background: var(--sunken);
@@ -2475,7 +2475,6 @@ pre {
 .setting-row-action em.granted { color: var(--success-soft); }
 .setting-row-action button, .settings-restart button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 11px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
 .setting-row-action button:hover:not(:disabled), .settings-restart button:hover { border-color: var(--line-bright); background: var(--control-hover); }
-/** A segmented control and a stepper draw one edge round the group, so their buttons carry none of their own. */
 
 .computer-title { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; min-width: 0; }
 .computer-title strong { cursor: text; text-decoration: underline dotted transparent; text-underline-offset: 4px; transition: text-decoration-color 120ms ease; }
