@@ -35,6 +35,8 @@ export type MobileUpkeepItem = {
   version: string | null;
   state: { text: string; tone?: "live" | "quiet" | "progress" | "offer" | "error" };
   action: { label: string; command: MobileCommand } | null;
+  /** On the app's row while the computer installs it, which restarts the computer's side of the line. */
+  installing?: true;
 };
 
 /** A thread's state as one row: what it is doing outranks what it last did. */

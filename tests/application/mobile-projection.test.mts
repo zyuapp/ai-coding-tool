@@ -127,6 +127,10 @@ test("the computer's own app and engines travel with a step the phone may send b
   const waiting = projectMobileView({ ...idle, appUpdate: { status: "ready", version: "0.7.11" }, appUpdateRequest: { status: "waiting" }, threads: [task("a")], activeRuns: { a: activeRun("a", "r", "running") } }, NOW);
   assert.deepEqual([waiting.upkeep[0]!.state.text, waiting.upkeep[0]!.action?.command], ["Waiting for 1 thread", { type: "app.cancel-update" }]);
 
+  assert.equal(waiting.upkeep.some((item) => item.installing), false);
+  const installing = projectMobileView({ ...idle, appUpdate: { status: "ready", version: "0.7.11" }, appUpdateRequest: { status: "installing", version: "0.7.11" } }, NOW);
+  assert.deepEqual(installing.upkeep.filter((item) => item.installing).map((item) => item.key), ["app"], "the phone reads a restart from this, not the row's words");
+
   assert.deepEqual(diffMobileView(offered, waiting)?.upkeep, waiting.upkeep);
   assert.equal(diffMobileView(offered, projectMobileView({ ...idle, appUpdate: { status: "available", version: "0.7.11" } }, NOW)), null);
   assert.deepEqual(applyMobilePatch(offered, { upkeep: waiting.upkeep })?.upkeep, waiting.upkeep);

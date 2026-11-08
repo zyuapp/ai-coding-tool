@@ -153,7 +153,7 @@ struct ComputerMenu: View {
                 }
             }
             if model.live, let upkeep = model.view.upkeep {
-                Section("Updates") { UpkeepRows(model: model, items: model.pendingUpkeep, all: upkeep) }
+                Section("Updates") { UpkeepRows(model: model, items: model.view.pendingUpkeep, all: upkeep) }
             }
             Section {
                 Button { pairing = true } label: { Label("Pair a Computer…", systemImage: "plus") }
@@ -170,7 +170,7 @@ struct ComputerMenu: View {
                     Text("Restarting").font(.caption.weight(.medium)).foregroundStyle(palette.muted)
                 } else if model.state.connection != .live {
                     ConnectionMark(connection: model.state.connection)
-                } else if model.updateOffered {
+                } else if model.view.updateOffered {
                     Circle().fill(palette.accent).frame(width: 7, height: 7).accessibilityHidden(true)
                 }
                 Image(systemName: "chevron.down").font(.caption2.weight(.bold)).opacity(0.6)
@@ -178,7 +178,7 @@ struct ComputerMenu: View {
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(palette.ink)
         }
-        .accessibilityLabel("Computer: \(model.state.computerName ?? current?.title ?? "none"), \(model.restarting ? "Restarting" : model.state.connection.label)\(model.updateOffered ? ", update available" : "")")
+        .accessibilityLabel("Computer: \(model.state.computerName ?? current?.title ?? "none"), \(model.restarting ? "Restarting" : model.state.connection.label)\(model.view.updateOffered ? ", update available" : "")")
         .simultaneousGesture(TapGesture().onEnded { model.checkForUpdates() })
         .onChange(of: model.live, initial: true) { _, live in if live { model.checkForUpdates() } }
         .sheet(isPresented: $pairing) { PairAnotherSheet(model: model) }

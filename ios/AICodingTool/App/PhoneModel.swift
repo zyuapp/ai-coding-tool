@@ -143,17 +143,8 @@ final class PhoneModel {
 
     // MARK: Updates
 
-    /// The computer's software that wants the user: an update offered, one under way, or one that failed.
-    var pendingUpkeep: [MobileUpkeepItem] {
-        (view.upkeep ?? []).filter { $0.action != nil || $0.state.tone == "progress" || $0.state.tone == "error" }
-    }
-
-    var updateOffered: Bool { pendingUpkeep.contains { $0.state.tone == "offer" && $0.action != nil } }
-
     /// Whether the line dropped because the computer is restarting into the update it was installing.
-    var restarting: Bool {
-        !live && view.upkeep?.first { $0.key == "app" }?.state.text.hasPrefix("Installing") == true
-    }
+    var restarting: Bool { !live && view.installingUpdate }
 
     /// Has the computer look for a newer app and engines now, at most once a minute per computer.
     func checkForUpdates() {

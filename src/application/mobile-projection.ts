@@ -192,9 +192,11 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
 
 /** This computer's update rows as the Computers page draws a paired one's, each with a command a phone may send. */
 function projectMobileUpkeep(state: WorkspaceState): MobileUpkeepItem[] {
+  const installing = state.appUpdateRequest?.status === "installing";
   return ownUpkeep(state).map(({ key, label, version, state: part, action }) => ({
     key, label, version, state: part,
     action: action && isPhoneCommand(action.command) ? { label: action.label, command: action.command } : null,
+    ...(installing && key === "app" ? { installing: true as const } : {}),
   }));
 }
 

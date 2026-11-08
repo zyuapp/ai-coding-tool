@@ -44,6 +44,26 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(PhoneCommand.checkForUpdates.json, .object(["type": .string("app.check-for-updates"), "quiet": .bool(true)]))
     }
 
+    func testUpkeepMarksWhatWantsTheUser() throws {
+        func item(_ key: String, tone: String?, command: PhoneCommand? = nil, installing: Bool? = nil) -> MobileUpkeepItem {
+            MobileUpkeepItem(key: key, label: key, version: nil, state: .init(text: key, tone: tone), action: command.map { .init(label: "Go", command: $0) }, installing: installing)
+        }
+        var view = MobileView.empty
+        view.upkeep = [item("app", tone: "quiet"), item("claude", tone: "offer"), item("codex", tone: "quiet")]
+        XCTAssertEqual(view.pendingUpkeep.map(\.key), ["claude"], "a newer engine only the computer can install is still listed")
+        XCTAssertFalse(view.updateOffered, "nothing the phone can start")
+
+        view.upkeep = [item("codex", tone: "error", command: PhoneCommand("engine.update", ["engine": .string("codex")]))]
+        XCTAssertTrue(view.updateOffered, "an engine too old to run marks the chip")
+        view.upkeep = [item("app", tone: "progress", command: PhoneCommand("app.cancel-update"))]
+        XCTAssertFalse(view.updateOffered, "an update already waiting needs nothing")
+        XCTAssertFalse(view.installingUpdate)
+
+        view.upkeep = [item("app", tone: "progress", installing: true)]
+        XCTAssertTrue(view.installingUpdate)
+        XCTAssertFalse(MobileView.empty.installingUpdate)
+    }
+
     func testTailGrowsByUTF16Count() throws {
         let view = try snapshotView()
         let patch = try JSONDecoder().decode(MobilePatch.self, from: Data(#"{"thread":{"kind":"changed","id":"t1","delta":{"tail":{"from":2,"text":"c😀"}}}}"#.utf8))

@@ -185,8 +185,24 @@ struct MobileUpkeepItem: Codable, Equatable, Sendable, Identifiable {
     var version: String?
     var state: Part
     var action: Action?
+    var installing: Bool?
 
     var id: String { key }
+}
+
+extension MobileView {
+    /// The computer's software that wants the user: a newer version, one under way, or one that failed.
+    var pendingUpkeep: [MobileUpkeepItem] {
+        (upkeep ?? []).filter { $0.action != nil || ["offer", "progress", "error"].contains($0.state.tone) }
+    }
+
+    /// Whether any row offers a step that moves software on, which the computer chip marks.
+    var updateOffered: Bool {
+        (upkeep ?? []).contains { ["app.update", "engine.update"].contains($0.action?.command.type) }
+    }
+
+    /// Whether the computer was installing its app update, which restarts it.
+    var installingUpdate: Bool { upkeep?.contains { $0.installing == true } == true }
 }
 
 struct MobileEngine: Codable, Equatable, Sendable {
