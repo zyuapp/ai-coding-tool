@@ -1,4 +1,4 @@
-import { NO_SIMULATORS, type SimulatorState } from "./workspace-state.js";
+import { NO_SIMULATORS, type SimulatorState } from "../domain/simulator.js";
 import { annotationRevealFor, annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import { promptKey, type OwnWorkspaceView, type SideChatView, type ThreadTabView, type WorkspaceState } from "./workspace-state.js";
 import { heldViews } from "./view-reuse.js";

@@ -21,7 +21,7 @@ import { NO_PLAN_USAGE, type PlanUsageState } from "./plan-limits.js";
 import type { ReadingPoint } from "../contracts/commands.js";
 import type { ReviewTarget } from "../domain/review.js";
 import type { ActiveGoal } from "../domain/goal.js";
-import type { SimulatorAvailability, SimulatorDevice } from "../domain/simulator.js";
+import { NO_SIMULATORS, type SimulatorState } from "../domain/simulator.js";
 
 export type { ReadingPoint, ThreadWait };
 import { AUTOMATION_PANEL, DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockSubject, type ThreadDock } from "./workspace-dock.js";
@@ -211,23 +211,6 @@ export type ReviewPicker = {
   taskId: string;
   step: "targets" | "base" | "commit" | "custom";
 };
-
-/**
- * The simulators this Mac has, kept for the whole app the way the browser session is. Which one a
- * dock shows is that dock's own, so one thread switching devices never moves another's taps.
- */
-export type SimulatorState = {
-  availability: SimulatorAvailability;
-  devices: SimulatorDevice[];
-  /** Devices a boot was asked for that has not answered yet. */
-  booting: string[];
-  /** What last went wrong with each device, until something done to it works. */
-  errors: Record<string, string>;
-  /** The run driving a device right now. `seq` names this stretch of driving, so an older idle report cannot end a newer one. */
-  driver: { taskId: string; udid: string; seq: number } | null;
-};
-
-export const NO_SIMULATORS: SimulatorState = { availability: { status: "unknown" }, devices: [], booting: [], errors: {}, driver: null };
 
 export type WorkspaceState = ProjectAddWorkspaceState & {
   threads: Thread[];

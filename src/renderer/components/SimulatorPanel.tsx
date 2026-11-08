@@ -1,7 +1,6 @@
 import { useRef, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { LuHouse as House, LuLock as Lock, LuSmartphone as Smartphone, LuTriangleAlert as AlertTriangle } from "react-icons/lu";
-import type { SimulatorState } from "../../application/workspace-state";
-import { hidUsage, screenCornerRadius, type SimulatorInput } from "../../domain/simulator";
+import { hidUsage, screenCornerRadius, type SimulatorInput, type SimulatorState } from "../../domain/simulator";
 import { useSimulatorStream } from "../simulator/use-simulator-stream";
 import { CommandButton } from "./CommandControl";
 import { PopoverMenu } from "./PopoverMenu";

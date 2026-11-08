@@ -1,7 +1,7 @@
 /** The Simulator panel: which device each dock shows, booting it, and the gestures sent to it. */
-import { defaultSimulator, type SimulatorDevice } from "../../domain/simulator.js";
+import { defaultSimulator, type SimulatorDevice, type SimulatorState } from "../../domain/simulator.js";
 import { dockFor, dockOwner, SIMULATOR_PANEL, withDock, type ThreadDock } from "../workspace-dock.js";
-import type { SimulatorState, WorkspaceState } from "../workspace-state.js";
+import type { WorkspaceState } from "../workspace-state.js";
 import { focusDockTab, showDockTab } from "./dock-tabs.js";
 import { settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
