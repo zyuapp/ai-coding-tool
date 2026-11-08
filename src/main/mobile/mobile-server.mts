@@ -288,13 +288,19 @@ export class MobileServer {
    * What every phone should see now. Offline sessions are numbered too, so a resume replays them. A
    * whole view is ground truth, so a phone still waiting for one is handed it too.
    */
+  /** What this computer calls itself, for the phone's list of computers. */
+  private computerName(): { computer?: string } {
+    const name = this.options.workspace?.name?.();
+    return name ? { computer: name } : {};
+  }
+
   publish(update: MobileViewUpdate) {
     this.view = update.kind === "snapshot" ? update.view : this.view && applyMobilePatch(this.view, update.patch);
     for (const session of this.sessions.values()) {
       if (session.kind !== "phone") continue;
       if (update.kind === "snapshot") {
         session.awaitingSnapshot = false;
-        this.emit(session, { kind: "snapshot", sessionId: session.id, view: update.view, instance: this.instance, vocabulary: MOBILE_VOCABULARY });
+        this.emit(session, { kind: "snapshot", sessionId: session.id, view: update.view, instance: this.instance, vocabulary: MOBILE_VOCABULARY, ...this.computerName() });
       } else if (!session.awaitingSnapshot) {
         if (congested(session)) this.fallBehind(session);
         else this.emit(session, { kind: "patch", patch: update.patch });
@@ -425,7 +431,7 @@ export class MobileServer {
         this.view = view;
       }
       session.awaitingSnapshot = false;
-      this.emit(session, { kind: "snapshot", sessionId: session.id, view: this.view, instance: this.instance, vocabulary: MOBILE_VOCABULARY });
+      this.emit(session, { kind: "snapshot", sessionId: session.id, view: this.view, instance: this.instance, vocabulary: MOBILE_VOCABULARY, ...this.computerName() });
     } catch (error) {
       /**
        * A session with no view to patch is no session. The phone hears why, is hung up on, and

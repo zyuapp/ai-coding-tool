@@ -17,12 +17,12 @@ final class ProtocolTests: XCTestCase {
     }
 
     private func snapshotView() throws -> MobileView {
-        guard case .snapshot(_, _, let view, _, _)? = frame(snapshotFrame()) else { throw XCTSkip("snapshot did not parse") }
+        guard case .snapshot(_, _, let view, _, _, _)? = frame(snapshotFrame()) else { throw XCTSkip("snapshot did not parse") }
         return view
     }
 
     func testSnapshotDecodes() throws {
-        guard case .snapshot(let sequence, let session, let view, let instance, let vocabulary)? = frame(snapshotFrame()) else { return XCTFail("snapshot did not parse") }
+        guard case .snapshot(let sequence, let session, let view, let instance, let vocabulary, let computer)? = frame(snapshotFrame()) else { return XCTFail("snapshot did not parse") }
         XCTAssertEqual(sequence, 1)
         XCTAssertEqual(session, "s1")
         XCTAssertEqual(instance, "one")
@@ -114,5 +114,36 @@ final class ProtocolTests: XCTestCase {
 
     func testTypedCodeReadsLookalikes() {
         XCTAssertEqual(PairingLink.normalized("k7m2-p9oi l"), "K7M2P901")
+    }
+
+    func testToolCallsAndMembersTravel() throws {
+        let view = try snapshotView()
+        let patch = try JSONDecoder().decode(MobilePatch.self, from: Data(#"{"thread":{"kind":"changed","id":"t1","delta":{"members":[{"id":"m1","title":"Tests","status":"running","computer":"Studio"}],"spliced":{"dropped":0,"kept":2,"messages":[{"kind":"tool","text":"Bash","at":3,"call":{"family":"shell","label":"Bash","argument":"npm test","sigil":"$"}}]}}}}"#.utf8))
+        let next = try XCTUnwrap(view.applying(patch))
+        XCTAssertEqual(next.thread?.members, [MobileMember(id: "m1", title: "Tests", status: "running", computer: "Studio")])
+        XCTAssertEqual(next.thread?.messages.last?.call, MobileToolCall(family: "shell", label: "Bash", argument: "npm test", sigil: "$", verb: nil))
+        let emptied = try JSONDecoder().decode(MobilePatch.self, from: Data(#"{"thread":{"kind":"changed","id":"t1","delta":{"members":[]}}}"#.utf8))
+        XCTAssertEqual(next.applying(emptied)?.thread?.members, [])
+        XCTAssertEqual(Format.summariseTools([next.thread!.messages.last!]), "Bash")
+    }
+
+    func testSnapshotNamesTheComputer() {
+        let frame = snapshotFrame().replacingOccurrences(of: #""instance":"one""#, with: #""instance":"one","computer":"Studio""#)
+        guard case .snapshot(_, _, _, _, _, let computer)? = parseServerFrame(frame).message else { return XCTFail("snapshot did not parse") }
+        XCTAssertEqual(computer, "Studio")
+    }
+
+    func testCoordinatorProjectAndFolderShapes() throws {
+        XCTAssertEqual(PhoneCommand.setCoordinator(nil, true).json, .object(["type": .string("task.set-role"), "role": .string("coordinator")]))
+        XCTAssertEqual(PhoneCommand.setCoordinator("t1", false).json, .object(["type": .string("task.set-role"), "taskId": .string("t1"), "role": .null]))
+        XCTAssertEqual(PhoneCommand.addProject("~/code/app").json, .object(["type": .string("project.add"), "root": .string("~/code/app"), "start": .bool(true)]))
+        XCTAssertEqual(MobileQuery.directories(prefix: "~/").json, .object(["kind": .string("directories"), "prefix": .string("~/")]))
+    }
+
+    func testPairedComputerIsNamedByItselfElseItsHost() {
+        let credential = MobileCredential(token: "t", deviceId: "d", deviceName: "iPhone")
+        XCTAssertEqual(PairedComputer(origin: URL(string: "https://studio.tail1234.ts.net")!, credential: credential).title, "studio")
+        XCTAssertEqual(PairedComputer(origin: URL(string: "http://127.0.0.1:7738")!, credential: credential).title, "127.0.0.1")
+        XCTAssertEqual(PairedComputer(origin: URL(string: "https://studio.ts.net")!, credential: credential, name: "Studio").title, "Studio")
     }
 }

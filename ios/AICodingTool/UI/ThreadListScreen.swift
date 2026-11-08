@@ -96,7 +96,7 @@ struct ThreadListScreen: View {
         .navigationTitle("Threads")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) { ConnectionMark(connection: model.state.connection) }
+            ToolbarItem(placement: .topBarLeading) { ComputerMenu(model: model) }
             ToolbarItem(placement: .topBarTrailing) {
                 let start = model.startingProject
                 Button { model.newThread(projectId: start?.projectId, project: start?.name) } label: {

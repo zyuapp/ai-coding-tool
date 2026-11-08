@@ -170,7 +170,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
       disposed = false;
       // Subscriptions can start effects immediately; their replies belong to this generation.
       generation += 1;
-      subscriptions = subscribeWorkspaceRuntime({ state: () => state, dispatch, execute: inputs.execute, waiters, prepareThreadRequest: history.prepareThreadRequest, desktop, frame: host.frame });
+      subscriptions = subscribeWorkspaceRuntime({ state: () => state, dispatch, execute: inputs.execute, waiters, prepareThreadRequest: history.prepareThreadRequest, hydrate: history.hydrate, desktop, frame: host.frame });
       started = initialize(generation);
       refreshEnvironment();
       return started;

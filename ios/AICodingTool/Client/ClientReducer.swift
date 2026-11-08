@@ -57,6 +57,8 @@ struct MobileClientState: Equatable, Sendable {
     var instance: String?
     var view = MobileView.empty
     var vocabulary: MobileVocabulary?
+    /// What the computer calls itself, from its last snapshot.
+    var computerName: String?
     var outbox: [OutboxEntry] = []
     var returned: ReturnedCommand?
     var openedAt: Double = 0
@@ -285,13 +287,14 @@ enum MobileClient {
             seen.entry = .ready
             seen.notice = nil
             return (seen, [.store(credential)])
-        case .snapshot(_, let sessionId, let view, let instance, let vocabulary):
+        case .snapshot(_, let sessionId, let view, let instance, let vocabulary, let computer):
             var kept = sessionId == seen.sessionId ? seen : restarted(seen, instance: instance)
             kept.notice = kept.outbox == seen.outbox ? nil : restarted
             kept.synced = true
             kept.instance = instance
             kept.sessionId = sessionId
             kept.vocabulary = vocabulary
+            if let computer { kept.computerName = computer }
             return live(shown(kept, view))
         case .patch(_, let patch):
             guard let view = seen.view.applying(patch) else { return resync(state) }

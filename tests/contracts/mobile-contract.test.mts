@@ -228,6 +228,23 @@ test("a query names a thread and a comparison, and travels to the window like a 
   assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "diff-summary", taskId: "task-1", range: { kind: "commit", commit: "nope" } } }), false, "a range is read as strictly as the desktop reads it");
   assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "read-file", taskId: "task-1", path: "/etc/passwd" } }), false);
   assert.equal(isMobileRequest({ type: "mobile.request", requestId: "r1", sessionId: "s1", op: "query", query: summary }), true);
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "directories", prefix: "~/code/" } }), true);
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "directories", prefix: "" } }), true, "an empty prefix lists nothing rather than fails");
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "directories", prefix: "/a\0b" } }), false);
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "directories", prefix: "x".repeat(4_097) } }), false);
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "directories" } }), false);
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "thread", taskId: "task-2" } }), true);
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "thread" } }), false);
+});
+
+test("a phone makes coordinators and adds projects on this computer only", () => {
+  assert.equal(isPhoneCommand({ type: "task.set-role", role: "coordinator" }), true, "the draft");
+  assert.equal(isPhoneCommand({ type: "task.set-role", taskId: "task-1", role: null }), true);
+  assert.equal(isPhoneCommand({ type: "task.set-role", role: "emperor" }), false);
+  assert.equal(isPhoneCommand({ type: "task.set-role", role: "coordinator", sender: { kind: "agent", threadId: "t" } }), false, "only an agent says who asked");
+  assert.equal(isPhoneCommand({ type: "project.add", root: "~/code/app", start: true }), true);
+  assert.equal(isPhoneCommand({ type: "project.add", root: "   " }), false);
+  assert.equal(isPhoneCommand({ type: "project.add", root: "/code/app", computerId: "mac-2" }), false, "never on a linked computer");
 });
 
 test("a phone may send exactly the commands that declare a phone rule", () => {
@@ -239,10 +256,10 @@ test("a phone may send exactly the commands that declare a phone rule", () => {
     "run.cancel": true, "run.decide": true, "run.stop-process": true, "question.answer": true,
     "annotation.add": true, "annotation.note": true, "annotation.remove": true, "annotation.recall": true,
     "paste.add": true, "paste.remove": true, "paste.recall": true,
-    "view.set-prompt": true,
+    "view.set-prompt": true, "task.set-role": true, "project.add": true,
   };
-  assert.equal(Object.keys(types).length, 29);
-  for (const type of ["terminal.input", "worktree.delete", "project.remove", "browser.open", "task.set-role", "run.compact"]) {
+  assert.equal(Object.keys(types).length, 31);
+  for (const type of ["terminal.input", "worktree.delete", "project.remove", "browser.open", "task.set-coordinator", "run.compact"]) {
     assert.equal(isPhoneCommand({ type, taskId: "task-1" }), false, type);
   }
 });

@@ -271,8 +271,18 @@ test("a phone's review is read from the thread's own checkout, and refused for a
     read: {
       diffSummary: async (...args) => { reads.push(args); return { status: "available", range: { kind: "uncommitted" }, ignoreWhitespace: true, files: [], additions: 0, deletions: 0 }; },
       diffPatch: async (...args) => { reads.push(args); return { status: "available", patch: "@@ -1 +1 @@\n-a\n+b\n" }; },
+      directories: async (prefix) => { reads.push([prefix]); return ["/code/app", "/code/api"]; },
     },
   };
+  const folders = await answerMobileRequest(bridge, request({ type: "mobile.request", requestId: "q0", sessionId: "s1", op: "query", query: { kind: "directories", prefix: "/code/" } }));
+  assert.deepEqual(folders, { type: "mobile.response", requestId: "q0", ok: true, result: ["/code/app", "/code/api"] });
+  const hydrated: string[] = [];
+  const read = await answerMobileRequest({ ...bridge, hydrate: async (taskId) => { hydrated.push(taskId); } }, request({ type: "mobile.request", requestId: "q00", sessionId: "s1", op: "query", query: { kind: "thread", taskId: "loose" } }));
+  assert.equal(read.ok && (read.result as { title: string }).title, "loose");
+  assert.deepEqual(hydrated, ["loose"], "a thread not on screen has its stored transcript loaded before it is read");
+  const missing = await answerMobileRequest(bridge, request({ type: "mobile.request", requestId: "q01", sessionId: "s1", op: "query", query: { kind: "thread", taskId: "elsewhere" } }));
+  assert.deepEqual(missing, { type: "mobile.response", requestId: "q01", ok: false, message: "No thread has the ID elsewhere." });
+  reads.length = 0;
   const summary = await answerMobileRequest(bridge, request({ type: "mobile.request", requestId: "q1", sessionId: "s1", op: "query", query: { kind: "diff-summary", taskId: "task-1", range: { kind: "uncommitted" } } }));
   assert.equal(summary.ok, true);
   const patch = await answerMobileRequest(bridge, request({ type: "mobile.request", requestId: "q2", sessionId: "s1", op: "query", query: { kind: "diff-patch", taskId: "task-1", range: { kind: "branches", base: "main", compare: null }, path: "a.ts" } }));

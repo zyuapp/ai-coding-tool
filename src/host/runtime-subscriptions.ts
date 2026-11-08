@@ -23,6 +23,7 @@ export type RuntimeSubscriptionHost = {
   execute: (input: WorkspaceInput) => WorkspaceExecution;
   waiters: ThreadWaiterList;
   prepareThreadRequest: (request: ThreadRequest) => Promise<PreparedThreadRequest | void>;
+  hydrate?: (taskId: string) => Promise<void>;
   desktop: RuntimeDesktop;
   frame?: WorkspaceRuntimeHost["frame"];
 };

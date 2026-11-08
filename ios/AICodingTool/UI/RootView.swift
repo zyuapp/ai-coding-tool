@@ -31,6 +31,7 @@ struct RootView: View {
     @ViewBuilder private var content: some View {
         if model.state.entry == .blocked, model.state.credential == nil {
             GateView(model: model)
+                .safeAreaInset(edge: .bottom) { PairedComputers(model: model) }
         } else {
             NavigationStack(path: $model.path) {
                 ThreadListScreen(model: model)
@@ -115,5 +116,101 @@ extension View {
         background(palette.canvas.ignoresSafeArea())
             .toolbarBackground(palette.sunken, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+    }
+}
+
+/// Which computer the phone is talking to, and the way to the others: switch, pair another, or forget this one.
+struct ComputerMenu: View {
+    var model: PhoneModel
+    @Environment(\.palette) private var palette
+    @State private var pairing = false
+    @State private var forgetting: PairedComputer?
+
+    private var current: PairedComputer? { model.connection.computers.first { $0.origin == model.connection.origin } }
+
+    var body: some View {
+        Menu {
+            ForEach(model.connection.computers) { computer in
+                Button { model.connection.switchTo(computer) } label: {
+                    if computer.origin == model.connection.origin { Label(computer.title, systemImage: "checkmark") } else { Text(computer.title) }
+                }
+            }
+            Divider()
+            Button { pairing = true } label: { Label("Pair another computer…", systemImage: "plus") }
+            if let current {
+                Button(role: .destructive) { forgetting = current } label: { Label("Forget \(current.title)…", systemImage: "minus.circle") }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "desktopcomputer")
+                Text(model.state.computerName ?? current?.title ?? "Computer").lineLimit(1)
+                Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                ConnectionMark(connection: model.state.connection)
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(palette.inkDim)
+        }
+        .accessibilityLabel("Computer: \(model.state.computerName ?? current?.title ?? "none"), \(model.state.connection.label)")
+        .sheet(isPresented: $pairing) { PairAnotherSheet(model: model) }
+        .confirmationDialog(forgetting.map { "Forget \($0.title)?" } ?? "", isPresented: Binding(get: { forgetting != nil }, set: { if !$0 { forgetting = nil } }), titleVisibility: .visible) {
+            Button("Forget", role: .destructive) {
+                if let forgetting { model.connection.forget(forgetting) }
+            }
+        } message: {
+            Text("This phone stops connecting to it. Remove the phone from that computer's Settings › Devices too.")
+        }
+    }
+}
+
+/// The pairing screen as a sheet, which closes once the new computer has let the phone in.
+private struct PairAnotherSheet: View {
+    var model: PhoneModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var token: String?
+
+    var body: some View {
+        NavigationStack {
+            GateView(model: model)
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+        }
+        .onAppear { token = model.state.credential?.token }
+        .onChange(of: model.state.credential?.token) { _, next in
+            if let next, next != token { dismiss() }
+        }
+    }
+}
+
+/// Under the pairing screen, the computers this phone is already paired with, to go back to one.
+private struct PairedComputers: View {
+    var model: PhoneModel
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        let computers = model.connection.computers
+        if !computers.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Or go back to").font(.footnote.weight(.semibold)).foregroundStyle(palette.muted)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(computers) { computer in
+                            Button { model.connection.switchTo(computer) } label: {
+                                Label(computer.title, systemImage: "desktopcomputer")
+                                    .font(.subheadline.weight(.medium))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(palette.surface, in: Capsule())
+                                    .overlay(Capsule().strokeBorder(palette.line))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(palette.inkDim)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(palette.canvas)
+        }
     }
 }

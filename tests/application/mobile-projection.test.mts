@@ -426,6 +426,32 @@ test("a coordinator's phone row speaks for its threads on paired computers too, 
   assert.deepEqual(filtered.priority.map((entry) => [entry.id, entry.status]), [["lead", "awaiting-approval"]], "whichever computers the desktop's sidebar shows");
 });
 
+test("an open coordinator lists the threads under it, here and on paired computers, and a plain thread lists none", () => {
+  const holder = { ...emptyWorkspaceState(), threads: [task("far", { title: "Far work", remoteLead: { threadId: "lead", title: "Lead", computer: "This Mac" } })], activeRuns: { far: activeRun("far", "run-far", "running") } };
+  const state = workspace([task("lead", { role: "coordinator", projectId: "project-app" }), task("near", { title: "Near work", parentId: "lead", projectId: "project-app" })], {
+    currentId: "lead",
+    computers: { ...emptyWorkspaceState().computers, paired: [{ id: "studio", name: "Studio", host: "studio.ts.net", status: "connected", error: null, pairedAt: 1, state: holder }] },
+  });
+  assert.deepEqual(projectMobileView(state, NOW).thread?.members, [
+    { id: "near", title: "Near work", status: "idle" },
+    { id: "far", title: "Far work", status: "running", computer: "Studio" },
+  ]);
+  assert.deepEqual(projectMobileView({ ...state, currentId: "near" }, NOW).thread?.members, []);
+});
+
+test("a tool call travels with what it did, read from its input once", () => {
+  const call: ConversationMessage = { id: "c1", kind: "tool", text: "Bash", detail: JSON.stringify({ command: "npm test" }), at: NOW };
+  const page: ConversationMessage = { id: "c2", kind: "tool", text: "mcp__aicodingtool-browser__browser_open", detail: JSON.stringify({ url: "https://example.com" }), at: NOW };
+  const state = workspace([task("t1", { messages: [message("go", NOW - 1), call, page] })], { currentId: "t1" });
+  const messages = projectMobileView(state, NOW).thread?.messages ?? [];
+  assert.deepEqual(messages.map((entry) => entry.call), [
+    undefined,
+    { family: "shell", label: "Bash", argument: "npm test", sigil: "$" },
+    { family: "web", label: "Open page", argument: "https://example.com", verb: true },
+  ]);
+  assert.equal(projectMobileView(state, NOW + 1).thread?.messages[1]?.call, messages[1]?.call, "the same stored call is described once");
+});
+
 test("the phone wears the desktop's theme family in both faces, and follows the desktop's mode", () => {
   const nord = projectMobileView(workspace([], { theme: "nord-snow", themeMode: "light" }), NOW).theme;
   assert.deepEqual(nord, { dark: "nord", light: "nord-snow", mode: "light" });

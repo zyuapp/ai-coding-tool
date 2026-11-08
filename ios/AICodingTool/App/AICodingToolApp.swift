@@ -12,9 +12,13 @@ struct AICodingToolApp: App {
                     if let link = PairingLink(url.absoluteString) { model.connection.pair(with: link) }
                 }
                 .task {
-                    // `npm run start:ios` hands the simulator a pairing link here; a phone already paired with that computer keeps its pairing.
+                    // `npm run start:ios` hands the simulator a pairing link here; a phone already paired with that computer goes back to it.
                     guard let raw = ProcessInfo.processInfo.environment["AIC_PAIR_LINK"], let link = PairingLink(raw) else { return }
-                    if model.connection.state.credential == nil || model.connection.origin != link.origin { model.connection.pair(with: link) }
+                    if let known = model.connection.computers.first(where: { $0.origin == link.origin }) {
+                        model.connection.switchTo(known)
+                    } else {
+                        model.connection.pair(with: link)
+                    }
                 }
         }
         .onChange(of: scenePhase) { _, phase in

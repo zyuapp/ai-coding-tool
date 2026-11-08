@@ -7,7 +7,7 @@ struct ThreadScreen: View {
     @State private var sheet: ThreadSheet?
 
     enum ThreadSheet: String, Identifiable {
-        case settings, menu, location, rename, archive, project, startIn
+        case settings, menu, location, rename, archive, project, startIn, members, addProject
         var id: String { rawValue }
     }
 
@@ -69,6 +69,9 @@ struct ThreadScreen: View {
     @ViewBuilder private var content: some View {
         if let thread {
             VStack(spacing: 0) {
+                if thread.settings.coordinating == true, let members = thread.members {
+                    CoordinatorStrip(members: members) { sheet = .members }
+                }
                 ConversationView(thread: thread, model: model)
                 if let approval = thread.approval {
                     ApprovalCard(approval: approval, refused: model.state.returned?.command.type == "run.decide" ? model.state.returned?.requestId : nil) { allow in
@@ -85,7 +88,7 @@ struct ThreadScreen: View {
                     model.send(.setPrompt(text))
                     model.send(.send(nil, text: nil))
                 }, onSteer: nil, onStop: nil, onAnswer: nil, onSettings: { sheet = .settings }) {
-                    StartOptions(draft: draft, canPickProject: !projects.isEmpty, onPickProject: { sheet = .project }, onPickPlace: { sheet = .startIn })
+                    StartOptions(draft: draft, onPickProject: { sheet = .project }, onPickPlace: { sheet = .startIn }, onCoordinate: { model.send(.setCoordinator(nil, $0)) })
                 }
             }
         } else if let missed = model.missed {
@@ -117,8 +120,9 @@ struct ThreadScreen: View {
     private func fits(_ sheet: ThreadSheet) -> Bool {
         switch sheet {
         case .settings: model.view.thread != nil || model.view.draft != nil
-        case .menu, .location, .rename, .archive: model.view.thread != nil
+        case .menu, .location, .rename, .archive, .members: model.view.thread != nil
         case .project, .startIn: model.view.draft != nil
+        case .addProject: true
         }
     }
 
@@ -137,7 +141,7 @@ struct ThreadScreen: View {
             if let thread = model.view.thread {
                 ThreadMenuSheet(thread: thread, onChanges: { model.enterChanges() }, onLocation: { reopen(.location) }, onNewHere: {
                     model.newThread(projectId: thread.projectId, project: thread.projectName, worktreeId: thread.worktreeId)
-                }, onFork: { worktree in model.send(.fork(thread.id, worktree: worktree)) }, onRename: { reopen(.rename) }, onArchive: { reopen(.archive) })
+                }, onFork: { worktree in model.send(.fork(thread.id, worktree: worktree)) }, onRename: { reopen(.rename) }, onArchive: { reopen(.archive) }, onCoordinate: { model.send(.setCoordinator(thread.id, $0)) })
             }
         case .location:
             if let thread = model.view.thread {
@@ -155,9 +159,15 @@ struct ThreadScreen: View {
             }
         case .project:
             if let draft = model.view.draft {
-                ProjectSheet(projects: projects, selected: draft.projectId, none: "No project", label: "Start in") { projectId in
+                ProjectSheet(projects: projects, selected: draft.projectId, none: "No project", label: "Start in", onAddProject: { reopen(.addProject) }) { projectId in
                     if projectId != draft.projectId { model.newThread(projectId: projectId, project: projects.first { $0.projectId == projectId }?.name) }
                 }
+            }
+        case .addProject:
+            AddProjectSheet(model: model)
+        case .members:
+            if let thread = model.view.thread {
+                MembersSheet(model: model, members: thread.members ?? [], engine: thread.settings.engine)
             }
         case .startIn:
             if let draft = model.view.draft {
@@ -180,27 +190,42 @@ struct ThreadScreen: View {
 /// Where a draft starts: which project, and within it which checkout.
 struct StartOptions: View {
     var draft: MobileDraftView
-    var canPickProject: Bool
     var onPickProject: () -> Void
     var onPickPlace: () -> Void
+    var onCoordinate: (Bool) -> Void
     @Environment(\.palette) private var palette
 
     var body: some View {
         let fresh = draft.worktree && draft.worktreeName == nil
         let local = !draft.worktree && draft.worktreeName == nil
         let choosing = draft.canWorktree || !draft.worktrees.isEmpty || draft.worktreeName != nil
-        if draft.projectId != nil || canPickProject {
+        let coordinating = draft.settings.coordinating == true
+        ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                chip(draft.projectName ?? "No project", symbol: "folder", chosen: false, action: canPickProject ? onPickProject : nil)
+                chip(draft.projectName ?? "No project", symbol: "folder", chosen: false, action: onPickProject)
                     .accessibilityLabel("Project: \(draft.projectName ?? "None")")
                 if draft.projectId != nil, choosing {
                     chip(draft.worktreeName ?? (fresh ? "New worktree" : "Worktree"), symbol: "folder.badge.gearshape", chosen: !local, action: onPickPlace)
                 }
-                Spacer(minLength: 0)
+                Button { onCoordinate(!coordinating) } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "person.3")
+                        Text("Coordinate")
+                    }
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(coordinating ? palette.accent : palette.inkDim)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(coordinating ? palette.accentChip : palette.surface, in: Capsule())
+                    .overlay(Capsule().strokeBorder(coordinating ? palette.accentLine : palette.line))
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(coordinating ? [.isSelected] : [])
+                .accessibilityHint("A coordinator starts and steers threads of its own")
             }
             .padding(.horizontal, 12)
-            .padding(.bottom, 8)
         }
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder private func chip(_ label: String, symbol: String, chosen: Bool, action: (() -> Void)?) -> some View {
@@ -309,5 +334,36 @@ struct ApprovalCard: View {
         .buttonStyle(.plain)
         .disabled(decided != nil)
         .opacity(decided != nil && !chosen ? 0.45 : 1)
+    }
+}
+
+/// A coordinator's threads at a glance, above its conversation: how many, and how many work or wait.
+private struct CoordinatorStrip: View {
+    var members: [MobileMember]
+    var onOpen: () -> Void
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        let working = members.filter { $0.status == "running" }.count
+        let waiting = members.filter { $0.status == "awaiting-approval" }.count
+        Button(action: onOpen) {
+            HStack(spacing: 8) {
+                Image(systemName: "person.3").font(.footnote).foregroundStyle(palette.accent)
+                Text(members.isEmpty ? "Coordinating · no threads yet" : "Coordinating \(members.count) \(members.count == 1 ? "thread" : "threads")")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(palette.inkDim)
+                if waiting > 0 { Text("· \(waiting) need you").font(.footnote).foregroundStyle(palette.accent) }
+                if working > 0 { Text("· \(working) working").font(.footnote).foregroundStyle(palette.muted) }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(palette.quiet)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(palette.sunken)
+            .overlay(alignment: .bottom) { palette.lineSoft.frame(height: 0.5) }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Shows the threads it coordinates")
     }
 }

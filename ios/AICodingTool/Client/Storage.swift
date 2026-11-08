@@ -1,11 +1,23 @@
 import Foundation
 import Security
 
-/// The computer this phone is paired with: where it is, and the token that gets the phone back in.
-struct PairedComputer: Codable, Equatable, Sendable {
+/// A computer this phone is paired with: where it is, what it calls itself, and the token that gets the phone back in.
+struct PairedComputer: Codable, Equatable, Identifiable, Sendable {
     /// The origin the pairing link named, such as `https://mac.tailnet.ts.net`.
     var origin: URL
     var credential: MobileCredential
+    /// What the computer calls itself, once it has said. Older computers never do.
+    var name: String?
+
+    var id: URL { origin }
+
+    /// The computer's own name, else the first label of its name on the network, else its address.
+    var title: String {
+        if let name, !name.isEmpty { return name }
+        let host = origin.host() ?? origin.absoluteString
+        guard host.contains(where: \.isLetter) else { return host }
+        return host.split(separator: ".").first.map(String.init) ?? host
+    }
 }
 
 /// What the phone keeps between launches. The token lives in the Keychain; the rest is preferences.
@@ -14,6 +26,7 @@ struct PhoneStorage {
     var keychainService = "com.zyuapp.aicodingtool.phone"
 
     private static let computerAccount = "paired-computer"
+    private static let computersAccount = "paired-computers"
     private static let outboxKey = "aicodingtool.mobile.outbox"
     private static let foldedKey = "aicodingtool.mobile.folded"
     private static let activityProjectKey = "aicodingtool.mobile.activity-project"
@@ -21,17 +34,21 @@ struct PhoneStorage {
     private static let vocabularyKey = "aicodingtool.mobile.vocabulary"
     private static let originKey = "aicodingtool.mobile.origin"
 
-    func readComputer() -> PairedComputer? {
-        guard let data = keychainRead(account: Self.computerAccount) else { return nil }
-        return try? JSONDecoder().decode(PairedComputer.self, from: data)
+    /// Every computer this phone is paired with. A phone from before it paired with several holds one, which is read as the list.
+    func readComputers() -> [PairedComputer] {
+        if let data = keychainRead(account: Self.computersAccount), let computers = try? JSONDecoder().decode([PairedComputer].self, from: data) { return computers }
+        guard let data = keychainRead(account: Self.computerAccount), let computer = try? JSONDecoder().decode(PairedComputer.self, from: data) else { return [] }
+        writeComputers([computer])
+        keychainDelete(account: Self.computerAccount)
+        return [computer]
     }
 
-    func writeComputer(_ computer: PairedComputer?) {
-        guard let computer, let data = try? JSONEncoder().encode(computer) else {
-            keychainDelete(account: Self.computerAccount)
+    func writeComputers(_ computers: [PairedComputer]) {
+        guard !computers.isEmpty, let data = try? JSONEncoder().encode(computers) else {
+            keychainDelete(account: Self.computersAccount)
             return
         }
-        keychainWrite(data, account: Self.computerAccount)
+        keychainWrite(data, account: Self.computersAccount)
     }
 
     /// The computer the app last dialled, kept apart from the token so a forgotten token still knows where to pair again.
@@ -40,17 +57,26 @@ struct PhoneStorage {
         nonmutating set { defaults.set(newValue?.absoluteString, forKey: Self.originKey) }
     }
 
-    func readOutbox() -> [OutboxEntry] {
-        guard let data = defaults.data(forKey: Self.outboxKey), let entries = try? JSONDecoder().decode([LenientEntry].self, from: data) else { return [] }
+    /// What is still owed to one computer. The phone from before several computers kept a single outbox, which belongs to the computer it last dialled.
+    func readOutbox(for origin: URL?) -> [OutboxEntry] {
+        let key = Self.outboxKey(origin)
+        let data = defaults.data(forKey: key) ?? (origin == self.origin ? defaults.data(forKey: Self.outboxKey) : nil)
+        guard let data, let entries = try? JSONDecoder().decode([LenientEntry].self, from: data) else { return [] }
         return entries.compactMap(\.entry)
     }
 
-    func writeOutbox(_ outbox: [OutboxEntry]) {
+    func writeOutbox(_ outbox: [OutboxEntry], for origin: URL?) {
+        defaults.removeObject(forKey: Self.outboxKey)
+        let key = Self.outboxKey(origin)
         if outbox.isEmpty {
-            defaults.removeObject(forKey: Self.outboxKey)
+            defaults.removeObject(forKey: key)
         } else if let data = try? JSONEncoder().encode(outbox) {
-            defaults.set(data, forKey: Self.outboxKey)
+            defaults.set(data, forKey: key)
         }
+    }
+
+    private static func outboxKey(_ origin: URL?) -> String {
+        "\(outboxKey).\(origin?.absoluteString ?? "none")"
     }
 
     var folded: Set<String> {
@@ -70,9 +96,15 @@ struct PhoneStorage {
         nonmutating set { defaults.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: Self.themeKey) }
     }
 
-    var vocabulary: MobileVocabulary? {
-        get { defaults.data(forKey: Self.vocabularyKey).flatMap { try? JSONDecoder().decode(MobileVocabulary.self, from: $0) } }
-        nonmutating set { defaults.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: Self.vocabularyKey) }
+    /// What one computer's build calls its engines, modes, models and efforts.
+    func vocabulary(for origin: URL?) -> MobileVocabulary? {
+        let data = defaults.data(forKey: "\(Self.vocabularyKey).\(origin?.absoluteString ?? "none")") ?? (origin == self.origin ? defaults.data(forKey: Self.vocabularyKey) : nil)
+        return data.flatMap { try? JSONDecoder().decode(MobileVocabulary.self, from: $0) }
+    }
+
+    func writeVocabulary(_ vocabulary: MobileVocabulary?, for origin: URL?) {
+        defaults.removeObject(forKey: Self.vocabularyKey)
+        defaults.set(vocabulary.flatMap { try? JSONEncoder().encode($0) }, forKey: "\(Self.vocabularyKey).\(origin?.absoluteString ?? "none")")
     }
 
     /// An outbox entry read back, or nil for one a different version wrote in a shape this one cannot send.

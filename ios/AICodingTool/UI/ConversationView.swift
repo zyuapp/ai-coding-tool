@@ -82,7 +82,7 @@ struct ConversationView: View {
     }
 }
 
-private struct MessageView: View {
+struct MessageView: View {
     var message: MobileMessage
     var answer: Bool
     @Environment(\.palette) private var palette
@@ -131,45 +131,88 @@ private struct MessageView: View {
 }
 
 /// A run of more than one call is a card that opens to every call in order; a lone call is a plain line.
-private struct ToolRunView: View {
+/// A run of tool calls. One call reads as what it did; several as a summary that opens to each call
+/// and its argument, in the order they were made. A call's row opens to its whole argument.
+struct ToolRunView: View {
     var engine: String
     var calls: [MobileMessage]
     @Environment(\.palette) private var palette
     @State private var open = false
 
     var body: some View {
-        let family = ToolNames.family(engine: engine, calls.first?.text ?? "")
-        VStack(alignment: .leading, spacing: 6) {
-            Button {
-                if calls.count > 1 { withAnimation(.snappy) { open.toggle() } }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: family.symbol).font(.caption).foregroundStyle(palette.muted).frame(width: 18)
-                    Text(Format.summariseTools(calls)).font(.footnote).foregroundStyle(palette.mutedStrong).lineLimit(1)
-                    Spacer(minLength: 0)
-                    if calls.count > 1 {
+        VStack(alignment: .leading, spacing: 8) {
+            if calls.count == 1, let call = calls.first {
+                ToolCallRow(engine: engine, call: call, leading: true)
+            } else {
+                Button {
+                    withAnimation(.snappy) { open.toggle() }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: ToolCallRow.family(engine, calls.first).symbol).font(.caption).foregroundStyle(palette.muted).frame(width: 18)
+                        Text(Format.summariseTools(calls)).font(.footnote).foregroundStyle(palette.mutedStrong).lineLimit(1)
+                        Spacer(minLength: 0)
                         Text("\(calls.count)").font(.caption.monospacedDigit()).foregroundStyle(palette.muted)
                         Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(palette.quiet).rotationEffect(.degrees(open ? 180 : 0))
                     }
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(calls.count < 2)
-            .accessibilityValue(calls.count > 1 ? (open ? "Expanded" : "Collapsed") : "")
-            if open {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(calls.enumerated()), id: \.offset) { index, call in
-                        Text("\(index + 1). \(ToolNames.label(call.text))").font(.caption).foregroundStyle(palette.muted)
+                .buttonStyle(.plain)
+                .accessibilityValue(open ? "Expanded" : "Collapsed")
+                if open {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(Array(calls.enumerated()), id: \.offset) { _, call in
+                            ToolCallRow(engine: engine, call: call, leading: false)
+                        }
                     }
+                    .padding(.leading, 4)
                 }
-                .padding(.leading, 26)
             }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(palette.sunken, in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(palette.lineSoft))
+    }
+}
+
+/// One tool call: its glyph and label over the argument that tells it apart, cut to two lines until opened.
+private struct ToolCallRow: View {
+    var engine: String
+    var call: MobileMessage
+    /// The only call in its run, which carries the run's own glyph and padding.
+    var leading: Bool
+    @Environment(\.palette) private var palette
+    @State private var whole = false
+
+    static func family(_ engine: String, _ call: MobileMessage?) -> ToolFamily {
+        if let family = call?.call.flatMap({ ToolFamily(rawValue: $0.family) }) { return family }
+        return ToolNames.family(engine: engine, call?.text ?? "")
+    }
+
+    var body: some View {
+        let label = call.call?.label ?? ToolNames.label(call.text)
+        let argument = call.call.map { $0.argument.isEmpty ? "" : ($0.sigil.map { "\($0) " } ?? "") + $0.argument } ?? ""
+        Button {
+            if !argument.isEmpty { withAnimation(.snappy) { whole.toggle() } }
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: Self.family(engine, call).symbol).font(.caption).foregroundStyle(palette.muted).frame(width: 18)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label).font(.footnote.weight(.medium)).foregroundStyle(palette.mutedStrong)
+                    if !argument.isEmpty {
+                        Text(argument)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(palette.muted)
+                            .lineLimit(whole ? nil : 2)
+                            .textSelection(.enabled)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
     }
 }
 

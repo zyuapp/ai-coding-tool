@@ -7,6 +7,7 @@ import { isDiffRange, type DiffRange } from "../domain/diff.js";
 import type { ThemeMode } from "../domain/theme.js";
 import type { ThreadOutcome } from "../domain/thread-run.js";
 import type { TaskMessageKind } from "./threads.js";
+import type { ToolFamily } from "../domain/tool-call.js";
 import { isBlankable, isCount, isRecord, isString, MAX_PATH_LENGTH, MAX_PROMPT_LENGTH } from "./phone-commands.js";
 import { isPhoneCommand, type PhoneCommandType } from "./workspace-view-input.js";
 
@@ -70,7 +71,15 @@ export type MobileMessage = {
   text: string;
   origin?: string;
   at: number;
+  /** What a tool call did, in one line, as the desktop's transcript reads it. Tool messages only. */
+  call?: MobileToolCall;
 };
+
+/** A tool call as a row reads it: its label, the argument that tells it from the next, and its family's glyph. */
+export type MobileToolCall = { family: ToolFamily; label: string; argument: string; sigil?: string; verb?: true };
+
+/** A thread working under the open coordinator, wherever it runs. `computer` names another computer holding it, which the phone cannot open. */
+export type MobileMember = { id: string; title: string; status: MobileRunStatus; computer?: string };
 
 /**
  * The question a run is stopped on, with enough of its input to answer it. A coordinator's view
@@ -173,6 +182,8 @@ export type MobileThreadView = {
   changes: MobileChanges | null;
   /** Whether the thread works in a registered checkout, which is what a review is read from. */
   reviewable: boolean;
+  /** The threads working under it, when the open thread is a coordinator; empty otherwise. Absent from older desktops. */
+  members?: MobileMember[];
   /** The branch comparison the desktop has this thread's review on. */
   branchRange: Extract<DiffRange, { kind: "branches" }>;
 };
@@ -279,9 +290,18 @@ const MAX_TOKEN_LENGTH = 512;
  */
 export type MobileQuery =
   | { kind: "diff-summary"; taskId: string; range: DiffRange }
-  | { kind: "diff-patch"; taskId: string; range: DiffRange; path: string; previousPath?: string };
+  | { kind: "diff-patch"; taskId: string; range: DiffRange; path: string; previousPath?: string }
+  /** The folders on the computer whose paths start with `prefix`, for picking a project to add. */
+  | { kind: "directories"; prefix: string }
+  /** A thread's transcript without opening it, for one working under the open coordinator. */
+  | { kind: "thread"; taskId: string };
+
+/** What a {@link MobileQuery} of kind "thread" answers: the thread as its own screen would read it. */
+export type MobileThreadRead = { title: string; status: MobileRunStatus; messages: MobileMessage[]; omitted: number; streamingTail: string | null };
 
 export function isMobileQuery(value: unknown): value is MobileQuery {
+  if (isRecord(value) && value.kind === "directories") return typeof value.prefix === "string" && value.prefix.length <= MAX_PATH_LENGTH && !value.prefix.includes("\0");
+  if (isRecord(value) && value.kind === "thread") return isString(value.taskId);
   if (!isRecord(value) || !isString(value.taskId) || !isDiffRange(value.range)) return false;
   if (value.kind === "diff-summary") return true;
   return value.kind === "diff-patch" && isString(value.path, MAX_PATH_LENGTH) && (value.previousPath === undefined || isString(value.previousPath, MAX_PATH_LENGTH));
@@ -364,6 +384,8 @@ export type MobileSnapshotMessage = Sequenced & {
   instance?: string;
   /** What this build calls its engines, modes, models and efforts, for a phone app not built beside it. Absent from older desktops. */
   vocabulary?: MobileVocabulary;
+  /** What this computer calls itself, which a phone paired with several tells them apart by. */
+  computer?: string;
 };
 
 /** One effort as a picker names it. `delegates` is an effort a coordinator never takes. */

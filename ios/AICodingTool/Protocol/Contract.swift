@@ -36,6 +36,34 @@ struct MobileMessage: Codable, Equatable, Sendable {
     var text: String
     var origin: String?
     var at: Double
+    /// What a tool call did, read by the computer. Absent from older computers.
+    var call: MobileToolCall?
+}
+
+/// A tool call as a row reads it: its label, and the argument that tells it from the next.
+struct MobileToolCall: Codable, Equatable, Sendable {
+    var family: String
+    var label: String
+    var argument: String
+    var sigil: String?
+    var verb: Bool?
+}
+
+/// A thread read without opening it, as a coordinator's tab shows one working under it.
+struct MobileThreadRead: Codable, Equatable, Sendable {
+    var title: String
+    var status: String
+    var messages: [MobileMessage]
+    var omitted: Int
+    var streamingTail: String?
+}
+
+/// A thread working under the open coordinator. `computer` names another computer holding it, which the phone cannot open.
+struct MobileMember: Codable, Equatable, Identifiable, Sendable {
+    var id: String
+    var title: String
+    var status: String
+    var computer: String?
 }
 
 struct MobileApproval: Codable, Equatable, Sendable {
@@ -212,6 +240,7 @@ struct MobileThreadView: Codable, Equatable, Sendable {
     var changes: MobileChanges?
     var reviewable: Bool
     var branchRange: DiffRange
+    var members: [MobileMember]?
 }
 
 struct MobileDraftView: Codable, Equatable, Sendable {

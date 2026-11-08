@@ -9,7 +9,10 @@ import UIKit
 @Observable
 final class PhoneConnection {
     private(set) var state: MobileClientState
+    /// The computer this connection dials: one of `computers`, or one being paired.
     private(set) var origin: URL?
+    /// Every computer this phone is paired with. The connection talks to one at a time.
+    private(set) var computers: [PairedComputer]
 
     static let connectTimeout: Duration = .seconds(10)
     /// The computer pings every 15 seconds, so silence past this means the line is gone.
@@ -37,10 +40,14 @@ final class PhoneConnection {
 
     init(storage: PhoneStorage = PhoneStorage()) {
         self.storage = storage
-        let computer = storage.readComputer()
-        origin = computer?.origin ?? storage.origin
-        storedVocabulary = storage.vocabulary
-        state = MobileClientState(credential: computer?.credential, code: nil, deviceName: Self.deviceName, outbox: storage.readOutbox(), vocabulary: storedVocabulary)
+        let computers = storage.readComputers()
+        self.computers = computers
+        let current = computers.first { $0.origin == storage.origin } ?? computers.first
+        let dialled = current?.origin ?? storage.origin
+        origin = dialled
+        storedVocabulary = storage.vocabulary(for: dialled)
+        state = MobileClientState(credential: current?.credential, code: nil, deviceName: Self.deviceName, outbox: storage.readOutbox(for: dialled), vocabulary: storage.vocabulary(for: dialled))
+        state.computerName = current?.name
         reminder = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(MobileClient.resendMs))
@@ -58,18 +65,47 @@ final class PhoneConnection {
         UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"
     }
 
-    /// Starts over with a link the computer's QR code carries.
+    /// Pairs with the computer a QR code's link names, alongside any already paired.
     func pair(with link: PairingLink) {
+        hangUp()
+        origin = link.origin
+        storage.origin = link.origin
+        storedVocabulary = storage.vocabulary(for: link.origin)
+        state = MobileClientState(credential: nil, code: link.code, deviceName: Self.deviceName, vocabulary: storedVocabulary)
+        storage.writeOutbox([], for: link.origin)
+        open()
+    }
+
+    /// Talks to another paired computer instead. What is still owed to the one left waits for the phone to come back to it.
+    func switchTo(_ computer: PairedComputer) {
+        guard computer.origin != origin || state.credential == nil else { return }
+        hangUp()
+        origin = computer.origin
+        storage.origin = computer.origin
+        storedVocabulary = storage.vocabulary(for: computer.origin)
+        state = MobileClientState(credential: computer.credential, code: nil, deviceName: Self.deviceName, outbox: storage.readOutbox(for: computer.origin), vocabulary: storedVocabulary)
+        state.computerName = computer.name
+        open()
+    }
+
+    /// Unpairs from a computer on this phone. Its own list keeps the phone until it is revoked there.
+    func forget(_ computer: PairedComputer) {
+        computers.removeAll { $0.origin == computer.origin }
+        storage.writeComputers(computers)
+        storage.writeOutbox([], for: computer.origin)
+        guard computer.origin == origin else { return }
+        if let next = computers.first {
+            switchTo(next)
+        } else {
+            hangUp()
+            state = MobileClientState(credential: nil, code: nil, deviceName: Self.deviceName)
+        }
+    }
+
+    private func hangUp() {
         drop()
         retry?.cancel()
         settle?.cancel()
-        // Another computer's build may name its engines differently, so only the same computer's vocabulary is kept.
-        let keepVocabulary = link.origin == origin ? state.vocabulary : nil
-        origin = link.origin
-        storage.origin = link.origin
-        state = MobileClientState(credential: nil, code: link.code, deviceName: Self.deviceName, vocabulary: keepVocabulary)
-        storage.writeOutbox([])
-        open()
     }
 
     func send(_ command: PhoneCommand) {
@@ -117,6 +153,7 @@ final class PhoneConnection {
         let (next, effects) = MobileClient.reduce(state, event)
         if next != state { state = next }
         for effect in effects { perform(effect) }
+        rememberComputer()
     }
 
     private func perform(_ effect: MobileClientEffect) {
@@ -125,13 +162,15 @@ final class PhoneConnection {
             guard let socket, socket.state == .running else { return }
             socket.send(.string(message.text)) { _ in }
         case .store(let credential):
-            if let credential, let origin {
-                storage.writeComputer(PairedComputer(origin: origin, credential: credential))
+            guard let origin else { break }
+            if let credential {
+                remember(PairedComputer(origin: origin, credential: credential, name: state.computerName))
             } else {
-                storage.writeComputer(nil)
+                computers.removeAll { $0.origin == origin }
+                storage.writeComputers(computers)
             }
         case .keep(let outbox):
-            storage.writeOutbox(outbox)
+            storage.writeOutbox(outbox, for: origin)
         case .disconnect:
             drop()
         case .connect(let delayMs):
@@ -149,13 +188,29 @@ final class PhoneConnection {
                 self?.dispatch(.settled)
             }
         }
-        if case .send = effect {} else { rememberVocabulary() }
     }
 
-    private func rememberVocabulary() {
-        guard state.vocabulary != storedVocabulary else { return }
-        storedVocabulary = state.vocabulary
-        storage.vocabulary = state.vocabulary
+    /// Adds or updates a paired computer, keeping the list in the order computers were paired.
+    private func remember(_ computer: PairedComputer) {
+        if let index = computers.firstIndex(where: { $0.origin == computer.origin }) {
+            guard computers[index] != computer else { return }
+            computers[index] = computer
+        } else {
+            computers.append(computer)
+        }
+        storage.writeComputers(computers)
+    }
+
+    /// Keeps what the computer last said about itself: its vocabulary and its name.
+    private func rememberComputer() {
+        if state.vocabulary != storedVocabulary {
+            storedVocabulary = state.vocabulary
+            storage.writeVocabulary(state.vocabulary, for: origin)
+        }
+        if let name = state.computerName, let origin, var computer = computers.first(where: { $0.origin == origin }), computer.name != name {
+            computer.name = name
+            remember(computer)
+        }
     }
 
     private func disarm() {
@@ -207,7 +262,7 @@ final class PhoneConnection {
         guard task === socket else { return }
         watch()
         dispatch(.opened(at: Self.now))
-        rememberVocabulary()
+        rememberComputer()
     }
 
     fileprivate func socketClosed(_ task: URLSessionWebSocketTask) {

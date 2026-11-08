@@ -59,6 +59,10 @@ extension PhoneCommand {
         PhoneCommand("question.answer", ["taskId": .string(taskId), "runId": .string(question.runId), "requestId": .string(question.requestId), "questionId": .string(question.questionId), "text": .string(answer)])
     }
     static func setPrompt(_ prompt: String) -> PhoneCommand { PhoneCommand("view.set-prompt", ["prompt": .string(prompt)]) }
+    /// Makes a thread, or the draft when `taskId` is nil, a coordinator, or plain again.
+    static func setCoordinator(_ taskId: String?, _ coordinating: Bool) -> PhoneCommand { PhoneCommand("task.set-role", ["taskId": jsonText(taskId), "role": coordinating ? JSONValue.string("coordinator") : JSONValue.null]) }
+    /// Opens a folder on the computer as a project and starts a draft in it.
+    static func addProject(_ root: String) -> PhoneCommand { PhoneCommand("project.add", ["root": .string(root), "start": .bool(true)]) }
 }
 
 /// Where a thread moves: the project's own checkout, an existing worktree, or a new one.
@@ -80,11 +84,17 @@ enum WorktreeDestination: Equatable, Sendable {
 enum MobileQuery: Sendable {
     case diffSummary(taskId: String, range: DiffRange)
     case diffPatch(taskId: String, range: DiffRange, path: String, previousPath: String?)
+    case directories(prefix: String)
+    case thread(taskId: String)
 
     var json: JSONValue {
         switch self {
         case .diffSummary(let taskId, let range):
             .object(["kind": .string("diff-summary"), "taskId": .string(taskId), "range": range.json])
+        case .directories(let prefix):
+            .object(["kind": .string("directories"), "prefix": .string(prefix)])
+        case .thread(let taskId):
+            .object(["kind": .string("thread"), "taskId": .string(taskId)])
         case .diffPatch(let taskId, let range, let path, let previousPath):
             {
                 var object: [String: JSONValue] = ["kind": .string("diff-patch"), "taskId": .string(taskId), "range": range.json, "path": .string(path)]

@@ -8,7 +8,10 @@ import { themeFor, themeOrDefault } from "../domain/theme.js";
 import { worktreeName } from "../domain/worktree.js";
 import { orderThreads } from "./thread-order.js";
 import { worktreeChoices } from "./worktree-choices.js";
-import { coordinatorRoster, ownCoordinationSections, rowHeadline, waitingLine } from "./coordination.js";
+import { coordinationMembers, coordinatorRoster, memberActivity, ownCoordinationSections, rowHeadline, waitingLine } from "./coordination.js";
+import { describeToolCall } from "../domain/tool-call.js";
+import { isCoordinator } from "../domain/coordination.js";
+import type { ConversationMessage } from "../domain/conversation.js";
 import type { ThreadActivity } from "./thread-activity.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
 import { diffFor } from "./workspace-diff.js";
@@ -22,7 +25,11 @@ import type {
   MobileEngine,
   MobileEngines,
   MobileLocation,
+  MobileMember,
   MobileMessage,
+  MobileRunStatus,
+  MobileThreadRead,
+  MobileToolCall,
   MobilePatch,
   MobileProjectGroup,
   MobileTheme,
@@ -254,7 +261,7 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
     projectId: project?.id ?? null,
     projectName: view.currentProject ? projectName(view.currentProject) : null,
     worktreeId: thread.worktreeId ?? null,
-    messages: transcript.messages,
+    messages: withToolCalls(thread, transcript.messages),
     omitted: transcript.omitted,
     streamingTail: view.streamingTail?.text ?? null,
     status: view.blockedThreadIds.has(thread.id) ? "awaiting-approval" : view.status,
@@ -279,7 +286,51 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
     changes: changesOf(view),
     reviewable: threadWorkspaceId(state, thread) !== undefined,
     branchRange: diff.range.kind === "branches" ? diff.range : diff.branchRange ?? DEFAULT_BRANCH_RANGE,
+    members: isCoordinator(thread) ? projectMembers(state, thread.id, view) : NO_MEMBERS,
   };
+}
+
+const NO_MEMBERS: MobileMember[] = [];
+
+const toolCalls = new WeakMap<ConversationMessage, MobileToolCall>();
+
+/** A tool call read once per stored message: its input is parsed here rather than on every change to the view. */
+function toolCallOf(engine: Thread["engine"], message: ConversationMessage): MobileToolCall {
+  let call = toolCalls.get(message);
+  if (!call) {
+    const described = describeToolCall(engine, message.text, message.detail);
+    call = { family: described.family, label: described.label, argument: described.argument, ...(described.sigil ? { sigil: described.sigil } : {}), ...(described.verb ? { verb: true as const } : {}) };
+    toolCalls.set(message, call);
+  }
+  return call;
+}
+
+/** The transcript's tool messages with what each call did. The transcript is the thread's newest messages, in order. */
+function withToolCalls(thread: Thread, messages: MobileMessage[]): MobileMessage[] {
+  const offset = thread.messages.length - messages.length;
+  return messages.map((message, index) => {
+    const stored = thread.messages[offset + index];
+    return message.kind === "tool" && stored?.kind === "tool" ? { ...message, call: toolCallOf(thread.engine, stored) } : message;
+  });
+}
+
+/** A thread on this computer as its own screen reads it, without opening it. Null for one this computer does not hold. */
+export function mobileThreadRead(state: WorkspaceState, taskId: string): MobileThreadRead | null {
+  const thread = state.threads.find((item) => item.id === taskId);
+  const transcript = thread && threadTranscript(state, thread.id, MOBILE_TRANSCRIPT_MESSAGES);
+  if (!thread || !transcript) return null;
+  const view = deriveView(state);
+  const status: MobileRunStatus = view.blockedThreadIds.has(thread.id) ? "awaiting-approval" : view.runningThreadIds.has(thread.id) ? "running" : "idle";
+  return { title: thread.title || "Untitled thread", status, messages: withToolCalls(thread, transcript.messages), omitted: transcript.omitted, streamingTail: state.streamingTails[thread.id]?.text ?? null };
+}
+
+/** The threads working under a coordinator, here and on paired computers, as its desktop roster lists them. */
+function projectMembers(state: WorkspaceState, leadId: string, view: ReturnType<typeof deriveView>): MobileMember[] {
+  return coordinationMembers(state, leadId).map((member) => {
+    const { working, blocked } = memberActivity(member, view.runningThreadIds, view.blockedThreadIds);
+    const status: MobileMember["status"] = blocked.has(member.thread.id) ? "awaiting-approval" : working.has(member.thread.id) ? "running" : "idle";
+    return { id: member.thread.id, title: member.thread.title || "Untitled thread", status, ...(member.computer ? { computer: member.computer.name } : {}) };
+  });
 }
 
 function approvalDetail(input: Record<string, unknown>): string {
@@ -361,7 +412,7 @@ function diffMobileThread(previous: MobileThreadView | null, next: MobileThreadV
  */
 const MOVING_KEYS = [
   "loading", "title", "projectId", "projectName", "worktreeId", "omitted", "status", "question", "approval",
-  "queued", "settings", "location", "worktrees", "canMove", "changes", "reviewable", "branchRange",
+  "queued", "settings", "location", "worktrees", "canMove", "changes", "reviewable", "branchRange", "members",
 ] as const satisfies ReadonlyArray<keyof Omit<MobileThreadView, "id" | "messages" | "streamingTail">>;
 
 /**

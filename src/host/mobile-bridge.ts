@@ -1,4 +1,4 @@
-import { applyMobilePatch, diffMobileView, projectMobileView } from "../application/mobile-projection.js";
+import { applyMobilePatch, diffMobileView, mobileThreadRead, projectMobileView } from "../application/mobile-projection.js";
 import type { WorkspaceState } from "../application/workspace-state.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
 import type { WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
@@ -19,7 +19,7 @@ export const MOBILE_REFUSED = "That command is not one a phone may send.";
 export const MOBILE_NO_CHECKOUT = "This thread has no checkout to review.";
 
 /** The reads a phone's queries are answered from. Content only; state never travels this way. */
-export type MobileBridgeReader = Pick<RuntimeDesktop, "diffSummary" | "diffPatch">;
+export type MobileBridgeReader = Pick<RuntimeDesktop, "diffSummary" | "diffPatch" | "directories">;
 
 /** The runtime state and the command execution that answers each phone request. */
 export type MobileBridgeHost = {
@@ -28,15 +28,25 @@ export type MobileBridgeHost = {
   execute: (command: AppCommand) => WorkspaceExecution;
   /** Absent in a host that answers no queries, which refuses them rather than read nothing. */
   read?: MobileBridgeReader;
+  /** Loads a thread's stored transcript into the workspace, which a thread not on screen has yet to do. */
+  hydrate?: (taskId: string) => Promise<void>;
 };
 
 /**
- * A query names a thread, and the thread names the checkout: a phone never says which directory to
- * read. Whitespace-only changes are left out, as the desktop's review leaves them out by default.
+ * A review query names a thread, and the thread names the checkout: a phone never says which directory
+ * to read. Whitespace-only changes are left out, as the desktop's review leaves them out by default. A
+ * folder query lists folders by path prefix, as the desktop's own add-project field does. A thread
+ * query reads one of this computer's threads without opening it, as a coordinator's tab does.
  */
 async function answerQuery(host: MobileBridgeHost, query: MobileQuery): Promise<unknown> {
+  if (query.kind === "thread") {
+    if (!host.state().threads.some((thread) => thread.id === query.taskId)) throw new Error(`No thread has the ID ${query.taskId}.`);
+    await host.hydrate?.(query.taskId);
+    return mobileThreadRead(host.state(), query.taskId) ?? Promise.reject(new Error(`No thread has the ID ${query.taskId}.`));
+  }
   const reader = host.read;
   if (!reader) throw new Error("This computer cannot answer that.");
+  if (query.kind === "directories") return reader.directories(query.prefix);
   const state = host.state();
   const thread = state.threads.find((item) => item.id === query.taskId);
   if (!thread) throw new Error(`No thread has the ID ${query.taskId}.`);

@@ -4,6 +4,7 @@
  */
 import { isAgentEffort, isAgentEngine, isModelId } from "../domain/agent-engine.js";
 import { isExecutionPolicy } from "../domain/run.js";
+import { isThreadRole } from "../domain/thread-role.js";
 import type { Annotation, AnnotationAnchor, PastedText } from "../domain/conversation.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
 import { sendStaysInReach } from "./task-send.js";
@@ -137,5 +138,12 @@ export const pastes: PhoneRule = (command) => named(command) && isString(command
 export const removesPaste: PhoneRule = (command) => named(command) && isString(command.pasteId);
 
 export const recallsPastes: PhoneRule = (command) => named(command) && isBoundedList(command.pastes, isPastedText);
+
+/** A thread or the draft made a coordinator or made plain again; only an agent says who asked. */
+export const setsRole: PhoneRule = (command) => named(command) && (command.role === null || isThreadRole(command.role)) && command.sender === undefined;
+
+/** A folder on this computer opened as a project, never one on another computer the desktop is linked to. */
+export const addsProject: PhoneRule = (command) => isString(command.root, MAX_PATH_LENGTH) && command.root.trim().length > 0
+  && command.computerId === undefined && (command.start === undefined || command.start === true);
 
 export const setsPrompt: PhoneRule = (command) => named(command) && isBlankable(command.prompt, MAX_PROMPT_LENGTH);

@@ -16,7 +16,7 @@ final class ClientReducerTests: XCTestCase {
     }
 
     private func snapshot(_ sequence: Int, session: String = "s1", title: String = "Thread", instance: String? = "one") -> MobileServerMessage {
-        .snapshot(sequence: sequence, sessionId: session, view: view(title), instance: instance, vocabulary: nil)
+        .snapshot(sequence: sequence, sessionId: session, view: view(title), instance: instance, vocabulary: nil, computer: nil)
     }
 
     private func run(_ state: MobileClientState, _ events: [MobileClientEvent]) -> (MobileClientState, [MobileClientEffect]) {
@@ -150,7 +150,7 @@ final class ClientReducerTests: XCTestCase {
     func testSnapshotNamesTheVocabulary() {
         let vocabulary = MobileVocabulary(engines: [], efforts: [MobileEffortTerm(id: "high", label: "High")])
         let start = MobileClientState(credential: MobileCredential(token: token, deviceId: "d1", deviceName: "iPhone"), code: nil, deviceName: "iPhone")
-        let (state, _) = run(start, [.opened(at: 0), .received(.snapshot(sequence: 1, sessionId: "s1", view: .empty, instance: nil, vocabulary: vocabulary))])
+        let (state, _) = run(start, [.opened(at: 0), .received(.snapshot(sequence: 1, sessionId: "s1", view: .empty, instance: nil, vocabulary: vocabulary, computer: "Studio"))])
         XCTAssertEqual(state.vocabulary, vocabulary)
         let (older, _) = run(state, [.closed, .opened(at: 1), .received(snapshot(1, session: "s2"))])
         XCTAssertNil(older.vocabulary, "a computer that names none is not read with another build's names")

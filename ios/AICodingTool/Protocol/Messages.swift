@@ -58,12 +58,13 @@ struct MobileThreadDelta: Decodable, Equatable, Sendable {
     var changes: PatchField<MobileChanges?> = .absent
     var reviewable: PatchField<Bool> = .absent
     var branchRange: PatchField<DiffRange> = .absent
+    var members: PatchField<[MobileMember]?> = .absent
     var spliced: Spliced?
     var messages: [MobileMessage]?
     var tail: Tail?
 
     private enum CodingKeys: String, CodingKey {
-        case loading, title, projectId, projectName, worktreeId, omitted, streamingTail, status, approval, question, queued, settings, location, worktrees, canMove, changes, reviewable, branchRange, spliced, messages, tail
+        case loading, title, projectId, projectName, worktreeId, omitted, streamingTail, status, approval, question, queued, settings, location, worktrees, canMove, changes, reviewable, branchRange, members, spliced, messages, tail
     }
 
     init() {}
@@ -88,6 +89,7 @@ struct MobileThreadDelta: Decodable, Equatable, Sendable {
         changes = try container.patchField(MobileChanges.self, forKey: .changes)
         reviewable = try container.patchValue(Bool.self, forKey: .reviewable)
         branchRange = try container.patchValue(DiffRange.self, forKey: .branchRange)
+        members = try container.patchField([MobileMember].self, forKey: .members)
         spliced = try container.decodeIfPresent(Spliced.self, forKey: .spliced)
         messages = try container.decodeIfPresent([MobileMessage].self, forKey: .messages)
         tail = try container.decodeIfPresent(Tail.self, forKey: .tail)
@@ -188,6 +190,7 @@ extension MobileThreadView {
         next.changes = delta.changes.applied(to: changes)
         next.reviewable = delta.reviewable.applied(to: reviewable)
         next.branchRange = delta.branchRange.applied(to: branchRange)
+        next.members = delta.members.applied(to: members)
         if let tail = delta.tail {
             // The server counts the tail in UTF-16 code units, as JavaScript strings do.
             guard streamingTail?.utf16.count == tail.from else { return nil }
@@ -204,7 +207,7 @@ enum MobileErrorCode: String, Sendable {
 
 enum MobileServerMessage: Equatable, Sendable {
     case paired(sequence: Int, deviceId: String, deviceName: String, token: String)
-    case snapshot(sequence: Int, sessionId: String, view: MobileView, instance: String?, vocabulary: MobileVocabulary?)
+    case snapshot(sequence: Int, sessionId: String, view: MobileView, instance: String?, vocabulary: MobileVocabulary?, computer: String?)
     case patch(sequence: Int, patch: MobilePatch)
     case ack(sequence: Int, requestId: String, ok: Bool, message: String)
     case answer(sequence: Int, requestId: String, result: Result<JSONValue, AnswerError>)
@@ -217,7 +220,7 @@ enum MobileServerMessage: Equatable, Sendable {
 
     var sequence: Int {
         switch self {
-        case .paired(let sequence, _, _, _), .snapshot(let sequence, _, _, _, _), .patch(let sequence, _), .ack(let sequence, _, _, _), .answer(let sequence, _, _), .error(let sequence, _, _), .ping(let sequence, _):
+        case .paired(let sequence, _, _, _), .snapshot(let sequence, _, _, _, _, _), .patch(let sequence, _), .ack(let sequence, _, _, _), .answer(let sequence, _, _), .error(let sequence, _, _), .ping(let sequence, _):
             sequence
         }
     }
@@ -241,7 +244,7 @@ func parseServerFrame(_ text: String) -> (message: MobileServerMessage?, sequenc
         case "snapshot":
             guard let sessionId = string("sessionId"), let view = object["view"] else { return skipped }
             let vocabulary = try? object["vocabulary"]?.decode(MobileVocabulary.self)
-            return (.snapshot(sequence: sequence, sessionId: sessionId, view: try view.decode(MobileView.self), instance: string("instance"), vocabulary: vocabulary), sequence)
+            return (.snapshot(sequence: sequence, sessionId: sessionId, view: try view.decode(MobileView.self), instance: string("instance"), vocabulary: vocabulary, computer: string("computer")), sequence)
         case "patch":
             guard let patch = object["patch"] else { return skipped }
             return (.patch(sequence: sequence, patch: try patch.decode(MobilePatch.self)), sequence)

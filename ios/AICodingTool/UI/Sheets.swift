@@ -61,6 +61,8 @@ struct ProjectSheet: View {
     var selected: String?
     var none: String
     var label: String
+    /// Present where a new project can be started from, which opens the folder browser.
+    var onAddProject: (() -> Void)? = nil
     var onSelect: (String?) -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.palette) private var palette
@@ -77,6 +79,17 @@ struct ProjectSheet: View {
                     }
                     ForEach(matches, id: \.projectId) { project in
                         OptionRow(label: project.name, selected: project.projectId == selected) { choose(project.projectId) }
+                    }
+                }
+                if let onAddProject {
+                    Section {
+                        Button {
+                            dismiss()
+                            onAddProject()
+                        } label: {
+                            Label("Add project…", systemImage: "folder.badge.plus").foregroundStyle(palette.accent)
+                        }
+                        .listRowBackground(palette.raised)
                     }
                 }
                 if searching, matches.isEmpty {
@@ -189,11 +202,13 @@ struct ThreadMenuSheet: View {
     var onFork: (Bool) -> Void
     var onRename: () -> Void
     var onArchive: () -> Void
+    var onCoordinate: (Bool) -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.palette) private var palette
 
     var body: some View {
         let inProject = thread.projectId != nil
+        let coordinating = thread.settings.coordinating == true
         let working = thread.location == .creating || thread.location == .releasing
         let inWorktree: Bool = { if case .worktree = thread.location { return true } else { return false } }()
         SheetFrame(title: thread.title) {
@@ -208,6 +223,9 @@ struct ThreadMenuSheet: View {
                     if inProject {
                         row("Fork in a worktree", detail: working ? Format.locationLabel(thread.location) : "The copy gets a checkout of its own", symbol: "folder.badge.plus", disabled: working) { onFork(true) }
                     }
+                }
+                Section {
+                    row(coordinating ? "Stop coordinating" : "Coordinate other threads", detail: coordinating ? "The threads under it carry on alone" : "It starts and steers threads of its own", symbol: "person.3") { onCoordinate(!coordinating) }
                 }
                 Section {
                     row("Rename…", symbol: "pencil.line", action: onRename)
@@ -395,32 +413,42 @@ struct ThreadSettingsSheet: View {
                         refusedLine("policy")
                     }
                 }
-                Section("Model") {
-                    ForEach(headings.filter { !$0.locked && !$0.models.isEmpty }, id: \.key) { heading in
-                        subheading(heading.label)
+                // Each engine or provider is a card of its own under its name, so every card keeps its rounded corners.
+                let offered = headings.filter { !$0.locked && !$0.models.isEmpty }
+                ForEach(Array(offered.enumerated()), id: \.element.key) { index, heading in
+                    Section {
                         ForEach(heading.models, id: \.id) { spec in
                             OptionRow(label: spec.label, detail: spec.description, selected: heading.engine == current.engine && spec.id == current.model) {
                                 choose { $0.engine = heading.engine; $0.model = spec.id }
                                 onModel(heading.engine, spec.id)
                             }
                         }
-                    }
-                    if refused.contains("model") || refused.contains("engine") { refusedText }
-                    ForEach(others, id: \.engine) { heading in
-                        subheading(catalog.engineLabel(heading.engine))
-                        Button {
-                            dismiss()
-                            onNewWith?(heading.engine)
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "square.and.pencil").frame(width: 24).foregroundStyle(palette.muted)
-                                Text("New thread with \(catalog.engineLabel(heading.engine))").foregroundStyle(palette.ink)
-                                Spacer()
-                                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(palette.quiet)
-                            }
+                        if index == offered.count - 1, refused.contains("model") || refused.contains("engine") { refusedText }
+                    } header: {
+                        VStack(alignment: .leading, spacing: 10) {
+                            if index == 0 { Text("Model") }
+                            Text(heading.label).font(.footnote.weight(.semibold)).foregroundStyle(palette.muted).textCase(nil)
                         }
-                        .buttonStyle(.plain)
-                        .listRowBackground(palette.raised)
+                    }
+                }
+                if !others.isEmpty {
+                    Section {
+                        ForEach(others, id: \.engine) { heading in
+                            Button {
+                                dismiss()
+                                onNewWith?(heading.engine)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "square.and.pencil").frame(width: 24).foregroundStyle(palette.muted)
+                                    Text("New thread with \(catalog.engineLabel(heading.engine))").foregroundStyle(palette.ink)
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(palette.quiet)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .listRowBackground(palette.raised)
+                        }
                     }
                 }
                 if known, let model = current.model, !efforts.isEmpty {
@@ -456,15 +484,6 @@ struct ThreadSettingsSheet: View {
         .onChange(of: live) { _, _ in reconsider() }
     }
 
-    private func subheading(_ label: String) -> some View {
-        Text(label)
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(palette.muted)
-            .listRowBackground(palette.menu)
-            .listRowSeparator(.hidden)
-            .accessibilityAddTraits(.isHeader)
-    }
-
     @ViewBuilder private func refusedLine(_ key: String) -> some View {
         if refused.contains(key) { refusedText }
     }
@@ -494,5 +513,204 @@ struct ThreadSettingsSheet: View {
             refused = asked.unechoed(by: settings)
             pending = Pending()
         }
+    }
+}
+
+/// The threads working under a coordinator. One on this computer opens to its conversation, read
+/// as the coordinator's tab shows it; one another computer holds is only listed.
+struct MembersSheet: View {
+    var model: PhoneModel
+    var members: [MobileMember]
+    var engine: String
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        SheetFrame(title: "Threads under it") {
+            List {
+                if members.isEmpty {
+                    Text("No threads yet. Ask it to start some.").foregroundStyle(palette.muted).listRowBackground(Color.clear)
+                }
+                ForEach(members) { member in
+                    if member.computer == nil {
+                        NavigationLink {
+                            MemberTranscript(model: model, member: member, engine: engine)
+                        } label: {
+                            row(member)
+                        }
+                        .listRowBackground(palette.raised)
+                    } else {
+                        row(member)
+                            .listRowBackground(palette.raised)
+                            .accessibilityHint("Open it on \(member.computer ?? "that computer")")
+                    }
+                }
+            }
+        } actions: {
+            ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func row(_ member: MobileMember) -> some View {
+        HStack(spacing: 12) {
+            MemberMark(status: member.status).frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(member.title).foregroundStyle(palette.ink).lineLimit(1)
+                Text([Format.statusLabel(member.status) ?? "Idle", member.computer].compactMap { $0 }.joined(separator: " · "))
+                    .font(.footnote)
+                    .foregroundStyle(palette.muted)
+            }
+        }
+    }
+}
+
+/// One member's conversation, read from the computer and read again every few seconds while it is on screen.
+struct MemberTranscript: View {
+    var model: PhoneModel
+    var member: MobileMember
+    var engine: String
+    @Environment(\.palette) private var palette
+    @State private var read: MobileThreadRead?
+    @State private var problem: String?
+
+    var body: some View {
+        ScrollViewReader { reader in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    if let read {
+                        if read.omitted > 0 {
+                            Text("\(read.omitted) earlier \(read.omitted == 1 ? "message is" : "messages are") only on the computer.").font(.footnote).foregroundStyle(palette.muted)
+                        }
+                        ForEach(Format.transcriptBlocks(read.messages)) { block in
+                            switch block {
+                            case .message(_, let message, let answer): MessageView(message: message, answer: answer)
+                            case .tools(_, let calls): ToolRunView(engine: engine, calls: calls)
+                            }
+                        }
+                        if let tail = read.streamingTail { MarkdownView(text: tail) }
+                    } else {
+                        Text(problem ?? "Reading the thread…").foregroundStyle(palette.muted).frame(maxWidth: .infinity)
+                    }
+                    Color.clear.frame(height: 1).id("end")
+                }
+                .padding(16)
+            }
+            .defaultScrollAnchor(.bottom)
+            .onChange(of: read?.messages.count) { _, _ in reader.scrollTo("end", anchor: .bottom) }
+        }
+        .background(palette.menu)
+        .navigationTitle(read?.title ?? member.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            while !Task.isCancelled {
+                do {
+                    read = try await model.connection.query(.thread(taskId: member.id)).decode(MobileThreadRead.self)
+                    problem = nil
+                } catch {
+                    problem = error.localizedDescription
+                }
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
+    }
+}
+
+/// A member's state at a glance: a ring while it waits on the user, a spinner while it works.
+struct MemberMark: View {
+    var status: String
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        switch status {
+        case "awaiting-approval": StatusDot(kind: .needsYou)
+        case "running": ProgressView().controlSize(.small)
+        default: Circle().fill(palette.quietSoft).frame(width: 7, height: 7)
+        }
+    }
+}
+
+/// A folder on the computer opened as a project, found by typing its path as the desktop's own add
+/// dialog does: each keystroke lists the folders that path could go on to.
+struct AddProjectSheet: View {
+    var model: PhoneModel
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.palette) private var palette
+    @State private var path = "~/"
+    @State private var folders: [String] = []
+    @State private var problem: String?
+    @FocusState private var focused: Bool
+
+    private var root: String { path.trimmingCharacters(in: .whitespaces) }
+
+    var body: some View {
+        SheetFrame(title: "Add project") {
+            List {
+                Section {
+                    TextField("Folder on your computer", text: $path)
+                        .font(.body.monospaced())
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .submitLabel(.done)
+                        .focused($focused)
+                        .onSubmit(add)
+                        .listRowBackground(palette.raised)
+                        .accessibilityLabel("Folder path")
+                } footer: {
+                    Text(problem ?? "A thread starts in it once it is added.").foregroundStyle(problem == nil ? palette.muted : palette.danger)
+                }
+                if !folders.isEmpty {
+                    Section("Folders") {
+                        ForEach(folders, id: \.self) { folder in
+                            Button { path = folder.hasSuffix("/") ? folder : folder + "/" } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "folder").foregroundStyle(palette.muted)
+                                    Text(Self.shown(folder)).font(.callout.monospaced()).foregroundStyle(palette.ink).lineLimit(1).truncationMode(.head)
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(palette.quiet)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .listRowBackground(palette.raised)
+                        }
+                    }
+                }
+            }
+        } actions: {
+            ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) { Button("Add", action: add).disabled(root.isEmpty || root == "~" || root == "~/") }
+        }
+        .presentationDetents([.large])
+        .onAppear { focused = true }
+        .task(id: path) { await list() }
+    }
+
+    /// The folder's own name last, which is what tells two deep paths apart.
+    static func shown(_ folder: String) -> String {
+        folder.hasSuffix("/") ? String(folder.dropLast()) : folder
+    }
+
+    private func list() async {
+        try? await Task.sleep(for: .milliseconds(150))
+        guard !Task.isCancelled, !root.isEmpty else { return }
+        do {
+            let answer = try await model.connection.query(.directories(prefix: root))
+            guard !Task.isCancelled else { return }
+            folders = (try? answer.decode([String].self)) ?? []
+            problem = nil
+        } catch {
+            guard !Task.isCancelled else { return }
+            folders = []
+            problem = error.localizedDescription
+        }
+    }
+
+    private func add() {
+        let folder = root.hasSuffix("/") && root.count > 1 ? String(root.dropLast()) : root
+        guard !folder.isEmpty, folder != "~" else { return }
+        model.send(.addProject(folder))
+        dismiss()
     }
 }

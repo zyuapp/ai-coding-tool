@@ -43,7 +43,7 @@ enum Format {
     static func summariseTools(_ calls: [MobileMessage]) -> String {
         var counts: [(String, Int)] = []
         for call in calls {
-            let label = ToolNames.label(call.text)
+            let label = call.call?.label ?? ToolNames.label(call.text)
             if let index = counts.firstIndex(where: { $0.0 == label }) { counts[index].1 += 1 } else { counts.append((label, 1)) }
         }
         let sorted = counts.enumerated().sorted { left, right in
