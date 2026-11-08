@@ -261,7 +261,7 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
     projectId: project?.id ?? null,
     projectName: view.currentProject ? projectName(view.currentProject) : null,
     worktreeId: thread.worktreeId ?? null,
-    messages: withToolCalls(thread, transcript.messages),
+    messages: withDetails(thread, transcript.messages),
     omitted: transcript.omitted,
     streamingTail: view.streamingTail?.text ?? null,
     status: view.blockedThreadIds.has(thread.id) ? "awaiting-approval" : view.status,
@@ -305,12 +305,16 @@ function toolCallOf(engine: Thread["engine"], message: ConversationMessage): Mob
   return call;
 }
 
-/** The transcript's tool messages with what each call did. The transcript is the thread's newest messages, in order. */
-function withToolCalls(thread: Thread, messages: MobileMessage[]): MobileMessage[] {
+/**
+ * The transcript with what a phone reads beside each message's words: what each tool call did, and
+ * how many images a message carried. The transcript is the thread's newest messages, in order.
+ */
+function withDetails(thread: Thread, messages: MobileMessage[]): MobileMessage[] {
   const offset = thread.messages.length - messages.length;
   return messages.map((message, index) => {
     const stored = thread.messages[offset + index];
-    return message.kind === "tool" && stored?.kind === "tool" ? { ...message, call: toolCallOf(thread.engine, stored) } : message;
+    if (message.kind === "tool" && stored?.kind === "tool") return { ...message, call: toolCallOf(thread.engine, stored) };
+    return stored?.attachments?.length ? { ...message, images: stored.attachments.length } : message;
   });
 }
 
@@ -321,7 +325,7 @@ export function mobileThreadRead(state: WorkspaceState, taskId: string): MobileT
   if (!thread || !transcript) return null;
   const { working, blocked } = threadActivity(state);
   const status: MobileRunStatus = blocked.has(thread.id) ? "awaiting-approval" : working.has(thread.id) ? "running" : "idle";
-  return { title: thread.title || "Untitled thread", status, messages: withToolCalls(thread, transcript.messages), omitted: transcript.omitted, streamingTail: state.streamingTails[thread.id]?.text ?? null };
+  return { title: thread.title || "Untitled thread", status, messages: withDetails(thread, transcript.messages), omitted: transcript.omitted, streamingTail: state.streamingTails[thread.id]?.text ?? null };
 }
 
 /** The threads working under a coordinator, here and on paired computers, as its desktop roster lists them. */

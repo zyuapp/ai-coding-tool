@@ -205,7 +205,8 @@ export type TaskCommand =
    * Sends the composer's message with the images in its strip, which are written out to disk first:
    * the run is started only once they are all there, and a failure to write one stops the send.
    */
-  | { type: "attachments.send"; taskId?: string; steer?: boolean; attachments: OutgoingAttachment[] }
+  /** `text` is the words a phone sends with its images; the desktop sends its composer's own. */
+  | { type: "attachments.send"; taskId?: string; steer?: boolean; attachments: OutgoingAttachment[]; text?: string }
   /** What the composer's image strip has to say for itself, such as an image it could not read. */
   | { type: "attachments.notice"; taskId?: string; message: string | null }
   /** Moves to the thread `delta` away in the sidebar, which is where the keyboard walks the list. */

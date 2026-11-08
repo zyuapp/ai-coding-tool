@@ -93,12 +93,22 @@ struct MessageView: View {
         case "user":
             VStack(alignment: .trailing, spacing: 4) {
                 if let origin = message.origin { Text(origin).font(.caption).foregroundStyle(palette.muted) }
-                Text(message.text)
-                    .foregroundStyle(palette.ink)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(palette.raised, in: RoundedRectangle(cornerRadius: 18))
+                if let images = message.images, images > 0 {
+                    Label("\(images) \(images == 1 ? "picture" : "pictures")", systemImage: "photo")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(palette.inkDim)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(palette.raised, in: Capsule())
+                }
+                if !message.text.isEmpty {
+                    Text(message.text)
+                        .foregroundStyle(palette.ink)
+                        .textSelection(.enabled)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(palette.raised, in: RoundedRectangle(cornerRadius: 18))
+                }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.leading, 40)

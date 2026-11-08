@@ -426,6 +426,12 @@ test("a coordinator's phone row speaks for its threads on paired computers too, 
   assert.deepEqual(filtered.priority.map((entry) => [entry.id, entry.status]), [["lead", "awaiting-approval"]], "whichever computers the desktop's sidebar shows");
 });
 
+test("a message says how many images it carried", () => {
+  const sent: ConversationMessage = { id: "m1", kind: "user", text: "Look", attachments: ["/a.jpg", "/b.jpg"], at: NOW };
+  const state = workspace([task("t1", { messages: [sent, message("plain", NOW + 1)] })], { currentId: "t1" });
+  assert.deepEqual(projectMobileView(state, NOW).thread?.messages.map((entry) => entry.images), [2, undefined]);
+});
+
 test("an open coordinator lists the threads under it, here and on paired computers, and a plain thread lists none", () => {
   const holder = { ...emptyWorkspaceState(), threads: [task("far", { title: "Far work", remoteLead: { threadId: "lead", title: "Lead", computer: "This Mac" } })], activeRuns: { far: activeRun("far", "run-far", "running") } };
   const state = workspace([task("lead", { role: "coordinator", projectId: "project-app" }), task("near", { title: "Near work", parentId: "lead", projectId: "project-app" })], {

@@ -146,4 +146,24 @@ export const setsRole: PhoneRule = (command) => named(command) && (command.role 
 export const addsProject: PhoneRule = (command) => isString(command.root, MAX_PATH_LENGTH) && command.root.trim().length > 0
   && command.computerId === undefined && (command.start === undefined || command.start === true);
 
+/** How large one image a phone sends may be, as a data URL: a photo the phone has already shrunk, never a raw camera file. */
+export const MAX_PHONE_IMAGE_LENGTH = 8 * 1024 * 1024;
+/** How many images one phone send carries, as the desktop's composer strip holds. */
+export const MAX_PHONE_IMAGES = 6;
+
+const PHONE_IMAGE = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/;
+
+/**
+ * Images a phone sends into a thread or the draft, with the words that go with them: each a picture
+ * the phone holds, so never a path on this computer, a screenshot's context, or marks drawn over it.
+ */
+export const sendsImages: PhoneRule = (command) => named(command)
+  && (command.steer === undefined || typeof command.steer === "boolean")
+  && (command.text === undefined || isString(command.text, MAX_PROMPT_LENGTH))
+  && Array.isArray(command.attachments) && command.attachments.length > 0 && command.attachments.length <= MAX_PHONE_IMAGES
+  && command.attachments.every((attachment: unknown) => isRecord(attachment) && isString(attachment.id)
+    && typeof attachment.source === "string" && attachment.source.length <= MAX_PHONE_IMAGE_LENGTH && PHONE_IMAGE.test(attachment.source)
+    && Array.isArray(attachment.annotations) && attachment.annotations.length === 0
+    && attachment.path === undefined && attachment.context === undefined);
+
 export const setsPrompt: PhoneRule = (command) => named(command) && isBlankable(command.prompt, MAX_PROMPT_LENGTH);

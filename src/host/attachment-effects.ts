@@ -20,12 +20,12 @@ async function written(attachment: OutgoingAttachment, desktop: RuntimeDesktop):
 
 /** The composer's images on their way out, which the message they ride waits for. */
 export const attachmentEffects = {
-  "send-attachments": async ({ taskId, steer, attachments }, { dispatch, desktop }) => {
+  "send-attachments": async ({ taskId, steer, text, attachments }, { dispatch, desktop }) => {
     const composer = taskId === undefined ? {} : { taskId };
     try {
       const saved = await Promise.all(attachments.map((attachment) => written(attachment, desktop)));
       const ids = attachments.map((attachment) => attachment.id);
-      await dispatch({ type: "attachments.saved", ...composer, ...(steer ? { steer } : {}), ids, attachments: saved });
+      await dispatch({ type: "attachments.saved", ...composer, ...(steer ? { steer } : {}), ...(text ? { text } : {}), ids, attachments: saved });
     } catch (error) {
       await dispatch({ type: "attachments.failed", ...composer, message: errorMessage(error) });
     }

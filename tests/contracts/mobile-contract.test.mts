@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "vitest";
 import { isMobileClientMessage, isMobileRequest, isMobileResponse, MOBILE_PROTOCOL_VERSION, type MobileCommand } from "../../src/contracts/mobile.ts";
+import { MAX_PHONE_IMAGE_LENGTH } from "../../src/contracts/phone-commands.ts";
 import { isPhoneCommand } from "../../src/contracts/workspace-view-input.ts";
 import {
   addressOrigin,
@@ -237,6 +238,20 @@ test("a query names a thread and a comparison, and travels to the window like a 
   assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "thread" } }), false);
 });
 
+test("a phone sends pictures it holds, never a file on this computer", () => {
+  const picture = { id: "p1", source: "data:image/png;base64,iVBORw0K", annotations: [] };
+  assert.equal(isPhoneCommand({ type: "attachments.send", taskId: "task-1", text: "Look", attachments: [picture] }), true);
+  assert.equal(isPhoneCommand({ type: "attachments.send", steer: true, attachments: [picture] }), true, "the draft, steered");
+  assert.equal(isPhoneCommand({ type: "attachments.send", attachments: [] }), false, "an empty strip is a plain send");
+  assert.equal(isPhoneCommand({ type: "attachments.send", attachments: Array.from({ length: 7 }, (_, index) => ({ ...picture, id: `p${index}` })) }), false);
+  assert.equal(isPhoneCommand({ type: "attachments.send", attachments: [{ ...picture, path: "/Users/me/.ssh/id_rsa" }] }), false, "never a path here");
+  assert.equal(isPhoneCommand({ type: "attachments.send", attachments: [{ ...picture, source: "data:text/html;base64,PGI+" }] }), false);
+  assert.equal(isPhoneCommand({ type: "attachments.send", attachments: [{ ...picture, source: "file:///etc/passwd" }] }), false);
+  assert.equal(isPhoneCommand({ type: "attachments.send", attachments: [{ ...picture, source: "data:image/jpeg;base64,/9j/AAAA" }] }), false, "kept as PNG");
+  assert.equal(isPhoneCommand({ type: "attachments.send", attachments: [{ ...picture, annotations: [{ kind: "box", x: 0, y: 0, width: 1, height: 1, text: "" }] }] }), false);
+  assert.equal(isPhoneCommand({ type: "attachments.send", attachments: [{ ...picture, source: `data:image/png;base64,${"A".repeat(8 * 1024 * 1024)}` }] }), false, "a picture the phone has not shrunk");
+});
+
 test("a phone makes coordinators and adds projects on this computer only", () => {
   assert.equal(isPhoneCommand({ type: "task.set-role", role: "coordinator" }), true, "the draft");
   assert.equal(isPhoneCommand({ type: "task.set-role", taskId: "task-1", role: null }), true);
@@ -256,9 +271,9 @@ test("a phone may send exactly the commands that declare a phone rule", () => {
     "run.cancel": true, "run.decide": true, "run.stop-process": true, "question.answer": true,
     "annotation.add": true, "annotation.note": true, "annotation.remove": true, "annotation.recall": true,
     "paste.add": true, "paste.remove": true, "paste.recall": true,
-    "view.set-prompt": true, "task.set-role": true, "project.add": true,
+    "view.set-prompt": true, "task.set-role": true, "project.add": true, "attachments.send": true,
   };
-  assert.equal(Object.keys(types).length, 31);
+  assert.equal(Object.keys(types).length, 32);
   for (const type of ["terminal.input", "worktree.delete", "project.remove", "browser.open", "task.set-coordinator", "run.compact"]) {
     assert.equal(isPhoneCommand({ type, taskId: "task-1" }), false, type);
   }
@@ -267,4 +282,6 @@ test("a phone may send exactly the commands that declare a phone rule", () => {
 test("the iOS app speaks the protocol version the computer serves", () => {
   const swift = readFileSync(new URL("../../ios/AICodingTool/Protocol/Messages.swift", import.meta.url), "utf8");
   assert.equal(Number(/let mobileProtocolVersion = (\d+)/.exec(swift)?.[1]), MOBILE_PROTOCOL_VERSION);
+  const composer = readFileSync(new URL("../../ios/AICodingTool/UI/ComposerView.swift", import.meta.url), "utf8");
+  assert.equal(Number(/static let maxSourceLength = (\d+) \* 1024 \* 1024/.exec(composer)?.[1]) * 1024 * 1024, MAX_PHONE_IMAGE_LENGTH, "the phone shrinks pictures to what the computer takes");
 });

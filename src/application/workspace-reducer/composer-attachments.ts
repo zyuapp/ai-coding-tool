@@ -23,12 +23,14 @@ function withWrittenImages(state: WorkspaceState, { taskId, ids, attachments }: 
   }));
 }
 
-function sent(state: WorkspaceState, input: AttachmentInput, attachments: RunAttachment[], steer?: boolean): WorkspaceTransition {
+/** The images' send. Words that came with them, from a phone, go with them; otherwise the composer's own are sent. */
+function sent(state: WorkspaceState, input: AttachmentInput, attachments: RunAttachment[], steer?: boolean, text?: string): WorkspaceTransition {
   return reduceSending(state, {
     type: "task.send",
     ...(input.taskId === undefined ? {} : { taskId: input.taskId }),
     attachments,
     ...(steer ? { steer } : {}),
+    ...(text ? { text } : {}),
   });
 }
 
@@ -43,20 +45,21 @@ export function reduceComposerAttachments(state: WorkspaceState, input: Attachme
       if (input.attachments.length > MAX_ATTACHMENTS) {
         return settled(withSend(state, input.taskId, { ...send, error: `You can attach up to ${MAX_ATTACHMENTS} images.` }), [], { ok: false, message: `You can attach up to ${MAX_ATTACHMENTS} images.` });
       }
-      if (input.attachments.length === 0) return sent(state, input, [], input.steer);
+      if (input.attachments.length === 0) return sent(state, input, [], input.steer, input.text);
       return settled(
         withSend(state, input.taskId, { ...send, busy: true, error: null }),
         [{
           type: "send-attachments",
           ...(input.taskId === undefined ? {} : { taskId: input.taskId }),
           ...(input.steer ? { steer: input.steer } : {}),
+          ...(input.text ? { text: input.text } : {}),
           attachments: input.attachments,
         }],
       );
     }
 
     case "attachments.saved":
-      return sent(withSend(withWrittenImages(state, input), input.taskId, { busy: false, error: null, sent: input.ids }), input, input.attachments, input.steer);
+      return sent(withSend(withWrittenImages(state, input), input.taskId, { busy: false, error: null, sent: input.ids }), input, input.attachments, input.steer, input.text);
 
     case "attachments.failed":
       return settled(withSend(state, input.taskId, { ...send, busy: false, error: input.message }), [], { ok: false, message: input.message });

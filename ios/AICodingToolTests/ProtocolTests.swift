@@ -146,4 +146,17 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(PairedComputer(origin: URL(string: "http://127.0.0.1:7738")!, credential: credential).title, "127.0.0.1")
         XCTAssertEqual(PairedComputer(origin: URL(string: "https://studio.ts.net")!, credential: credential, name: "Studio").title, "Studio")
     }
+
+    func testPicturesTravelWithTheirWords() {
+        guard case .object(let command) = PhoneCommand.message("t1", text: "Look", sources: ["data:image/png;base64,AAAA"], steer: true).json else { return XCTFail("not an object") }
+        XCTAssertEqual(command["type"], .string("attachments.send"))
+        XCTAssertEqual(command["text"], .string("Look"))
+        XCTAssertEqual(command["steer"], .bool(true))
+        guard case .array(let attachments) = command["attachments"], case .object(let picture) = attachments.first else { return XCTFail("no attachments") }
+        XCTAssertEqual(picture["source"], .string("data:image/png;base64,AAAA"))
+        XCTAssertEqual(picture["annotations"], .array([]))
+        XCTAssertNil(picture["path"], "a phone never names a file on the computer")
+        XCTAssertEqual(PhoneCommand.message("t1", text: "Hi", sources: []).json, PhoneCommand.send("t1", text: "Hi").json, "words alone stay a plain send")
+        XCTAssertNil(PhoneCommand.sendImages(nil, text: "", sources: ["data:image/png;base64,AAAA"]).json["text"], "a picture alone carries no empty words")
+    }
 }

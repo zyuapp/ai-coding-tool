@@ -79,14 +79,18 @@ struct ThreadScreen: View {
                     }
                     .id(approval.approvalId)
                 }
-                ComposerView(model: model, draftKey: thread.id, running: thread.status == "running", settings: thread.settings, question: thread.question, returned: returned(for: thread.id), onSend: { model.send(.send(thread.id, text: $0)) }, onSteer: { model.send(.send(thread.id, text: $0, steer: true)) }, onStop: { model.send(.cancel(thread.id)) }, onAnswer: { question, text in model.send(.answer(thread.id, question: question, text: text)) }, onSettings: { sheet = .settings })
+                ComposerView(model: model, draftKey: thread.id, running: thread.status == "running", settings: thread.settings, question: thread.question, returned: returned(for: thread.id), onSend: { model.send(.message(thread.id, text: $0, sources: $1)) }, onSteer: { model.send(.message(thread.id, text: $0, sources: $1, steer: true)) }, onStop: { model.send(.cancel(thread.id)) }, onAnswer: { question, text in model.send(.answer(thread.id, question: question, text: text)) }, onSettings: { sheet = .settings })
             }
         } else if let draft {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
-                ComposerView(model: model, draftKey: "draft", running: false, settings: draft.settings, question: nil, returned: nil, onSend: { text in
-                    model.send(.setPrompt(text))
-                    model.send(.send(nil, text: nil))
+                ComposerView(model: model, draftKey: "draft", running: false, settings: draft.settings, question: nil, returned: nil, onSend: { text, sources in
+                    if sources.isEmpty {
+                        model.send(.setPrompt(text))
+                        model.send(.send(nil, text: nil))
+                    } else {
+                        model.send(.sendImages(nil, text: text, sources: sources))
+                    }
                 }, onSteer: nil, onStop: nil, onAnswer: nil, onSettings: { sheet = .settings }) {
                     StartOptions(draft: draft, onPickProject: { sheet = .project }, onPickPlace: { sheet = .startIn }, onCoordinate: { model.send(.setCoordinator(nil, $0)) })
                 }
@@ -111,7 +115,7 @@ struct ThreadScreen: View {
     /// What the computer turned down here: a message's words, or the question it answered.
     private func returned(for taskId: String) -> ComposerReturned? {
         guard let returned = model.state.returned, returned.command.taskId == taskId else { return nil }
-        if returned.command.type == "task.send", let text = returned.command.text { return .init(id: returned.requestId, text: text, answer: nil) }
+        if returned.command.type == "task.send" || returned.command.type == "attachments.send", let text = returned.command.text { return .init(id: returned.requestId, text: text, answer: nil) }
         if returned.command.type == "question.answer" { return .init(id: returned.requestId, text: nil, answer: returned.command.questionId) }
         return nil
     }

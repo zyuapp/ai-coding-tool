@@ -73,6 +73,8 @@ export type MobileMessage = {
   at: number;
   /** What a tool call did, in one line, as the desktop's transcript reads it. Tool messages only. */
   call?: MobileToolCall;
+  /** How many images the message carried. */
+  images?: number;
 };
 
 /** A tool call as a row reads it: its label, the argument that tells it from the next, and its family's glyph. */

@@ -59,6 +59,15 @@ extension PhoneCommand {
         PhoneCommand("question.answer", ["taskId": .string(taskId), "runId": .string(question.runId), "requestId": .string(question.requestId), "questionId": .string(question.questionId), "text": .string(answer)])
     }
     static func setPrompt(_ prompt: String) -> PhoneCommand { PhoneCommand("view.set-prompt", ["prompt": .string(prompt)]) }
+    /// Pictures, as data URLs, with the words that go with them, into a thread or the draft when `taskId` is nil.
+    static func sendImages(_ taskId: String?, text: String, sources: [String], steer: Bool = false) -> PhoneCommand {
+        let attachments = sources.map { JSONValue.object(["id": .string(UUID().uuidString.lowercased()), "source": .string($0), "annotations": .array([])]) }
+        return PhoneCommand("attachments.send", ["taskId": jsonText(taskId), "text": text.isEmpty ? nil : .string(text), "attachments": .array(attachments), "steer": steer ? .bool(true) : nil])
+    }
+    /// A message with or without pictures: pictures go through the computer's attachment path, words alone as a plain send.
+    static func message(_ taskId: String?, text: String, sources: [String], steer: Bool = false) -> PhoneCommand {
+        sources.isEmpty ? .send(taskId, text: text, steer: steer ? true : nil) : .sendImages(taskId, text: text, sources: sources, steer: steer)
+    }
     /// Makes a thread, or the draft when `taskId` is nil, a coordinator, or plain again.
     static func setCoordinator(_ taskId: String?, _ coordinating: Bool) -> PhoneCommand { PhoneCommand("task.set-role", ["taskId": jsonText(taskId), "role": coordinating ? JSONValue.string("coordinator") : JSONValue.null]) }
     /// Opens a folder on the computer as a project and starts a draft in it.

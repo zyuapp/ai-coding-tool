@@ -96,7 +96,7 @@ export type WorkspaceEvent =
   | { type: "terminal.updated"; update: TerminalUpdate }
   | { type: "subagent.activity.loaded"; taskId: string; subagentId: string; activity: SubagentActivity[] }
   /** The composer's images, now on disk, and the ids of the ones the strip can let go of. */
-  | { type: "attachments.saved"; taskId?: string; steer?: boolean; ids: string[]; attachments: RunAttachment[] }
+  | { type: "attachments.saved"; taskId?: string; steer?: boolean; text?: string; ids: string[]; attachments: RunAttachment[] }
   | { type: "attachments.failed"; taskId?: string; message: string }
   /** The applications this machine has, as the main process last found them. */
   | { type: "apps.listed"; apps: InstalledApp[] }
@@ -165,7 +165,7 @@ type WorkspaceWork =
   | { type: "send-run-command"; command: CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand | ArchiveThreadCommand | ThreadRoleCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
   /** Writes a composer's images out, then sends the message they ride, in that order. */
-  | { type: "send-attachments"; taskId?: string; steer?: boolean; attachments: OutgoingAttachment[] }
+  | { type: "send-attachments"; taskId?: string; steer?: boolean; text?: string; attachments: OutgoingAttachment[] }
   /** `members` marks an ask for a coordinator's threads, which counts its reads apart from the checkout in front. */
   | { type: "read-pull-request"; workspaceId: string; branch: string | null; read: number; members?: true }
   | { type: "read-diff"; owner: string; workspaceId: string; range: DiffRange; ignoreWhitespace: boolean }

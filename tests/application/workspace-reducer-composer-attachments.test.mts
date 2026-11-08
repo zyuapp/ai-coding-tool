@@ -33,6 +33,17 @@ test("a send writes the composer's images out before the run that carries them s
   assert.deepEqual(started.state.threads[0].messages[0].attachments, ["/tmp/one.png", "/tmp/shot.png"]);
 });
 
+test("a phone's images carry its own words, leaving whatever the desktop's composer holds", () => {
+  const sending = reduce(drafted(), { type: "attachments.send", text: "From my phone", attachments: [image("one")] });
+  assert.deepEqual(sending.effects, [{ type: "send-attachments", text: "From my phone", attachments: [image("one")] }]);
+
+  const written = reduce(sending.state, { type: "attachments.saved", text: "From my phone", ids: ["one"], attachments: [{ path: "/tmp/one.jpg", labels: [] }] });
+  const started = reduce(written.state, { type: "run.resolved", pendingId: effectAt(written, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  const sent = started.state.threads[0].messages[0];
+  assert.equal(sent.text, "From my phone");
+  assert.deepEqual(sent.attachments, ["/tmp/one.jpg"]);
+});
+
 const projectless = { id: "projectless", kind: "projectless", root: "/tmp" } as const;
 
 function stagedSend(writtenTo: string) {

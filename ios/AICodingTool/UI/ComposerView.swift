@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 /// The composer sits above the keyboard and never scrolls with the transcript. Return inserts a
@@ -16,8 +17,9 @@ struct ComposerView<Above: View>: View {
     var settings: MobileThreadSettings
     var question: PendingQuestion?
     var returned: ComposerReturned?
-    var onSend: (String) -> Void
-    var onSteer: ((String) -> Void)?
+    /// The words and the pictures, as JPEG data URLs, that go with them.
+    var onSend: (String, [String]) -> Void
+    var onSteer: ((String, [String]) -> Void)?
     var onStop: (() -> Void)?
     var onAnswer: ((PendingQuestion, String) -> Void)?
     var onSettings: () -> Void
@@ -27,10 +29,14 @@ struct ComposerView<Above: View>: View {
     @State private var draft = ""
     @State private var given: String?
     @State private var seenHandBack: UUID?
+    @State private var images: [PickedImage] = []
+    @State private var picking = false
+    @State private var shooting = false
+    @State private var picked: [PhotosPickerItem] = []
     @FocusState private var focused: Bool
 
     private var blocked: Bool { question?.blocking == true }
-    private var typed: Bool { !blocked && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var typed: Bool { !blocked && (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !images.isEmpty) }
     /// With words typed during a run, the right-most button queues them, so a thumb on its usual spot never stops the run.
     private var queueing: Bool { running && typed }
 
@@ -55,6 +61,33 @@ struct ComposerView<Above: View>: View {
             }
             above
             VStack(spacing: 8) {
+                if !images.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(images) { image in
+                                Image(uiImage: image.thumbnail)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 56, height: 56)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    .overlay(alignment: .topTrailing) {
+                                        Button { images.removeAll { $0.id == image.id } } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .symbolRenderingMode(.palette)
+                                                .foregroundStyle(palette.ink, palette.raised)
+                                                .font(.body)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .offset(x: 6, y: -6)
+                                        .accessibilityLabel("Remove picture")
+                                    }
+                                    .accessibilityLabel("Picture to send")
+                            }
+                        }
+                        .padding(.top, 6)
+                        .padding(.trailing, 6)
+                    }
+                }
                 if !blocked {
                     TextField("Ask \(model.catalog.engineLabel(settings.engine)) to work on anything", text: $draft, axis: .vertical)
                         .lineLimit(1...7)
@@ -69,6 +102,22 @@ struct ComposerView<Above: View>: View {
                         }
                 }
                 HStack(spacing: 8) {
+                    if !blocked {
+                        Menu {
+                            Button { picking = true } label: { Label("Photo Library", systemImage: "photo.on.rectangle") }
+                            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                Button { shooting = true } label: { Label("Take Photo", systemImage: "camera") }
+                            }
+                        } label: {
+                            Image(systemName: "photo.badge.plus")
+                                .font(.body)
+                                .foregroundStyle(palette.inkDim)
+                                .frame(width: 30, height: 34)
+                                .contentShape(Rectangle())
+                        }
+                        .disabled(images.count >= PickedImage.limit)
+                        .accessibilityLabel("Add pictures")
+                    }
                     Button(action: onSettings) {
                         // The summary gives up its axis names, then its values, before the run's buttons give up any room.
                         ViewThatFits(in: .horizontal) {
@@ -117,6 +166,25 @@ struct ComposerView<Above: View>: View {
         }
         .padding(.top, 6)
         .background(palette.canvas)
+        .photosPicker(isPresented: $picking, selection: $picked, maxSelectionCount: max(1, PickedImage.limit - images.count), matching: .images)
+        .onChange(of: picked) { _, items in
+            guard !items.isEmpty else { return }
+            picked = []
+            Task {
+                for item in items {
+                    guard images.count < PickedImage.limit, let data = try? await item.loadTransferable(type: Data.self), let image = await PickedImage.make(from: data) else { continue }
+                    images.append(image)
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $shooting) {
+            CameraPicker { data in
+                shooting = false
+                guard let data else { return }
+                Task { if images.count < PickedImage.limit, let image = await PickedImage.make(from: data) { images.append(image) } }
+            }
+            .ignoresSafeArea()
+        }
         .onAppear { draft = model.draft(for: draftKey) }
         .onChange(of: draftKey) { _, key in draft = model.draft(for: key) }
         .onChange(of: draft) { _, text in model.keepDraft(text, for: draftKey) }
@@ -177,16 +245,18 @@ struct ComposerView<Above: View>: View {
         .accessibilityLabel("Stop this run")
     }
 
-    private func send(_ how: (String) -> Void) {
+    private func send(_ how: (String, [String]) -> Void) {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        let sources = images.map(\.source)
+        guard !text.isEmpty || !sources.isEmpty else { return }
         draft = ""
-        how(text)
+        images = []
+        how(text, sources)
     }
 }
 
 extension ComposerView where Above == EmptyView {
-    init(model: PhoneModel, draftKey: String, running: Bool, settings: MobileThreadSettings, question: PendingQuestion?, returned: ComposerReturned?, onSend: @escaping (String) -> Void, onSteer: ((String) -> Void)?, onStop: (() -> Void)?, onAnswer: ((PendingQuestion, String) -> Void)?, onSettings: @escaping () -> Void) {
+    init(model: PhoneModel, draftKey: String, running: Bool, settings: MobileThreadSettings, question: PendingQuestion?, returned: ComposerReturned?, onSend: @escaping (String, [String]) -> Void, onSteer: ((String, [String]) -> Void)?, onStop: (() -> Void)?, onAnswer: ((PendingQuestion, String) -> Void)?, onSettings: @escaping () -> Void) {
         self.init(model: model, draftKey: draftKey, running: running, settings: settings, question: question, returned: returned, onSend: onSend, onSteer: onSteer, onStop: onStop, onAnswer: onAnswer, onSettings: onSettings) { EmptyView() }
     }
 }
@@ -275,6 +345,76 @@ struct QuestionPromptView: View {
                 released = next
                 submitting = false
             }
+        }
+    }
+}
+
+/// A picture waiting to be sent: shrunk on the phone so a camera photo never crosses the line whole.
+struct PickedImage: Identifiable {
+    /// As many as the desktop's composer strip holds.
+    static let limit = 6
+    /// The longest side a sent picture keeps: the most a model reads, and small enough to send as PNG.
+    static let longestSide: CGFloat = 1568
+    /// The computer's `MAX_PHONE_IMAGE_LENGTH`; a busier picture shrinks until it fits.
+    static let maxSourceLength = 8 * 1024 * 1024
+
+    let id = UUID()
+    let thumbnail: UIImage
+    /// A PNG data URL, the one image format the computer keeps attachments in.
+    let source: String
+
+    static func make(from data: Data) async -> PickedImage? {
+        await Task.detached(priority: .userInitiated) {
+            guard let original = UIImage(data: data) else { return nil }
+            var side = min(longestSide, max(original.size.width, original.size.height))
+            while side >= 256 {
+                let scale = side / max(original.size.width, original.size.height)
+                let size = CGSize(width: (original.size.width * scale).rounded(), height: (original.size.height * scale).rounded())
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = 1
+                format.opaque = true
+                let shrunk = UIGraphicsImageRenderer(size: size, format: format).image { _ in original.draw(in: CGRect(origin: .zero, size: size)) }
+                guard let png = shrunk.pngData() else { return nil }
+                let source = "data:image/png;base64,\(png.base64EncodedString())"
+                if source.utf8.count <= maxSourceLength {
+                    let thumbnail = shrunk.preparingThumbnail(of: CGSize(width: 168, height: 168 * size.height / max(size.width, 1))) ?? shrunk
+                    return PickedImage(thumbnail: thumbnail, source: source)
+                }
+                side *= 0.75
+            }
+            return nil
+        }.value
+    }
+}
+
+/// The camera, handing back one photo or nothing.
+struct CameraPicker: UIViewControllerRepresentable {
+    var onDone: (Data?) -> Void
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ controller: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(onDone: onDone) }
+
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let onDone: (Data?) -> Void
+
+        init(onDone: @escaping (Data?) -> Void) {
+            self.onDone = onDone
+        }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            onDone((info[.originalImage] as? UIImage)?.jpegData(compressionQuality: 0.9))
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            onDone(nil)
         }
     }
 }

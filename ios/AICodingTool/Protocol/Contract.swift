@@ -38,6 +38,8 @@ struct MobileMessage: Codable, Equatable, Sendable {
     var at: Double
     /// What a tool call did, read by the computer. Absent from older computers.
     var call: MobileToolCall?
+    /// How many pictures the message carried.
+    var images: Int?
 }
 
 /// A tool call as a row reads it: its label, and the argument that tells it from the next.

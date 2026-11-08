@@ -313,7 +313,7 @@ const commands = {
   "task.move-worktree": { fields: { taskId: optionalText, destination: isWorktreeDestination, afterRun: optional(literals(true)), sender: optional(remoteSender), then: optional(promptText) }, at: "thread", agent: movesToCheckout, phone: phone.movesWorktree },
   "task.set-branch": { fields: { branch: nullableText, create: optionalBoolean }, at: "thread" },
   "task.checkout-branch": { fields: { taskId: optionalText, branch: text, create: optionalBoolean }, at: "thread" },
-  "attachments.send": { fields: { taskId: optionalText, steer: optionalBoolean, attachments: array(outgoingAttachment) }, at: "own" },
+  "attachments.send": { fields: { taskId: optionalText, steer: optionalBoolean, attachments: array(outgoingAttachment), text: optionalText }, at: "own", phone: phone.sendsImages },
   "attachments.notice": { fields: { taskId: optionalText, message: nullableText }, at: "local" },
   "task.send": { fields: { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isModelId), engine: optional(isAgentEngine), effort: optional(isAgentEffort), role: optional(isThreadRole), coordinatorId: optionalText, brief: optional(isThreadBrief), title: optional(startTitle), from: optionalText, sender: optional(remoteSender), lead: optional(remoteLead), memory: optional(memoryText) }, at: "own", agent: agentSend, phone: phone.sends },
   "task.steer-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread", phone: phone.namesQueued },
