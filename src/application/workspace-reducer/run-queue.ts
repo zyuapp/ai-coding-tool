@@ -127,6 +127,7 @@ export function startRunCommand(state: WorkspaceState, thread: Thread, runId: st
     ...(capabilitiesFor(thread.engine).fastMode ? { fastMode: thread.fastMode ?? false } : {}),
     ...(state.chromeBrowser && capabilitiesFor(thread.engine).chromeBrowser ? { chromeBrowser: true as const } : {}),
     ...(state.computerUse ? {} : { computerUseTools: false as const }), ...(state.browserTools ? {} : { browserTools: false as const }),
+    ...(state.simulator.availability.status === "available" ? {} : { simulatorTools: false as const }),
     ...(thread.continuation ? { continuation: thread.continuation } : {}),
     ...(thread.continuation && thread.inheritedContinuation ? { forkContinuation: true as const } : {}),
     ...(coordination ? { coordinationRole: coordination } : {}),

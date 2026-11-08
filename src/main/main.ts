@@ -50,6 +50,7 @@ import { serveWindowDesktop } from "./window-desktop.js";
 import { recheckMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
+import * as simulator from "./simulator-host.js";
 
 const profile = appProfile(app.getPath("appData"), homedir(), app.isPackaged);
 app.setName(profile.name);
@@ -374,6 +375,9 @@ async function createWindow() {
     onFind: (tabId, results) => { events.emit("browser:find", { tabId, ...results }); },
     onKey: (input) => keyboard.handleKey(input, "browser"),
   });
+  simulator.startSimulatorHost((frame) => {
+    if (window && !window.isDestroyed()) window.webContents.send("simulator:frame", frame);
+  });
   terminal.startTerminalHost({
     onData: (event) => {
       if (window && !window.isDestroyed()) window.webContents.send("terminal:data", event);
@@ -417,6 +421,7 @@ async function createWindow() {
     workspaceRuntime.setViewVisible(false);
     browser.stopBrowserHost();
     terminal.stopTerminalHost();
+    simulator.stopSimulatorHost();
     if (quitState === "running") {
       void workspaceRuntime.dispatch({ type: "view.closed" })
         .catch((error) => console.error("Could not release closed window panels:", error));
@@ -615,6 +620,7 @@ app.on("will-quit", () => {
   lockAwake?.stop();
   lockAwake = null;
   globalShortcut.unregisterAll();
+  simulator.stopSimulatorHost();
   automationScheduler?.stop();
   void taskDatabase?.close().catch((error) => console.error("Could not close task storage:", error));
   workspaceRuntime.close();

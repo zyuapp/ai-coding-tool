@@ -30,6 +30,7 @@ const coordinatorOptions = {
   threads: (taskId: string) => threads.bridgeFor(taskId),
   coordination: (taskId: string) => threads.coordinationFor(taskId),
   browser: (taskId: string) => threads.browserFor(taskId),
+  simulator: (taskId: string) => threads.simulatorFor(taskId),
   terminal: (taskId: string) => threads.terminalFor(taskId),
 };
 setAppPluginRoot(process.argv[3] || undefined);

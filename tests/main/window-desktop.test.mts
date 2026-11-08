@@ -20,6 +20,10 @@ vi.mock("electron", () => ({
   webUtils: { getPathForFile: () => "" },
 }));
 vi.mock("../../src/main/browser-host.ts", () => ({ setBounds: (bounds: unknown) => { electron.reached.push(["setBrowserBounds", bounds]); } }));
+vi.mock("../../src/main/simulator-host.ts", () => ({
+  watchSimulator: async (udid: unknown) => { electron.reached.push(["watchSimulator", udid]); },
+  unwatchSimulator: async (udid: unknown) => { electron.reached.push(["unwatchSimulator", udid]); },
+}));
 vi.mock("../../src/main/terminal-host.ts", () => ({ terminalSnapshot: async (id: unknown) => { electron.reached.push(["terminalSnapshot", id]); return null; } }));
 
 const { serveWindowDesktop } = await import("../../src/main/window-desktop.ts");
@@ -72,6 +76,8 @@ test("every call the window makes is relayed on one channel, refused from anyone
     terminalSnapshot: { valid: ["terminal"], invalid: [[42]] },
     readRemoteTerminal: { valid: ["holder", "terminal", 3], invalid: [["holder", "terminal", -1], ["holder", "terminal", 1.5], ["", "terminal"]] },
     setTheme: { valid: [{ variant: "dark", canvas: "#0e1117" }], invalid: [[{ variant: "blue", canvas: "#0e1117" }], [{ variant: "dark", canvas: "red" }]] },
+    watchSimulator: { valid: ["udid"], invalid: [[""], [7]] },
+    unwatchSimulator: { valid: ["udid"], invalid: [[null]] },
   };
   /** Answered in main itself rather than handed on, so what comes back is what shows the call got through. */
   const answered: Partial<Record<WindowDesktopCall, unknown>> = {

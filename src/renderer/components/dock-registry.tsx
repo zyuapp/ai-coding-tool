@@ -1,13 +1,15 @@
 import type { IconType } from "react-icons";
-import { LuAlarmClock as AlarmClock, LuBot as Bot, LuBoxes as Boxes, LuFileDiff as FileDiff, LuGitFork as GitFork, LuGlobe as Globe, LuLayoutGrid as LayoutGrid, LuSquareTerminal as SquareTerminal } from "react-icons/lu";
+import { LuAlarmClock as AlarmClock, LuBot as Bot, LuBoxes as Boxes, LuFileDiff as FileDiff, LuGitFork as GitFork, LuGlobe as Globe, LuLayoutGrid as LayoutGrid, LuSmartphone as Smartphone, LuSquareTerminal as SquareTerminal } from "react-icons/lu";
 import { CoordinatorOverview } from "./Coordination";
 import { AutomationPanel } from "./AutomationPanel";
 import { DiffPanel } from "./DiffPanel";
 import { AgentsPanel } from "./SubagentList";
 import { SubagentInspector } from "./SubagentInspector";
 import { WorkflowPanel } from "./WorkflowPanel";
+import { SimulatorPanel } from "./SimulatorPanel";
+import { MAC } from "../platform";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
-import { AUTOMATION_PANEL, DIFF_PANEL, OVERVIEW_PANEL } from "../../application/workspace-reducer";
+import { AUTOMATION_PANEL, DIFF_PANEL, OVERVIEW_PANEL, SIMULATOR_PANEL } from "../../application/workspace-reducer";
 import { overviewGroups } from "../../application/coordination-view";
 import { isCoordinator } from "../../domain/coordination";
 import type { DiffState } from "../../application/workspace-state";
@@ -97,6 +99,26 @@ function automationPanel(workspace: Workspace, scheduled: Workspace["threadTabs"
       onRunNow={() => void workspace.actions.runAutomationNow(scheduled?.id)}
     />
   );
+}
+
+/** The device this dock shows, streamed only while its tab is the one on screen. */
+function simulatorPanel(workspace: Workspace): DockPanel {
+  return {
+    id: SIMULATOR_PANEL,
+    title: "Simulator",
+    description: "Run an iOS app in the background and drive it",
+    icon: Smartphone,
+    render: () => (
+      <SimulatorPanel
+        simulator={workspace.simulator}
+        udid={workspace.simulatorId}
+        active={workspace.dockOpen && workspace.dockTab === SIMULATOR_PANEL}
+        openMenu={workspace.openMenu}
+        onSetOpenMenu={workspace.actions.setOpenMenu}
+        onInput={workspace.actions.sendToSimulator}
+      />
+    ),
+  };
 }
 
 export function buildDock({ workspace, inspectedSubagent, workingSubagents, unreviewedFiles, onInspectSubagent, onCloseInspector, onOpenPanel, onAddSideChat }: {
@@ -233,6 +255,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
         />
       ),
     },
+    ...(MAC ? [simulatorPanel(workspace)] : []),
     {
       id: AUTOMATION_PANEL,
       title: scheduled ? `Automation · ${scheduled.title}` : "Automation",
@@ -247,6 +270,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
   const launchers: DockLauncher[] = [
     ...panels.flatMap(({ id, title, description, command, icon }) => command ? [launcher({ id, title, description, command, icon, open: () => onOpenPanel(id) }, workspace.commandControls.available({ type: "view.open-dock-panel", panel: id }))] : []),
     launcher({ id: "browser", title: "Browser", description: "Browse in one session the whole app shares", command: "browser", icon: Globe, open: () => void workspace.actions.newBrowserTab() }, workspace.commandControls.available({ type: "browser.new-tab" })),
+    ...(MAC ? [launcher({ id: SIMULATOR_PANEL, title: "Simulator", description: `Run an iOS app in the background and let ${workspace.engineLabel} drive it`, command: "simulator", icon: Smartphone, open: () => void workspace.actions.openSimulator() }, workspace.commandControls.available({ type: "simulator.open" }), workspace.simulator.availability.status === "unsupported" ? workspace.simulator.availability.reason : null)] : []),
     launcher({ id: "terminal", title: "Terminal", description: `Run a shell here and let ${workspace.engineLabel} read what it prints`, command: "terminal", icon: SquareTerminal, open: () => void workspace.actions.openTerminal() }, workspace.commandControls.available({ type: "terminal.open" }), workspace.currentFolder ? null : "Open a project to start a terminal"),
     launcher({ id: "side-chat", title: "Side chat", description: "Start a focused conversation from this task", command: "side", icon: GitFork, open: onAddSideChat }, workspace.commandControls.available({ type: "side-chat.open", chatId: "new" }), workspace.currentThread ? null : "Open a thread to fork it"),
   ];

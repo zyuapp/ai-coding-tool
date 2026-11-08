@@ -21,6 +21,7 @@ import { reduceSettings, reduceModelFavorite, reduceRememberProject, SETTINGS_IN
 import { DOCK_INPUTS, reduceDock } from "./dock.js";
 import { BROWSER_INPUTS, reduceBrowser } from "./browser.js";
 import { BROWSER_IMPORT_INPUTS, reduceBrowserImport } from "./browser-import.js";
+import { reduceSimulator, SIMULATOR_INPUTS } from "./simulator.js";
 import { DESKTOP_INPUTS, reduceDesktop } from "./desktop.js";
 import { reduceView, VIEW_INPUTS } from "./view.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
@@ -75,6 +76,7 @@ export const CLAIMS = [
   claim(DOCK_INPUTS, reduceDock),
   claim(BROWSER_INPUTS, reduceBrowser),
   claim(BROWSER_IMPORT_INPUTS, reduceBrowserImport),
+  claim(SIMULATOR_INPUTS, reduceSimulator),
   claim(DESKTOP_INPUTS, reduceDesktop),
   claim(VIEW_INPUTS, reduceView),
 ];

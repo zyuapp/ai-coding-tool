@@ -55,6 +55,7 @@ export type RuntimeDesktop = Pick<DesktopAPI,
   | "captureBrowserPage" | "clearBrowserData" | "listBrowserImportSources" | "listBrowserImportSites" | "importBrowserSites" | "onBrowserEvent" | "findInPage" | "stopFindInPage"
   | "focusBrowserTab" | "onBrowserFind"
   | "openFile" | "listApps" | "openFolderInApp"
+  | "listSimulators" | "bootSimulator" | "simulatorInput" | "describeSimulator" | "captureSimulator"
   | "startTerminal" | "writeTerminal" | "resizeTerminal" | "closeTerminal" | "readTerminal" | "onTerminalEvent"
   | "setCaptureOptions" | "setShortcuts" | "setShortcutCapture"
   | "closeWindow" | "focusWindow" | "announceThread" | "setBadgeCount"

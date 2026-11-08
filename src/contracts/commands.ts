@@ -5,6 +5,7 @@ import type { ThreadRole } from "../domain/thread-role.js";
 import type { NextStep, OverviewSection, RemoteLead, ThreadBrief } from "../domain/coordination.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
+import type { SimulatorInput } from "../domain/simulator.js";
 import type { ComputerUsePermission } from "../domain/computer-use.js";
 import type { CaptureOptions } from "../domain/capture.js";
 import type { DiffMode, DiffRange } from "../domain/diff.js";
@@ -34,7 +35,7 @@ export type ReadingPoint = { anchor: string; depth: number } | null;
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ImageViewCommand | CliCommand | ComputerUseAccessCommand | PlanUsageCommand | ProjectCommand | PullRequestCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | BrowserImportCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | ComputerCommand | EngineCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ImageViewCommand | CliCommand | ComputerUseAccessCommand | PlanUsageCommand | ProjectCommand | PullRequestCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | BrowserImportCommand | SimulatorCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | ComputerCommand | EngineCommand | ViewCommand;
 
 /**
  * Asks GitHub about the pull request the checkout in front belongs to. Sent again whenever that
@@ -352,6 +353,19 @@ export type BrowserCommand =
   | { type: "browser.decide"; allow: boolean; approvalId: string }
   /** Signs the whole app out: cookies, storage, and caches for every site. */
   | { type: "browser.clear-data" };
+
+/**
+ * The iOS simulator panel. Each dock shows one device; a command carrying a `taskId` is a run driving
+ * the device its own dock shows, and one carrying a `udid` names the device it acts on outright.
+ */
+export type SimulatorCommand =
+  /** Shows the panel and boots the device it names, by UDID or name, else the dock's own, else a default. */
+  | { type: "simulator.open"; taskId?: string; device?: string }
+  /** Reads the devices this Mac has again. */
+  | { type: "simulator.refresh" }
+  /** Puts another device in the panel in front. */
+  | { type: "simulator.select"; udid: string }
+  | { type: "simulator.input"; taskId?: string; udid?: string; input: SimulatorInput };
 
 /**
  * Copies another browser's cookies for the sites the user picks into the browser panel. Only the

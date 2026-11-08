@@ -1,5 +1,5 @@
 /** The guards a thread tool request has to pass on its way from the agent process to the window. */
-import { isBlankable, isBrowserRead, isCount, isString, isTerminalRead, MAX_PROMPT_LENGTH, MAX_SEARCH_TEXT, MAX_THREAD_WAIT_MS } from "./ipc.js";
+import { isBlankable, isBrowserRead, isCount, isSimulatorRead, isString, isTerminalRead, MAX_PROMPT_LENGTH, MAX_SEARCH_TEXT, MAX_THREAD_WAIT_MS } from "./ipc.js";
 import { isExternalCommand } from "./workspace-view-input.js";
 import type { FindingReport, ThreadRequest } from "./threads.js";
 import { isCoordinationState, isDecisionRequest, isMemoryChange, isProposalRequest, isReportSummary, MAX_PROPOSAL_COMPUTER, MAX_PROPOSAL_PROJECT, MAX_PROPOSALS } from "../domain/coordination.js";
@@ -24,6 +24,7 @@ export function isThreadRequest(value: unknown): value is ThreadRequest {
   if (request.op === "command") return isExternalCommand(request.command);
   if (request.op === "browser") return isBrowserRead(request.read);
   if (request.op === "terminal") return isTerminalRead(request.read);
+  if (request.op === "simulator") return isSimulatorRead(request.read);
   if (request.op === "notify") return isFindingReport(request.report);
   if (request.op === "nothing-to-report") return isString(request.checked, MAX_HEADLINE);
   if (request.op === "report") return isCoordinationState(request.state) && isReportSummary(request.summary);

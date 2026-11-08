@@ -21,11 +21,12 @@ import { NO_PLAN_USAGE, type PlanUsageState } from "./plan-limits.js";
 import type { ReadingPoint } from "../contracts/commands.js";
 import type { ReviewTarget } from "../domain/review.js";
 import type { ActiveGoal } from "../domain/goal.js";
+import type { SimulatorAvailability, SimulatorDevice } from "../domain/simulator.js";
 
 export type { ReadingPoint, ThreadWait };
 import { AUTOMATION_PANEL, DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockSubject, type ThreadDock } from "./workspace-dock.js";
 export {
-  AUTOMATION_PANEL, DIFF_PANEL, DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, browserTarget,
+  AUTOMATION_PANEL, DIFF_PANEL, DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, SIMULATOR_PANEL, WORKFLOW_PANEL, browserTarget,
   dockFor, dockSubject, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock,
   keyboardTerminalId, keyboardThreadId, ownerOfBrowserTab, ownerOfTerminal, shownThreadTab, terminalTarget, withDock, type ThreadDock,
 } from "./workspace-dock.js";
@@ -211,6 +212,23 @@ export type ReviewPicker = {
   step: "targets" | "base" | "commit" | "custom";
 };
 
+/**
+ * The simulators this Mac has, kept for the whole app the way the browser session is. Which one a
+ * dock shows is that dock's own, so one thread switching devices never moves another's taps.
+ */
+export type SimulatorState = {
+  availability: SimulatorAvailability;
+  devices: SimulatorDevice[];
+  /** Devices a boot was asked for that has not answered yet. */
+  booting: string[];
+  /** What last went wrong with each device, until something done to it works. */
+  errors: Record<string, string>;
+  /** The run driving a device right now. `seq` names this stretch of driving, so an older idle report cannot end a newer one. */
+  driver: { taskId: string; udid: string; seq: number } | null;
+};
+
+export const NO_SIMULATORS: SimulatorState = { availability: { status: "unknown" }, devices: [], booting: [], errors: {}, driver: null };
+
 export type WorkspaceState = ProjectAddWorkspaceState & {
   threads: Thread[];
   /** Native goals live only as long as this app session. */
@@ -355,6 +373,7 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   browserOrigins: string[];
   browserImport: BrowserImportState;
   browserApproval: BrowserApproval | null;
+  simulator: SimulatorState;
   openMenu: string | null;
   reviewPicker: ReviewPicker | null;
   /**
@@ -518,6 +537,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     browserOrigins: [],
     browserImport: NO_BROWSER_IMPORT,
     browserApproval: null,
+    simulator: NO_SIMULATORS,
     openMenu: null,
     reviewPicker: null,
     environments: {},
@@ -849,8 +869,9 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     dockTab: dock.tab,
     browserTabs: dock.browserTabs,
     browserApproval: state.browserApproval,
-    browserOrigins: state.browserOrigins,
-    browserImport: state.browserImport,
+    browserOrigins: state.browserOrigins, browserImport: state.browserImport,
+    /** The simulators, and the one this dock's panel shows. */
+    simulator: state.simulator, simulatorId: dock.simulatorId,
     terminals: dock.terminals,
     currentFolder: currentFolder(state),
     openMenu: state.openMenu,

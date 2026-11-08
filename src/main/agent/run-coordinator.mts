@@ -4,7 +4,7 @@ import type { AgentEvent, BackgroundReport, GoalReport, InternalStartRunCommand,
 import { capabilitiesFor } from "../../domain/agent-engine.js";
 import { toolLabel } from "../../domain/tool-call.js";
 import type { Continuation, SubagentReport, ToolIntent } from "../../domain/run.js";
-import type { AgentProvider, AgentTurn, AutomationBridge, CoordinationBridge, FindingBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
+import type { AgentProvider, AgentTurn, AutomationBridge, CoordinationBridge, FindingBridge, ProviderEvent, BrowserBridge, SimulatorBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
 import type { UsageLimit } from "../../domain/usage-limit.js";
 import type { CoordinationRole } from "../../domain/coordination.js";
@@ -47,6 +47,7 @@ type CoordinatorOptions = {
   threads?: (taskId: string) => ThreadBridge;
   coordination?: (taskId: string) => CoordinationBridge;
   browser?: (taskId: string) => BrowserBridge;
+  simulator?: (taskId: string) => SimulatorBridge;
   terminal?: (taskId: string) => TerminalBridge;
   tailIntervalMs?: number;
   unattendedApprovalMs?: number;
@@ -177,6 +178,7 @@ export class RunCoordinator {
         threads: this.options.threads?.(command.taskId),
         ...(command.coordinationRole ? { coordinationRole: command.coordinationRole, coordination: this.options.coordination?.(command.taskId) } : {}),
         browser: command.browserTools === false ? undefined : this.options.browser?.(command.taskId),
+        simulator: command.simulatorTools === false ? undefined : this.options.simulator?.(command.taskId),
         terminal: this.options.terminal?.(command.taskId),
         steering: active.steering,
         abortController: active.abortController,

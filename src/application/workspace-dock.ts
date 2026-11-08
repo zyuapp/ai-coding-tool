@@ -25,6 +25,8 @@ export type ThreadDock = {
   browserTabId: string | null;
   terminals: TerminalSession[];
   terminalId: string | null;
+  /** The simulator this dock's Simulator panel shows, once one was picked or opened. */
+  simulatorId: string | null;
   /** Threads working under this dock's coordinator, each opened as a tab to follow and talk to beside it. */
   threadTabs: string[];
   /** Per panel, the thread tab it shows in place of the dock's own thread. */
@@ -55,6 +57,7 @@ export const EMPTY_DOCK: ThreadDock = {
   browserTabId: null,
   terminals: [],
   terminalId: null,
+  simulatorId: null,
   threadTabs: [],
   subjects: {},
 };
@@ -88,6 +91,9 @@ export const AUTOMATION_PANEL = "automation";
 
 /** The dock tab one workflow is followed in. */
 export const WORKFLOW_PANEL = "workflow";
+
+/** The dock tab the iOS simulator is shown and driven in. */
+export const SIMULATOR_PANEL = "simulator";
 
 /** A coordinator's threads, grouped by what they need. It leads a coordinator's dock and does not close. */
 export const OVERVIEW_PANEL = "overview";

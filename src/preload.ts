@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { DesktopShortcutRefusal, ShortcutInvocation, TerminalDataEvent, WindowDesktopAPI, WindowDesktopCall, WindowScreenshot } from "./contracts/ipc";
+import type { SimulatorFrame } from "./domain/simulator";
 import type { WorkspaceBridge, WorkspaceSurfaceEffect, WorkspaceUpdate } from "./contracts/workspace-runtime";
 
 /** Every call crosses on one channel under its name, which main checks against its one table. */
@@ -39,7 +40,10 @@ const api: WindowDesktopAPI = {
   terminalSnapshot: relay("terminalSnapshot"),
   readRemoteTerminal: relay("readRemoteTerminal"),
   setTheme: relay("setTheme"),
+  watchSimulator: relay("watchSimulator"),
+  unwatchSimulator: relay("unwatchSimulator"),
   onTerminalData: pushed<TerminalDataEvent>("terminal:data"),
+  onSimulatorFrame: pushed<SimulatorFrame>("simulator:frame"),
   onWindowScreenshot: pushed<WindowScreenshot>("window:screenshot"),
   onDesktopShortcutRefused: pushed<DesktopShortcutRefusal>("window:shortcut-refused"),
   onShortcut: pushed<ShortcutInvocation>("window:shortcut"),

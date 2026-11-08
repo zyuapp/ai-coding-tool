@@ -1,3 +1,4 @@
+import type { SimulatorInput } from "../../domain/simulator";
 import type { WorkspaceInput } from "../../application/workspace-reducer";
 import type { SnoozeHours } from "../../domain/thread-snooze";
 import type { ThreadRole } from "../../domain/thread-role";
@@ -164,6 +165,8 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     runBrowserImport: () => dispatch({ type: "browser-import.run" }),
     importBrowserAgain: () => dispatch({ type: "browser-import.again" }),
     openTerminal: () => dispatch({ type: "terminal.open" }),
+    openSimulator: () => dispatch({ type: "simulator.open" }),
+    sendToSimulator: (udid: string, input: SimulatorInput) => dispatch({ type: "simulator.input", udid, input }),
     openFolderInApp: (appId: string) => dispatch({ type: "app.open-folder", appId }),
     ...noticeActions(dispatch),
     ...coordinationActions(dispatch),

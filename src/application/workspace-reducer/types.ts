@@ -15,6 +15,7 @@ import type { AppBuild, AppUpdate } from "../../domain/app-update.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { BrowserAction, BrowserPermissions } from "../../domain/browser.js";
 import type { BrowserImportResult, BrowserImportSite, BrowserImportSource } from "../../domain/browser-import.js";
+import type { SimulatorAvailability, SimulatorDevice, SimulatorInput } from "../../domain/simulator.js";
 import type { CaptureOptions } from "../../domain/capture.js";
 import type { ConversationMessage, OutgoingAttachment, RunAttachment } from "../../domain/conversation.js";
 import type { DiffRange } from "../../domain/diff.js";
@@ -92,6 +93,13 @@ export type WorkspaceEvent =
   | { type: "browser-import.failed"; message: string }
   /** What a page in the browser panel did. Main watches the page; the reducer keeps the record. */
   | { type: "browser.updated"; page: BrowserPageEvent }
+  /** What the Mac said about its simulators, and how a boot or a gesture went. */
+  | { type: "simulator.listed"; availability: SimulatorAvailability; devices: SimulatorDevice[] }
+  | { type: "simulator.booted"; udid: string }
+  | { type: "simulator.failed"; udid: string; message: string }
+  | { type: "simulator.refused"; message: string }
+  /** A run stopped driving a device a moment ago. `seq` names the stretch of driving that ended. */
+  | { type: "simulator.idle"; seq: number }
   /** What a shell did. Its output is not here: that goes straight to the view and never becomes state. */
   | { type: "terminal.updated"; update: TerminalUpdate }
   | { type: "subagent.activity.loaded"; taskId: string; subagentId: string; activity: SubagentActivity[] }
@@ -195,6 +203,11 @@ type WorkspaceWork =
   | { type: "browser-import.list-sources" }
   | { type: "browser-import.list-sites"; sourceId: string }
   | { type: "browser-import.import"; sourceId: string; sites: string[] }
+  /** The simulator panel's devices. `boot` answers once the device can take input. */
+  | { type: "simulator.list" }
+  | { type: "simulator.boot"; udid: string }
+  /** `seq` is set for a run's gesture, whose driving ends a moment after the last one. */
+  | { type: "simulator.input"; udid: string; input: SimulatorInput; taskId?: string; seq?: number }
   /** A file the desktop opens for the reader. `roots` are the checkouts to look for it in, nearest first. */
   | { type: "file.open"; roots: string[]; path: string; line: number | null }
   | { type: "app.list" }

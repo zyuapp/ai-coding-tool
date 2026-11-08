@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { REMOTE_THREAD_READ_TIMEOUT_MS } from "../../contracts/threads.js";
-import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadRequest, ThreadResponse, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
-import type { BrowserBridge, CoordinationBridge, FindingBridge, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
+import type { BrowserRead, BrowserReadResult, BrowserWrite, SimulatorRead, SimulatorReadResult, SimulatorWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadRequest, ThreadResponse, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
+import type { BrowserBridge, CoordinationBridge, FindingBridge, SimulatorBridge, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
 import type { CoordinationState, DecisionRequest, MemoryChange, ProposalRequest } from "../../domain/coordination.js";
 
 /** The request union minus the envelope, distributed so each op keeps its own payload. */
@@ -20,6 +20,8 @@ type Pending = {
 const REQUEST_TIMEOUT = 10_000;
 /** Deleting a worktree commits its loose work and removes the folder, which a large checkout drags out. */
 const WORKTREE_DELETE_TIMEOUT = 10 * 60_000;
+/** Typing a long string or reading a busy screen takes the device a while. */
+const SIMULATOR_COMMAND_TIMEOUT = 120_000;
 /** A wait is answered by the window when the thread settles, so it outlasts an ordinary request. */
 const WAIT_SLACK = 10_000;
 
@@ -73,6 +75,19 @@ export class ThreadChannel {
         { taskId, op: "browser", read },
         read.op === "snapshot" || read.op === "screenshot" || read.op === "wait" ? read.timeoutMs + WAIT_SLACK : this.timeout,
       ) as Promise<BrowserReadResult>,
+    };
+  }
+
+  /** The thread is stamped on here, so a run only ever drives the device its own dock shows. */
+  simulatorFor(taskId: string): SimulatorBridge {
+    return {
+      command: async (write: SimulatorWrite) => {
+        await this.request({ taskId, op: "command", command: { ...write, taskId } as ExternalCommand }, SIMULATOR_COMMAND_TIMEOUT);
+      },
+      read: (read: SimulatorRead) => this.request(
+        { taskId, op: "simulator", read },
+        read.op === "status" ? read.timeoutMs + WAIT_SLACK : SIMULATOR_COMMAND_TIMEOUT,
+      ) as Promise<SimulatorReadResult>,
     };
   }
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { AUTOMATION_TOOLS, FINDING_TOOLS } from "../../../src/main/tools/automation.mts";
 import { BROWSER_SERVER_NAME, BROWSER_TOOLS } from "../../../src/main/tools/browser.mts";
+import { SIMULATOR_SERVER_NAME, SIMULATOR_TOOLS } from "../../../src/main/tools/simulator.mts";
 import { TERMINAL_TOOLS } from "../../../src/main/tools/terminal.mts";
 import { THREAD_SERVER_NAME, THREAD_TOOLS } from "../../../src/main/tools/threads.mts";
 import { readOnlyToolNames } from "../../../src/main/tools/tool-names.mts";
@@ -24,4 +25,5 @@ test("the tools a run may use without asking are the ones the definitions call r
   assert.deepEqual(readOnly(AUTOMATION_TOOLS), ["status", "list_all"]);
   assert.deepEqual(readOnly(FINDING_TOOLS), []);
   assert.deepEqual(readOnly(TERMINAL_TOOLS), ["terminal_list", "terminal_read"]);
+  assert.deepEqual([...readOnlyToolNames(SIMULATOR_SERVER_NAME, SIMULATOR_TOOLS)], ["mcp__aicodingtool-simulator__simulator_read"]);
 });

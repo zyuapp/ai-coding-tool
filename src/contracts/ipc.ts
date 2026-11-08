@@ -1,10 +1,11 @@
+import type { SimulatorAvailability, SimulatorDevice, SimulatorFrame, SimulatorInput, SimulatorShot, SimulatorSnapshot } from "../domain/simulator.js";
 import type { BranchesResult } from "./git.js";
 export type { BranchesResult } from "./git.js";
 import type { AgentSettingsReloadEvent, ReloadAgentSettingsCommand } from "./agent-settings.js";
 export { isAgentSettingsReloadEvent, type AgentSettingsReloadEvent } from "./agent-settings.js";
 import { isQuestionRequest, type QuestionRequest } from "../domain/agent-question.js";
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
-import type { BrowserRead, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
+import type { BrowserRead, SimulatorRead, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserPermissions, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
 import type { BrowserImportResult, BrowserImportSite, BrowserImportSource } from "../domain/browser-import.js";
 import type { AppBuild, AppUpdate } from "../domain/app-update.js";
@@ -79,6 +80,8 @@ export type StartRunCommand = {
   computerUseTools?: false;
   /** Set when the user turned browser use off: the run gets no browser-panel tools. */
   browserTools?: false;
+  /** Set when this Mac cannot run the simulator: the run gets no simulator tools. */
+  simulatorTools?: false;
   continuation?: Continuation;
   forkContinuation?: boolean;
   /** Set when the run resumes no session on purpose, so not even the thread's warm one is reused. */
@@ -352,6 +355,18 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   stopFindInPage(tabId: string): Promise<void>;
   focusBrowserTab(tabId: string): Promise<void>;
   onBrowserFind(listener: (event: BrowserFindEvent) => void): () => void;
+  /** The simulators this Mac has, and whether it can run the panel at all. */
+  listSimulators(): Promise<{ availability: SimulatorAvailability; devices: SimulatorDevice[] }>;
+  /** Boots a simulator without a window, resolving once it can take input. */
+  bootSimulator(udid: string): Promise<void>;
+  simulatorInput(udid: string, input: SimulatorInput): Promise<void>;
+  /** The app on screen as its accessibility tree, each element given a ref only this read's taps accept. */
+  describeSimulator(udid: string, device: string): Promise<SimulatorSnapshot>;
+  captureSimulator(udid: string): Promise<SimulatorShot>;
+  /** Streams a device's screen to this window while at least one view watches it. */
+  watchSimulator(udid: string): Promise<void>;
+  unwatchSimulator(udid: string): Promise<void>;
+  onSimulatorFrame(listener: (frame: SimulatorFrame) => void): () => void;
   /** Hands a file to the desktop, which opens it with whatever it opens that kind of file with. */
   openFile(roots: string[], path: string, line: number | null): Promise<void>;
   /** The applications on this machine that can take a folder, read fresh enough to see a new install. */
@@ -403,12 +418,13 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
 export type WindowDesktopCall =
   | "openFolder" | "projectlessWorkspace" | "commands" | "branches" | "commits" | "diffPatch"
   | "describeFiles" | "saveAttachment" | "readAttachment" | "readAttachmentContext"
-  | "setBrowserBounds" | "focusBrowserTab" | "terminalSnapshot" | "readRemoteTerminal" | "setTheme";
+  | "setBrowserBounds" | "focusBrowserTab" | "terminalSnapshot" | "readRemoteTerminal" | "setTheme"
+  | "watchSimulator" | "unwatchSimulator";
 
 /** What a window reaches directly: its calls, what main pushes at it, and what it answers itself. The rest is the runtime's. */
 export type WindowDesktopAPI = Pick<DesktopAPI, WindowDesktopCall
   | "platform" | "pathForFile"
-  | "onTerminalData" | "onWindowScreenshot" | "onDesktopShortcutRefused" | "onShortcut" | "onShortcutCaptured" | "onOpenThread" | "onWindowActive"
+  | "onTerminalData" | "onSimulatorFrame" | "onWindowScreenshot" | "onDesktopShortcutRefused" | "onShortcut" | "onShortcutCaptured" | "onOpenThread" | "onWindowActive"
 >;
 
 /** What a keystroke asked for, and where it was pressed. */
@@ -664,7 +680,7 @@ function isStartCommand(command: Record<string, unknown>, internal: boolean) {
     && isContinuation(command.continuation) && command.continuation.provider === command.engine
     && (command.forkContinuation === undefined || command.forkContinuation === true);
   const operationOnly = compact || review;
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isExecutionPolicy(command.policy) && isAgentEngine(command.engine) && isModelId(command.model) && isAgentEffort(command.effort) && (command.operation === undefined || operationOnly) && (command.chromeBrowser === undefined || (command.chromeBrowser === true && capabilitiesFor(command.engine).chromeBrowser)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.freshSession === undefined || (command.freshSession === true && command.continuation === undefined && command.forkContinuation === undefined)) && (command.unattended === undefined || command.unattended === true) && (command.coordinationRole === undefined || command.coordinationRole === "coordinator" || command.coordinationRole === "member") && (command.projectWorkspaceId === undefined || (command.coordinationRole === "member" && isString(command.projectWorkspaceId)));
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isExecutionPolicy(command.policy) && isAgentEngine(command.engine) && isModelId(command.model) && isAgentEffort(command.effort) && (command.operation === undefined || operationOnly) && (command.chromeBrowser === undefined || (command.chromeBrowser === true && capabilitiesFor(command.engine).chromeBrowser)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.simulatorTools === undefined || command.simulatorTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.freshSession === undefined || (command.freshSession === true && command.continuation === undefined && command.forkContinuation === undefined)) && (command.unattended === undefined || command.unattended === true) && (command.coordinationRole === undefined || command.coordinationRole === "coordinator" || command.coordinationRole === "member") && (command.projectWorkspaceId === undefined || (command.coordinationRole === "member" && isString(command.projectWorkspaceId)));
   if (!base || !(command.fastMode === undefined || isAgentEngine(command.engine) && capabilitiesFor(command.engine).fastMode && typeof command.fastMode === "boolean")) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "projectRoot", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse) && (command.projectRoot === undefined || isString(command.projectRoot, 4_096));
@@ -724,6 +740,16 @@ export function isBrowserRead(value: unknown): value is BrowserRead {
   const waited = tabbed && isCount(read.timeoutMs) && read.timeoutMs <= MAX_BROWSER_WAIT_MS;
   if (read.op === "screenshot") return waited && (read.fullPage === undefined || typeof read.fullPage === "boolean");
   return waited && (read.textLimit === undefined || isCount(read.textLimit));
+}
+
+/** The longest a run waits on a device to boot, which a first boot of a fresh device can take. */
+export const MAX_SIMULATOR_WAIT_MS = 300_000;
+
+export function isSimulatorRead(value: unknown): value is SimulatorRead {
+  if (!value || typeof value !== "object") return false;
+  const read = value as Record<string, unknown>;
+  if (read.op === "status") return isCount(read.timeoutMs) && read.timeoutMs <= MAX_SIMULATOR_WAIT_MS;
+  return read.op === "snapshot" && typeof read.screenshot === "boolean";
 }
 
 export function isTerminalRead(value: unknown): value is TerminalRead {

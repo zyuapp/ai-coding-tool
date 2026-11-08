@@ -39,6 +39,7 @@ export function subscribeWorkspaceRuntime(host: RuntimeSubscriptionHost) {
   }
   listen(() => {
     void host.dispatch({ type: "engine.read" });
+    void host.dispatch({ type: "simulator.refresh" });
   });
   listen(() => {
     const schedule = host.frame ?? shortly;

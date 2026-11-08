@@ -10,6 +10,7 @@ import { isAgentEffort, isAgentEngine, isModelId } from "../domain/agent-engine.
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationFields } from "../domain/automation.js";
 import { isImportSite, isImportSourceId } from "../domain/browser-import.js";
 import { isCaptureOptions } from "../domain/capture.js";
+import { isSimulatorInput } from "../domain/simulator.js";
 import { computerAddress } from "../domain/computers.js";
 import { isScreenshotContext } from "../domain/screenshot-context.js";
 import { MAX_ATTACHMENT_ENCODED_BYTES, type Annotation, type AnnotationAnchor, type AttachedFile, type AttachedFileDraft, type OutgoingAttachment, type PastedText, type RunAttachment } from "../domain/conversation.js";
@@ -181,6 +182,11 @@ function movesToCheckout(command: Extract<AppCommand, { type: "task.move-worktre
 /** A run drives the browser as itself, so every browser command names the thread that asked. */
 function drivesBrowser(command: { taskId?: string; tabId?: string; url?: string }): boolean {
   return isString(command.taskId) && agentId(command.tabId) && (command.url === undefined || isString(command.url, MAX_URL_LENGTH));
+}
+
+/** A run's gestures go to the device its own dock shows, so it names itself and never a device outright. */
+function drivesSimulator(command: { taskId?: string; udid?: string }): boolean {
+  return isString(command.taskId) && command.udid === undefined;
 }
 
 /**
@@ -383,6 +389,10 @@ const commands = {
   "browser.act": { fields: { taskId: optionalText, tabId: optionalText, action: isBrowserAction }, at: "panel", agent: drivesBrowser },
   "browser.decide": { fields: { allow: boolean, approvalId: text }, at: "panel" },
   "browser.clear-data": { fields: {}, at: "panel" },
+  "simulator.open": { fields: { taskId: optionalText, device: optionalText }, at: "panel", agent: namesThread },
+  "simulator.refresh": { fields: {}, at: "panel" },
+  "simulator.select": { fields: { udid: text }, at: "panel" },
+  "simulator.input": { fields: { taskId: optionalText, udid: optionalText, input: isSimulatorInput }, at: "panel", agent: drivesSimulator },
   "browser-import.read": { fields: {}, at: "local" },
   "browser-import.choose": { fields: { sourceId: nullable(isImportSourceId) }, at: "local" },
   "browser-import.toggle": { fields: { site: isImportSite }, at: "local" },

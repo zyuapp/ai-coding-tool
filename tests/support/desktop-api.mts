@@ -65,6 +65,17 @@ const gitDesktop = {
     diffPatch: async () => ({ status: "available", patch: "" }),
 } satisfies Pick<DesktopAPI, "changedFiles" | "branches" | "commits" | "pullRequest" | "diffSummary" | "diffPatch">;
 
+const simulatorDesktop = {
+  listSimulators: async () => ({ availability: { status: "available" as const }, devices: [] }),
+  bootSimulator: async () => {},
+  simulatorInput: async () => {},
+  describeSimulator: async (udid: string, device: string) => ({ udid, device, width: 402, height: 874, elements: [] }),
+  captureSimulator: async () => ({ path: "/tmp/simulator.png", width: 1206, height: 2622 }),
+  watchSimulator: async () => {},
+  unwatchSimulator: async () => {},
+  onSimulatorFrame: () => () => {},
+} satisfies Pick<DesktopAPI, "listSimulators" | "bootSimulator" | "simulatorInput" | "describeSimulator" | "captureSimulator" | "watchSimulator" | "unwatchSimulator" | "onSimulatorFrame">;
+
 export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const sent: RunCommand[] = [];
   const persisted: TaskStoreDelta[] = [];
@@ -92,7 +103,7 @@ export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const threadAnswers: ThreadResponse[] = [];
   let unsubscribed = false;
   const api: DesktopAPI = {
-    ...gitDesktop, ...updateDesktop, ...mobileDesktopStub, ...engineDesktopStub, openFolder: async () => null,
+    ...gitDesktop, ...updateDesktop, ...mobileDesktopStub, ...engineDesktopStub, ...simulatorDesktop, openFolder: async () => null,
     directories: async () => [],
     registerProject: async (root) => ({ id: root, kind: "project", root }),
     onOpenProject: (next) => { openProject = next; return () => {}; },

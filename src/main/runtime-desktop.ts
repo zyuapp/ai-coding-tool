@@ -14,6 +14,7 @@ import { serviceDesktop, type ServiceDesktopHost } from "./service-desktop.js";
 import { appUpdate, checkForUpdates, confirmInstall, downloadUpdate, installUpdate, type UpdateHost } from "./updates.js";
 import { automaticUpdatesAvailable } from "./platform-capabilities.js";
 import * as browser from "./browser-host.js";
+import * as simulator from "./simulator-host.js";
 import { importBrowserSites, listImportSites, listImportSources } from "./browser-import.js";
 
 /** What the desktop adds to the services: the window, and everything only a window can do. */
@@ -49,7 +50,7 @@ function computerDesktop(host: RuntimeDesktopHost): ComputerDesktop {
   };
 }
 
-/** The browser panel, whose pages live in this process beside the window they are shown in. */
+/** The browser and simulator panels, whose pages and devices are driven from this process. */
 function panelDesktop(host: RuntimeDesktopHost) {
   const { events } = host;
   return {
@@ -73,6 +74,11 @@ function panelDesktop(host: RuntimeDesktopHost) {
     stopFindInPage: async (tabId) => browser.stopFindInPage(tabId),
     focusBrowserTab: async (tabId) => browser.focusTab(tabId),
     onBrowserFind: (listener) => events.on("browser:find", listener),
+    listSimulators: () => simulator.listSimulators(),
+    bootSimulator: (udid) => simulator.bootSimulator(udid),
+    simulatorInput: (udid, input) => simulator.simulatorInput(udid, input),
+    describeSimulator: (udid, device) => simulator.describeSimulator(udid, device),
+    captureSimulator: (udid) => simulator.captureSimulator(udid),
   } satisfies Partial<RuntimeDesktop>;
 }
 

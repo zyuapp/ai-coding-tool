@@ -10,6 +10,7 @@ import { readAttachmentContext, savedAttachmentPath } from "./attachment-store.j
 import { setBounds } from "./browser-host.js";
 import type { ComputerReads } from "./computer-queries.js";
 import { terminalSnapshot } from "./terminal-host.js";
+import { unwatchSimulator, watchSimulator } from "./simulator-host.js";
 
 /** What the window's calls are answered from: the runtime's own desktop, the reads, and the window's frame. */
 export type WindowDesktopHost = {
@@ -82,6 +83,8 @@ export function windowDesktopCalls(host: WindowDesktopHost): { [Name in WindowDe
       run: (computerId, terminalId, after) => host.reads.read({ kind: "terminal-output", terminalId, ...(after === undefined ? {} : { after }) }, { computer: computerId }),
     },
     setTheme: { args: [isWindowTheme], run: (theme) => host.setTheme(theme) },
+    watchSimulator: { args: [isId], run: (udid) => watchSimulator(udid) },
+    unwatchSimulator: { args: [isId], run: (udid) => unwatchSimulator(udid) },
   };
 }
 

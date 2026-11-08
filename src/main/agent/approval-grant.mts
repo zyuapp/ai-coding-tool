@@ -3,6 +3,7 @@ import type { ExecutionPolicy } from "../../domain/run.js";
 import { AUTOMATION_SERVER_NAME } from "../tools/automation.mjs";
 import { BROWSER_SERVER_NAME, BROWSER_TOOLS } from "../tools/browser.mjs";
 import { COORDINATION_SERVER_NAME } from "../tools/coordination.mjs";
+import { SIMULATOR_SERVER_NAME, SIMULATOR_TOOLS } from "../tools/simulator.mjs";
 import { THREAD_SERVER_NAME, THREAD_TOOLS } from "../tools/threads.mjs";
 import { readOnlyToolNames } from "../tools/tool-names.mjs";
 
@@ -24,11 +25,13 @@ const coordinationToolPrefix = `mcp__${COORDINATION_SERVER_NAME}__`;
 const readOnlyThreadTools = readOnlyToolNames(THREAD_SERVER_NAME, THREAD_TOOLS);
 /** Reading a page the panel already holds changes nothing; opening one and acting in it does. */
 const readOnlyBrowserTools = readOnlyToolNames(BROWSER_SERVER_NAME, BROWSER_TOOLS);
+/** Reading the simulator's screen changes nothing; booting it and tapping it do. */
+const readOnlySimulatorTools = readOnlyToolNames(SIMULATOR_SERVER_NAME, SIMULATOR_TOOLS);
 const computerUseToolPrefix = "mcp__cua-driver__";
 
 /** What a tool reaches, read from its `mcp__server__tool` name. Every engine grants app tools by this. */
 export function toolReach(toolName: string): ToolReach {
-  if (toolName === setupToolName || toolName.startsWith(automationToolPrefix) || toolName.startsWith(coordinationToolPrefix) || readOnlyThreadTools.has(toolName) || readOnlyBrowserTools.has(toolName)) return "app";
+  if (toolName === setupToolName || toolName.startsWith(automationToolPrefix) || toolName.startsWith(coordinationToolPrefix) || readOnlyThreadTools.has(toolName) || readOnlyBrowserTools.has(toolName) || readOnlySimulatorTools.has(toolName)) return "app";
   return toolName.startsWith(computerUseToolPrefix) ? "computer-use" : "workspace";
 }
 

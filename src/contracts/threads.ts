@@ -1,3 +1,4 @@
+import type { SimulatorDevice, SimulatorShot, SimulatorSnapshot } from "../domain/simulator.js";
 import type { AppCommand } from "./commands.js";
 import type { AgentCommandType } from "./workspace-view-input.js";
 import type { BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot, BrowserTab } from "../domain/browser.js";
@@ -111,6 +112,19 @@ export type BrowserReadResult =
   | { kind: "awaiting-approval"; url: string }
   | { kind: "no-tab" };
 
+export type SimulatorWrite = WithoutTask<Extract<ExternalCommand, { type: `simulator.${string}` }>>;
+
+/** What a run may read about the device its dock's Simulator panel shows. */
+export type SimulatorRead =
+  /** Waits up to `timeoutMs` for the device to finish booting, then says where it stands. */
+  | { op: "status"; timeoutMs: number }
+  | { op: "snapshot"; screenshot: boolean };
+
+export type SimulatorReadResult =
+  | { kind: "status"; device: SimulatorDevice; booted: boolean; error?: string }
+  | { kind: "snapshot"; snapshot: SimulatorSnapshot; shot?: SimulatorShot }
+  | { kind: "no-simulator"; reason: string };
+
 /**
  * What a caller may read about the terminal panel. There is no write to match it: the panel holds the
  * user's own shell, and a run that wants to run something has Bash of its own.
@@ -138,6 +152,7 @@ export type ThreadRequest = {
   | { op: "command"; command: ExternalCommand; computer?: string }
   | { op: "browser"; read: BrowserRead }
   | { op: "terminal"; read: TerminalRead }
+  | { op: "simulator"; read: SimulatorRead }
   | { op: "notify"; report: FindingReport }
   | { op: "nothing-to-report"; checked: string }
   | { op: "report"; state: CoordinationState; summary: string }

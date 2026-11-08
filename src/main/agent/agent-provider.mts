@@ -1,7 +1,7 @@
 import type { QuestionAnswers, QuestionRequest } from "../../domain/agent-question.js";
 import type { BackgroundReport, ComputerUseRunConfig, RunChannel, RunOperation, WorkflowReport } from "../../contracts/ipc.js";
 import type { CoordinationRole, CoordinationState, DecisionRequest, MemoryChange, ProposalRequest } from "../../domain/coordination.js";
-import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
+import type { BrowserRead, BrowserReadResult, BrowserWrite, SimulatorRead, SimulatorReadResult, SimulatorWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort, Continuation, ExecutionPolicy, RetryNotice, SubagentReport, ToolIntent } from "../../domain/run.js";
@@ -39,6 +39,12 @@ export type FindingBridge = {
 export type BrowserBridge = {
   command(write: BrowserWrite): Promise<void>;
   read(read: BrowserRead): Promise<BrowserReadResult>;
+};
+
+/** The device the thread's own Simulator panel shows: writes are commands, reads are the screen. */
+export type SimulatorBridge = {
+  command(write: SimulatorWrite): Promise<void>;
+  read(read: SimulatorRead): Promise<SimulatorReadResult>;
 };
 
 /** The terminal panel, which a run may only read: the shell is the user's, and a run has Bash of its own. */
@@ -139,6 +145,7 @@ export type ProviderRunInput = {
   coordinationRole?: CoordinationRole;
   coordination?: CoordinationBridge;
   browser?: BrowserBridge;
+  simulator?: SimulatorBridge;
   terminal?: TerminalBridge;
   steering: SteerQueue;
   abortController: AbortController;

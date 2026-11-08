@@ -13,7 +13,7 @@ import { isOneShotSchedule } from "../domain/automation.js";
 import { scheduledRun } from "../application/run-testimony.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
-import type { ExternalCommand, FindingReport, FindingResult, ThreadCommandResult, ThreadRequest, ThreadResponse, ThreadTranscript } from "../contracts/threads.js";
+import type { ExternalCommand, FindingReport, FindingResult, SimulatorRead, SimulatorReadResult, ThreadCommandResult, ThreadRequest, ThreadResponse, ThreadTranscript } from "../contracts/threads.js";
 import { REMOTE_UNSUPPORTED } from "../contracts/computer-capabilities.js";
 import { terminalLineLimit } from "../domain/terminal.js";
 import { isCoordinator, MAX_PROPOSALS, type CoordinationState, type DecisionRequest, type MemoryChange, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
@@ -35,7 +35,7 @@ export type ThreadWaiterList = { current: ThreadWaiter[] };
 /** The runtime state and the command execution that answers each tool request. */
 export type ThreadRequestHost = {
   state: () => WorkspaceState;
-  desktop: Pick<RuntimeDesktop, "configureBrowserPermissions" | "captureBrowserPage" | "inspectBrowserPage" | "readBrowserPage" | "readTerminal" | "queryComputerThreads">;
+  desktop: Pick<RuntimeDesktop, "configureBrowserPermissions" | "captureBrowserPage" | "inspectBrowserPage" | "readBrowserPage" | "readTerminal" | "queryComputerThreads" | "describeSimulator" | "captureSimulator">;
   dispatch: (input: WorkspaceInput) => Promise<void> | void;
   execute: (input: WorkspaceInput) => WorkspaceExecution;
   waiters: ThreadWaiterList;
@@ -136,6 +136,7 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       const { taskId: _thread, id: _id, ...record } = terminal;
       return ok({ kind: "snapshot", snapshot: { terminalId: terminal.id, ...record, ...text } });
     }
+    if (request.op === "simulator") return ok(await readSimulator(host, request.taskId, request.read));
     if (request.op === "notify") return ok(await raiseFinding(host, request.taskId, request.report));
     if (request.op === "nothing-to-report") return ok(await reportNothing(host, request.taskId, request.checked));
     if (request.op === "report") return ok(await reportToCoordinator(host, request.taskId, request.state, request.summary));
@@ -144,8 +145,8 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     if (request.op === "propose") return ok(await proposeThreads(host, request.taskId, request.proposals));
     const { command } = request;
     const before = host.state();
-    /** A browser command acts on a tab rather than a thread, so it answers with the panel's own error. */
-    if (command.type.startsWith("browser.")) {
+    /** A browser or simulator command acts on a panel rather than a thread, so it answers with the panel's own error. */
+    if (command.type.startsWith("browser.") || command.type.startsWith("simulator.")) {
       const result = await host.execute(command).completed;
       return result.ok ? ok({ thread: null }) : failed(result.message);
     }
@@ -211,6 +212,35 @@ function movesAfterTurn(state: WorkspaceState, thread: Thread, { destination, th
 }
 
 /** Holds the call until `pending` stops holding, or until the time runs out. */
+/** The device a thread's own dock shows, which is the only one its run drives. */
+function dockSimulator(state: WorkspaceState, taskId: string) {
+  const udid = dockFor(state, dockOwner(state, taskId)).simulatorId;
+  return udid ? state.simulator.devices.find((device) => device.udid === udid) : undefined;
+}
+
+async function readSimulator(host: ThreadRequestHost, taskId: string, read: SimulatorRead): Promise<SimulatorReadResult> {
+  const before = host.state();
+  if (before.simulator.availability.status === "unsupported") return { kind: "no-simulator", reason: before.simulator.availability.reason };
+  if (!dockSimulator(before, taskId)) return { kind: "no-simulator", reason: "Open the simulator first with simulator_open." };
+  if (read.op === "status") {
+    const settledBoot = (state: WorkspaceState) => {
+      const device = dockSimulator(state, taskId);
+      return Boolean(device && state.simulator.booting.includes(device.udid));
+    };
+    const { state } = await waitFor(host, settledBoot, read.timeoutMs);
+    const device = dockSimulator(state, taskId)!;
+    const error = state.simulator.errors[device.udid];
+    return { kind: "status", device, booted: device.state === "booted", ...(error ? { error } : {}) };
+  }
+  const device = dockSimulator(before, taskId)!;
+  if (device.state !== "booted") return { kind: "no-simulator", reason: `${device.name} is not running yet. Call simulator_open and wait for it.` };
+  const [snapshot, shot] = await Promise.all([
+    host.desktop.describeSimulator(device.udid, device.name),
+    read.screenshot ? host.desktop.captureSimulator(device.udid) : Promise.resolve(undefined),
+  ]);
+  return { kind: "snapshot", snapshot, ...(shot ? { shot } : {}) };
+}
+
 function waitFor(host: ThreadRequestHost, pending: (state: WorkspaceState) => boolean, timeoutMs: number): Promise<{ state: WorkspaceState; timedOut: boolean }> {
   if (!pending(host.state())) return Promise.resolve({ state: host.state(), timedOut: false });
   return new Promise((resolve) => {
