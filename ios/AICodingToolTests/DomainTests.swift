@@ -43,7 +43,6 @@ final class DomainTests: XCTestCase {
     }
 
     func testThreadMeta() {
-        let now = Date(timeIntervalSince1970: 1_000)
         var entry = MobileThreadEntry(id: "t", title: "T", projectId: nil, projectName: nil, status: "running", lastActivityAt: 1_000_000, unread: false, outcome: nil, headline: nil, waiting: nil, attention: false)
         XCTAssertEqual(Format.stateLabel(entry), "Working")
         entry.status = "idle"
