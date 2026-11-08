@@ -136,7 +136,7 @@ struct ThreadListScreen: View {
         Section {
             SectionHeading(label: label, count: threads.count, open: open, mark: open ? nil : Format.groupMark(threads), onToggle: {
                 withAnimation(.snappy) { model.toggleFolded(key) }
-            }, onDismissAll: dismissable.isEmpty ? nil : { model.dismissAll(projectId: narrowed?.projectId) })
+            }, onDismissAll: dismissable.isEmpty ? nil : { model.dismissAll(projectId: narrowed?.projectId) }, quiet: model.notice != nil)
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: id == "priority" ? 12 : 26, leading: 16, bottom: 2, trailing: 16))
@@ -171,6 +171,7 @@ private struct SectionHeading: View {
     var mark: Format.GroupMark?
     var onToggle: () -> Void
     var onDismissAll: (() -> Void)?
+    var quiet = false
     @Environment(\.palette) private var palette
 
     var body: some View {
@@ -200,7 +201,7 @@ private struct SectionHeading: View {
             if let onDismissAll {
                 Button("Dismiss All", action: onDismissAll)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(palette.accent)
+                    .foregroundStyle(quiet ? palette.inkDim : palette.accent)
                     .buttonStyle(.plain)
             }
         }
@@ -277,7 +278,7 @@ struct ThreadRow: View {
                 if dismissable {
                     Button { model.dismiss(thread.id) } label: {
                         Image(systemName: "checkmark.circle")
-                            .font(.title3.weight(.light))
+                            .font(.body.weight(.light))
                             .foregroundStyle(palette.quiet)
                             .frame(width: 44, height: 36, alignment: .trailing)
                             .contentShape(Rectangle())

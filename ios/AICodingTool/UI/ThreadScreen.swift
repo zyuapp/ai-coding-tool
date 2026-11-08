@@ -84,19 +84,23 @@ struct ThreadScreen: View {
                     CoordinatorStrip(members: members) { sheet = .members }
                 }
                 ConversationView(thread: thread, model: model)
-                if let approval = thread.approval {
-                    ApprovalCard(approval: approval, engine: thread.settings.engine, refused: model.state.returned?.command.type == "run.decide" ? model.state.returned?.requestId : nil) { allow in
-                        model.send(.decide(approval, allow: allow))
+                    .bottomBar {
+                        VStack(spacing: 0) {
+                            if let approval = thread.approval {
+                                ApprovalCard(approval: approval, engine: thread.settings.engine, refused: model.state.returned?.command.type == "run.decide" ? model.state.returned?.requestId : nil) { allow in
+                                    model.send(.decide(approval, allow: allow))
+                                }
+                                .id(approval.approvalId)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
+                            ComposerView(model: model, draftKey: thread.id, running: thread.status == "running", settings: thread.settings, question: thread.question, returned: returned(for: thread.id), onSend: { model.send(.message(thread.id, text: $0, sources: $1)) }, onSteer: { model.send(.message(thread.id, text: $0, sources: $1, steer: true)) }, onStop: { model.send(.cancel(thread.id)) }, onAnswer: { question, text in model.send(.answer(thread.id, question: question, text: text)) }, onSettings: { sheet = .settings })
+                        }
                     }
-                    .id(approval.approvalId)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-                ComposerView(model: model, draftKey: thread.id, running: thread.status == "running", settings: thread.settings, question: thread.question, returned: returned(for: thread.id), onSend: { model.send(.message(thread.id, text: $0, sources: $1)) }, onSteer: { model.send(.message(thread.id, text: $0, sources: $1, steer: true)) }, onStop: { model.send(.cancel(thread.id)) }, onAnswer: { question, text in model.send(.answer(thread.id, question: question, text: text)) }, onSettings: { sheet = .settings })
             }
             .animation(.snappy, value: thread.approval?.approvalId)
         } else if let draft {
             VStack(spacing: 0) {
-                DraftWelcome(engine: model.catalog.engineLabel(draft.settings.engine), computer: model.state.computerName)
+                DraftWelcome(engine: model.catalog.engineLabel(draft.settings.engine), computer: model.state.computerName) { model.handBack($0) }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 ComposerView(model: model, draftKey: "draft", running: false, settings: draft.settings, question: nil, returned: nil, onSend: { text, sources in
                     if sources.isEmpty {
@@ -253,7 +257,14 @@ struct ThreadMenu: View {
 struct DraftWelcome: View {
     var engine: String
     var computer: String?
+    var onSuggest: (String) -> Void
     @Environment(\.palette) private var palette
+
+    private static let suggestions: [(symbol: String, text: String)] = [
+        ("checkmark.seal", "Find and fix the failing tests"),
+        ("plus.forwardslash.minus", "Review my uncommitted changes"),
+        ("map", "Explain how this project is put together"),
+    ]
 
     var body: some View {
         VStack(spacing: 14) {
@@ -272,9 +283,31 @@ struct DraftWelcome: View {
                     .foregroundStyle(palette.muted)
                     .multilineTextAlignment(.center)
             }
+            .accessibilityElement(children: .combine)
+            VStack(spacing: 8) {
+                ForEach(Self.suggestions, id: \.text) { suggestion in
+                    Button { onSuggest(suggestion.text) } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: suggestion.symbol)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(palette.accent)
+                                .frame(width: 22)
+                            Text(suggestion.text).font(.subheadline).foregroundStyle(palette.ink)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 44)
+                        .background(palette.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Puts this in the message box")
+                }
+            }
+            .padding(.top, 10)
         }
-        .padding(.horizontal, 32)
-        .accessibilityElement(children: .combine)
+        .frame(maxWidth: 420)
+        .padding(.horizontal, 24)
     }
 }
 

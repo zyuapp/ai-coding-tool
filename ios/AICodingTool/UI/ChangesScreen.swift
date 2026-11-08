@@ -376,18 +376,28 @@ private struct DiffLine: View {
             .background(palette.hunkSurface)
         } else {
             HStack(alignment: .top, spacing: 0) {
-                number(row.oldLine)
-                number(row.newLine)
+                if wrap {
+                    number(row.kind == .delete ? row.oldLine : row.newLine)
+                } else {
+                    number(row.oldLine)
+                    number(row.newLine)
+                }
                 Text(row.kind == .add ? "+" : row.kind == .delete ? "−" : " ")
                     .foregroundStyle(row.kind == .add ? palette.success : row.kind == .delete ? palette.danger : palette.quiet)
                     .frame(width: 14)
                     .padding(.vertical, 2)
-                Text(row.text.isEmpty ? " " : row.text)
-                    .foregroundStyle(palette.ink)
-                    .fixedSize(horizontal: !wrap, vertical: true)
-                    .padding(.trailing, 12)
-                    .padding(.vertical, 2)
-                Spacer(minLength: 0)
+                if wrap {
+                    WrappedLine(text: row.text.isEmpty ? " " : row.text, color: UIColor(palette.ink))
+                        .padding(.trailing, 12)
+                        .padding(.vertical, 2)
+                } else {
+                    Text(row.text.isEmpty ? " " : row.text)
+                        .foregroundStyle(palette.ink)
+                        .fixedSize()
+                        .padding(.trailing, 12)
+                        .padding(.vertical, 2)
+                    Spacer(minLength: 0)
+                }
             }
             .font(.caption.monospaced())
             .frame(maxWidth: .infinity, minHeight: 20, alignment: .leading)
@@ -404,5 +414,31 @@ private struct DiffLine: View {
             .frame(maxHeight: .infinity, alignment: .top)
             .background(row.kind == .add ? palette.diffAddGutter : row.kind == .delete ? palette.diffDeleteGutter : palette.sunken)
             .accessibilityHidden(true)
+    }
+}
+
+/// One diff line wrapped under its own indent, as `WrappedCode` wraps a block.
+private struct WrappedLine: UIViewRepresentable {
+    var text: String
+    var color: UIColor
+
+    static var font: UIFont {
+        UIFont.monospacedSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .regular)
+    }
+
+    func makeUIView(context: Context) -> UILabel {
+        let label = UILabel()
+        label.numberOfLines = 0
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return label
+    }
+
+    func updateUIView(_ label: UILabel, context: Context) {
+        label.attributedText = WrappedCode.styled(text, font: Self.font, color: color)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UILabel, context: Context) -> CGSize? {
+        let width = proposal.width ?? 320
+        return CGSize(width: width, height: ceil(uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height))
     }
 }

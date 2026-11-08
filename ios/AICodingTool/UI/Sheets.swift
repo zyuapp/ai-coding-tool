@@ -588,10 +588,20 @@ struct MemberTranscript: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isHeader)
             }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Open", action: onOpen)
-                    .accessibilityHint("Opens this thread to talk to it")
+        }
+        .bottomBar {
+            Button(action: onOpen) {
+                Label("Open to Reply", systemImage: "bubble.left.and.text.bubble.right")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(palette.accentInk)
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(palette.accent, in: Capsule())
+                    .contentShape(Capsule())
             }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+            .accessibilityHint("Opens this thread to talk to it")
         }
         .task {
             while !Task.isCancelled {

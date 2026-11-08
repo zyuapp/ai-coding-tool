@@ -171,7 +171,8 @@ struct CodeBlockView: View {
             .padding(.horizontal, 14)
             palette.lineSoft.frame(height: 1)
             if wrap {
-                text.frame(maxWidth: .infinity, alignment: .leading)
+                WrappedCode(text: code, color: UIColor(palette.codeInk), selectable: true)
+                    .padding(14)
             } else {
                 ScrollView(.horizontal) {
                     text.padding(.trailing, 42)
@@ -263,5 +264,54 @@ enum Inline {
         default:
             return render(markup, palette: palette)
         }
+    }
+}
+
+/// Code wrapped the way an editor wraps it: a wrapped line continues under its own indent plus two columns, so structure survives on a narrow screen.
+struct WrappedCode: UIViewRepresentable {
+    var text: String
+    var color: UIColor
+    var selectable: Bool
+
+    static var font: UIFont {
+        UIFont.monospacedSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize, weight: .regular)
+    }
+
+    static func styled(_ text: String, font: UIFont, color: UIColor) -> NSAttributedString {
+        let column = ("0" as NSString).size(withAttributes: [.font: font]).width
+        let result = NSMutableAttributedString()
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        for (index, line) in lines.enumerated() {
+            let indent = line.prefix { $0 == " " || $0 == "\t" }.reduce(0) { $0 + ($1 == "\t" ? 4 : 1) }
+            let style = NSMutableParagraphStyle()
+            style.headIndent = CGFloat(indent + 2) * column
+            style.lineSpacing = 2
+            style.lineBreakMode = .byWordWrapping
+            let piece = String(line) + (index < lines.count - 1 ? "\n" : "")
+            result.append(NSAttributedString(string: piece, attributes: [.font: font, .foregroundColor: color, .paragraphStyle: style]))
+        }
+        return result
+    }
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView()
+        view.isEditable = false
+        view.isScrollEnabled = false
+        view.backgroundColor = .clear
+        view.textContainerInset = .zero
+        view.textContainer.lineFragmentPadding = 0
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return view
+    }
+
+    func updateUIView(_ view: UITextView, context: Context) {
+        view.isSelectable = selectable
+        view.attributedText = Self.styled(text, font: Self.font, color: color)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let width = proposal.width ?? 320
+        let fitted = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        return CGSize(width: width, height: ceil(fitted.height))
     }
 }

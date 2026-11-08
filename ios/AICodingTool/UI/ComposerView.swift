@@ -172,14 +172,12 @@ struct ComposerView<Above: View>: View {
             .padding(.top, 14)
             .padding(.horizontal, 14)
             .padding(.bottom, 10)
-            .background(palette.surface, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(focused ? palette.lineStrong : palette.lineSoft))
-            .shadow(color: .black.opacity(palette.dark ? 0.3 : 0.06), radius: 12, y: 4)
+            .composerSurface(palette, focused: focused)
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
         }
         .padding(.top, 6)
-        .background(palette.canvas)
+        .composerGround(palette)
         .sensoryFeedback(.impact(weight: .light), trigger: sent)
         .photosPicker(isPresented: $picking, selection: $picked, maxSelectionCount: max(1, PickedImage.limit - images.count), matching: .images)
         .onChange(of: picked) { _, items in
@@ -211,6 +209,7 @@ struct ComposerView<Above: View>: View {
         .onChange(of: model.handedBack?.id) { _, id in
             guard let id, id != seenHandBack, let text = model.handedBack?.text else { return }
             seenHandBack = id
+            focused = true
             draft = draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? text : "\(draft.trimmingCharacters(in: .whitespacesAndNewlines))\n\n\(text)"
         }
     }
@@ -456,6 +455,38 @@ struct CameraPicker: UIViewControllerRepresentable {
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             onDone(nil)
+        }
+    }
+}
+
+extension View {
+    /// The composer's own field: Liquid Glass on iOS 26, so the transcript reads through it as it scrolls beneath.
+    @ViewBuilder func composerSurface(_ palette: Palette, focused: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 26, style: .continuous)
+        if #available(iOS 26, *) {
+            glassEffect(.regular.tint(palette.surface.opacity(0.55)).interactive(), in: shape)
+        } else {
+            background(palette.surface, in: shape)
+                .overlay(shape.strokeBorder(focused ? palette.lineStrong : palette.lineSoft))
+                .shadow(color: .black.opacity(palette.dark ? 0.3 : 0.06), radius: 12, y: 4)
+        }
+    }
+
+    /// A bar along the bottom that content scrolls beneath, with the system's edge effect on iOS 26.
+    @ViewBuilder func bottomBar<Bar: View>(@ViewBuilder _ bar: () -> Bar) -> some View {
+        if #available(iOS 26, *) {
+            safeAreaBar(edge: .bottom, spacing: 0, content: bar)
+        } else {
+            safeAreaInset(edge: .bottom, spacing: 0, content: bar)
+        }
+    }
+
+    /// What lies behind the composer: nothing on iOS 26, where the transcript scrolls under it, else the page.
+    @ViewBuilder func composerGround(_ palette: Palette) -> some View {
+        if #available(iOS 26, *) {
+            self
+        } else {
+            background(palette.canvas)
         }
     }
 }

@@ -95,7 +95,7 @@ struct GateView: View {
                     if !link.isEmpty, typedLink == nil {
                         Text("Not a pairing link. Copy it from your computer.").font(.footnote).foregroundStyle(palette.danger)
                     }
-                    if !link.isEmpty || !DataScannerViewController.isSupported {
+                    if !link.isEmpty {
                         Button(action: pairWithLink) {
                             Text("Pair")
                                 .font(.body.weight(.semibold))
