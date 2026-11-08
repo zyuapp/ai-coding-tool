@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { rankedThread } from "../../src/domain/thread-storage.ts";
 import { test } from "vitest";
-import { findThread, resolveScope, threadMatches, threadHandleOptions, threadSummaries, threadTranscript, threadWaitResult } from "../../src/application/thread-projection.ts";
+import { clipText, findThread, resolveScope, threadMatches, threadHandleOptions, threadSummaries, threadTranscript, threadWaitResult } from "../../src/application/thread-projection.ts";
 import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ThreadFilter } from "../../src/contracts/threads.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";
@@ -318,4 +318,13 @@ test("a live thread's id prefix outranks an archived thread's title", () => {
   const state = workspace([task("old", { title: "abc", archivedAt: NOW }), task("abc123", { title: "Live" })]);
   assert.equal(findThread(state, "abc")?.id, "abc123");
   assert.equal(findThread(workspace([task("old", { title: "abc", archivedAt: NOW }), task("abd", { title: "Other", archivedAt: NOW })]), "abc")?.id, "old", "among archived threads a title still outranks an id prefix");
+});
+
+test("clipped text never ends between the halves of a surrogate pair", () => {
+  const text = `${"a".repeat(4)}😀tail`;
+  assert.equal(clipText(text, 5), "aaaa…");
+  assert.equal(clipText(text, 6), "aaaa😀…");
+  assert.equal(clipText(text, 4), "aaaa…");
+  assert.equal(clipText("short", 10), "short");
+  assert.doesNotThrow(() => JSON.parse(JSON.stringify(clipText(text, 5))));
 });

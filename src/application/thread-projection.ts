@@ -180,6 +180,13 @@ export function labelOf(message: { origin?: MessageOrigin; detail?: string }): {
   return label ? { origin: label } : {};
 }
 
+/** Text cut to `limit` UTF-16 units with an ellipsis, never between the halves of a surrogate pair, which would not survive JSON. */
+export function clipText(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  const end = limit > 0 && /[\uD800-\uDBFF]/.test(text[limit - 1]!) ? limit - 1 : limit;
+  return `${text.slice(0, end)}…`;
+}
+
 export function threadTranscript(state: WorkspaceState, threadId: string, limit = DEFAULT_TRANSCRIPT_MESSAGES): ThreadTranscript | null {
   const thread = findThread(state, threadId);
   if (!thread) return null;
@@ -188,7 +195,7 @@ export function threadTranscript(state: WorkspaceState, threadId: string, limit 
     thread: threadSummary(state, thread),
     messages: kept.map((message) => ({
       kind: message.kind,
-      text: message.text.length > MESSAGE_TEXT_LIMIT ? `${message.text.slice(0, MESSAGE_TEXT_LIMIT)}…` : message.text,
+      text: clipText(message.text, MESSAGE_TEXT_LIMIT),
       ...(message.kind === "user" ? labelOf(message) : {}),
       at: message.at,
     })),

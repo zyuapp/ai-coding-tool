@@ -1,5 +1,5 @@
 import { deriveView, type WorkspaceState } from "./workspace-state.js";
-import { labelOf, threadSummaries, threadTranscript } from "./thread-projection.js";
+import { clipText, labelOf, threadSummaries, threadTranscript } from "./thread-projection.js";
 import { projectName, type Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import { hasUnreadAttention, newestUnreadFinding } from "../domain/attention.js";
@@ -336,7 +336,7 @@ function projectBackground(workflows: Workflow[], processes: BackgroundProcess[]
     ...processes.map((process): MobileBackgroundItem =>
       ({ id: process.id, kind: process.kind, title: process.description, detail: processLabel(process), status: "working", live: true, stoppable: true, ...(process.stopping ? { stopping: true as const } : {}) })),
     ...orderSubagents(subagents).map((subagent): MobileBackgroundItem => ({
-      id: subagent.id, kind: "agent", title: subagent.description, detail: clip(subagentLine(subagent), MOBILE_BACKGROUND_DETAIL_LIMIT), status: subagent.status,
+      id: subagent.id, kind: "agent", title: subagent.description, detail: clipText(subagentLine(subagent), MOBILE_BACKGROUND_DETAIL_LIMIT), status: subagent.status,
       live: subagent.status === "working" || subagent.status === "idle", stoppable: subagent.status === "working", ...(subagent.stopping ? { stopping: true as const } : {}),
     })),
   ];
@@ -392,10 +392,6 @@ function projectMembers(state: WorkspaceState, leadId: string, view: ReturnType<
   });
 }
 
-function clip(text: string, limit: number): string {
-  return text.length > limit ? `${text.slice(0, limit)}…` : text;
-}
-
 function approvalDetail(input: Record<string, unknown>): string {
   let text: string;
   try {
@@ -403,7 +399,7 @@ function approvalDetail(input: Record<string, unknown>): string {
   } catch {
     text = "";
   }
-  return clip(text, MOBILE_APPROVAL_DETAIL_LIMIT);
+  return clipText(text, MOBILE_APPROVAL_DETAIL_LIMIT);
 }
 
 /** Null when nothing moved, so a server with nothing to say sends nothing at all. */
