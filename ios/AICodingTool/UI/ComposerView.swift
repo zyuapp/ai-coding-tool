@@ -499,7 +499,6 @@ private struct ShortScreenFit: ViewModifier {
     func body(content: Content) -> some View {
         ScrollView { content }
             .scrollBounceBehavior(.basedOnSize)
-            .scrollDisabled(sizeClass != .compact)
             .frame(maxHeight: sizeClass == .compact ? 170 : nil)
             .fixedSize(horizontal: false, vertical: sizeClass != .compact)
     }
