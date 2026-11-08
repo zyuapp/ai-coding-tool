@@ -501,6 +501,8 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .activity-heading:is(:hover, :focus-within) > .section-toggle .section-chevron,
 .activity-heading > .section-toggle[aria-expanded="false"] .section-chevron { opacity: 1; }
 .activity-heading > .section-toggle .section-count { margin-left: 0; letter-spacing: 0; }
+/** Without an action, the toggle runs to the rows' edge, inset as far as on its left. */
+.activity-heading > .section-toggle:only-child { grid-column: 1 / -1; margin-right: calc(4px - var(--row-inset)); }
 .activity-group + .activity-group .activity-heading { margin-top: 12px; }
 /** A folded list's count, as a chip beside its label. */
 .section-count {
