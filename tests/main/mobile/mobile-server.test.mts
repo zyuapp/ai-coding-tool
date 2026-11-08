@@ -15,7 +15,7 @@ import { MAX_PENDING_SOCKETS, MOBILE_EVENT_BUFFER } from "../../../src/domain/mo
 import { MOBILE_PROTOCOL_VERSION, OLDEST_PHONE_PROTOCOL_VERSION, type MobileClientMessage, type MobileCommand, type MobileQuery, type MobileRequest, type MobileServerMessage, type MobileView } from "../../../src/contracts/mobile.ts";
 
 function view(title: string): MobileView {
-  return { groups: [{ projectId: null, name: title, threads: [] }], activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, engines: {}, upkeep: [], thread: null, draft: null, error: null };
+  return { groups: [{ projectId: null, name: title, threads: [] }], activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, engines: {}, upkeep: [], dictation: false, thread: null, draft: null, error: null };
 }
 
 async function until<T>(check: () => T | null | false | undefined, message: string): Promise<T> {

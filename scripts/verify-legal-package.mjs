@@ -17,6 +17,7 @@ const legalFiles = [
   "AI-CODING-TOOL-MIT.txt",
   "CUA-MIT.txt",
   "CUA-RUST-DEPENDENCIES.html",
+  "DICTATION-SWIFT-DEPENDENCIES.txt",
   "ELECTRON-MIT.txt",
   "ELECTRON-THIRD-PARTY-NOTICES.html",
   "INTER-OFL-1.1.txt",
@@ -33,6 +34,7 @@ const legalFiles = [
 const legalNeedles = {
   "AI-CODING-TOOL-MIT.txt": ["Copyright (c) 2026 zyuapp", "Permission is hereby granted"],
   "CUA-MIT.txt": ["Copyright (c) 2025 Cua AI, Inc.", "Permission is hereby granted"],
+  "DICTATION-SWIFT-DEPENDENCIES.txt": ["fluidaudio 0.12.6", "Apache License"],
   "INTER-OFL-1.1.txt": ["Copyright 2020 The Inter Project Authors", "SIL OPEN FONT LICENSE Version 1.1"],
   "LIBFFI-MIT.txt": ["Copyright (c) 1996-2025", "Permission is hereby granted"],
   "MANTLE-LICENSE.md": ["Copyright (c) 2012 - 2013, GitHub, Inc.", "Proton is copyright (c) 2012, Bitswift, Inc."],

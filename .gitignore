@@ -7,3 +7,4 @@ vendor/cua-driver/
 /.claude/*
 !/.claude/skills/
 /.mockups/
+native/dictation/.build/

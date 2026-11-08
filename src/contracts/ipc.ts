@@ -10,6 +10,7 @@ import type { BrowserAction, BrowserPermissions, BrowserBounds, BrowserInspectio
 import type { BrowserImportResult, BrowserImportSite, BrowserImportSource } from "../domain/browser-import.js";
 import type { AppBuild, AppUpdate } from "../domain/app-update.js";
 import type { CaptureOptions } from "../domain/capture.js";
+import type { DictationModel } from "../domain/dictation.js";
 import { isUsageLimit, type UsageLimit } from "../domain/usage-limit.js";
 import type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
 import type { CliStatus } from "../domain/cli.js";
@@ -367,6 +368,18 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   watchSimulator(udid: string): Promise<void>;
   unwatchSimulator(udid: string): Promise<void>;
   onSimulatorFrame(listener: (frame: SimulatorFrame) => void): () => void;
+  /** Where the speech model stands, told at once and again whenever it moves. */
+  onDictationModel(listener: (status: DictationModelStatus) => void): () => void;
+  /** Starts the microphone for the hold `id`, resolving once it hears. */
+  startDictation(id: string): Promise<void>;
+  /** Stops the hold's microphone and answers with the words it heard. */
+  stopDictation(id: string): Promise<string>;
+  cancelDictation(id: string): Promise<void>;
+  downloadDictationModel(): Promise<void>;
+  /** Turns a phone's recording, base64 WAV, into words. */
+  transcribeAudio(audio: string): Promise<string>;
+  /** How loud the hold's microphone is, from 0 to 1, many times a second. Never becomes state. */
+  onDictationLevel(listener: (level: number) => void): () => void;
   /** Hands a file to the desktop, which opens it with whatever it opens that kind of file with. */
   openFile(roots: string[], path: string, line: number | null): Promise<void>;
   /** The applications on this machine that can take a folder, read fresh enough to see a new install. */
@@ -424,8 +437,11 @@ export type WindowDesktopCall =
 /** What a window reaches directly: its calls, what main pushes at it, and what it answers itself. The rest is the runtime's. */
 export type WindowDesktopAPI = Pick<DesktopAPI, WindowDesktopCall
   | "platform" | "pathForFile"
-  | "onTerminalData" | "onSimulatorFrame" | "onWindowScreenshot" | "onDesktopShortcutRefused" | "onShortcut" | "onShortcutCaptured" | "onOpenThread" | "onWindowActive"
+  | "onTerminalData" | "onSimulatorFrame" | "onWindowScreenshot" | "onDesktopShortcutRefused" | "onShortcut" | "onShortcutCaptured" | "onOpenThread" | "onWindowActive" | "onDictationLevel"
 >;
+
+/** Where the speech model stands, and why when it cannot be used. */
+export type DictationModelStatus = { model: DictationModel; message?: string };
 
 /** What a keystroke asked for, and where it was pressed. */
 export type ShortcutInvocation = { action: string; surface: ShortcutSurface };

@@ -3,6 +3,7 @@ import { LuLoaderCircle as LoaderCircle } from "react-icons/lu";
 import type { CliState } from "../../application/cli-installation";
 import { CLI_COMMAND, CLI_INSTALL_PATH, type CliStatus } from "../../domain/cli";
 import { NO_APP_UPDATE, type AppUpdate } from "../../domain/app-update";
+import type { DictationModel } from "../../domain/dictation";
 import { ConfirmAction, SettingRow, SettingSwitch } from "./SettingRow";
 import { SpinningIcon } from "./SpinningIcon";
 
@@ -34,7 +35,20 @@ function updateDescription(update: AppUpdate, current: string | null | undefined
   }
 }
 
+/** The speech model holding to talk reads, and the step that fetches it. */
+export type DictationSettings = { model: DictationModel; message: string | null; binding: string | null; onDownload: () => void };
+
+function dictationDescription({ model, message }: DictationSettings) {
+  switch (model) {
+    case "ready": return "Parakeet, on this Mac. Shared with other apps that use it.";
+    case "downloading": return "Downloading Parakeet, about 450 MB.";
+    case "failed": return message ?? "The download stopped.";
+    default: return "Parakeet, about 450 MB. Downloaded once and shared with other apps that use it.";
+  }
+}
+
 export type GeneralSettingsProps = {
+  dictation?: DictationSettings;
   /** The terminal command: where it stands, whether it is being changed, and what stopped the last try. */
   cli: CliState;
   onReadCli: () => void;
@@ -50,7 +64,7 @@ export type GeneralSettingsProps = {
   onOpenSourceLicenses: () => void;
 };
 
-export function GeneralSettings({ cli: { status, busy, error }, onReadCli, onSetCliInstalled, chromeBrowser, onSetChromeBrowser, notifications, onSetNotifications, onCheckForUpdates, update = NO_APP_UPDATE_SETTINGS, onOpenSourceLicenses }: GeneralSettingsProps) {
+export function GeneralSettings({ dictation, cli: { status, busy, error }, onReadCli, onSetCliInstalled, chromeBrowser, onSetChromeBrowser, notifications, onSetNotifications, onCheckForUpdates, update = NO_APP_UPDATE_SETTINGS, onOpenSourceLicenses }: GeneralSettingsProps) {
   useEffect(() => { onReadCli(); }, []);
   /** Which CLI button started the change in flight, so only that one reads as working. */
   const [cliStep, setCliStep] = useState<"install" | "remove" | null>(null);
@@ -82,6 +96,19 @@ export function GeneralSettings({ cli: { status, busy, error }, onReadCli, onSet
 
         {error && <p className="settings-error" role="alert">{error}</p>}
       </section>
+
+      {dictation && dictation.model !== "unsupported" && <section className="settings-group" aria-labelledby="dictation-heading">
+        <div className="settings-group-heading">
+          <div>
+            <h3 id="dictation-heading">Hold to talk</h3>
+            <p>Hold Send{dictation.binding ? <> or <kbd>{dictation.binding}</kbd></> : null}, speak, and let go to send. What you say stays on this Mac.</p>
+          </div>
+        </div>
+        <SettingRow id="general.dictation" status={dictation.model === "ready"} description={dictationDescription(dictation)}>
+          {(dictation.model === "missing" || dictation.model === "failed") && <button type="button" onClick={dictation.onDownload}>{dictation.model === "failed" ? "Try again" : "Download"}</button>}
+          {dictation.model === "downloading" && <em role="status"><SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />Downloading…</em>}
+        </SettingRow>
+      </section>}
 
       <section className="settings-group" aria-labelledby="notifications-heading">
         <div className="settings-group-heading">

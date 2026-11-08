@@ -128,11 +128,12 @@ struct MobilePatch: Decodable, Equatable, Sendable {
     var theme: MobileTheme?
     var engines: [String: MobileEngine]?
     var upkeep: [MobileUpkeepItem]?
+    var dictation: Bool?
     var thread: MobileThreadPatch?
     var draft: PatchField<MobileDraftView?> = .absent
     var error: PatchField<String?> = .absent
 
-    private enum CodingKeys: String, CodingKey { case groups, activity, theme, engines, upkeep, thread, draft, error }
+    private enum CodingKeys: String, CodingKey { case groups, activity, theme, engines, upkeep, dictation, thread, draft, error }
 
     init() {}
 
@@ -143,6 +144,7 @@ struct MobilePatch: Decodable, Equatable, Sendable {
         theme = try container.decodeIfPresent(MobileTheme.self, forKey: .theme)
         engines = try container.decodeIfPresent([String: MobileEngine].self, forKey: .engines)
         upkeep = try container.decodeIfPresent([MobileUpkeepItem].self, forKey: .upkeep)
+        dictation = try container.decodeIfPresent(Bool.self, forKey: .dictation)
         thread = try container.decodeIfPresent(MobileThreadPatch.self, forKey: .thread)
         draft = try container.patchField(MobileDraftView.self, forKey: .draft)
         error = try container.patchField(String.self, forKey: .error)
@@ -159,6 +161,7 @@ extension MobileView {
         if let theme = patch.theme { next.theme = theme }
         if let engines = patch.engines { next.engines = engines }
         if let upkeep = patch.upkeep { next.upkeep = upkeep }
+        if let dictation = patch.dictation { next.dictation = dictation }
         next.draft = patch.draft.applied(to: draft)
         next.error = patch.error.applied(to: error)
         switch patch.thread {

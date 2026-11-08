@@ -1,3 +1,4 @@
+import AVFoundation
 import PhotosUI
 import SwiftUI
 
@@ -37,12 +38,22 @@ struct ComposerView<Above: View>: View {
     @State private var sent = 0
     @State private var finishing = false
     @State private var dictation = DictationTrace()
+    @State private var recorder = VoiceRecorder()
+    @State private var talk: TalkPhase = .idle
+    @State private var talkCancelling = false
+    @State private var talkReleased = false
+    @State private var talkNote: String?
+    @State private var heard = 0
+    @State private var talkEnded = false
+    @GestureState private var pressing = false
+    @Environment(\.scenePhase) private var scenePhase
     @FocusState private var focused: Bool
 
     private var blocked: Bool { question?.blocking == true }
     private var typed: Bool { !blocked && (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !images.isEmpty) }
     /// With words typed during a run, the right-most button queues them, so a thumb on its usual spot never stops the run.
     private var queueing: Bool { running && typed }
+    private var canTalk: Bool { model.canDictate && !blocked }
 
     var body: some View {
         let summary = model.catalog.summary(settings)
@@ -58,6 +69,21 @@ struct ComposerView<Above: View>: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 6)
                 .accessibilityElement(children: .combine)
+            }
+            if let talkNote {
+                HStack(spacing: 6) {
+                    Image(systemName: "mic")
+                    Text(talkNote).lineLimit(2)
+                    Spacer()
+                    Button { self.talkNote = nil } label: { Image(systemName: "xmark").font(.caption.weight(.bold)) }
+                        .buttonStyle(.plain)
+                        .frame(width: 44, height: 32)
+                        .accessibilityLabel("Dismiss")
+                }
+                .font(.footnote)
+                .foregroundStyle(palette.muted)
+                .padding(.leading, 16)
+                .padding(.bottom, 2)
             }
             if let question, let onAnswer {
                 QuestionPromptView(question: question, refused: returned?.answer != nil ? returned?.id : nil, onSubmit: { onAnswer(question, $0) })
@@ -115,7 +141,10 @@ struct ComposerView<Above: View>: View {
                         .accessibilityLabel("Answer the question to continue")
                 }
                 HStack(spacing: 8) {
-                    if !blocked {
+                    if talk.active {
+                        TalkStrip(phase: talk, levels: recorder.levels, cancelling: talkCancelling)
+                    }
+                    if !blocked && !talk.active {
                         Menu {
                             Button { picking = true } label: { Label("Photo Library", systemImage: "photo.on.rectangle") }
                             if UIImagePickerController.isSourceTypeAvailable(.camera) {
@@ -133,6 +162,7 @@ struct ComposerView<Above: View>: View {
                         .disabled(images.count >= PickedImage.limit)
                         .accessibilityLabel("Add pictures")
                     }
+                    if !talk.active {
                     Group {
                         if let quick {
                             Menu {
@@ -147,6 +177,7 @@ struct ComposerView<Above: View>: View {
                     }
                     .accessibilityLabel("Thread settings: \([summary.mode, summary.model, summary.effort].compactMap { $0 }.joined(separator: ", "))")
                     Spacer(minLength: 4)
+                    }
                     if queueing {
                         if let onStop { stopButton(onStop, aside: true) }
                         if let onSteer {
@@ -157,6 +188,8 @@ struct ComposerView<Above: View>: View {
                             .accessibilityHint("Sends it when this run ends")
                     } else if running, let onStop {
                         stopButton(onStop, aside: false)
+                    } else if canTalk || talk.active {
+                        talkButton
                     } else if !blocked {
                         Button { send(onSend) } label: {
                             Image(systemName: "arrow.up")
@@ -180,12 +213,33 @@ struct ComposerView<Above: View>: View {
             .padding(.trailing, 9)
             .padding(.bottom, 5)
             .composerSurface(palette, focused: focused)
+            .overlay(alignment: .bottomTrailing) {
+                if talk == .listening {
+                    TalkCancelTarget(armed: talkCancelling)
+                        .padding(.trailing, 14)
+                        .padding(.bottom, 27 + TalkPhase.cancelDistance - 15)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
         }
         .padding(.top, 6)
         .composerGround(palette)
         .sensoryFeedback(.impact(weight: .light), trigger: sent)
+        .sensoryFeedback(.impact(weight: .medium), trigger: heard)
+        .sensoryFeedback(.selection, trigger: talkCancelling)
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { cancelTalk() }
+        }
+        .onChange(of: pressing) { _, held in
+            guard !held else { return }
+            /// A touch the system took away, such as by an alert, never ends, so the hold is dropped.
+            Task { @MainActor in
+                await Task.yield()
+                if !talkEnded { cancelTalk() }
+            }
+        }
         .photosPicker(isPresented: $picking, selection: $picked, maxSelectionCount: max(1, PickedImage.limit - images.count), matching: .images)
         .onChange(of: picked) { _, items in
             guard !items.isEmpty else { return }
@@ -280,6 +334,142 @@ struct ComposerView<Above: View>: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Stop this run")
+    }
+
+    /// Send that also listens: a tap sends, a hold records until the finger lifts, and a finger slid
+    /// up to the mark above it cancels. Empty, it shows a microphone, since holding is all it can do.
+    private var talkButton: some View {
+        let microphone = !typed || talk.active
+        let lit = typed || talk == .listening || talk == .starting
+        return ZStack {
+            Circle()
+                .fill(talkCancelling ? palette.raised : lit ? palette.accent : palette.raised)
+                .frame(width: 34, height: 34)
+                .scaleEffect(talk == .listening && !talkCancelling ? 1.25 : 1)
+            if talk == .transcribing {
+                ProgressView().tint(palette.inkDim)
+            } else {
+                Image(systemName: microphone ? "mic.fill" : "arrow.up")
+                    .font(.body.weight(.bold))
+                    .foregroundStyle(talkCancelling ? palette.muted : lit ? palette.accentInk : palette.inkDim)
+            }
+        }
+        .animation(.snappy(duration: 0.2), value: talk)
+        .animation(.snappy(duration: 0.2), value: typed)
+        .frame(width: 44, height: 44)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .updating($pressing) { _, state, _ in state = true }
+                .onChanged { value in pressMoved(value.translation.height) }
+                .onEnded { value in pressEnded(value.translation.height) }
+        )
+        .background {
+            Button("") { send(onSend) }
+                .keyboardShortcut(.return, modifiers: .command)
+                .opacity(0)
+                .accessibilityHidden(true)
+        }
+        .accessibilityElement()
+        .accessibilityLabel(typed ? "Send" : "Hold to talk")
+        .accessibilityHint(typed ? "Hold to add what you say" : "Hold, speak, and let go to send")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { send(onSend) }
+    }
+
+    private func pressMoved(_ rise: CGFloat) {
+        switch talk {
+        case .idle:
+            talk = .pressing
+            talkReleased = false
+            talkEnded = false
+            Task { @MainActor in
+                try? await Task.sleep(for: TalkPhase.holdDelay)
+                if talk == .pressing { startTalking() }
+            }
+        case .listening, .starting:
+            let cancelling = rise < -TalkPhase.cancelDistance
+            if cancelling != talkCancelling { talkCancelling = cancelling }
+        default:
+            break
+        }
+    }
+
+    private func pressEnded(_ rise: CGFloat) {
+        talkEnded = true
+        switch talk {
+        case .pressing:
+            talk = .idle
+            send(onSend)
+        case .starting:
+            talkReleased = true
+        case .listening:
+            if rise < -TalkPhase.cancelDistance { cancelTalk() } else { finishTalking() }
+        default:
+            break
+        }
+    }
+
+    private func startTalking() {
+        talkNote = nil
+        talkCancelling = false
+        /// The first hold only asks, since the alert takes the finger; the next hold listens.
+        guard AVAudioApplication.shared.recordPermission != .undetermined else {
+            talk = .idle
+            Task { @MainActor in
+                if await AVAudioApplication.requestRecordPermission() { talkNote = "Hold again to talk." }
+            }
+            return
+        }
+        talk = .starting
+        Dictation.finish()
+        Task { @MainActor in
+            do {
+                try await recorder.start()
+            } catch {
+                talk = .idle
+                talkNote = error.localizedDescription
+                return
+            }
+            if talkReleased {
+                if talkCancelling { cancelTalk() } else {
+                    talk = .listening
+                    finishTalking()
+                }
+                return
+            }
+            talk = .listening
+            heard += 1
+        }
+    }
+
+    private func cancelTalk() {
+        guard talk.active || talk == .pressing else { return }
+        if talk != .transcribing { recorder.cancel() }
+        talk = .idle
+        talkCancelling = false
+    }
+
+    /// What was heard is written down by the computer, follows whatever was typed, and goes as one message.
+    private func finishTalking() {
+        talkCancelling = false
+        guard let wav = recorder.stop() else { talk = .idle; return }
+        talk = .transcribing
+        Task { @MainActor in
+            defer { talk = .idle }
+            do {
+                let words = try await model.transcribe(wav).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !words.isEmpty else {
+                    talkNote = "Didn't catch anything, so nothing was sent."
+                    return
+                }
+                let typedSoFar = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+                draft = typedSoFar.isEmpty ? words : "\(typedSoFar) \(words)"
+                commit(onSend)
+            } catch {
+                talkNote = error.localizedDescription
+            }
+        }
     }
 
     /// Sends what is typed. Dictation still running stops first, and its last words go with the message.

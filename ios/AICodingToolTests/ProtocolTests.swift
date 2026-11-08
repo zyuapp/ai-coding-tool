@@ -44,6 +44,21 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(PhoneCommand.checkForUpdates.json, .object(["type": .string("app.check-for-updates"), "quiet": .bool(true)]))
     }
 
+    func testDictationTurnsOnAndOffWithThePatch() throws {
+        let view = try snapshotView()
+        XCTAssertNil(view.dictation, "a computer without dictation never says so")
+        let on = try XCTUnwrap(view.applying(JSONDecoder().decode(MobilePatch.self, from: Data(#"{"dictation":true}"#.utf8))))
+        XCTAssertEqual(on.dictation, true)
+        let untouched = try JSONDecoder().decode(MobilePatch.self, from: Data(#"{"groups":[]}"#.utf8))
+        XCTAssertEqual(on.applying(untouched)?.dictation, true)
+        let off = try JSONDecoder().decode(MobilePatch.self, from: Data(#"{"dictation":false}"#.utf8))
+        XCTAssertEqual(on.applying(off)?.dictation, false)
+    }
+
+    func testTranscribeQueryCarriesTheRecording() {
+        XCTAssertEqual(MobileQuery.transcribe(audio: "UklGRg==").json, .object(["kind": .string("transcribe"), "audio": .string("UklGRg==")]))
+    }
+
     func testUpkeepMarksWhatWantsTheUser() throws {
         func item(_ key: String, tone: String?, command: PhoneCommand? = nil, installing: Bool? = nil) -> MobileUpkeepItem {
             MobileUpkeepItem(key: key, label: key, version: nil, state: .init(text: key, tone: tone), action: command.map { .init(label: "Go", command: $0) }, installing: installing)

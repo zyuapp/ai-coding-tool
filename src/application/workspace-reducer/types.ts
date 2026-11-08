@@ -17,6 +17,7 @@ import type { BrowserAction, BrowserPermissions } from "../../domain/browser.js"
 import type { BrowserImportResult, BrowserImportSite, BrowserImportSource } from "../../domain/browser-import.js";
 import type { SimulatorAvailability, SimulatorDevice, SimulatorInput, SimulatorOrientation } from "../../domain/simulator.js";
 import type { CaptureOptions } from "../../domain/capture.js";
+import type { DictationModel } from "../../domain/dictation.js";
 import type { ConversationMessage, OutgoingAttachment, RunAttachment } from "../../domain/conversation.js";
 import type { DiffRange } from "../../domain/diff.js";
 import type { FindResults, FindTarget } from "../../domain/find.js";
@@ -102,6 +103,11 @@ export type WorkspaceEvent =
   | { type: "simulator.turned"; udid: string; orientation: SimulatorOrientation }
   /** A run stopped driving a device a moment ago. `seq` names the stretch of driving that ended. */
   | { type: "simulator.idle"; seq: number }
+  /** Where this computer's speech model stands, and how a hold went. `id` names the hold. */
+  | { type: "dictation.model"; model: DictationModel; message?: string }
+  | { type: "dictation.started"; id: string }
+  | { type: "dictation.transcribed"; id: string; text: string }
+  | { type: "dictation.failed"; id: string; message: string }
   /** What a shell did. Its output is not here: that goes straight to the view and never becomes state. */
   | { type: "terminal.updated"; update: TerminalUpdate }
   | { type: "subagent.activity.loaded"; taskId: string; subagentId: string; activity: SubagentActivity[] }
@@ -210,6 +216,11 @@ type WorkspaceWork =
   | { type: "simulator.boot"; udid: string }
   /** `seq` is set for a run's gesture, whose driving ends a moment after the last one. */
   | { type: "simulator.input"; udid: string; input: SimulatorInput; taskId?: string; seq?: number }
+  /** The microphone and speech model. `stop` answers with the words heard since `start`. */
+  | { type: "dictation.start"; id: string }
+  | { type: "dictation.stop"; id: string }
+  | { type: "dictation.cancel"; id: string }
+  | { type: "dictation.download" }
   /** A file the desktop opens for the reader. `roots` are the checkouts to look for it in, nearest first. */
   | { type: "file.open"; roots: string[]; path: string; line: number | null }
   | { type: "app.list" }

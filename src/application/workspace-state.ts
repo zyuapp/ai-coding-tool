@@ -22,6 +22,7 @@ import type { ReadingPoint } from "../contracts/commands.js";
 import type { ReviewTarget } from "../domain/review.js";
 import type { ActiveGoal } from "../domain/goal.js";
 import { NO_SIMULATORS, type SimulatorState } from "../domain/simulator.js";
+import { NO_DICTATION, type DictationState } from "../domain/dictation.js";
 
 export type { ReadingPoint, ThreadWait };
 import { AUTOMATION_PANEL, DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockSubject, type ThreadDock } from "./workspace-dock.js";
@@ -359,6 +360,7 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   browserImport: BrowserImportState;
   browserApproval: BrowserApproval | null;
   simulator: SimulatorState;
+  dictation: DictationState;
   openMenu: string | null;
   reviewPicker: ReviewPicker | null;
   /**
@@ -524,6 +526,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     browserImport: NO_BROWSER_IMPORT,
     browserApproval: null,
     simulator: NO_SIMULATORS,
+    dictation: NO_DICTATION,
     openMenu: null,
     reviewPicker: null,
     environments: {},
@@ -599,6 +602,12 @@ export function withDraft(state: WorkspaceState, change: Partial<AgentDraft>): W
  */
 /** The new-thread composer's one draft, kept whichever project or computer it is pointed at. */
 export const NEW_THREAD_DRAFT = "draft:";
+
+/** The main composer's hold to talk: whether it can, what the hold on this draft is doing, and how many holds have sent. */
+function dictationView(state: WorkspaceState) {
+  const { model, message, session, release } = state.dictation;
+  return { model, message, phase: session && session.key === promptKey(state) ? session.phase : null, release: release.count };
+}
 
 export function promptKey(state: Pick<WorkspaceState, "currentId"> & { computers?: WorkspaceState["computers"] }): string {
   const remote = state.computers ? selectedComputer({ computers: state.computers })?.state : undefined;
@@ -753,7 +762,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     policy: currentThread?.executionPolicy ?? state.draftPolicy,
     ...modelView(state, currentThread),
     fastMode: capabilitiesFor(currentThread?.engine ?? state.draftEngine).fastMode && (currentThread ? currentThread.fastMode ?? false : state.draftFastMode),
-    prompt: state.prompts[promptKey(state)] ?? "",
+    prompt: state.prompts[promptKey(state)] ?? "", dictation: dictationView(state),
     annotations: annotationsFor(state, promptKey(state)), annotationReveal: annotationRevealFor(state, promptKey(state)),
     pastes: pastesFor(state, promptKey(state)),
     images: imagesFor(state, promptKey(state)),

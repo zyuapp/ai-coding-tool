@@ -19,7 +19,7 @@ export const MOBILE_REFUSED = "That command is not one a phone may send.";
 export const MOBILE_NO_CHECKOUT = "This thread has no checkout to review.";
 
 /** The reads a phone's queries are answered from. Content only; state never travels this way. */
-export type MobileBridgeReader = Pick<RuntimeDesktop, "diffSummary" | "diffPatch" | "directories">;
+export type MobileBridgeReader = Pick<RuntimeDesktop, "diffSummary" | "diffPatch" | "directories" | "transcribeAudio">;
 
 /** The runtime state and the command execution that answers each phone request. */
 export type MobileBridgeHost = {
@@ -47,6 +47,7 @@ async function answerQuery(host: MobileBridgeHost, query: MobileQuery): Promise<
   const reader = host.read;
   if (!reader) throw new Error("This computer cannot answer that.");
   if (query.kind === "directories") return reader.directories(query.prefix);
+  if (query.kind === "transcribe") return { text: await reader.transcribeAudio(query.audio) };
   const state = host.state();
   const thread = state.threads.find((item) => item.id === query.taskId);
   if (!thread) throw new Error(`No thread has the ID ${query.taskId}.`);

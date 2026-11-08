@@ -26,7 +26,7 @@ export const SETTINGS_PAGE_LABELS: Record<SettingsSection, string> = {
 
 /** What a page answers to besides its own name. */
 const PAGE_KEYWORDS: Record<SettingsSection, string> = {
-  general: "cli terminal command notifications chrome",
+  general: "cli terminal command notifications chrome dictation voice",
   appearance: "theme colours colors dark light font text size",
   usage: "plan limits quota tokens spend",
   engines: `${ENGINE_NAMES} sign in account model provider`,
@@ -50,6 +50,7 @@ type SettingsControl = {
 
 export const SETTINGS_CONTROLS = [
   { id: "general.cli", section: "general", label: "aic", keywords: "cli terminal command install shell path open folder" },
+  { id: "general.dictation", section: "general", label: "Speech model", keywords: "dictation voice speak talk microphone mic hold parakeet transcribe" },
   { id: "general.notifications", section: "general", label: "Desktop notifications", keywords: "alert banner notify sound away" },
   { id: "general.chrome-browser", section: "general", label: "Claude in Chrome", keywords: "extension browser chrome experimental" },
   { id: "general.updates", section: "general", label: "Updates", keywords: "check version release upgrade" },

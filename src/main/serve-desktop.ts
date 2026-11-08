@@ -3,11 +3,14 @@ import { noComputers } from "../host/no-computers.js";
 import type { RuntimeDesktop } from "../host/runtime-desktop.js";
 import type * as MobileHost from "./mobile/mobile-host.mjs" with { "resolution-mode": "import" };
 import { serviceDesktop, type ServiceDesktopHost } from "./service-desktop.js";
+import { dictationDesktop, type DictationHost } from "./dictation-host.js";
 
 /** What a headless host adds to the services: the phone bridge it runs itself, and a place to say things. */
 export type ServeDesktopHost = Omit<ServiceDesktopHost, "openUrl" | "computerUse"> & {
   mobile: () => typeof MobileHost;
   say: (line: string) => void;
+  /** Transcribes a phone's recordings; there is no microphone to hold here. */
+  dictation: DictationHost;
 };
 
 function needsDesktop(what: string) {
@@ -66,6 +69,7 @@ function headlessDesktop(host: ServeDesktopHost) {
     simulatorInput: needsDesktop("The simulator"),
     describeSimulator: needsDesktop("The simulator"),
     captureSimulator: needsDesktop("The simulator"),
+    ...dictationDesktop(() => host.dictation),
     openFile: needsDesktop("Opening a file"),
     listApps: async () => [],
     openFolderInApp: needsDesktop("Opening a folder in an application"),

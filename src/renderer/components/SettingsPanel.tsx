@@ -8,7 +8,7 @@ import { BrowserSettings } from "./BrowserSettings";
 import { NO_BROWSER_IMPORT_SETTINGS, type BrowserImportSettings } from "./BrowserImportSection";
 import { ComputerUseSettings } from "./ComputerUseSettings";
 import { EngineSettings, type EngineSettingsProps } from "./EngineSettings";
-import { GeneralSettings, type AppUpdateSettings } from "./GeneralSettings";
+import { GeneralSettings, type AppUpdateSettings, type DictationSettings } from "./GeneralSettings";
 import type { AgentEngine, EngineReadiness } from "../../domain/agent-engine";
 import type { SettingsSection } from "../../domain/settings-section";
 import { MobileSettings } from "./MobileSettings";
@@ -75,6 +75,7 @@ export type SettingsPanelProps = {
   /** Whether a run may drive the browser panel. The user's own tabs stay usable either way. */
   browserTools: boolean;
   notifications: boolean;
+  dictation?: DictationSettings;
   /** The phone bridge, as the main process last reported it. */
   remote: MobileServerState;
   remoteChecking: boolean;
@@ -152,6 +153,7 @@ export function SettingsPanel({
   computerUse,
   browserTools,
   notifications,
+  dictation,
   remote,
   remoteChecking,
   engineAccess,
@@ -226,7 +228,7 @@ export function SettingsPanel({
           <p>How AI Coding Tool answers from outside its own window.</p>
         </div>
 
-        <GeneralSettings cli={cli} onReadCli={onReadCli} onSetCliInstalled={onSetCliInstalled} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} update={appUpdate} onOpenSourceLicenses={onOpenSourceLicenses} />
+        <GeneralSettings {...(dictation ? { dictation } : {})} cli={cli} onReadCli={onReadCli} onSetCliInstalled={onSetCliInstalled} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} update={appUpdate} onOpenSourceLicenses={onOpenSourceLicenses} />
       </main>
       )}
 

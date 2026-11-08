@@ -29,6 +29,12 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       disabled={!workspace.restored && !thread}
       focusToken={workspace.composerFocus}
       images={workspace.images}
+      dictation={{
+        ...workspace.dictation,
+        onStart: () => void workspace.dispatch({ type: "dictation.start" }),
+        onStop: () => void workspace.dispatch({ type: "dictation.stop" }),
+        onCancel: () => void workspace.dispatch({ type: "dictation.cancel" }),
+      }}
       onImageRemove={(imageId) => void workspace.dispatch({ type: "image.remove", imageId })}
       prompt={workspace.prompt}
       folder={workspace.folder}

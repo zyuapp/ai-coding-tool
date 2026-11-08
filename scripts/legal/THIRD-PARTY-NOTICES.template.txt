@@ -22,6 +22,13 @@ ELECTRON-THIRD-PARTY-NOTICES.html. The separate notices for the embedded
 Mantle 1.0 and ReactiveObjC 3.1.0 macOS frameworks are in MANTLE-LICENSE.md and
 REACTIVEOBJC-MIT.md.
 
+Dictation helper
+----------------
+
+The aic-dictation helper bundled on macOS links FluidAudio and the other Swift
+packages it depends on. Their license and notice files are in
+DICTATION-SWIFT-DEPENDENCIES.txt.
+
 CUA Driver and SDK
 ------------------
 

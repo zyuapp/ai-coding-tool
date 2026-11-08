@@ -1,4 +1,12 @@
 import { SettingsPanel } from "./SettingsPanel";
+import { displayShortcut, type ShortcutSetting } from "../../domain/shortcuts";
+import { MAC } from "../platform";
+
+/** The keystroke holding to talk is bound to, as the platform writes it. */
+function dictationBinding(shortcuts: ShortcutSetting[]) {
+  const binding = shortcuts.find((shortcut) => shortcut.id === "dictation.hold")?.binding;
+  return binding ? displayShortcut(binding, MAC) : null;
+}
 import { useComputerUseReads } from "../task-workspace/computer-use-reads";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 
@@ -35,6 +43,12 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       terminalSize={workspace.terminalSize}
       allowedOrigins={workspace.browserOrigins}
       chromeBrowser={workspace.chromeBrowser} computerUse={workspace.computerUse} browserTools={workspace.browserTools}
+      dictation={{
+        model: workspace.dictation.model,
+        message: workspace.dictation.message,
+        binding: dictationBinding(workspace.shortcuts),
+        onDownload: () => void workspace.dispatch({ type: "dictation.download" }),
+      }}
       notifications={workspace.notifications} remote={workspace.remote} remoteChecking={workspace.remoteChecking}
       agentSettingsReload={workspace.agentSettingsReload} onReloadAgentSettings={() => void workspace.actions.reloadAgentSettings()}
       engineAccess={workspace.engineAccess} engineChecking={workspace.engineChecking} engineUpdating={workspace.engineUpdating}

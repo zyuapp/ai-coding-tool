@@ -42,7 +42,31 @@ function sendToWindow(host: KeyboardHost, channel: string, payload?: unknown) {
   return true;
 }
 
+/** The key holding to talk, by its physical code, until it or any modifier with it goes up. */
+let talkKey: string | null = null;
+const MODIFIER_KEYS = new Set(["Meta", "Control", "Alt", "Shift"]);
+
+/**
+ * Holding to talk hears both edges of a keystroke; every other action only its press. Its keys are
+ * let through, because Chromium drops the release of a press taken here; the window swallows them.
+ */
+function holdToTalk(host: KeyboardHost, input: Electron.Input, surface: ShortcutSurface): boolean | null {
+  if (talkKey === null) return null;
+  if (input.type === "keyUp" && (input.code === talkKey || MODIFIER_KEYS.has(input.key))) {
+    talkKey = null;
+    sendToWindow(host, "window:shortcut", { action: "dictation.release", surface });
+    return false;
+  }
+  if (input.code !== talkKey) return null;
+  if (input.isAutoRepeat) return false;
+  /** A fresh press means its release went to another app, so this one is matched anew. */
+  talkKey = null;
+  return null;
+}
+
 function handleKey(host: KeyboardHost, input: Electron.Input, surface: ShortcutSurface): boolean {
+  const held = holdToTalk(host, input, surface);
+  if (held !== null) return held;
   if (input.type !== "keyDown") return false;
   const stroke = keystrokeOf(input, process.platform === "darwin");
   if (!stroke) return false;
@@ -54,6 +78,12 @@ function handleKey(host: KeyboardHost, input: Electron.Input, surface: ShortcutS
   }
   const binding = shortcutFor(shortcuts, stroke, surface);
   if (!binding) return false;
+  if (binding.action === "dictation.hold") {
+    if (surface !== "any" || input.isAutoRepeat) return false;
+    talkKey = input.code;
+    sendToWindow(host, "window:shortcut", { action: binding.action, surface });
+    return false;
+  }
   sendToWindow(host, "window:shortcut", { action: binding.action, surface });
   return true;
 }

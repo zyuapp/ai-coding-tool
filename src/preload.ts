@@ -49,6 +49,7 @@ const api: WindowDesktopAPI = {
   onShortcut: pushed<ShortcutInvocation>("window:shortcut"),
   onShortcutCaptured: pushed<string | null>("window:shortcut-captured"),
   onOpenThread: pushed<string>("window:open-thread"),
+  onDictationLevel: pushed<number>("dictation:level"),
   onWindowActive: (listener) => {
     if (windowActive !== undefined) listener(windowActive);
     return onWindowActive(listener);

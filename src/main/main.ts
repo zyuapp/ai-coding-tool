@@ -51,6 +51,7 @@ import { recheckMobileBridge, startMobileBridge, stopMobileBridge } from "./mobi
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
 import * as simulator from "./simulator-host.js";
+import { desktopDictation, stopDesktopDictation } from "./desktop-dictation.js";
 
 const profile = appProfile(app.getPath("appData"), homedir(), app.isPackaged);
 app.setName(profile.name);
@@ -378,6 +379,9 @@ async function createWindow() {
   simulator.startSimulatorHost((frame) => {
     if (window && !window.isDestroyed()) window.webContents.send("simulator:frame", frame);
   });
+  desktopDictation().onDictationLevel((level) => {
+    if (window && !window.isDestroyed()) window.webContents.send("dictation:level", level);
+  });
   terminal.startTerminalHost({
     onData: (event) => {
       if (window && !window.isDestroyed()) window.webContents.send("terminal:data", event);
@@ -621,6 +625,7 @@ app.on("will-quit", () => {
   lockAwake = null;
   globalShortcut.unregisterAll();
   simulator.stopSimulatorHost();
+  stopDesktopDictation();
   automationScheduler?.stop();
   void taskDatabase?.close().catch((error) => console.error("Could not close task storage:", error));
   workspaceRuntime.close();

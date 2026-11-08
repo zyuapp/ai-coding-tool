@@ -284,10 +284,15 @@ test("a phone's review is read from the thread's own checkout, and refused for a
       diffSummary: async (...args) => { reads.push(args); return { status: "available", range: { kind: "uncommitted" }, ignoreWhitespace: true, files: [], additions: 0, deletions: 0 }; },
       diffPatch: async (...args) => { reads.push(args); return { status: "available", patch: "@@ -1 +1 @@\n-a\n+b\n" }; },
       directories: async (prefix) => { reads.push([prefix]); return ["/code/app", "/code/api"]; },
+      transcribeAudio: async (audio) => { reads.push([audio]); return "run the tests"; },
     },
   };
   const folders = await answerMobileRequest(bridge, request({ type: "mobile.request", requestId: "q0", sessionId: "s1", op: "query", query: { kind: "directories", prefix: "/code/" } }));
   assert.deepEqual(folders, { type: "mobile.response", requestId: "q0", ok: true, result: ["/code/app", "/code/api"] });
+  const spoken = await answerMobileRequest(bridge, request({ type: "mobile.request", requestId: "qt", sessionId: "s1", op: "query", query: { kind: "transcribe", audio: "UklGRg==" } }));
+  assert.deepEqual(spoken, { type: "mobile.response", requestId: "qt", ok: true, result: { text: "run the tests" } });
+  const unreadable = await answerMobileRequest(bridge, request({ type: "mobile.request", requestId: "qu", sessionId: "s1", op: "query", query: { kind: "transcribe", audio: "not base64!" } }));
+  assert.equal(unreadable.ok, false, "a recording that is not base64 is refused before it reaches the speech model");
   const hydrated: string[] = [];
   const read = await answerMobileRequest({ ...bridge, hydrate: async (taskId) => { hydrated.push(taskId); } }, request({ type: "mobile.request", requestId: "q00", sessionId: "s1", op: "query", query: { kind: "thread", taskId: "loose" } }));
   assert.equal(read.ok && (read.result as { title: string }).title, "loose");

@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 import { shortcutCommands, type WorkspaceInput } from "../../application/workspace-reducer";
 import type { WorkspaceState } from "../../application/workspace-state";
-import { displayShortcut } from "../../domain/shortcuts";
+import { displayShortcut, keystrokeOf, resolveShortcuts, shortcutFor } from "../../domain/shortcuts";
 import { MAC } from "../platform";
 import { installFocusAppearance } from "../focus-appearance";
-import { installWindowActivity } from "../window-activity";
+import { installWindowActivity, WINDOW_ACTIVITY_EVENT, windowInUse } from "../window-activity";
 import { onTerminalFindResults, onTerminalResize } from "./terminal-views";
 
 export type SubscriptionHost = {
@@ -17,6 +17,23 @@ export type SubscriptionHost = {
 export function useWorkspaceSubscriptions(host: SubscriptionHost) {
   useEffect(installFocusAppearance, []);
   useEffect(installWindowActivity, []);
+  /** Main hears the hold to talk keystroke but leaves it to the page, so its character is never typed. */
+  useEffect(() => {
+    function swallow(event: KeyboardEvent) {
+      const stroke = keystrokeOf({ key: event.key, code: event.code, meta: event.metaKey, control: event.ctrlKey, alt: event.altKey, shift: event.shiftKey }, MAC);
+      if (stroke && shortcutFor(resolveShortcuts(host.displayedState().shortcuts), stroke, "any")?.action === "dictation.hold") event.preventDefault();
+    }
+    window.addEventListener("keydown", swallow, true);
+    return () => window.removeEventListener("keydown", swallow, true);
+  }, []);
+  /** A hold whose key or pointer goes up in another app never hears its release, so leaving the window drops it. */
+  useEffect(() => {
+    function left() {
+      if (!windowInUse() && host.displayedState().dictation.session) void host.dispatch({ type: "dictation.cancel" });
+    }
+    window.addEventListener(WINDOW_ACTIVITY_EVENT, left);
+    return () => window.removeEventListener(WINDOW_ACTIVITY_EVENT, left);
+  }, []);
   useEffect(() => {
     const onFocus = () => void host.dispatch({ type: "view.set-focused", focused: true });
     const onBlur = () => void host.dispatch({ type: "view.set-focused", focused: false });
@@ -55,7 +72,9 @@ export function useWorkspaceSubscriptions(host: SubscriptionHost) {
   useEffect(() => {
     if (!("desktop" in window)) return;
     const stopListening = window.desktop.onShortcut(({ action, surface }) => {
-      if (action === "run.allow" || action === "run.deny") {
+      if (action === "dictation.hold") void host.dispatch({ type: "dictation.start" });
+      else if (action === "dictation.release") void host.dispatch({ type: "dictation.stop" });
+      else if (action === "run.allow" || action === "run.deny") {
         for (const command of shortcutCommands(host.displayedState(), action, surface)) void host.dispatch(command);
       } else void host.dispatch({ type: "view.shortcut", action, surface });
     });

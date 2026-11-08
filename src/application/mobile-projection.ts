@@ -75,6 +75,7 @@ export function emptyMobileView(): MobileView {
     theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" },
     engines: NO_ENGINES,
     upkeep: [],
+    dictation: false,
     thread: null,
     draft: null,
     error: null,
@@ -194,6 +195,7 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
     theme: projectMobileTheme(state),
     engines: projectMobileEngines(state.engineStatus),
     upkeep: projectMobileUpkeep(state),
+    dictation: state.dictation.model === "ready",
     thread,
     draft: thread ? null : projectMobileDraft(state, view),
     error: state.actionError,
@@ -410,6 +412,7 @@ export function diffMobileView(previous: MobileView, next: MobileView): MobilePa
   if (!same(previous.theme, next.theme)) patch.theme = next.theme;
   if (previous.engines !== next.engines && !same(previous.engines, next.engines)) patch.engines = next.engines;
   if (!same(previous.upkeep, next.upkeep)) patch.upkeep = next.upkeep;
+  if (previous.dictation !== next.dictation) patch.dictation = next.dictation;
   const thread = diffMobileThread(previous.thread, next.thread);
   if (thread) patch.thread = thread;
   if (!same(previous.draft, next.draft)) patch.draft = next.draft;
@@ -506,6 +509,7 @@ export function applyMobilePatch(view: MobileView, patch: MobilePatch): MobileVi
     theme: patch.theme ?? view.theme,
     engines: patch.engines ?? view.engines,
     upkeep: patch.upkeep ?? view.upkeep,
+    dictation: patch.dictation ?? view.dictation,
     draft: "draft" in patch ? patch.draft ?? null : view.draft,
     error: "error" in patch ? patch.error ?? null : view.error,
   };

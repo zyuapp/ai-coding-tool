@@ -5280,3 +5280,24 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .browser-import-actions button:hover:not(:disabled) { border-color: var(--line-bright); background: var(--control-hover); }
 .browser-import-actions button:disabled { color: var(--quiet-strong); cursor: default; }
 .browser-import-actions button.primary:not(:disabled) { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+
+/* Holding to talk: the send button listens, and the bar shows what it hears. */
+.send-button.talking { background: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 4px var(--accent-surface); animation: talk-pulse 1.6s ease-in-out infinite; }
+.send-button.talking.away { background: var(--surface-inverse-off); color: var(--muted); box-shadow: none; animation: none; }
+@keyframes talk-pulse { 50% { box-shadow: 0 0 0 7px var(--accent-surface); } }
+.composer-bar.dictating > :is(.composer-attach, .composer-settings) { display: none; }
+.dictation-strip { display: flex; flex: 1; align-items: center; gap: 10px; min-width: 0; height: 32px; padding: 0 4px 0 6px; }
+.dictation-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-text); animation: talk-blink 1.2s ease-in-out infinite; }
+.dictation-strip.transcribing .dictation-dot, .dictation-strip.away .dictation-dot { background: var(--muted); animation: none; }
+@keyframes talk-blink { 50% { opacity: 0.35; } }
+.dictation-wave { display: flex; flex: 1; align-items: center; gap: 3px; min-width: 0; max-width: 260px; height: 22px; overflow: hidden; }
+.dictation-wave span { flex: 1; min-width: 2px; max-width: 4px; height: 100%; border-radius: 2px; background: var(--accent-text); transform-origin: center; transition: transform 90ms linear; }
+.dictation-strip.away .dictation-wave span { background: var(--muted); }
+.dictation-strip.transcribing .dictation-wave span { background: var(--muted); animation: talk-settle 1s ease-in-out infinite; }
+.dictation-strip.transcribing .dictation-wave span:nth-child(odd) { animation-delay: -0.5s; }
+@keyframes talk-settle { 50% { transform: scaleY(0.35); } }
+.dictation-hint { flex: none; color: var(--muted); font-size: var(--text-meta); white-space: nowrap; }
+.dictation-strip.away .dictation-hint { color: var(--ink-dim); }
+@media (prefers-reduced-motion: reduce) {
+  .send-button.talking, .dictation-dot, .dictation-strip.transcribing .dictation-wave span { animation: none; }
+}

@@ -1,5 +1,6 @@
-import { LuArrowUp as ArrowUp, LuCircleAlert as CircleAlert, LuInfo as Info, LuPaperclip as Paperclip, LuX as X } from "react-icons/lu";
+import { LuArrowUp as ArrowUp, LuCircleAlert as CircleAlert, LuInfo as Info, LuMic as Mic, LuPaperclip as Paperclip, LuX as X } from "react-icons/lu";
 import { useRef, type ReactNode } from "react";
+import { DictationStrip, useComposerDictation, type ComposerDictation, type useHoldToTalk } from "./ComposerDictation";
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "./QuestionPrompt";
 import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
@@ -55,17 +56,22 @@ function sendLabel(surface: ComposerSurface, runActive: boolean) {
 
 const SEND_TIP = shortcutTip("Send", "Enter");
 const STOP_TIP = shortcutTip("Stop", "Escape");
+const SEND_OR_TALK_TIP = "Send · hold to talk";
+const TALK_TIP = "Hold to talk";
 
 /**
  * Sends what is written, or stops the run while one is going. `busy` is a send already on its way.
+ * With dictation ready, holding it listens instead, and an empty composer shows it as a microphone.
  */
-function SendButton({ taskId, surface, runActive, command, disabled, busy, onSend, onCancel }: {
+function SendButton({ taskId, surface, runActive, command, disabled, busy, empty, talk, onSend, onCancel }: {
   taskId: string | undefined;
   surface: ComposerSurface;
   runActive: boolean;
   command: AppCommand;
   disabled: boolean;
   busy: boolean;
+  empty: boolean;
+  talk: ReturnType<typeof useHoldToTalk> | null;
   onSend: () => void;
   onCancel: () => void;
 }) {
@@ -76,16 +82,19 @@ function SendButton({ taskId, surface, runActive, command, disabled, busy, onSen
       </CommandButton>
     );
   }
+  const talking = talk?.pressed ?? false;
+  const microphone = talk !== null && empty && !busy;
   return (
     <CommandButton command={command}
-      className={`send-button${busy ? " busy" : ""}`}
+      className={`send-button${busy ? " busy" : ""}${talking ? " talking" : ""}${talking && talk?.away ? " away" : ""}`}
       disabled={disabled || busy}
-      onClick={onSend}
-      aria-label={sendLabel(surface, false)}
+      onClick={() => { if (!talk?.swallowClick()) onSend(); }}
+      {...talk?.handlers}
+      aria-label={microphone ? TALK_TIP : sendLabel(surface, false)}
       aria-busy={busy || undefined}
-      data-tip={SEND_TIP}
+      data-tip={talking ? undefined : microphone ? TALK_TIP : talk ? SEND_OR_TALK_TIP : SEND_TIP}
     >
-      {busy ? <span className="send-spinner" aria-hidden="true" /> : <ArrowUp size={16} strokeWidth={2.5} aria-hidden="true" />}
+      {busy ? <span className="send-spinner" aria-hidden="true" /> : microphone || talking ? <Mic size={16} strokeWidth={2.25} aria-hidden="true" /> : <ArrowUp size={16} strokeWidth={2.5} aria-hidden="true" />}
     </CommandButton>
   );
 }
@@ -216,6 +225,8 @@ export type ConversationComposerProps = {
   files?: AttachedFile[];
   /** Bumped whenever something asks for the caret, which is all the composer needs to take it. */
   focusToken?: number;
+  /** Holding to talk. Only the main composer offers it. */
+  dictation?: ComposerDictation;
   /** Images the workspace is holding for this composer, such as windows the desktop hotkey grabbed. */
   images?: StagedImage[];
   onImageRemove?: (imageId: string) => void;
@@ -289,6 +300,7 @@ export function ConversationComposer({
   files = [],
   focusToken = 0,
   images = [],
+  dictation,
   history = [],
   onPromptChange,
   onReviewStep = NOTHING,
@@ -342,6 +354,7 @@ export function ConversationComposer({
     if (!controls.available({ ...sendCommand, ...(steer ? { steer } : {}) })) return;
     attachments.send(steer);
   }
+  const { canTalk, talk, phase: dictating } = useComposerDictation(dictation, { disabled, runActive, submit });
 
   return (
     <footer className={`composer-wrap ${surface}`}>
@@ -388,13 +401,14 @@ export function ConversationComposer({
           aria-activedescendant={menuActiveDescendant(menus)}
           rows={2}
         />
-        <div className="composer-bar">
+        <div className={`composer-bar${dictating ? " dictating" : ""}`}>
+          {dictating && <DictationStrip phase={dictating} away={talk.away} hotkey={!talk.pressed} />}
           <AttachButton disabled={disabled} onFilesAdd={onFilesAdd} />
           <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} coordinating={coordinating} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
             {planUsage && model !== undefined && <PlanUsageMeter engine={engine} engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
-            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} />
+            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || (nothingToSend && !canTalk)} busy={!disabled && (attachments.sending || waiting || dictating === "transcribing")} empty={nothingToSend} talk={canTalk ? talk : null} onSend={() => void submit()} onCancel={onCancel} />
           </div>
         </div>
       </div>}

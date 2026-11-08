@@ -324,6 +324,8 @@ struct MobileView: Codable, Equatable, Sendable {
     var engines: [String: MobileEngine]
     /// The computer's app, then its engines. Nil from a computer too old to be updated from the phone.
     var upkeep: [MobileUpkeepItem]?
+    /// Whether the computer can turn a held recording into words now. Nil from a computer without dictation.
+    var dictation: Bool? = nil
     var thread: MobileThreadView?
     var draft: MobileDraftView?
     var error: String?

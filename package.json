@@ -12,7 +12,7 @@
   },
   "main": "dist/main/main/main.js",
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.main.json && node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/build-simulator-helper.mts",
+    "build": "vite build && tsc -p tsconfig.main.json && node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/build-simulator-helper.mts && node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/build-dictation-helper.mts",
     "check": "npm run check:licenses && npm run check:ios-themes && tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.test.json && npm run lint",
     "check:licenses": "node scripts/generate-legal-notices.mjs --check",
     "check:ios-themes": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-ios-themes.mts --check",
@@ -159,6 +159,8 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "hardenedRuntime": true,
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist",
       "notarize": true,
       "signIgnore": "Contents/Resources/cua-driver$",
       "extraResources": [
@@ -168,6 +170,7 @@
         }
       ],
       "extendInfo": {
+        "NSMicrophoneUsageDescription": "AI Coding Tool listens while you hold to talk, and turns what you say into a message on this Mac.",
         "NSAppleEventsUsageDescription": "AI Coding Tool uses Automation only when a requested computer-use action needs to communicate with another app.",
         "NSScreenCaptureUsageDescription": "AI Coding Tool captures app windows so Claude can see and interact with interfaces you ask it to control."
       },

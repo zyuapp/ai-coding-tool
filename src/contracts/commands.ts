@@ -35,7 +35,7 @@ export type ReadingPoint = { anchor: string; depth: number } | null;
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ImageViewCommand | CliCommand | ComputerUseAccessCommand | PlanUsageCommand | ProjectCommand | PullRequestCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | BrowserImportCommand | SimulatorCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | ComputerCommand | EngineCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ImageViewCommand | CliCommand | ComputerUseAccessCommand | PlanUsageCommand | ProjectCommand | PullRequestCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | BrowserImportCommand | SimulatorCommand | DictationCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | ComputerCommand | EngineCommand | ViewCommand;
 
 /**
  * Asks GitHub about the pull request the checkout in front belongs to. Sent again whenever that
@@ -70,6 +70,17 @@ export type PlanUsageCommand =
   | { type: "usage.read"; everywhere?: boolean }
   /** Puts away the composer's warning that a window is running low, until it reaches its limit or resets. */
   | { type: "usage.dismiss-warning"; warning: string };
+
+/**
+ * Holding to talk into the main composer. A hold starts the microphone; letting go turns what was
+ * heard into words after the draft and sends it; cancelling drops the recording.
+ */
+export type DictationCommand =
+  | { type: "dictation.start" }
+  | { type: "dictation.stop" }
+  | { type: "dictation.cancel" }
+  /** Fetches the speech model into the folder other apps using it share. */
+  | { type: "dictation.download" };
 
 export type CliCommand =
   | { type: "cli.read" }

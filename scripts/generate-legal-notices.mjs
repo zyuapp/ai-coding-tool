@@ -2,6 +2,7 @@ import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { checkNativeReports } from "./legal/native-reports.mjs";
+import { checkDictationNotices } from "./legal/dictation-notices.mjs";
 import {
   ANTHROPIC_AGENT_SDK_VERSION,
   CUA_DRIVER_VERSION,
@@ -247,6 +248,7 @@ export async function generatedLegalNotices() {
 
 async function checkPinnedSourceReports() {
   await checkNativeReports();
+  await checkDictationNotices();
   for (const [name, expectedNeedles] of pinnedSourceReportNeedles) {
     const value = await readFile(path.join(legalDirectory, name), "utf8");
     for (const needle of expectedNeedles()) {

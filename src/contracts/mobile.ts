@@ -4,6 +4,7 @@ import type { MobilePairingOffer, MobileServerState } from "../domain/mobile.js"
 import type { AgentEngine, AgentModel, EngineAccess, EngineId } from "../domain/agent-engine.js";
 import type { AgentEffort, ExecutionPolicy } from "../domain/run.js";
 import { isDiffRange, type DiffRange } from "../domain/diff.js";
+import { isDictationAudio } from "../domain/dictation.js";
 import type { ThemeMode } from "../domain/theme.js";
 import type { ThreadOutcome } from "../domain/thread-run.js";
 import type { TaskMessageKind } from "./threads.js";
@@ -268,6 +269,8 @@ export type MobileView = {
   engines: MobileEngines;
   /** The computer's app, then its engines. */
   upkeep: MobileUpkeepItem[];
+  /** Whether this computer can turn a held recording into words now. */
+  dictation: boolean;
   /** The thread the phone has open, which is the thread the desktop has open. */
   thread: MobileThreadView | null;
   /** Where the desktop stands with no thread open. Null whenever `thread` is not. */
@@ -306,6 +309,7 @@ export type MobilePatch = {
   theme?: MobileTheme;
   engines?: MobileEngines;
   upkeep?: MobileUpkeepItem[];
+  dictation?: boolean;
   thread?:
     | { kind: "closed" }
     | { kind: "opened"; thread: MobileThreadView }
@@ -342,7 +346,9 @@ export type MobileQuery =
   /** The folders on the computer whose paths start with `prefix`, for picking a project to add. */
   | { kind: "directories"; prefix: string }
   /** A thread's transcript without opening it, for one working under the open coordinator. */
-  | { kind: "thread"; taskId: string };
+  | { kind: "thread"; taskId: string }
+  /** A held recording, base64 WAV, turned into words by this computer's speech model. Answers `{ text }`. */
+  | { kind: "transcribe"; audio: string };
 
 /** What a {@link MobileQuery} of kind "thread" answers: the thread as its own screen would read it. */
 export type MobileThreadRead = { title: string; status: MobileRunStatus; messages: MobileMessage[]; omitted: number; streamingTail: string | null };
@@ -350,6 +356,7 @@ export type MobileThreadRead = { title: string; status: MobileRunStatus; message
 export function isMobileQuery(value: unknown): value is MobileQuery {
   if (isRecord(value) && value.kind === "directories") return typeof value.prefix === "string" && value.prefix.length <= MAX_PATH_LENGTH && !value.prefix.includes("\0");
   if (isRecord(value) && value.kind === "thread") return isString(value.taskId);
+  if (isRecord(value) && value.kind === "transcribe") return isDictationAudio(value.audio);
   if (!isRecord(value) || !isString(value.taskId) || !isDiffRange(value.range)) return false;
   if (value.kind === "diff-summary") return true;
   return value.kind === "diff-patch" && isString(value.path, MAX_PATH_LENGTH) && (value.previousPath === undefined || isString(value.previousPath, MAX_PATH_LENGTH));

@@ -102,6 +102,8 @@ enum MobileQuery: Sendable {
     case diffPatch(taskId: String, range: DiffRange, path: String, previousPath: String?)
     case directories(prefix: String)
     case thread(taskId: String)
+    /// A held recording, base64 16 kHz mono WAV, which the computer answers with `{ text }`.
+    case transcribe(audio: String)
 
     var json: JSONValue {
         switch self {
@@ -111,6 +113,8 @@ enum MobileQuery: Sendable {
             .object(["kind": .string("directories"), "prefix": .string(prefix)])
         case .thread(let taskId):
             .object(["kind": .string("thread"), "taskId": .string(taskId)])
+        case .transcribe(let audio):
+            .object(["kind": .string("transcribe"), "audio": .string(audio)])
         case .diffPatch(let taskId, let range, let path, let previousPath):
             {
                 var object: [String: JSONValue] = ["kind": .string("diff-patch"), "taskId": .string(taskId), "range": range.json, "path": .string(path)]

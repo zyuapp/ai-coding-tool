@@ -76,6 +76,16 @@ const simulatorDesktop = {
   onSimulatorFrame: () => () => {},
 } satisfies Pick<DesktopAPI, "listSimulators" | "bootSimulator" | "simulatorInput" | "describeSimulator" | "captureSimulator" | "watchSimulator" | "unwatchSimulator" | "onSimulatorFrame">;
 
+const dictationDesktop = {
+  onDictationModel: () => () => {},
+  startDictation: async () => {},
+  stopDictation: async () => "",
+  cancelDictation: async () => {},
+  downloadDictationModel: async () => {},
+  transcribeAudio: async () => "",
+  onDictationLevel: () => () => {},
+} satisfies Pick<DesktopAPI, "onDictationModel" | "startDictation" | "stopDictation" | "cancelDictation" | "downloadDictationModel" | "transcribeAudio" | "onDictationLevel">;
+
 export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const sent: RunCommand[] = [];
   const persisted: TaskStoreDelta[] = [];
@@ -103,7 +113,7 @@ export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const threadAnswers: ThreadResponse[] = [];
   let unsubscribed = false;
   const api: DesktopAPI = {
-    ...gitDesktop, ...updateDesktop, ...mobileDesktopStub, ...engineDesktopStub, ...simulatorDesktop, openFolder: async () => null,
+    ...gitDesktop, ...updateDesktop, ...mobileDesktopStub, ...engineDesktopStub, ...simulatorDesktop, ...dictationDesktop, openFolder: async () => null,
     directories: async () => [],
     registerProject: async (root) => ({ id: root, kind: "project", root }),
     onOpenProject: (next) => { openProject = next; return () => {}; },

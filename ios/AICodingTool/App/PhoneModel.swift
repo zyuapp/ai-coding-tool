@@ -56,6 +56,8 @@ final class PhoneModel {
     var waiting: Int { live ? 0 : state.outbox.count }
     var catalog: EngineCatalog { EngineCatalog(vocabulary: state.vocabulary, engines: view.engines) }
     var notice: String? { state.notice ?? (view.error != state.dismissedError ? view.error : nil) }
+    /// Whether holding Send can listen: the computer has its speech model and the line is up.
+    var canDictate: Bool { live && view.dictation == true }
 
     /// What the computer has open: a thread's id, "draft", or "none".
     var current: String {
@@ -71,6 +73,12 @@ final class PhoneModel {
 
     func send(_ command: PhoneCommand) {
         connection.send(command)
+    }
+
+    /// The computer's words for a held recording.
+    func transcribe(_ wav: Data) async throws -> String {
+        struct Heard: Decodable { var text: String }
+        return try await connection.query(.transcribe(audio: wav.base64EncodedString())).decode(Heard.self).text
     }
 
     // MARK: Opening threads

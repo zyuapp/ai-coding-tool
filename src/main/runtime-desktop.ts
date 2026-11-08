@@ -15,6 +15,8 @@ import { appUpdate, checkForUpdates, confirmInstall, downloadUpdate, installUpda
 import { automaticUpdatesAvailable } from "./platform-capabilities.js";
 import * as browser from "./browser-host.js";
 import * as simulator from "./simulator-host.js";
+import { dictationDesktop } from "./dictation-host.js";
+import { desktopDictation } from "./desktop-dictation.js";
 import { importBrowserSites, listImportSites, listImportSources } from "./browser-import.js";
 
 /** What the desktop adds to the services: the window, and everything only a window can do. */
@@ -79,6 +81,7 @@ function panelDesktop(host: RuntimeDesktopHost) {
     simulatorInput: (udid, input) => simulator.simulatorInput(udid, input),
     describeSimulator: (udid, device) => simulator.describeSimulator(udid, device),
     captureSimulator: (udid) => simulator.captureSimulator(udid),
+    ...dictationDesktop(desktopDictation),
   } satisfies Partial<RuntimeDesktop>;
 }
 
