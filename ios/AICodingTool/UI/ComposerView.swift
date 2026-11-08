@@ -204,7 +204,7 @@ struct ComposerView<Above: View>: View {
         .onAppear { draft = model.draft(for: draftKey) }
         .onChange(of: draftKey) { _, key in draft = model.draft(for: key) }
         .onChange(of: draft) { old, text in
-            dictation.record(from: old, to: text)
+            if focused { dictation.record(from: old, to: text) }
             model.keepDraft(text, for: draftKey)
         }
         .onChange(of: returned) { _, next in
@@ -262,8 +262,9 @@ struct ComposerView<Above: View>: View {
     /// Sends what is typed. Dictation still running stops first, and its last words go with the message.
     private func send(_ how: @escaping (String, [String]) -> Void) {
         guard !finishing else { return }
-        guard focused, dictation.recent() else { return commit(how) }
+        guard focused else { return commit(how) }
         Dictation.finish()
+        guard dictation.recent() else { return commit(how) }
         finishing = true
         Task { @MainActor in
             var last = draft
@@ -538,7 +539,7 @@ extension View {
 private enum Dictation {
     fileprivate static weak var responder: UIResponder?
 
-    /// Stops dictation by handing focus away and straight back, so the keyboard stays up.
+    /// Stops any dictation by handing focus away and straight back, so the keyboard stays up.
     static func finish() {
         responder = nil
         UIApplication.shared.sendAction(#selector(UIResponder.reportFirstResponder(_:)), to: nil, from: nil, for: nil)
