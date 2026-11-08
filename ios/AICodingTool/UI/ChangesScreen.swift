@@ -48,6 +48,9 @@ struct ChangesScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .barSubtitle([thread?.title, model.state.connection != .live ? model.state.connection.label : nil].compactMap { $0 }.joined(separator: " · "))
         .toolbar {
+            if #unavailable(iOS 26) {
+                LegacyBarTitle(title: "Changes", subtitle: thread?.title)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Toggle(isOn: Binding(get: { wrap }, set: { value in withAnimation(.snappy) { wrap = value } })) {

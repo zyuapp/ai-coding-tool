@@ -47,6 +47,26 @@ struct RootView: View {
     }
 }
 
+/// The bar's title and second line before iOS 26, which has no subtitle of its own. The system still draws a title menu's chevron beside it.
+struct LegacyBarTitle: ToolbarContent {
+    var title: String
+    var subtitle: String?
+    @Environment(\.palette) private var palette
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            VStack(spacing: 1) {
+                Text(title).font(.headline).foregroundStyle(palette.ink).lineLimit(1)
+                if let subtitle, !subtitle.isEmpty { Text(subtitle).font(.caption).foregroundStyle(palette.muted).lineLimit(1) }
+            }
+            // The bar centres the title and does not shorten it, so it is kept clear of a back button and one trailing button.
+            .frame(maxWidth: 200)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+        }
+    }
+}
+
 /// Quiet until it matters: a live line says nothing, a dead one shows a struck cloud, and one on its way a turning ring.
 struct ConnectionMark: View {
     var connection: ConnectionState
@@ -120,7 +140,7 @@ extension View {
         .animation(.snappy, value: model.notice)
     }
 
-    /// The bar's second line under the title, on iOS 26 where the system draws one.
+    /// The bar's second line under the title, on iOS 26 where the system draws one; earlier, `LegacyBarTitle` draws it.
     @ViewBuilder func barSubtitle(_ text: String?) -> some View {
         if #available(iOS 26, *), let text, !text.isEmpty {
             navigationSubtitle(text)

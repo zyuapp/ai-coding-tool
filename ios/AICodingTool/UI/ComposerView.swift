@@ -82,17 +82,17 @@ struct ComposerView<Above: View>: View {
                                                 .foregroundStyle(palette.ink, palette.raised)
                                                 .font(.body)
                                         }
-                                        .frame(width: 44, height: 44)
+                                        .frame(width: 44, height: 44, alignment: .topTrailing)
                                         .contentShape(Rectangle())
                                         .buttonStyle(.plain)
-                                        .offset(x: 16, y: -16)
+                                        .offset(x: 6, y: -6)
                                         .accessibilityLabel("Remove picture")
                                     }
                                     .accessibilityLabel("Picture to send")
                             }
                         }
-                        .padding(.top, 16)
-                        .padding(.trailing, 16)
+                        .padding(.top, 6)
+                        .padding(.trailing, 6)
                     }
                 }
                 if !blocked {

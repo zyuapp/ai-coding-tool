@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { rankedThread } from "../../src/domain/thread-storage.ts";
 import { test } from "vitest";
-import { applyMobilePatch, diffMobileView, emptyMobileView, mobileEngineView, MOBILE_TRANSCRIPT_MESSAGES, projectMobileView } from "../../src/application/mobile-projection.ts";
+import { applyMobilePatch, diffMobileView, emptyMobileView, mobileEngineView, MOBILE_BACKGROUND_DETAIL_LIMIT, MOBILE_TRANSCRIPT_MESSAGES, projectMobileView } from "../../src/application/mobile-projection.ts";
 import { BUILT_IN_MODELS, efforts, effortsFor, modelLabel, modelsFor, type EngineStatus } from "../../src/domain/agent-engine.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { workspaceViewCollections } from "../../src/application/workspace-view-collections.ts";
@@ -625,4 +625,12 @@ test("an open thread says its role, and a cleared role travels as null", () => {
   const patch = diffMobileView(before, after);
   assert.equal(patch?.thread?.kind === "changed" && patch.thread.delta.role, null);
   assert.equal(applyMobilePatch(before, patch!)?.thread?.role, null);
+});
+
+test("background items are kept while their lists are, and a long line is cut", () => {
+  const subagents = [{ id: "a1", description: "Long", status: "completed" as const, summary: "x".repeat(5_000), startedAt: NOW, activity: [] }];
+  const state = workspace([task("t1")], { currentId: "t1", subagents: { t1: subagents } });
+  const first = projectMobileView(state, NOW).thread?.background;
+  assert.equal(projectMobileView({ ...state, streamingTails: {} }, NOW).thread?.background, first, "a thread with no shells or workflows reuses its items");
+  assert.equal(first?.[0]?.detail.length, MOBILE_BACKGROUND_DETAIL_LIMIT + 1);
 });

@@ -51,6 +51,9 @@ struct ThreadScreen: View {
                 if let thread { titleMenu(thread) }
             }
             .toolbar {
+                if #unavailable(iOS 26) {
+                    LegacyBarTitle(title: title, subtitle: subtitle)
+                }
                 if let thread {
                     if thread.reviewable {
                         ToolbarItem(placement: .topBarTrailing) { changesButton(thread).badge(thread.changes?.files ?? 0) }

@@ -62,6 +62,9 @@ export const MOBILE_TRANSCRIPT_MESSAGES = 40;
 /** How many of the open thread's workflows, processes and subagents travel, live ones first. */
 export const MOBILE_BACKGROUND_LIMIT = 100;
 
+/** How much of a background item's line is carried; the phone shows two lines of it. */
+export const MOBILE_BACKGROUND_DETAIL_LIMIT = 300;
+
 /** How much of an approval's tool input is carried. Enough to judge it, never a whole file. */
 export const MOBILE_APPROVAL_DETAIL_LIMIT = 4_000;
 
@@ -316,10 +319,15 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
 
 let heldBackground: { workflows: Workflow[]; processes: BackgroundProcess[]; subagents: Subagent[]; items: MobileBackgroundItem[] } | undefined;
 
+/** The view hands a fresh empty list whenever a thread has none, so every empty list is the same list. */
+function sameList(held: readonly unknown[], next: readonly unknown[]): boolean {
+  return held === next || (held.length === 0 && next.length === 0);
+}
+
 /** The desktop's Processes and Subagents lists as one, kept while its sources are, since a streaming run projects many times a second. */
 function projectBackground(workflows: Workflow[], processes: BackgroundProcess[], subagents: Subagent[]): MobileBackgroundItem[] {
   const held = heldBackground;
-  if (held && held.workflows === workflows && held.processes === processes && held.subagents === subagents) return held.items;
+  if (held && sameList(held.workflows, workflows) && sameList(held.processes, processes) && sameList(held.subagents, subagents)) return held.items;
   const all: MobileBackgroundItem[] = [
     ...workflows.map((workflow): MobileBackgroundItem => {
       const running = workflow.status === "running";
@@ -328,7 +336,7 @@ function projectBackground(workflows: Workflow[], processes: BackgroundProcess[]
     ...processes.map((process): MobileBackgroundItem =>
       ({ id: process.id, kind: process.kind, title: process.description, detail: processLabel(process), status: "working", live: true, stoppable: true, ...(process.stopping ? { stopping: true as const } : {}) })),
     ...orderSubagents(subagents).map((subagent): MobileBackgroundItem => ({
-      id: subagent.id, kind: "agent", title: subagent.description, detail: subagentLine(subagent), status: subagent.status,
+      id: subagent.id, kind: "agent", title: subagent.description, detail: clip(subagentLine(subagent), MOBILE_BACKGROUND_DETAIL_LIMIT), status: subagent.status,
       live: subagent.status === "working" || subagent.status === "idle", stoppable: subagent.status === "working", ...(subagent.stopping ? { stopping: true as const } : {}),
     })),
   ];
@@ -384,6 +392,10 @@ function projectMembers(state: WorkspaceState, leadId: string, view: ReturnType<
   });
 }
 
+function clip(text: string, limit: number): string {
+  return text.length > limit ? `${text.slice(0, limit)}…` : text;
+}
+
 function approvalDetail(input: Record<string, unknown>): string {
   let text: string;
   try {
@@ -391,7 +403,7 @@ function approvalDetail(input: Record<string, unknown>): string {
   } catch {
     text = "";
   }
-  return text.length > MOBILE_APPROVAL_DETAIL_LIMIT ? `${text.slice(0, MOBILE_APPROVAL_DETAIL_LIMIT)}…` : text;
+  return clip(text, MOBILE_APPROVAL_DETAIL_LIMIT);
 }
 
 /** Null when nothing moved, so a server with nothing to say sends nothing at all. */
