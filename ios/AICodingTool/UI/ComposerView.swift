@@ -109,11 +109,12 @@ struct ComposerView<Above: View>: View {
                                 Button { shooting = true } label: { Label("Take Photo", systemImage: "camera") }
                             }
                         } label: {
-                            Image(systemName: "photo.badge.plus")
-                                .font(.body)
+                            Image(systemName: "plus")
+                                .font(.body.weight(.semibold))
                                 .foregroundStyle(palette.inkDim)
-                                .frame(width: 30, height: 34)
-                                .contentShape(Rectangle())
+                                .frame(width: 34, height: 34)
+                                .background(palette.raised, in: Circle())
+                                .contentShape(Circle())
                         }
                         .disabled(images.count >= PickedImage.limit)
                         .accessibilityLabel("Add pictures")
@@ -121,14 +122,16 @@ struct ComposerView<Above: View>: View {
                     Button(action: onSettings) {
                         // The summary gives up its axis names, then its values, before the run's buttons give up any room.
                         ViewThatFits(in: .horizontal) {
-                            settingsSummary(summary, axes: true)
-                            settingsSummary(summary, axes: false)
+                            settingsSummary([summary.model, summary.effort, summary.mode].compactMap { $0 })
+                            settingsSummary([summary.model, summary.effort].compactMap { $0 })
+                            settingsSummary([summary.model])
                             Image(systemName: "slider.horizontal.3")
                                 .font(.footnote.weight(.semibold))
                                 .foregroundStyle(palette.inkDim)
                                 .frame(width: 34, height: 34)
+                                .background(palette.raised, in: Circle())
                         }
-                        .contentShape(Rectangle())
+                        .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Thread settings: \([summary.mode, summary.model, summary.effort].compactMap { $0 }.joined(separator: ", "))")
@@ -147,9 +150,10 @@ struct ComposerView<Above: View>: View {
                         Button { send(onSend) } label: {
                             Image(systemName: "arrow.up")
                                 .font(.body.weight(.bold))
-                                .foregroundStyle(typed ? palette.accentInk : palette.quiet)
+                                .foregroundStyle(typed ? palette.accentInk : palette.muted)
                                 .frame(width: 34, height: 34)
                                 .background(typed ? palette.accent : palette.raised, in: Circle())
+                                .animation(.snappy(duration: 0.2), value: typed)
                         }
                         .buttonStyle(.plain)
                         .disabled(!typed)
@@ -158,10 +162,13 @@ struct ComposerView<Above: View>: View {
                     }
                 }
             }
-            .padding(12)
-            .background(palette.surface, in: RoundedRectangle(cornerRadius: 22))
-            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(focused ? palette.lineStrong : palette.line))
-            .padding(.horizontal, 10)
+            .padding(.top, 14)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 10)
+            .background(palette.surface, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(focused ? palette.lineStrong : palette.lineSoft))
+            .shadow(color: .black.opacity(palette.dark ? 0.3 : 0.06), radius: 12, y: 4)
+            .padding(.horizontal, 12)
             .padding(.bottom, 8)
         }
         .padding(.top, 6)
@@ -200,23 +207,17 @@ struct ComposerView<Above: View>: View {
         }
     }
 
-    private func settingsSummary(_ summary: (mode: String, model: String, effort: String?), axes: Bool) -> some View {
-        HStack(spacing: 4) {
-            settingValue(axes ? "Mode" : nil, summary.mode)
-            settingValue(axes ? "Model" : nil, summary.model)
-            if let effort = summary.effort { settingValue(axes ? "Effort" : nil, effort) }
-            Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(palette.quiet)
+    /// The thread's model, effort and mode as one chip, dropping from the end when room runs out.
+    private func settingsSummary(_ values: [String]) -> some View {
+        HStack(spacing: 5) {
+            Text(values.joined(separator: " · ")).font(.footnote.weight(.semibold)).foregroundStyle(palette.inkDim)
+            Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(palette.muted)
         }
         .lineLimit(1)
         .fixedSize()
-    }
-
-    private func settingValue(_ axis: String?, _ value: String) -> some View {
-        HStack(spacing: 3) {
-            if let axis { Text(axis).font(.caption).foregroundStyle(palette.quiet) }
-            Text(value).font(.caption.weight(.medium)).foregroundStyle(palette.inkDim)
-        }
-        .padding(.trailing, 4)
+        .padding(.horizontal, 12)
+        .frame(height: 34)
+        .background(palette.raised, in: Capsule())
     }
 
     private func pill(_ label: String, symbol: String, primary: Bool, action: @escaping () -> Void) -> some View {
@@ -225,7 +226,7 @@ struct ComposerView<Above: View>: View {
                 .font(.footnote.weight(.semibold))
                 .lineLimit(1)
                 .fixedSize()
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 13)
                 .frame(height: 34)
                 .foregroundStyle(primary ? palette.accentInk : palette.ink)
                 .background(primary ? palette.accent : palette.raised, in: Capsule())
@@ -287,58 +288,88 @@ struct QuestionPromptView: View {
     private var unavailable: Bool { submitting || question.submitting == true }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(question.header.isEmpty ? "Question" : question.header).font(.subheadline.weight(.semibold)).foregroundStyle(palette.ink)
-                Spacer()
-                Text(question.blocking ? "Waiting for your answer" : "Working while you answer").font(.caption).foregroundStyle(palette.muted)
-            }
-            Text(question.question).font(.subheadline).foregroundStyle(palette.inkDim)
-            ForEach(Array(question.options.enumerated()), id: \.offset) { _, option in
-                Button {
-                    typed = false
-                    answer = option.label
-                } label: {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: chosen == option.label ? "largecircle.fill.circle" : "circle")
-                            .foregroundStyle(chosen == option.label ? palette.accent : palette.quiet)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(option.label).font(.subheadline.weight(.medium)).foregroundStyle(palette.ink)
-                            if !option.description.isEmpty { Text(option.description).font(.footnote).foregroundStyle(palette.muted) }
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .contentShape(Rectangle())
+        let empty = answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "questionmark.bubble.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(palette.accent)
+                    .frame(width: 34, height: 34)
+                    .background(palette.accentChip, in: Circle())
+                VStack(alignment: .leading, spacing: 3) {
+                    Text((question.header.isEmpty ? "Question" : question.header) + (question.blocking ? " · Waiting for you" : " · Still working"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(palette.accent)
+                    Text(question.question).font(.headline).foregroundStyle(palette.ink).fixedSize(horizontal: false, vertical: true)
                 }
-                .buttonStyle(.plain)
-                .disabled(unavailable)
-                .accessibilityAddTraits(chosen == option.label ? [.isSelected] : [])
             }
-            TextField(question.options.isEmpty ? "Type your answer…" : "Or type your answer…", text: Binding(get: { chosen == nil ? answer : "" }, set: { value in
+            if !question.options.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(Array(question.options.enumerated()), id: \.offset) { index, option in
+                        if index > 0 { palette.lineSoft.frame(height: 1).padding(.leading, 14) }
+                        Button {
+                            typed = false
+                            answer = option.label
+                        } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(option.label).font(.subheadline.weight(.semibold)).foregroundStyle(palette.ink)
+                                    if !option.description.isEmpty { Text(option.description).font(.footnote).foregroundStyle(palette.muted) }
+                                }
+                                Spacer(minLength: 0)
+                                Image(systemName: "checkmark")
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(palette.accent)
+                                    .opacity(chosen == option.label ? 1 : 0)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 11)
+                            .background(chosen == option.label ? palette.accentSurface : Color.clear)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(unavailable)
+                        .accessibilityAddTraits(chosen == option.label ? [.isSelected] : [])
+                    }
+                }
+                .background(palette.sunken)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            TextField(question.options.isEmpty ? "Type your answer…" : "Or type your own answer…", text: Binding(get: { chosen == nil ? answer : "" }, set: { value in
                 typed = true
                 answer = value
             }), axis: .vertical)
             .lineLimit(1...4)
-            .padding(10)
-            .background(palette.sunken, in: RoundedRectangle(cornerRadius: 10))
+            .font(.subheadline)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(palette.raised, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .disabled(unavailable)
             .accessibilityLabel("Your answer")
-            HStack {
-                Spacer()
-                Button(question.submitting == true || submitting ? "Sending…" : "Send answer") {
-                    let text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !text.isEmpty, !unavailable else { return }
-                    submitting = true
-                    onSubmit(text)
+            Button {
+                let text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty, !unavailable else { return }
+                submitting = true
+                onSubmit(text)
+            } label: {
+                HStack(spacing: 6) {
+                    if unavailable { ProgressView().controlSize(.small).tint(palette.accentInk) }
+                    Text(unavailable ? "Sending…" : "Send Answer")
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(unavailable || answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(empty && !unavailable ? palette.muted : palette.accentInk)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .background(empty && !unavailable ? palette.raised : palette.accent, in: Capsule())
+                .contentShape(Capsule())
             }
+            .buttonStyle(.plain)
+            .disabled(unavailable || empty)
         }
-        .padding(14)
-        .background(palette.surface, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(palette.line))
-        .padding(.horizontal, 10)
+        .padding(16)
+        .background(palette.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(palette.accentLine, lineWidth: 1))
+        .shadow(color: .black.opacity(palette.dark ? 0.35 : 0.08), radius: 16, y: 6)
+        .padding(.horizontal, 12)
         .padding(.bottom, 8)
         .onChange(of: refused) { _, next in
             if let next, next != released {

@@ -10,6 +10,8 @@ struct SheetFrame<Content: View, Actions: ToolbarContent>: View {
     var body: some View {
         NavigationStack {
             content
+                .listSectionSpacing(.compact)
+                .contentMargins(.top, 8, for: .scrollContent)
                 .scrollContentBackground(.hidden)
                 .background(palette.menu.ignoresSafeArea())
                 .navigationTitle(title)
@@ -19,6 +21,18 @@ struct SheetFrame<Content: View, Actions: ToolbarContent>: View {
         }
         .presentationBackground(palette.menu)
         .environment(\.palette, palette)
+    }
+}
+
+/// A sheet section's caption, quieter than the sheet's own title.
+struct SectionLabel: View {
+    var text: String
+    @Environment(\.palette) private var palette
+
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text).font(.footnote.weight(.semibold)).foregroundStyle(palette.muted).textCase(nil)
     }
 }
 
@@ -36,7 +50,10 @@ struct OptionRow: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 if let symbol {
-                    Image(systemName: symbol).frame(width: 24).foregroundStyle(palette.muted)
+                    Image(systemName: symbol)
+                        .font(.body.weight(.medium))
+                        .frame(width: 26)
+                        .foregroundStyle(selected ? palette.accent : palette.muted)
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(label).foregroundStyle(palette.ink)
@@ -73,13 +90,15 @@ struct ProjectSheet: View {
         let matches = Matching.ranked(projects, query: query) { $0.name }
         SheetFrame(title: "Project") {
             List {
-                Section(label) {
+                Section {
                     if !searching {
-                        OptionRow(label: none, selected: selected == nil) { choose(nil) }
+                        OptionRow(label: none, symbol: "square.stack", selected: selected == nil) { choose(nil) }
                     }
                     ForEach(matches, id: \.projectId) { project in
-                        OptionRow(label: project.name, selected: project.projectId == selected) { choose(project.projectId) }
+                        OptionRow(label: project.name, symbol: "folder", selected: project.projectId == selected) { choose(project.projectId) }
                     }
+                } header: {
+                    SectionLabel(label)
                 }
                 if let onAddProject {
                     Section {
@@ -158,106 +177,21 @@ struct RenameSheet: View {
     }
 }
 
-/// The question asked before the user archives a thread, as the desktop asks it.
-struct ArchiveSheet: View {
+/// A thread the user has asked to archive, waiting on their confirmation.
+struct ArchiveAsk: Identifiable, Equatable {
+    var id: String
     var title: String
     var running: Bool
-    var onArchive: () -> Void
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.palette) private var palette
-
-    var body: some View {
-        SheetFrame(title: "Archive thread") {
-            List {
-                Section {
-                    Button(role: .destructive) {
-                        dismiss()
-                        onArchive()
-                    } label: {
-                        Label("Archive", systemImage: "archivebox").foregroundStyle(palette.danger)
-                    }
-                    .listRowBackground(palette.raised)
-                } header: {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(Format.archiveQuestion(title)).font(.headline).foregroundStyle(palette.ink)
-                        Text(Format.archiveConsequence(running: running)).font(.subheadline).foregroundStyle(palette.inkDim)
-                    }
-                    .textCase(nil)
-                    .padding(.bottom, 8)
-                }
-            }
-        } actions: {
-            ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-        }
-        .presentationDetents([.height(300), .medium])
-    }
 }
 
-/// What a thread can do beyond talking: what the desktop's header offers, with nothing the phone cannot see through.
-struct ThreadMenuSheet: View {
-    var thread: MobileThreadView
-    var onChanges: () -> Void
-    var onLocation: () -> Void
-    var onNewHere: () -> Void
-    var onFork: (Bool) -> Void
-    var onRename: () -> Void
-    var onArchive: () -> Void
-    var onCoordinate: (Bool) -> Void
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.palette) private var palette
-
-    var body: some View {
-        let inProject = thread.projectId != nil
-        let coordinating = thread.settings.coordinating == true
-        let working = thread.location == .creating || thread.location == .releasing
-        let inWorktree: Bool = { if case .worktree = thread.location { return true } else { return false } }()
-        SheetFrame(title: thread.title) {
-            List {
-                Section {
-                    row("Changes", detail: thread.reviewable ? Format.changesLabel(thread.changes) ?? "Review this thread's edits" : "No checkout to review", symbol: "arrow.left.arrow.right", disabled: !thread.reviewable, opens: true, action: onChanges)
-                    row("Location", detail: inProject ? Format.locationLabel(thread.location) : "Not in a project", symbol: inWorktree ? "folder.badge.gearshape" : "folder", disabled: !inProject || working, opens: true, action: onLocation)
-                }
-                Section {
-                    row(inWorktree ? "New thread here" : "New thread in project", detail: !inProject ? "Not in a project" : working ? Format.locationLabel(thread.location) : nil, symbol: "square.and.pencil", disabled: !inProject || working, action: onNewHere)
-                    row("Fork thread", detail: "Copy the conversation into a new thread", symbol: "arrow.triangle.branch") { onFork(false) }
-                    if inProject {
-                        row("Fork in a worktree", detail: working ? Format.locationLabel(thread.location) : "The copy gets a checkout of its own", symbol: "folder.badge.plus", disabled: working) { onFork(true) }
-                    }
-                }
-                Section {
-                    row(coordinating ? "Stop coordinating" : "Coordinate other threads", detail: coordinating ? "The threads under it carry on alone" : "It starts and steers threads of its own", symbol: "person.3") { onCoordinate(!coordinating) }
-                }
-                Section {
-                    row("Rename…", symbol: "pencil.line", action: onRename)
-                    row("Archive…", symbol: "archivebox", danger: true, action: onArchive)
-                }
-            }
-        } actions: {
-            ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+extension View {
+    /// The question asked before the user archives a thread, as the desktop asks it.
+    func archiveConfirmation(_ ask: Binding<ArchiveAsk?>, onArchive: @escaping (ArchiveAsk) -> Void) -> some View {
+        confirmationDialog(ask.wrappedValue.map { Format.archiveQuestion($0.title) } ?? "", isPresented: Binding(get: { ask.wrappedValue != nil }, set: { if !$0 { ask.wrappedValue = nil } }), titleVisibility: .visible, presenting: ask.wrappedValue) { asked in
+            Button("Archive", role: .destructive) { onArchive(asked) }
+        } message: { asked in
+            Text(Format.archiveConsequence(running: asked.running))
         }
-        .presentationDetents([.medium, .large])
-    }
-
-    private func row(_ label: String, detail: String? = nil, symbol: String, disabled: Bool = false, opens: Bool = false, danger: Bool = false, action: @escaping () -> Void) -> some View {
-        Button {
-            dismiss()
-            action()
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: symbol).frame(width: 24).foregroundStyle(danger ? palette.danger : palette.muted)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(label).foregroundStyle(danger ? palette.danger : palette.ink)
-                    if let detail { Text(detail).font(.footnote).foregroundStyle(palette.muted) }
-                }
-                Spacer()
-                if opens { Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(palette.quiet) }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(disabled)
-        .opacity(disabled ? 0.5 : 1)
-        .listRowBackground(palette.raised)
     }
 }
 
@@ -281,10 +215,10 @@ struct LocationSheet: View {
                         OptionRow(label: choice.name, detail: choice.branch ?? "Detached", symbol: "folder.badge.gearshape", selected: false, disabled: locked) { move(.worktree(choice.id)) }
                     }
                     OptionRow(label: "New worktree", detail: "A checkout of its own, cut from the project", symbol: "plus", selected: false, disabled: locked) { move(.new) }
-                } header: {
+                } footer: {
                     Text(locked ? "Wait for the run to finish before moving the thread." : "Existing file changes stay in the old checkout.")
-                        .textCase(nil)
-                        .foregroundStyle(palette.inkDim)
+                        .font(.footnote)
+                        .foregroundStyle(palette.muted)
                 }
             }
         } actions: {
@@ -403,14 +337,16 @@ struct ThreadSettingsSheet: View {
         SheetFrame(title: "Settings") {
             List {
                 if known {
-                    Section("Mode") {
+                    Section {
                         ForEach(catalog.policies(current.engine), id: \.id) { policy in
-                            OptionRow(label: policy.label, detail: policy.description, selected: policy.id == current.policy) {
+                            OptionRow(label: policy.label, detail: policy.description, symbol: Self.policySymbol(policy.id), selected: policy.id == current.policy) {
                                 choose { $0.policy = policy.id }
                                 onPolicy(policy.id)
                             }
                         }
                         refusedLine("policy")
+                    } header: {
+                        SectionLabel("Mode")
                     }
                 }
                 // Each engine or provider is a card of its own under its name, so every card keeps its rounded corners.
@@ -425,10 +361,7 @@ struct ThreadSettingsSheet: View {
                         }
                         if index == offered.count - 1, refused.contains("model") || refused.contains("engine") { refusedText }
                     } header: {
-                        VStack(alignment: .leading, spacing: 10) {
-                            if index == 0 { Text("Model") }
-                            Text(heading.label).font(.footnote.weight(.semibold)).foregroundStyle(palette.muted).textCase(nil)
-                        }
+                        SectionLabel(index == 0 ? "Model · \(heading.label)" : heading.label)
                     }
                 }
                 if !others.isEmpty {
@@ -453,7 +386,7 @@ struct ThreadSettingsSheet: View {
                 }
                 if known, let model = current.model, !efforts.isEmpty {
                     let chosen = catalog.effortForModel(current.engine, model: model, effort: current.effort, coordinating: coordinating)
-                    Section("Effort") {
+                    Section {
                         ForEach(efforts, id: \.id) { effort in
                             OptionRow(label: effort.label, detail: effort.description, selected: effort.id == chosen) {
                                 choose { $0.effort = effort.id }
@@ -461,6 +394,8 @@ struct ThreadSettingsSheet: View {
                             }
                         }
                         refusedLine("effort")
+                    } header: {
+                        SectionLabel("Effort")
                     }
                 }
                 if catalog.fastMode(current.engine) {
@@ -482,6 +417,16 @@ struct ThreadSettingsSheet: View {
         .presentationDetents([.medium, .large])
         .onChange(of: settings) { _, _ in reconsider() }
         .onChange(of: live) { _, _ in reconsider() }
+    }
+
+    static func policySymbol(_ policy: String) -> String {
+        switch policy {
+        case "confirm": "hand.raised"
+        case "allow-edits": "pencil.line"
+        case "autonomous": "wand.and.sparkles"
+        case "bypass": "bolt"
+        default: "circle.dashed"
+        }
     }
 
     @ViewBuilder private func refusedLine(_ key: String) -> some View {
@@ -523,9 +468,10 @@ struct MembersSheet: View {
     var members: [MobileMember]
     @Environment(\.dismiss) private var dismiss
     @Environment(\.palette) private var palette
+    @State private var detent: PresentationDetent = .medium
 
     var body: some View {
-        SheetFrame(title: "Threads under it") {
+        SheetFrame(title: "Coordinated Threads") {
             List {
                 if members.isEmpty {
                     Text("No threads yet. Ask it to start some.").foregroundStyle(palette.muted).listRowBackground(Color.clear)
@@ -534,6 +480,7 @@ struct MembersSheet: View {
                     if member.computer == nil {
                         NavigationLink {
                             MemberTranscript(model: model, member: member)
+                                .onAppear { withAnimation(.snappy) { detent = .large } }
                         } label: {
                             row(member)
                         }
@@ -548,17 +495,17 @@ struct MembersSheet: View {
         } actions: {
             ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $detent)
     }
 
     private func row(_ member: MobileMember) -> some View {
         HStack(spacing: 12) {
-            MemberMark(status: member.status).frame(width: 20)
+            MemberMark(status: member.status).frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
                 Text(member.title).foregroundStyle(palette.ink).lineLimit(1)
                 Text([Format.statusLabel(member.status) ?? "Idle", member.computer].compactMap { $0 }.joined(separator: " · "))
                     .font(.footnote)
-                    .foregroundStyle(palette.muted)
+                    .foregroundStyle(member.status == "awaiting-approval" ? palette.accent : palette.muted)
             }
         }
     }
@@ -580,9 +527,11 @@ struct MemberTranscript: View {
                         if read.omitted > 0 {
                             Text("\(read.omitted) earlier \(read.omitted == 1 ? "message is" : "messages are") only on the computer.").font(.footnote).foregroundStyle(palette.muted)
                         }
-                        ForEach(Format.transcriptBlocks(read.messages)) { block in
+                        let blocks = Format.transcriptBlocks(read.messages)
+                        let latest = Format.latestAnswer(blocks)
+                        ForEach(blocks) { block in
                             switch block {
-                            case .message(_, let message, let answer): MessageView(message: message, answer: answer)
+                            case .message(let key, let message, let answer): MessageView(message: message, answer: answer && key == latest)
                             // The computer names each call's family, so no engine is needed to read it.
                             case .tools(_, let calls): ToolRunView(engine: "", calls: calls)
                             }
@@ -623,8 +572,8 @@ struct MemberMark: View {
     var body: some View {
         switch status {
         case "awaiting-approval": StatusDot(kind: .needsYou)
-        case "running": ProgressView().controlSize(.small)
-        default: Circle().fill(palette.quietSoft).frame(width: 7, height: 7)
+        case "running": RunningMark()
+        default: Circle().fill(palette.quiet).frame(width: 8, height: 8)
         }
     }
 }
@@ -660,7 +609,7 @@ struct AddProjectSheet: View {
                     Text(problem ?? "A thread starts in it once it is added.").foregroundStyle(problem == nil ? palette.muted : palette.danger)
                 }
                 if !folders.isEmpty {
-                    Section("Folders") {
+                    Section {
                         ForEach(folders, id: \.self) { folder in
                             Button { path = folder.hasSuffix("/") ? folder : folder + "/" } label: {
                                 HStack(spacing: 10) {
@@ -674,6 +623,8 @@ struct AddProjectSheet: View {
                             .buttonStyle(.plain)
                             .listRowBackground(palette.raised)
                         }
+                    } header: {
+                        SectionLabel("Folders")
                     }
                 }
             }

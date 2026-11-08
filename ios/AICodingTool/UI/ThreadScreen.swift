@@ -5,9 +5,10 @@ struct ThreadScreen: View {
     var model: PhoneModel
     @Environment(\.palette) private var palette
     @State private var sheet: ThreadSheet?
+    @State private var archiving: ArchiveAsk?
 
     enum ThreadSheet: String, Identifiable {
-        case settings, menu, location, rename, archive, project, startIn, members, addProject
+        case settings, location, rename, project, startIn, members, addProject
         var id: String { rawValue }
     }
 
@@ -54,15 +55,25 @@ struct ThreadScreen: View {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     ConnectionMark(connection: model.state.connection)
                     if model.pending ? model.opening?.want != "draft" : model.view.thread != nil {
-                        Button { sheet = .menu } label: { Image(systemName: "ellipsis.circle") }
-                            .disabled(model.pending)
-                            .accessibilityLabel("Thread options")
+                        if let thread = model.view.thread, !model.pending {
+                            ThreadMenu(thread: thread, onChanges: { model.enterChanges() }, onLocation: { sheet = .location }, onNewHere: {
+                                model.newThread(projectId: thread.projectId, project: thread.projectName, worktreeId: thread.worktreeId)
+                            }, onFork: { worktree in model.send(.fork(thread.id, worktree: worktree)) }, onRename: { sheet = .rename }, onArchive: { archiving = ArchiveAsk(id: thread.id, title: thread.title, running: thread.status == "running" || thread.status == "awaiting-approval") }, onCoordinate: { model.send(.setCoordinator(thread.id, $0)) })
+                        } else {
+                            Button {} label: { Image(systemName: "ellipsis") }
+                                .disabled(true)
+                                .accessibilityLabel("Thread options")
+                        }
                     }
                 }
             }
             .sheet(item: $sheet) { which in sheetView(which) }
+            .archiveConfirmation($archiving) { asked in
+                if model.view.thread?.id == asked.id { model.archive(asked.id, leaving: true) }
+            }
             .onChange(of: model.current) { _, _ in
                 if let sheet, !fits(sheet) { self.sheet = nil }
+                if let archiving, archiving.id != model.view.thread?.id { self.archiving = nil }
             }
     }
 
@@ -74,7 +85,7 @@ struct ThreadScreen: View {
                 }
                 ConversationView(thread: thread, model: model)
                 if let approval = thread.approval {
-                    ApprovalCard(approval: approval, refused: model.state.returned?.command.type == "run.decide" ? model.state.returned?.requestId : nil) { allow in
+                    ApprovalCard(approval: approval, engine: thread.settings.engine, refused: model.state.returned?.command.type == "run.decide" ? model.state.returned?.requestId : nil) { allow in
                         model.send(.decide(approval, allow: allow))
                     }
                     .id(approval.approvalId)
@@ -83,7 +94,8 @@ struct ThreadScreen: View {
             }
         } else if let draft {
             VStack(spacing: 0) {
-                Spacer(minLength: 0)
+                DraftWelcome(engine: model.catalog.engineLabel(draft.settings.engine), computer: model.state.computerName)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 ComposerView(model: model, draftKey: "draft", running: false, settings: draft.settings, question: nil, returned: nil, onSend: { text, sources in
                     if sources.isEmpty {
                         model.send(.setPrompt(text))
@@ -96,17 +108,23 @@ struct ThreadScreen: View {
                 }
             }
         } else if let missed = model.missed {
-            VStack(spacing: 14) {
-                Text("Couldn't open the thread").foregroundStyle(palette.muted)
-                Button("Try again") { model.retryMissed() }.buttonStyle(.borderedProminent)
+            VStack(spacing: 16) {
+                Image(systemName: "exclamationmark.bubble").font(.system(size: 36, weight: .light)).foregroundStyle(palette.quiet)
+                Text("Couldn't open the thread").font(.headline).foregroundStyle(palette.ink)
+                Button("Try Again") { model.retryMissed() }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.capsule)
                     .accessibilityLabel("Try opening \(missed.title) again")
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            Text("Opening the thread…")
-                .foregroundStyle(palette.muted)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityAddTraits(.updatesFrequently)
+            VStack(spacing: 12) {
+                ProgressView().tint(palette.muted)
+                Text("Opening the thread…").font(.subheadline).foregroundStyle(palette.muted)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.updatesFrequently)
         }
     }
 
@@ -124,7 +142,7 @@ struct ThreadScreen: View {
     private func fits(_ sheet: ThreadSheet) -> Bool {
         switch sheet {
         case .settings: model.view.thread != nil || model.view.draft != nil
-        case .menu, .location, .rename, .archive, .members: model.view.thread != nil
+        case .location, .rename, .members: model.view.thread != nil
         case .project, .startIn: model.view.draft != nil
         case .addProject: true
         }
@@ -141,12 +159,6 @@ struct ThreadScreen: View {
             } else if let draft = model.view.draft {
                 ThreadSettingsSheet(settings: draft.settings, catalog: catalog, live: model.live, locked: false, onNewWith: nil, onPolicy: { model.send(.setPolicy(nil, policy: $0)) }, onModel: { model.send(.setModel(nil, engine: $0, model: $1)) }, onFastMode: { model.send(.setFastMode(nil, fastMode: $0)) }, onEffort: { model.send(.setEffort(nil, engine: $0, effort: $1)) })
             }
-        case .menu:
-            if let thread = model.view.thread {
-                ThreadMenuSheet(thread: thread, onChanges: { model.enterChanges() }, onLocation: { reopen(.location) }, onNewHere: {
-                    model.newThread(projectId: thread.projectId, project: thread.projectName, worktreeId: thread.worktreeId)
-                }, onFork: { worktree in model.send(.fork(thread.id, worktree: worktree)) }, onRename: { reopen(.rename) }, onArchive: { reopen(.archive) }, onCoordinate: { model.send(.setCoordinator(thread.id, $0)) })
-            }
         case .location:
             if let thread = model.view.thread {
                 LocationSheet(thread: thread) { model.send(.moveWorktree(thread.id, destination: $0)) }
@@ -154,12 +166,6 @@ struct ThreadScreen: View {
         case .rename:
             if let thread = model.view.thread {
                 RenameSheet(title: thread.title) { model.send(.rename(thread.id, title: $0)) }
-            }
-        case .archive:
-            if let thread = model.view.thread {
-                ArchiveSheet(title: thread.title, running: thread.status == "running" || thread.status == "awaiting-approval") {
-                    model.archive(thread.id, leaving: true)
-                }
             }
         case .project:
             if let draft = model.view.draft {
@@ -191,6 +197,85 @@ struct ThreadScreen: View {
     }
 }
 
+/// What a thread can do beyond talking, as the desktop's header offers it, in the bar's options menu.
+struct ThreadMenu: View {
+    var thread: MobileThreadView
+    var onChanges: () -> Void
+    var onLocation: () -> Void
+    var onNewHere: () -> Void
+    var onFork: (Bool) -> Void
+    var onRename: () -> Void
+    var onArchive: () -> Void
+    var onCoordinate: (Bool) -> Void
+
+    var body: some View {
+        let inProject = thread.projectId != nil
+        let coordinating = thread.settings.coordinating == true
+        let working = thread.location == .creating || thread.location == .releasing
+        let inWorktree: Bool = { if case .worktree = thread.location { return true } else { return false } }()
+        Menu {
+            Section {
+                item("Changes", detail: thread.reviewable ? Format.changesLabel(thread.changes) ?? "Review this thread's edits" : "No checkout to review", symbol: "plus.forwardslash.minus", disabled: !thread.reviewable, action: onChanges)
+                item("Location", detail: inProject ? Format.locationLabel(thread.location) : "Not in a project", symbol: inWorktree ? "folder.badge.gearshape" : "folder", disabled: !inProject || working, action: onLocation)
+            }
+            Section {
+                item(inWorktree ? "New Thread Here" : "New Thread", detail: !inProject ? "Not in a project" : working ? Format.locationLabel(thread.location) : nil, symbol: "square.and.pencil", disabled: !inProject || working, action: onNewHere)
+                item("Fork Thread", detail: "Copy into a new thread", symbol: "arrow.triangle.branch") { onFork(false) }
+                if inProject {
+                    item("Fork in Worktree", detail: working ? Format.locationLabel(thread.location) : "Copy with a checkout of its own", symbol: "folder.badge.plus", disabled: working) { onFork(true) }
+                }
+            }
+            Section {
+                item(coordinating ? "Stop Coordinating" : "Coordinate", detail: coordinating ? "Its threads carry on alone" : "Start and steer other threads", symbol: "person.2") { onCoordinate(!coordinating) }
+            }
+            Section {
+                item("Rename…", symbol: "pencil", action: onRename)
+                Button(role: .destructive, action: onArchive) { Label("Archive…", systemImage: "archivebox") }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+        }
+        .accessibilityLabel("Thread options")
+    }
+
+    private func item(_ label: String, detail: String? = nil, symbol: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(label, systemImage: symbol)
+            if let detail { Text(detail) }
+        }
+        .disabled(disabled)
+    }
+}
+
+/// The empty page above a new thread's composer: where it starts, and with whom.
+struct DraftWelcome: View {
+    var engine: String
+    var computer: String?
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(palette.accent)
+                .frame(width: 64, height: 64)
+                .background(palette.accentChip, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            VStack(spacing: 6) {
+                Text("What should \(engine) work on?")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(palette.ink)
+                    .multilineTextAlignment(.center)
+                Text(computer.map { "It runs on \($0), and you can follow along here." } ?? "It runs on your computer, and you can follow along here.")
+                    .font(.subheadline)
+                    .foregroundStyle(palette.muted)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(.horizontal, 32)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 /// Where a draft starts: which project, and within it which checkout.
 struct StartOptions: View {
     var draft: MobileDraftView
@@ -205,50 +290,42 @@ struct StartOptions: View {
         let choosing = draft.canWorktree || !draft.worktrees.isEmpty || draft.worktreeName != nil
         let coordinating = draft.settings.coordinating == true
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                chip(draft.projectName ?? "No project", symbol: "folder", chosen: false, action: onPickProject)
+            HStack(spacing: 6) {
+                chip(draft.projectName ?? "No project", symbol: "folder", chosen: false, menu: true, action: onPickProject)
                     .accessibilityLabel("Project: \(draft.projectName ?? "None")")
                 if draft.projectId != nil, choosing {
-                    chip(draft.worktreeName ?? (fresh ? "New worktree" : "Worktree"), symbol: "folder.badge.gearshape", chosen: !local, action: onPickPlace)
+                    chip(draft.worktreeName ?? (fresh ? "New worktree" : "Local"), symbol: local ? "laptopcomputer" : "folder.badge.gearshape", chosen: !local, menu: true, action: onPickPlace)
+                        .accessibilityLabel("Start in: \(draft.worktreeName ?? (fresh ? "New worktree" : "Local"))")
                 }
-                Button { onCoordinate(!coordinating) } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "person.3")
-                        Text("Coordinate")
-                    }
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(coordinating ? palette.accent : palette.inkDim)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(coordinating ? palette.accentChip : palette.surface, in: Capsule())
-                    .overlay(Capsule().strokeBorder(coordinating ? palette.accentLine : palette.line))
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(coordinating ? [.isSelected] : [])
-                .accessibilityHint("A coordinator starts and steers threads of its own")
+                chip("Coordinate", symbol: "person.2", chosen: coordinating, menu: false) { onCoordinate(!coordinating) }
+                    .accessibilityAddTraits(coordinating ? [.isSelected] : [])
+                    .accessibilityHint("A coordinator starts and steers threads of its own")
             }
             .padding(.horizontal, 12)
         }
-        .padding(.bottom, 8)
+        .mask(HStack(spacing: 0) {
+            LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing).frame(width: 8)
+            Color.black
+            LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 24)
+        })
+        .padding(.bottom, 10)
     }
 
-    @ViewBuilder private func chip(_ label: String, symbol: String, chosen: Bool, action: (() -> Void)?) -> some View {
-        let content = HStack(spacing: 5) {
-            Image(systemName: symbol)
-            Text(label).lineLimit(1)
-            if action != nil { Image(systemName: "chevron.down").font(.caption2.weight(.bold)) }
+    private func chip(_ label: String, symbol: String, chosen: Bool, menu: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: symbol).font(.caption.weight(.semibold))
+                Text(label).lineLimit(1)
+                if menu { Image(systemName: "chevron.down").font(.caption2.weight(.bold)).opacity(0.6) }
+            }
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(chosen ? palette.accent : palette.inkDim)
+            .padding(.horizontal, 11)
+            .frame(height: 32)
+            .background(chosen ? palette.accentChip : palette.surface, in: Capsule())
+            .contentShape(Capsule())
         }
-        .font(.footnote.weight(.medium))
-        .foregroundStyle(chosen ? palette.accent : palette.inkDim)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(chosen ? palette.accentChip : palette.surface, in: Capsule())
-        .overlay(Capsule().strokeBorder(chosen ? palette.accentLine : palette.line))
-        if let action {
-            Button(action: action) { content }.buttonStyle(.plain)
-        } else {
-            content
-        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -256,6 +333,7 @@ struct StartOptions: View {
 /// decides: the chosen answer spins and both are disabled until the computer takes the card away.
 struct ApprovalCard: View {
     var approval: MobileApproval
+    var engine: String
     var refused: String?
     var onDecide: (Bool) -> Void
     @Environment(\.palette) private var palette
@@ -263,8 +341,9 @@ struct ApprovalCard: View {
     @State private var released: String?
     @State private var detailOpen: Bool
 
-    init(approval: MobileApproval, refused: String?, onDecide: @escaping (Bool) -> Void) {
+    init(approval: MobileApproval, engine: String, refused: String?, onDecide: @escaping (Bool) -> Void) {
         self.approval = approval
+        self.engine = engine
         self.refused = refused
         self.onDecide = onDecide
         _detailOpen = State(initialValue: Format.glanceable(approval.detail))
@@ -272,43 +351,65 @@ struct ApprovalCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "exclamationmark.shield")
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "hand.raised.fill")
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(palette.accent)
-                    .frame(width: 28, height: 28)
-                    .background(palette.accentChip, in: RoundedRectangle(cornerRadius: 8))
+                    .frame(width: 34, height: 34)
+                    .background(palette.accentChip, in: Circle())
                 VStack(alignment: .leading, spacing: 3) {
-                    if let from = approval.from { Text(from).font(.caption).foregroundStyle(palette.muted) }
-                    Text(approval.title).font(.subheadline.weight(.semibold)).foregroundStyle(palette.ink)
-                    Text(approval.description).font(.footnote).foregroundStyle(palette.inkDim)
+                    Text(approval.from.map { "\($0) · Needs your approval" } ?? "Needs your approval")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(palette.accent)
+                    Text(approval.title).font(.headline).foregroundStyle(palette.ink)
+                    Text(approval.description).font(.subheadline).foregroundStyle(palette.inkDim).fixedSize(horizontal: false, vertical: true)
                 }
             }
             if !approval.detail.isEmpty {
-                DisclosureGroup(isExpanded: $detailOpen) {
-                    ScrollView {
-                        Text(approval.detail)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(palette.codeInk)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(8)
+                VStack(alignment: .leading, spacing: 0) {
+                    Button {
+                        withAnimation(.snappy) { detailOpen.toggle() }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: ToolNames.family(engine: engine, approval.toolName).symbol).font(.caption.weight(.semibold))
+                            Text(ToolNames.label(approval.toolName)).font(.footnote.weight(.semibold))
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.down").font(.caption2.weight(.bold)).rotationEffect(.degrees(detailOpen ? 180 : 0))
+                        }
+                        .foregroundStyle(palette.muted)
+                        .padding(.horizontal, 12)
+                        .frame(height: 34)
+                        .contentShape(Rectangle())
                     }
-                    .frame(maxHeight: 160)
-                    .background(palette.codeSurface, in: RoundedRectangle(cornerRadius: 8))
-                } label: {
-                    Text(ToolNames.label(approval.toolName)).font(.footnote.weight(.medium)).foregroundStyle(palette.muted)
+                    .buttonStyle(.plain)
+                    .accessibilityValue(detailOpen ? "Expanded" : "Collapsed")
+                    if detailOpen {
+                        ScrollView {
+                            Text(approval.detail)
+                                .font(.footnote.monospaced())
+                                .foregroundStyle(palette.codeInk)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 12)
+                                .padding(.bottom, 12)
+                        }
+                        .frame(maxHeight: 160)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                .tint(palette.muted)
+                .background(palette.codeSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             HStack(spacing: 10) {
                 decision(allow: false)
                 decision(allow: true)
             }
+            .padding(.top, 2)
         }
-        .padding(14)
-        .background(palette.surface, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(palette.accentLine))
+        .padding(16)
+        .background(palette.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(palette.accentLine, lineWidth: 1))
+        .shadow(color: .black.opacity(palette.dark ? 0.35 : 0.08), radius: 16, y: 6)
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .accessibilityElement(children: .contain)
@@ -328,12 +429,13 @@ struct ApprovalCard: View {
         } label: {
             HStack(spacing: 6) {
                 if chosen { ProgressView().controlSize(.small).tint(allow ? palette.accentInk : palette.ink) }
-                Text(chosen ? (allow ? "Allowing…" : "Denying…") : (allow ? "Allow once" : "Deny"))
+                Text(chosen ? (allow ? "Allowing…" : "Denying…") : (allow ? "Allow Once" : "Deny"))
             }
             .font(.body.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .frame(maxWidth: .infinity, minHeight: 48)
             .foregroundStyle(allow ? palette.accentInk : palette.ink)
-            .background(allow ? palette.accent : palette.raised, in: RoundedRectangle(cornerRadius: 12))
+            .background(allow ? palette.accent : palette.raised, in: Capsule())
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .disabled(decided != nil)
@@ -351,23 +453,33 @@ private struct CoordinatorStrip: View {
         let working = members.filter { $0.status == "running" }.count
         let waiting = members.filter { $0.status == "awaiting-approval" }.count
         Button(action: onOpen) {
-            HStack(spacing: 8) {
-                Image(systemName: "person.3").font(.footnote).foregroundStyle(palette.accent)
-                Text(members.isEmpty ? "Coordinating · no threads yet" : "Coordinating \(members.count) \(members.count == 1 ? "thread" : "threads")")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(palette.inkDim)
-                if waiting > 0 { Text("· \(waiting) need you").font(.footnote).foregroundStyle(palette.accent) }
-                if working > 0 { Text("· \(working) working").font(.footnote).foregroundStyle(palette.muted) }
+            HStack(spacing: 10) {
+                Image(systemName: "person.2.fill")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(palette.accent)
+                    .frame(width: 30, height: 30)
+                    .background(palette.accentChip, in: Circle())
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(members.isEmpty ? "Coordinating" : "Coordinating \(members.count) \(members.count == 1 ? "thread" : "threads")")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(palette.ink)
+                    (Text(waiting > 0 ? "\(waiting) \(waiting == 1 ? "needs" : "need") you" : "").foregroundStyle(palette.accent)
+                        + Text(waiting > 0 && working > 0 ? " · " : "").foregroundStyle(palette.muted)
+                        + Text(working > 0 ? "\(working) working" : members.isEmpty ? "No threads yet" : "").foregroundStyle(palette.muted))
+                        .font(.footnote)
+                }
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(palette.quiet)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(palette.quiet)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .background(palette.sunken)
-            .overlay(alignment: .bottom) { palette.lineSoft.frame(height: 0.5) }
+            .background(palette.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .padding(.top, 4)
+        .padding(.bottom, 4)
         .accessibilityHint("Shows the threads it coordinates")
     }
 }

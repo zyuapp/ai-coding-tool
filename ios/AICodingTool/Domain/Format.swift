@@ -39,6 +39,14 @@ enum Format {
         return blocks
     }
 
+    /// The last reply that closes a turn, which alone carries its time and copy button.
+    static func latestAnswer(_ blocks: [TranscriptBlock]) -> String? {
+        for block in blocks.reversed() {
+            if case .message(let key, _, true) = block { return key }
+        }
+        return nil
+    }
+
     /// The tools a run used, commonest first, counted where a tool was used more than once.
     static func summariseTools(_ calls: [MobileMessage]) -> String {
         var counts: [(String, Int)] = []
@@ -70,12 +78,16 @@ enum Format {
         }
     }
 
+    /// What the thread is doing, else how its last run ended.
+    static func stateLabel(_ entry: MobileThreadEntry) -> String? {
+        if entry.status != "idle", let label = statusLabel(entry.status) { return label }
+        return entry.outcome.flatMap(outcomeLabel)
+    }
+
     /// What the thread is doing and when it last moved.
     static func threadMeta(_ entry: MobileThreadEntry, now: Date) -> String {
         let when = relativeTime(entry.lastActivityAt, now: now)
-        if entry.status != "idle", let label = statusLabel(entry.status) { return "\(label) · \(when)" }
-        if let outcome = entry.outcome, let label = outcomeLabel(outcome) { return "\(label) · \(when)" }
-        return when
+        return stateLabel(entry).map { "\($0) · \(when)" } ?? when
     }
 
     static func activityMeta(_ entry: MobileThreadEntry, now: Date) -> String {

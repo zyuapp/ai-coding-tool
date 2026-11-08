@@ -19,6 +19,12 @@ final class DomainTests: XCTestCase {
         XCTAssertFalse(early)
     }
 
+    func testLatestAnswerIsTheLastTurnsReply() {
+        let blocks = Format.transcriptBlocks([message("user", "go"), message("assistant", "one", at: 1), message("user", "more", at: 2), message("assistant", "two", at: 3), message("tool", "Bash", at: 4)])
+        XCTAssertEqual(Format.latestAnswer(blocks), blocks[3].id)
+        XCTAssertNil(Format.latestAnswer(Format.transcriptBlocks([message("user", "go")])))
+    }
+
     func testToolSummaryCountsCommonestFirst() {
         let calls = ["Read", "Bash", "Bash", "mcp__aicodingtool-threads__read_thread", "mcp__github__get_issue"].map { message("tool", $0) }
         XCTAssertEqual(Format.summariseTools(calls), "Bash ×2, Read, Read thread, github · get issue")
@@ -43,6 +49,9 @@ final class DomainTests: XCTestCase {
         entry.status = "idle"
         entry.outcome = "failed"
         XCTAssertEqual(Format.threadMeta(entry, now: now), "Failed · now")
+        XCTAssertEqual(Format.stateLabel(entry), "Failed")
+        entry.outcome = nil
+        XCTAssertNil(Format.stateLabel(entry))
     }
 
     func testDiffRows() {

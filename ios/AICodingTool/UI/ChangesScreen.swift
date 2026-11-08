@@ -72,13 +72,14 @@ struct ChangesScreen: View {
             .pickerStyle(.segmented)
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
             if case .read(.available(_, let files, let additions, let deletions)) = summary, !files.isEmpty {
                 HStack {
-                    Text("\(files.count) \(files.count == 1 ? "file" : "files")").foregroundStyle(palette.muted)
+                    Text("\(files.count) \(files.count == 1 ? "file" : "files") changed").font(.footnote.weight(.semibold)).foregroundStyle(palette.muted)
                     Spacer()
                     Counts(additions: additions, deletions: deletions)
                 }
-                .font(.footnote)
+                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             }
@@ -97,9 +98,11 @@ struct ChangesScreen: View {
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(palette.canvas)
                     .listRowSeparatorTint(palette.lineSoft)
+                    .alignmentGuide(.listRowSeparatorLeading) { _ in 46 }
             }
         }
         .listStyle(.plain)
+        .hardTopEdge()
         // Row separators keep the tint they were first drawn with, so a theme change redraws the list.
         .id(palette.id)
         .scrollContentBackground(.hidden)
@@ -187,8 +190,8 @@ private struct Counts: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Text("+\(additions)").foregroundStyle(palette.success)
-            Text("−\(deletions)").foregroundStyle(palette.danger)
+            if additions > 0 || deletions == 0 { Text("+\(additions)").foregroundStyle(palette.success) }
+            if deletions > 0 { Text("−\(deletions)").foregroundStyle(palette.danger) }
         }
         .font(.footnote.monospacedDigit().weight(.medium))
     }
@@ -203,16 +206,26 @@ private struct FileSection: View {
     var onRetry: () -> Void
     @Environment(\.palette) private var palette
     @State private var whole = false
+    @State private var viewport: CGFloat = 0
 
     /// A patch drawn whole would take a phone with it, so a long one is cut here until asked for.
     private static let rowCap = 1_500
 
-    private var statusSymbol: String {
+    private var statusLetter: String {
         switch file.status {
-        case "added", "untracked": "doc.badge.plus"
-        case "deleted": "doc.badge.minus"
-        case "renamed": "doc.badge.arrow.up"
-        default: "doc.badge.ellipsis"
+        case "added", "untracked": "A"
+        case "deleted": "D"
+        case "renamed": "R"
+        default: "M"
+        }
+    }
+
+    private var statusColor: Color {
+        switch file.status {
+        case "added", "untracked": palette.success
+        case "deleted": palette.danger
+        case "renamed": palette.info
+        default: palette.warning
         }
     }
 
@@ -230,21 +243,31 @@ private struct FileSection: View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onToggle) {
                 HStack(spacing: 8) {
-                    Image(systemName: open ? "chevron.down" : "chevron.right").font(.caption2.weight(.bold)).foregroundStyle(palette.quiet).frame(width: 12)
-                    Image(systemName: statusSymbol).font(.footnote).foregroundStyle(file.status == "deleted" ? palette.danger : file.status == "added" || file.status == "untracked" ? palette.success : palette.muted)
-                    (Text(folder).foregroundStyle(palette.muted) + Text(name).foregroundStyle(palette.ink))
-                        .font(.footnote)
-                        .lineLimit(1)
-                        .truncationMode(.head)
+                    Text(statusLetter)
+                        .font(.caption2.weight(.heavy).monospaced())
+                        .foregroundStyle(statusColor)
+                        .frame(width: 20, height: 20)
+                        .background(statusColor.opacity(0.16), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(name).font(.subheadline.weight(.medium)).foregroundStyle(palette.ink).lineLimit(1)
+                        if !folder.isEmpty {
+                            Text(folder).font(.caption).foregroundStyle(palette.muted).lineLimit(1).truncationMode(.head)
+                        }
+                    }
                     Spacer(minLength: 4)
                     if file.binary {
-                        Text("binary").font(.caption).foregroundStyle(palette.muted)
+                        Text("Binary").font(.caption.weight(.medium)).foregroundStyle(palette.muted)
                     } else {
                         Counts(additions: file.additions, deletions: file.deletions)
                     }
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(palette.quiet)
+                        .rotationEffect(.degrees(open ? 90 : 0))
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -270,11 +293,20 @@ private struct FileSection: View {
                 .padding(12)
             case .rows(let rows)?:
                 let drawn = whole ? rows : Array(rows.prefix(Self.rowCap))
+                let measure = DiffLine.Measure(rows: drawn)
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(drawn) { row in DiffLine(row: row) }
+                        ForEach(drawn) { row in DiffLine(row: row, gutter: measure.gutter, viewport: viewport) }
                     }
+                    .frame(width: max(viewport, measure.width), alignment: .leading)
                 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewport = $0 }
+                .mask(HStack(spacing: 0) {
+                    Color.black
+                    if measure.width > viewport {
+                        LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 28)
+                    }
+                })
                 .background(palette.sunken)
                 if rows.count > drawn.count {
                     let hidden = rows.count - drawn.count
@@ -294,21 +326,47 @@ private struct FileSection: View {
 
 private struct DiffLine: View {
     var row: DiffRow
+    var gutter: CGFloat
+    var viewport: CGFloat
     @Environment(\.palette) private var palette
+
+    /// The widths a patch draws at: each line-number column fits its longest number, and the rows run as wide as the longest line.
+    struct Measure {
+        var gutter: CGFloat
+        var width: CGFloat
+
+        init(rows: [DiffRow]) {
+            let font = UIFont.monospacedSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .regular)
+            let advance = ("0" as NSString).size(withAttributes: [.font: font]).width
+            var longest = 0
+            var highest = 0
+            for row in rows where row.kind != .hunk {
+                longest = max(longest, row.text.utf16.count + row.text.filter { $0 == "\t" }.count * 3)
+                highest = max(highest, row.oldLine ?? 0, row.newLine ?? 0)
+            }
+            gutter = CGFloat(max(2, String(highest).count)) * advance + 12
+            width = CGFloat(longest) * advance + 2 * gutter + 14 + 12
+        }
+    }
 
     var body: some View {
         if row.kind == .hunk {
-            Text(row.text)
-                .font(.caption.monospaced())
-                .foregroundStyle(palette.info)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                .background(palette.hunkSurface)
+            HStack(spacing: 0) {
+                Text(row.text)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(palette.info)
+                    .lineLimit(2)
+                    .frame(width: max(0, viewport - 20), alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(palette.hunkSurface)
         } else {
             HStack(spacing: 0) {
-                gutter(row.oldLine)
-                gutter(row.newLine)
+                number(row.oldLine)
+                number(row.newLine)
                 Text(row.kind == .add ? "+" : row.kind == .delete ? "−" : " ")
                     .foregroundStyle(row.kind == .add ? palette.success : row.kind == .delete ? palette.danger : palette.quiet)
                     .frame(width: 14)
@@ -316,18 +374,19 @@ private struct DiffLine: View {
                     .foregroundStyle(palette.ink)
                     .fixedSize()
                     .padding(.trailing, 12)
+                Spacer(minLength: 0)
             }
             .font(.caption.monospaced())
-            .frame(minHeight: 20)
+            .frame(maxWidth: .infinity, minHeight: 20, alignment: .leading)
             .background(row.kind == .add ? palette.diffAddSurface : row.kind == .delete ? palette.diffDeleteSurface : Color.clear)
         }
     }
 
-    private func gutter(_ line: Int?) -> some View {
+    private func number(_ line: Int?) -> some View {
         Text(line.map(String.init) ?? "")
             .foregroundStyle(palette.quiet)
-            .frame(width: 38, alignment: .trailing)
-            .padding(.trailing, 4)
+            .frame(width: gutter - 6, alignment: .trailing)
+            .padding(.trailing, 6)
             .background(row.kind == .add ? palette.diffAddGutter : row.kind == .delete ? palette.diffDeleteGutter : palette.sunken)
             .accessibilityHidden(true)
     }

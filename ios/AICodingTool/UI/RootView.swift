@@ -77,12 +77,16 @@ struct NoticeBanner: View {
     @Environment(\.palette) private var palette
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.subheadline)
+                .foregroundStyle(palette.warning)
+                .accessibilityHidden(true)
             Button { open.toggle() } label: {
                 Text(notice)
                     .font(.subheadline)
-                    .foregroundStyle(palette.inkDim)
-                    .lineLimit(open ? nil : 1)
+                    .foregroundStyle(palette.ink)
+                    .lineLimit(open ? nil : 2)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
@@ -94,9 +98,11 @@ struct NoticeBanner: View {
             .accessibilityLabel("Dismiss")
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(palette.sunken)
-        .overlay(alignment: .bottom) { palette.line.frame(height: 0.5) }
+        .padding(.vertical, 12)
+        .background(palette.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(palette.lineSoft))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
     }
 }
 
@@ -114,8 +120,15 @@ extension View {
 
     func screenBackground(_ palette: Palette) -> some View {
         background(palette.canvas.ignoresSafeArea())
-            .toolbarBackground(palette.sunken, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+    }
+
+    /// On iOS 26, content scrolling under the bar is cut off sharply rather than faded, so text never reads through the title.
+    @ViewBuilder func hardTopEdge() -> some View {
+        if #available(iOS 26, *) {
+            scrollEdgeEffectStyle(.hard, for: .top)
+        } else {
+            self
+        }
     }
 }
 
@@ -130,25 +143,30 @@ struct ComputerMenu: View {
 
     var body: some View {
         Menu {
-            ForEach(model.connection.computers) { computer in
-                Button { model.connection.switchTo(computer) } label: {
-                    if computer.origin == model.connection.origin { Label(computer.title, systemImage: "checkmark") } else { Text(computer.title) }
+            Section("Computers") {
+                ForEach(model.connection.computers) { computer in
+                    Button { model.connection.switchTo(computer) } label: {
+                        if computer.origin == model.connection.origin { Label(computer.title, systemImage: "checkmark") } else { Text(computer.title) }
+                    }
                 }
             }
-            Divider()
-            Button { pairing = true } label: { Label("Pair another computer…", systemImage: "plus") }
-            if let current {
-                Button(role: .destructive) { forgetting = current } label: { Label("Forget \(current.title)…", systemImage: "minus.circle") }
+            Section {
+                Button { pairing = true } label: { Label("Pair a Computer…", systemImage: "plus") }
+                if let current {
+                    Button(role: .destructive) { forgetting = current } label: { Label("Forget \(current.title)…", systemImage: "minus.circle") }
+                }
             }
         } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "desktopcomputer")
+            HStack(spacing: 6) {
+                Image(systemName: "desktopcomputer").font(.footnote.weight(.semibold))
                 Text(model.state.computerName ?? current?.title ?? "Computer").lineLimit(1)
-                Image(systemName: "chevron.down").font(.caption2.weight(.bold))
-                ConnectionMark(connection: model.state.connection)
+                if model.state.connection != .live {
+                    ConnectionMark(connection: model.state.connection)
+                }
+                Image(systemName: "chevron.down").font(.caption2.weight(.bold)).opacity(0.6)
             }
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(palette.inkDim)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(palette.ink)
         }
         .accessibilityLabel("Computer: \(model.state.computerName ?? current?.title ?? "none"), \(model.state.connection.label)")
         .sheet(isPresented: $pairing) { PairAnotherSheet(model: model) }

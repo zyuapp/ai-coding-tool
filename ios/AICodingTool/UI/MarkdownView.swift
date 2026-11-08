@@ -17,7 +17,7 @@ private struct BlockList: View {
     var blocks: [any Markup]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                 BlockView(block: block)
             }
@@ -33,16 +33,17 @@ private struct BlockView: View {
         switch block {
         case let heading as Heading:
             SwiftUI.Text(Inline.render(heading, palette: palette))
-                .font(heading.level <= 1 ? .title3.weight(.semibold) : heading.level == 2 ? .headline : .subheadline.weight(.semibold))
+                .font(heading.level <= 1 ? .title2.weight(.bold) : heading.level == 2 ? .title3.weight(.semibold) : .headline)
                 .foregroundStyle(palette.ink)
-                .padding(.top, 4)
+                .padding(.top, 6)
         case let paragraph as Paragraph:
             SwiftUI.Text(Inline.render(paragraph, palette: palette))
                 .foregroundStyle(palette.ink)
+                .lineSpacing(3)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
         case let code as CodeBlock:
-            CodeBlockView(code: code.code.hasSuffix("\n") ? String(code.code.dropLast()) : code.code)
+            CodeBlockView(code: code.code.hasSuffix("\n") ? String(code.code.dropLast()) : code.code, language: code.language)
         case let quote as BlockQuote:
             BlockList(blocks: quote.blockChildren.map { $0 as any Markup })
                 .padding(.leading, 12)
@@ -76,14 +77,15 @@ private struct ListView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Group {
                         if let checkbox = item.checkbox {
-                            SwiftUI.Image(systemName: checkbox == .checked ? "checkmark.square" : "square")
+                            SwiftUI.Image(systemName: checkbox == .checked ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(checkbox == .checked ? palette.success : palette.quiet)
                         } else if let ordered {
-                            SwiftUI.Text("\(ordered + index).").monospacedDigit()
+                            SwiftUI.Text("\(ordered + index).").monospacedDigit().foregroundStyle(palette.muted)
                         } else {
-                            SwiftUI.Text("•")
+                            SwiftUI.Text("•").foregroundStyle(palette.muted)
                         }
                     }
-                    .foregroundStyle(palette.muted)
+                    .frame(minWidth: 16, alignment: .leading)
                     BlockList(blocks: item.blockChildren.map { $0 as any Markup })
                 }
             }
@@ -96,56 +98,90 @@ private struct TableView: View {
     @Environment(\.palette) private var palette
 
     var body: some View {
+        ViewThatFits(in: .horizontal) {
+            grid(fill: true)
+            ScrollView(.horizontal, showsIndicators: false) { grid(fill: false) }
+        }
+        .background(palette.sunken, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(palette.lineSoft))
+    }
+
+    /// A filled grid shares the card's width among its columns; a scrolling one keeps every column to its content.
+    private func grid(fill: Bool) -> some View {
         let head = Array(table.head.cells)
         let rows = table.body.rows.map { Array($0.cells) }
-        ScrollView(.horizontal, showsIndicators: false) {
-            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
-                GridRow {
-                    ForEach(Array(head.enumerated()), id: \.offset) { _, cell in
-                        SwiftUI.Text(Inline.render(cell, palette: palette)).font(.subheadline.weight(.semibold)).foregroundStyle(palette.ink)
-                    }
+        return Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 0) {
+            GridRow {
+                ForEach(Array(head.enumerated()), id: \.offset) { _, cell in
+                    SwiftUI.Text(Inline.render(cell, palette: palette))
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(palette.muted)
+                        .frame(maxWidth: fill ? .infinity : nil, alignment: .leading)
+                        .padding(.vertical, 9)
                 }
-                Divider().overlay(palette.line)
-                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                    GridRow {
-                        ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
-                            SwiftUI.Text(Inline.render(cell, palette: palette)).font(.subheadline).foregroundStyle(palette.inkDim)
-                        }
+            }
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                palette.lineSoft.frame(height: 1).gridCellUnsizedAxes(.horizontal)
+                GridRow {
+                    ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
+                        SwiftUI.Text(Inline.render(cell, palette: palette))
+                            .font(.subheadline)
+                            .foregroundStyle(palette.ink)
+                            .frame(maxWidth: fill ? .infinity : nil, alignment: .leading)
+                            .padding(.vertical, 9)
                     }
                 }
             }
-            .padding(10)
         }
-        .background(palette.sunken, in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 2)
+        .fixedSize(horizontal: !fill, vertical: false)
     }
 }
 
 struct CodeBlockView: View {
     var code: String
+    var language: String? = nil
     @Environment(\.palette) private var palette
     @State private var copied = false
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            SwiftUI.Text(code)
-                .font(.footnote.monospaced())
-                .foregroundStyle(palette.codeInk)
-                .textSelection(.enabled)
-                .padding(12)
-                .padding(.trailing, 28)
-        }
-        .background(palette.codeSurface, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(alignment: .topTrailing) {
-            Button {
-                UIPasteboard.general.string = code
-                copied = true
-                Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
-            } label: {
-                SwiftUI.Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.caption).foregroundStyle(palette.muted).frame(width: 32, height: 32)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                SwiftUI.Text(language.flatMap { $0.isEmpty ? nil : $0 } ?? "code")
+                    .font(.caption.weight(.semibold).monospaced())
+                    .foregroundStyle(palette.muted)
+                Spacer(minLength: 0)
+                Button {
+                    UIPasteboard.general.string = code
+                    copied = true
+                    Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
+                } label: {
+                    Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "square.on.square")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(copied ? palette.success : palette.muted)
+                        .frame(height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(copied ? "Copied" : "Copy code")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(copied ? "Copied" : "Copy code")
+            .padding(.horizontal, 14)
+            palette.lineSoft.frame(height: 1)
+            ScrollView(.horizontal, showsIndicators: false) {
+                SwiftUI.Text(code)
+                    .font(.footnote.monospaced())
+                    .lineSpacing(2)
+                    .foregroundStyle(palette.codeInk)
+                    .textSelection(.enabled)
+                    .padding(14)
+            }
+            .mask(HStack(spacing: 0) {
+                Color.black
+                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 32)
+            })
         }
+        .background(palette.codeSurface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -175,14 +211,15 @@ enum Inline {
             return inner
         case let code as InlineCode:
             var inner = AttributedString(code.code)
-            inner.font = .system(.callout, design: .monospaced)
+            inner.font = .system(.subheadline, design: .monospaced)
             inner.backgroundColor = palette.codeSurface
             return inner
         case let link as Markdown.Link:
             var inner = render(link, palette: palette)
             if let destination = link.destination, let url = URL(string: destination), let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
                 inner.link = url
-                inner.foregroundColor = palette.link
+                inner.foregroundColor = palette.accent
+                inner.underlineStyle = .single
             }
             return inner
         case let image as Markdown.Image:

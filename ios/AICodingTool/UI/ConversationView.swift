@@ -16,7 +16,7 @@ struct ConversationView: View {
     var body: some View {
         ScrollViewReader { reader in
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 16) {
                     if thread.loading == true {
                         Text("Loading conversation…").font(.footnote).foregroundStyle(palette.muted).frame(maxWidth: .infinity)
                     }
@@ -26,16 +26,18 @@ struct ConversationView: View {
                             .foregroundStyle(palette.muted)
                             .frame(maxWidth: .infinity)
                     }
-                    ForEach(Format.transcriptBlocks(thread.messages)) { block in
+                    let blocks = Format.transcriptBlocks(thread.messages)
+                    let latest = Format.latestAnswer(blocks)
+                    ForEach(blocks) { block in
                         switch block {
-                        case .message(_, let message, let answer): MessageView(message: message, answer: answer)
+                        case .message(let key, let message, let answer): MessageView(message: message, answer: answer && key == latest)
                         case .tools(_, let calls): ToolRunView(engine: thread.settings.engine, calls: calls)
                         }
                     }
                     if let tail = thread.streamingTail {
                         MarkdownView(text: tail)
                     }
-                    if thread.status == "running", thread.streamingTail == nil {
+                    if thread.status == "running" {
                         ThinkingDots().accessibilityLabel("Working")
                     }
                     if !thread.queued.isEmpty {
@@ -53,9 +55,11 @@ struct ConversationView: View {
                     Color.clear.frame(height: 1).id("end")
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.top, 12)
+                .padding(.bottom, 16)
             }
             .scrollDismissesKeyboard(.interactively)
+            .hardTopEdge()
             .defaultScrollAnchor(.bottom)
             .onScrollGeometryChange(for: Bool.self) { geometry in
                 geometry.contentSize.height - geometry.contentOffset.y - geometry.containerSize.height + geometry.contentInsets.bottom < 48
@@ -104,32 +108,41 @@ struct MessageView: View {
                 if !message.text.isEmpty {
                     Text(message.text)
                         .foregroundStyle(palette.ink)
+                        .lineSpacing(2)
                         .textSelection(.enabled)
-                        .padding(.horizontal, 14)
+                        .padding(.horizontal, 15)
                         .padding(.vertical, 10)
-                        .background(palette.raised, in: RoundedRectangle(cornerRadius: 18))
+                        .background(palette.raised, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.leading, 40)
+            .padding(.leading, 48)
+            .padding(.top, 4)
         case "system":
             Text(message.text)
-                .font(.footnote)
+                .font(.footnote.weight(.medium))
                 .foregroundStyle(palette.muted)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(palette.sunken, in: Capsule())
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
         default:
             VStack(alignment: .leading, spacing: 6) {
                 MarkdownView(text: message.text)
                 if answer {
-                    HStack(spacing: 12) {
+                    HStack(spacing: 4) {
                         Text(Format.clockTime(message.at)).font(.caption).foregroundStyle(palette.quiet)
                         Button {
                             UIPasteboard.general.string = message.text
                             copied = true
                             Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
                         } label: {
-                            Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.caption).foregroundStyle(palette.muted)
+                            Image(systemName: copied ? "checkmark" : "square.on.square")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(copied ? palette.success : palette.quiet)
+                                .frame(width: 28, height: 24)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(copied ? "Copied" : "Copy reply")
@@ -157,10 +170,10 @@ struct ToolRunView: View {
                     withAnimation(.snappy) { open.toggle() }
                 } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: ToolCallRow.family(engine, calls.first).symbol).font(.caption).foregroundStyle(palette.muted).frame(width: 18)
-                        Text(Format.summariseTools(calls)).font(.footnote).foregroundStyle(palette.mutedStrong).lineLimit(1)
+                        Image(systemName: ToolCallRow.family(engine, calls.first).symbol).font(.caption.weight(.medium)).foregroundStyle(palette.muted).frame(width: 18)
+                        Text(Format.summariseTools(calls)).font(.footnote.weight(.medium)).foregroundStyle(palette.mutedStrong).lineLimit(1)
                         Spacer(minLength: 0)
-                        Text("\(calls.count)").font(.caption.monospacedDigit()).foregroundStyle(palette.muted)
+                        Text("\(calls.count) steps").font(.caption.monospacedDigit()).foregroundStyle(palette.quiet)
                         Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(palette.quiet).rotationEffect(.degrees(open ? 180 : 0))
                     }
                     .contentShape(Rectangle())
@@ -168,19 +181,18 @@ struct ToolRunView: View {
                 .buttonStyle(.plain)
                 .accessibilityValue(open ? "Expanded" : "Collapsed")
                 if open {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         ForEach(Array(calls.enumerated()), id: \.offset) { _, call in
                             ToolCallRow(engine: engine, call: call, leading: false)
                         }
                     }
-                    .padding(.leading, 4)
+                    .padding(.top, 4)
                 }
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(palette.sunken, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(palette.lineSoft))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(palette.sunken, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -205,7 +217,7 @@ private struct ToolCallRow: View {
             if !argument.isEmpty { withAnimation(.snappy) { whole.toggle() } }
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: Self.family(engine, call).symbol).font(.caption).foregroundStyle(palette.muted).frame(width: 18)
+                Image(systemName: Self.family(engine, call).symbol).font(.caption.weight(.medium)).foregroundStyle(palette.muted).frame(width: 18)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(label).font(.footnote.weight(.medium)).foregroundStyle(palette.mutedStrong)
                     if !argument.isEmpty {
@@ -232,36 +244,57 @@ private struct QueuedRow: View {
     @Environment(\.palette) private var palette
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "arrow.turn.down.right").font(.caption).foregroundStyle(palette.muted).padding(.top, 3)
-            VStack(alignment: .leading, spacing: 2) {
-                if let origin = message.origin { Text(origin).font(.caption).foregroundStyle(palette.muted) }
-                Text(message.text).font(.subheadline).foregroundStyle(palette.inkDim).lineLimit(4)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Label(message.origin.map { "Queued · \($0)" } ?? "Queued", systemImage: "clock")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(palette.muted)
+                Spacer(minLength: 0)
+                if message.steering != true {
+                    Button(action: onDrop) {
+                        Image(systemName: "xmark")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(palette.muted)
+                            .frame(width: 24, height: 24)
+                            .background(palette.raised, in: Circle())
+                            .frame(width: 32, height: 28, alignment: .trailing)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Remove queued message")
+                }
             }
-            Spacer(minLength: 4)
+            Text(message.text)
+                .font(.subheadline)
+                .foregroundStyle(palette.ink)
+                .lineLimit(4)
+                .frame(maxWidth: .infinity, alignment: .leading)
             if message.steering == true {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     ProgressView().controlSize(.mini)
-                    Text("Steering…").font(.caption)
+                    Text("Steering…").font(.footnote.weight(.medium))
                 }
                 .foregroundStyle(palette.muted)
+                .frame(height: 30)
             } else {
                 Button(action: onSteer) {
-                    Label("Steer", systemImage: "bolt").font(.caption.weight(.semibold))
-                }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.capsule)
-                .controlSize(.small)
-                Button(action: onDrop) {
-                    Image(systemName: "xmark").font(.caption.weight(.bold)).foregroundStyle(palette.muted).frame(width: 28, height: 28)
+                    Label("Steer Now", systemImage: "bolt.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(palette.accent)
+                        .padding(.horizontal, 12)
+                        .frame(height: 30)
+                        .background(palette.accentChip, in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Remove queued message")
+                .accessibilityHint("Sends it into the running turn")
             }
         }
-        .padding(10)
-        .background(palette.surface, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(palette.line, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+        .padding(.leading, 14)
+        .padding(.trailing, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+        .background(palette.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.leading, 40)
     }
 }
 
@@ -271,10 +304,13 @@ private struct ThinkingDots: View {
     var body: some View {
         TimelineView(.animation(minimumInterval: 0.15)) { context in
             let step = Int(context.date.timeIntervalSinceReferenceDate / 0.3) % 3
-            HStack(spacing: 5) {
-                ForEach(0..<3, id: \.self) { index in
-                    Circle().fill(palette.muted).frame(width: 6, height: 6).opacity(index == step ? 1 : 0.35)
+            HStack(spacing: 8) {
+                HStack(spacing: 4) {
+                    ForEach(0..<3, id: \.self) { index in
+                        Circle().fill(palette.accent).frame(width: 6, height: 6).opacity(index == step ? 1 : 0.3)
+                    }
                 }
+                Text("Working").font(.footnote.weight(.medium)).foregroundStyle(palette.muted)
             }
         }
         .padding(.vertical, 4)
