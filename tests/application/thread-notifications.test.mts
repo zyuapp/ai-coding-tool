@@ -22,7 +22,7 @@ function activeRun(taskId: string, overrides: Partial<ActiveRun> = {}): ActiveRu
     messagesBefore: 0,
     before: { updatedAt: 1 },
     ...overrides,
-  };
+  } as ActiveRun;
 }
 
 /** One thread with a run in it, and the user somewhere else. */

@@ -1,3 +1,4 @@
+import type { ActiveRun } from "../../src/application/thread-run-state.ts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
@@ -352,7 +353,7 @@ test("a coordinator hears news once its other threads stop working, unless the n
   const blockedEnd = reduce(blocked.state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "succeeded" }));
   assert.equal(Object.values(blockedEnd.state.pendingRuns).length, 1, "a blocked thread is heard at once");
 
-  const approving = { ...state, activeRuns: { ...runs, two: { ...runs.two, status: "awaiting-approval" as const } } };
+  const approving = { ...state, activeRuns: { ...runs, two: { ...runs.two!, status: "awaiting-approval" } as ActiveRun } };
   const waitingOnUser = reduce(approving, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "succeeded" }));
   assert.equal(Object.values(waitingOnUser.state.pendingRuns).length, 1, "a thread waiting on the user's approval is not working");
 });

@@ -52,7 +52,7 @@ function activeRun(taskId: string, runId: string, status: ActiveRun["status"]): 
     reportedIssues: [],
     messagesBefore: 0,
     before: { updatedAt: NOW },
-  };
+  } as ActiveRun;
 }
 
 const approval: ApprovalView = {

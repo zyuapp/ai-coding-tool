@@ -1,3 +1,4 @@
+import type { ActiveRun } from "../../src/application/thread-run-state.ts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
@@ -81,7 +82,7 @@ test("leaving a paired computer's thread lets go of its lists", () => {
 test("run approval and checkout deletion invalidate the sidebar's busy and blocked lists", () => {
   const state = populated();
   const before = deriveView(state);
-  const approval = deriveView({ ...state, activeRuns: { current: { ...state.activeRuns.current, status: "awaiting-approval" } } });
+  const approval = deriveView({ ...state, activeRuns: { current: { ...state.activeRuns.current!, status: "awaiting-approval" } as ActiveRun } });
   assert.notEqual(approval.activityThreads, before.activityThreads);
   assert.deepEqual([...approval.blockedThreadIds], ["current"]);
   assert.deepEqual(approval.activityThreads.priority.map((thread) => thread.id), ["current"]);

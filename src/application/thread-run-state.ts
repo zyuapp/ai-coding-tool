@@ -10,14 +10,19 @@ import { appendMessages, replaceLastMessage, withdrawMessages } from "../domain/
 import { withMemoryUnheard, type CoordinationReport } from "../domain/coordination.js";
 import { defaultModelFor } from "../domain/agent-engine.js";
 
-export type ActiveRun = RunProvenance & {
+/**
+ * Where a live run stands. Only a retrying run carries the notice it retries under, and a run awaiting
+ * approval is the only one whose approval is shown. `withRunPhase` is the one way a run changes phase.
+ */
+export type RunPhase =
+  | { status: "running" | "compacting" | "awaiting-approval"; retry?: never }
+  | { status: "retrying"; retry: RetryNotice };
+
+export type ActiveRun = RunProvenance & RunPhase & {
   taskId: string;
   runId: string;
   sequence: number;
   questions?: PendingQuestion[];
-  status: "running" | "compacting" | "retrying" | "awaiting-approval";
-  /** Set while the engine retries a failed request. Any other event from the run clears it. */
-  retry?: RetryNotice;
   /** Whether this run has said it found something worth surfacing. */
   notified: boolean;
   /** Whether the run answered for itself with either tool. Answering neither is what surfaces a quiet tick. */
@@ -178,6 +183,17 @@ export function withActiveRun<T extends RunTransitionState>(state: T, threadId: 
   if (run) return { ...state, activeRuns: { ...state.activeRuns, [threadId]: run } } as T;
   const { [threadId]: _finished, ...activeRuns } = state.activeRuns;
   return { ...state, activeRuns } as T;
+}
+
+/** A run moved to another phase: what the phase it left carried goes with it, its shown approval included. */
+export function withRunPhase<T extends RunTransitionState>(state: T, threadId: string, phase: RunPhase): T {
+  const run = state.activeRuns[threadId];
+  if (!run) return state;
+  const { status: _left, retry: _retry, ...record } = run;
+  const next = withActiveRun(state, threadId, { ...record, ...phase });
+  if (phase.status === "awaiting-approval" || !(run.runId in next.approvals)) return next;
+  const { [run.runId]: _answered, ...approvals } = next.approvals;
+  return { ...next, approvals } as T;
 }
 
 export function withRunStatus<T extends RunTransitionState>(state: T, threadId: string, status: ThreadRunStatus): T {
@@ -446,21 +462,21 @@ export function answerPartId(run: ActiveRun | undefined, messageId: string) {
 }
 
 /** A run that hears anything from its engine other than another retry notice is through the retry. */
-function throughRetry(run: ActiveRun, event: RunEvent): ActiveRun {
-  if (run.status !== "retrying" || event.type === "run.retrying" || event.type === "queued.delivered" || event.type === "queued.steer-failed" || event.type === "context.spent") return run;
-  const { retry: _retry, ...through } = run;
-  return { ...through, status: "running" };
+function throughRetry<T extends RunTransitionState>(state: T, run: ActiveRun, event: RunEvent): T {
+  if (run.status !== "retrying" || event.type === "run.retrying" || event.type === "queued.delivered" || event.type === "queued.steer-failed" || event.type === "context.spent") return state;
+  return withRunPhase(state, run.taskId, { status: "running" });
 }
 
 export function applyRunEvent<T extends RunTransitionState>(state: T, event: RunEvent): T {
   const found = state.activeRuns[event.taskId];
   if (!found || event.runId !== found.runId || event.sequence <= found.sequence) return state;
-  const active = throughRetry(found, event);
-  const withSequence = withActiveRun(state, event.taskId, { ...active, sequence: event.sequence });
+  const through = throughRetry(state, found, event);
+  const withSequence = withActiveRun(through, event.taskId, { ...through.activeRuns[event.taskId]!, sequence: event.sequence });
+  const active = withSequence.activeRuns[event.taskId]!;
 
   if (event.type === "run.retrying") {
     const retry: RetryNotice = { message: event.message, ...(event.attempt === undefined ? {} : { attempt: event.attempt }), ...(event.maxRetries === undefined ? {} : { maxRetries: event.maxRetries }) };
-    return withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: "retrying", retry });
+    return withRunPhase(withSequence, event.taskId, { status: "retrying", retry });
   }
 
   if (event.type === "run.started") {
@@ -469,9 +485,7 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     return withWorkflows(withStreamingTail(withSequence, event.taskId, null), event.taskId, carried);
   }
   if (event.type === "run.status") {
-    if (event.status === "running" || event.status === "awaiting-approval") {
-      return withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: event.status });
-    }
+    if (event.status === "running" || event.status === "awaiting-approval") return withRunPhase(withSequence, event.taskId, { status: event.status });
     return applyRunFinished(withSequence, event);
   }
   if (event.type === "question.requested") {
@@ -540,13 +554,13 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     });
   }
   if (event.type === "context.compaction-status") {
-    const activeState = withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: event.compacting ? "compacting" : "running" });
+    const activeState = withRunPhase(withSequence, event.taskId, { status: event.compacting ? "compacting" : "running" });
     return event.error
       ? updateThread(activeState, event.taskId, (thread) => ({ ...thread, messages: appendMessages(thread.messages, [createFailureMessage(event.error!)]), updatedAt: now() }))
       : activeState;
   }
   if (event.type === "context.compacted") {
-    const activeState = withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: "running" });
+    const activeState = withRunPhase(withSequence, event.taskId, { status: "running" });
     /** A summary may have dropped what the coordinator read of its memory, so its next run reads it again. */
     return updateThread(activeState, event.taskId, (thread) => ({
       ...withMemoryUnheard(thread),

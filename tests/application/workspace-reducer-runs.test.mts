@@ -327,6 +327,37 @@ test("a thread blocked on an approval leads until the user answers, then goes ba
   assert.deepEqual(deriveView(answered).activityThreads.running.map((item) => item.id), [taskId]);
 });
 
+test("a run leaves the phase it was in whole: an answered approval unblocks at once, and a retry notice never outlives the retry", () => {
+  const taskId = "task-a";
+  const runId = "run-1";
+  const event = (sequence: number, payload: RunEventPayload): WorkspaceInput => ({ type: "run.event", event: { ...payload, taskId, runId, sequence } as never });
+  const state = workspace({ threads: [task(taskId)], activeRuns: { [taskId]: activeRun(taskId, runId) }, runStatuses: { [taskId]: "running" } });
+
+  const asking = run(state, [
+    event(1, { type: "approval.requested", approvalId: "approval-1", title: "Run a command", description: "ls", intent: { toolId: "tool-1", name: "Bash", input: { command: "ls" } } }),
+    event(2, { type: "run.status", status: "awaiting-approval" }),
+  ]);
+  const answered = reduce(asking, { type: "run.decide", taskId, runId, approvalId: "approval-1", allow: true }).state;
+  assert.equal(answered.activeRuns[taskId]?.status, "running", "the run is not left awaiting an approval that is gone");
+  assert.equal(answered.approvals[runId], undefined);
+  assert.deepEqual(deriveView(answered).blockedThreadIds, new Set(), "the thread unblocks before the engine says so");
+
+  const denied = run(asking, [event(3, { type: "run.status", status: "running" })]);
+  assert.equal(denied.approvals[runId], undefined, "an approval answered on the run's side goes when the run moves on");
+
+  const retrying = run(state, [event(1, { type: "run.retrying", message: "Overloaded", attempt: 1 })]);
+  assert.deepEqual(retrying.activeRuns[taskId]?.retry, { message: "Overloaded", attempt: 1 });
+  for (const next of [
+    { type: "run.status", status: "awaiting-approval" },
+    { type: "context.compaction-status", compacting: true },
+    { type: "assistant.delta", messageId: "m1", text: "Back" },
+  ] as RunEventPayload[]) {
+    const moved = run(retrying, [event(2, next)]).activeRuns[taskId]!;
+    assert.notEqual(moved.status, "retrying");
+    assert.equal(moved.retry, undefined, `${next.type} leaves no retry notice behind`);
+  }
+});
+
 test("every visible thread lands in exactly one activity section", () => {
   const state = workspace({
     threads: [

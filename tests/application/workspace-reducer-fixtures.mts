@@ -49,7 +49,7 @@ export function activeRun(taskId: string, runId: string, overrides: Partial<Acti
     messagesBefore: 0,
     before: { updatedAt: 1 },
     ...overrides,
-  };
+  } as ActiveRun;
 }
 
 export function automation(taskId: string): AutomationView {

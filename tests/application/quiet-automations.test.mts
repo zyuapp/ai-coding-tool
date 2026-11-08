@@ -43,7 +43,7 @@ function activeRun(overrides: Partial<ActiveRun> = {}): ActiveRun {
     messagesBefore: 1,
     before: { updatedAt: 1 },
     ...overrides,
-  };
+  } as ActiveRun;
 }
 
 function automationView(overrides: Partial<AutomationView> = {}): AutomationView {
