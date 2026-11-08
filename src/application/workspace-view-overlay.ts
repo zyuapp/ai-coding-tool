@@ -1,3 +1,4 @@
+import { NO_SIMULATORS, type SimulatorState } from "./workspace-state.js";
 import { annotationRevealFor, annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import { promptKey, type OwnWorkspaceView, type SideChatView, type ThreadTabView, type WorkspaceState } from "./workspace-state.js";
 import { heldViews } from "./view-reuse.js";
@@ -41,6 +42,8 @@ function localDraft(state: WorkspaceState, key: string) {
   };
 }
 
+const REMOTE_SIMULATORS: SimulatorState = { ...NO_SIMULATORS, availability: { status: "unsupported", reason: "The simulator only runs on the computer you are using." } };
+
 /** The window over a paired computer's thread: that computer's view of it, under this window's own chrome and drafts. */
 export function overlaidView(state: WorkspaceState, own: OwnWorkspaceView, remote: WorkspaceState, derive: (state: WorkspaceState, window: WorktreeMenuState) => OwnWorkspaceView) {
   /** The location menu opens and is searched here, over the other computer's threads and checkouts. */
@@ -64,6 +67,9 @@ export function overlaidView(state: WorkspaceState, own: OwnWorkspaceView, remot
     /** Browser surfaces still belong to the host's native window. */
     browserTabs: [],
     browserApproval: null,
+    /** So do simulators: this Mac cannot stream or tap a device the other computer runs. */
+    simulator: REMOTE_SIMULATORS,
+    simulatorId: null,
     /** A delete confirmed here may name the other computer's checkout, which only its list has. */
     worktreeDeleteConfirmation: own.worktreeDeleteConfirmation ?? shown.managedWorktrees?.find((item) => item.root === state.worktreeSettings.confirming && !item.deleting) ?? null,
     /** That computer's engines are upgraded from its row on the Computers page, not this one's Engines page. */

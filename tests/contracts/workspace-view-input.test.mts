@@ -150,6 +150,8 @@ test("what an agent may send is a command the window itself accepts, held to the
     { type: "browser.go", taskId: "task-1", delta: 1 },
     { type: "browser.reload", taskId: "task-1" },
     { type: "browser.act", taskId: "task-1", action: { kind: "click", ref: "1" } },
+    { type: "simulator.open", taskId: "task-1", device: "iPhone 17" },
+    { type: "simulator.input", taskId: "task-1", input: { kind: "tap-element", ref: "1.2" } },
   ];
   for (const command of agentCommands) {
     assert.equal(isExternalCommand(command), true, command.type);
@@ -164,6 +166,8 @@ test("what an agent may send is a command the window itself accepts, held to the
   assert.equal(isWorkspaceViewInput({ type: "browser.go", delta: 1 }), true);
   assert.equal(isExternalCommand({ type: "browser.go", delta: 1 }), false, "an agent names the thread driving the browser");
   assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "  \n " }), false, "a blank message would be answered as sent with nothing sent");
+  assert.equal(isExternalCommand({ type: "simulator.input", taskId: "task-1", udid: "PHONE", input: { kind: "button", button: "home" } }), false, "a run's gestures go to its own dock's device");
+  assert.equal(isExternalCommand({ type: "simulator.input", input: { kind: "button", button: "home" } }), false, "an agent names the thread driving the simulator");
 });
 
 test("pairing takes only a host, with an optional port, in the form it is dialled in", () => {

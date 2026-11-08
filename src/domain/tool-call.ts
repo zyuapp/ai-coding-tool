@@ -129,6 +129,12 @@ const OWN_TOOLS: Record<string, OwnTool> = {
   browser_back: { family: "web", label: "Back" },
   browser_tabs: { family: "web", label: "List tabs" },
   browser_close_tab: { family: "web", label: "Close tab" },
+  simulator_open: { family: "other", label: "Open simulator", argument: text("device") },
+  simulator_read: { family: "read", label: "Read simulator" },
+  simulator_tap: { family: "other", label: "Tap", argument: text("ref") },
+  simulator_swipe: { family: "other", label: "Swipe" },
+  simulator_type: { family: "other", label: "Type", argument: text("text") },
+  simulator_button: { family: "other", label: "Press button", argument: text("button") },
   request_setup: { family: "other", label: "Set up computer use" },
 };
 

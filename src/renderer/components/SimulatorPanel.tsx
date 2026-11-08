@@ -43,7 +43,8 @@ export function SimulatorPanel({ simulator, udid, active, openMenu, onSetOpenMen
   const pressed = useRef<Set<number>>(new Set());
   const device = simulator.devices.find((item) => item.udid === udid);
   const booted = device?.state === "booted";
-  const size = useSimulatorStream(canvas, active && booted ? device.udid : null);
+  const stream = useSimulatorStream(canvas, active && booted ? device.udid : null);
+  const size = stream.error ? null : stream.size;
   const driving = Boolean(device && simulator.driver?.udid === device.udid);
   const error = device ? simulator.errors[device.udid] : undefined;
   const booting = device ? simulator.booting.includes(device.udid) || device.state === "booting" : false;
@@ -98,7 +99,7 @@ export function SimulatorPanel({ simulator, udid, active, openMenu, onSetOpenMen
       <header className="simulator-bar">
         <PopoverMenu id={DEVICE_MENU} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} label="Choose a simulator" className="simulator-device-menu" popoverClassName="simulator-device-popover" anchored
           items={items.length ? items : [{ label: "No simulators", disabled: true }]}>
-          <Smartphone size={15} aria-hidden="true" />
+          <Smartphone size={16} aria-hidden="true" />
           <span>{device?.name ?? "Simulator"}</span>
           {device && <small>{device.runtime}</small>}
         </PopoverMenu>
@@ -141,7 +142,9 @@ export function SimulatorPanel({ simulator, udid, active, openMenu, onSetOpenMen
             onBlur={release}
           />
         )}
-        {booted && !size && <Notice icon={<SpinningIcon icon={Smartphone} spinning size={18} />} title={`Connecting to ${device.name}`} />}
+        {booted && stream.error && <Notice tone="error" icon={<AlertTriangle size={18} />} title={`Could not show ${device.name}`} detail={stream.error}
+          action={<button type="button" onClick={stream.retry}>Try again</button>} />}
+        {booted && !size && !stream.error && <Notice icon={<SpinningIcon icon={Smartphone} spinning size={18} />} title={`Connecting to ${device.name}`} />}
       </div>
     </section>
   );

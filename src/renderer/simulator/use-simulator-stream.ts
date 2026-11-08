@@ -8,13 +8,17 @@ function codecOf(avcC: Uint8Array) {
 
 /**
  * Paints a device's screen into the canvas while `udid` is set: main streams it as H.264 for as long
- * as this watches, and the GPU decodes it. Answers with the screen's size in pixels once it is known.
+ * as this watches, and the GPU decodes it. Answers with the screen's size in pixels once it is known,
+ * or why the stream could not start, with a way to try again.
  */
 export function useSimulatorStream(canvas: RefObject<HTMLCanvasElement | null>, udid: string | null) {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     setSize(null);
+    setError(null);
     const target = canvas.current;
     if (!udid || !target) return;
     const context = target.getContext("2d", { alpha: false, desynchronized: true });
@@ -65,7 +69,9 @@ export function useSimulatorStream(canvas: RefObject<HTMLCanvasElement | null>, 
       needsKey = false;
       decoder.decode(new EncodedVideoChunk({ type: frame.key ? "key" : "delta", timestamp: frame.timestamp, data: frame.data }));
     });
-    void window.desktop.watchSimulator(udid).catch(() => undefined);
+    window.desktop.watchSimulator(udid).catch((failure: unknown) => {
+      if (!stopped) setError(failure instanceof Error ? failure.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "") : String(failure));
+    });
 
     return () => {
       stopped = true;
@@ -73,7 +79,7 @@ export function useSimulatorStream(canvas: RefObject<HTMLCanvasElement | null>, 
       reset();
       void window.desktop.unwatchSimulator(udid).catch(() => undefined);
     };
-  }, [canvas, udid]);
+  }, [canvas, udid, attempt]);
 
-  return size;
+  return { size, error, retry: () => setAttempt((count) => count + 1) };
 }

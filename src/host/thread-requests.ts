@@ -211,7 +211,6 @@ function movesAfterTurn(state: WorkspaceState, thread: Thread, { destination, th
   return `This thread moves to ${there} when this turn ends, and ${next}. Until then it stays in ${here}, and file changes already made there stay behind.`;
 }
 
-/** Holds the call until `pending` stops holding, or until the time runs out. */
 /** The device a thread's own dock shows, which is the only one its run drives. */
 function dockSimulator(state: WorkspaceState, taskId: string) {
   const udid = dockFor(state, dockOwner(state, taskId)).simulatorId;
@@ -221,6 +220,7 @@ function dockSimulator(state: WorkspaceState, taskId: string) {
 async function readSimulator(host: ThreadRequestHost, taskId: string, read: SimulatorRead): Promise<SimulatorReadResult> {
   const before = host.state();
   if (before.simulator.availability.status === "unsupported") return { kind: "no-simulator", reason: before.simulator.availability.reason };
+  if (!before.simulator.devices.length) return { kind: "no-simulator", reason: "This Mac has no iOS simulators. Add one in Xcode." };
   if (!dockSimulator(before, taskId)) return { kind: "no-simulator", reason: "Open the simulator first with simulator_open." };
   if (read.op === "status") {
     const settledBoot = (state: WorkspaceState) => {
@@ -241,6 +241,7 @@ async function readSimulator(host: ThreadRequestHost, taskId: string, read: Simu
   return { kind: "snapshot", snapshot, ...(shot ? { shot } : {}) };
 }
 
+/** Holds the call until `pending` stops holding, or until the time runs out. */
 function waitFor(host: ThreadRequestHost, pending: (state: WorkspaceState) => boolean, timeoutMs: number): Promise<{ state: WorkspaceState; timedOut: boolean }> {
   if (!pending(host.state())) return Promise.resolve({ state: host.state(), timedOut: false });
   return new Promise((resolve) => {

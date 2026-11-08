@@ -1,6 +1,6 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, unlink } from "node:fs/promises";
+import { mkdtemp, rm, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -330,4 +330,8 @@ export function stopSimulatorHost() {
   watchers.clear();
   helper?.child.kill();
   helper = null;
+  const home = shotHome;
+  shotHome = null;
+  shots.length = 0;
+  if (home) void home.then((folder) => rm(folder, { recursive: true, force: true })).catch(() => undefined);
 }
