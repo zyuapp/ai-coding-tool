@@ -343,7 +343,11 @@ test("a run leaves the phase it was in whole: an answered approval unblocks at o
   assert.deepEqual(deriveView(answered).blockedThreadIds, new Set(), "the thread unblocks before the engine says so");
 
   const denied = run(asking, [event(3, { type: "run.status", status: "running" })]);
-  assert.equal(denied.approvals[runId], undefined, "an approval answered on the run's side goes when the run moves on");
+  assert.equal(denied.approvals[runId], undefined, "an approval answered on the run's side goes when the run says it is running");
+
+  const compacting = run(asking, [event(3, { type: "context.compaction-status", compacting: true }), event(4, { type: "context.compaction-status", compacting: false })]);
+  assert.equal(compacting.approvals[runId]?.approvalId, "approval-1", "a phase change that answers nothing keeps the approval the run still waits on");
+  assert.equal(reduce(compacting, { type: "run.decide", taskId, runId, approvalId: "approval-1", allow: true }).effects.length, 1, "and it can still be answered");
 
   const retrying = run(state, [event(1, { type: "run.retrying", message: "Overloaded", attempt: 1 })]);
   assert.deepEqual(retrying.activeRuns[taskId]?.retry, { message: "Overloaded", attempt: 1 });

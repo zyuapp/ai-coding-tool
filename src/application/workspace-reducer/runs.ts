@@ -19,7 +19,7 @@ import { settledHeadline, type RunSurfacing } from "../run-testimony.js";
 import { stopIntentOf } from "../outstanding-stops.js";
 import { settledAfterTestimony, settledEvent, settledTurn, settleTurn, withTurnTestimony, type Settlement } from "../run-settlement.js";
 import { nextSortIndex } from "../thread-order.js";
-import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withRunPhase, type ActiveRun } from "../thread-run-state.js";
+import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withApprovalAnswered, type ActiveRun } from "../thread-run-state.js";
 import { threadBusy, threadToBegin } from "../run-record.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, draftOf, type PendingRun, type WorkspaceState } from "../workspace-state.js";
@@ -123,7 +123,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const approval = active ? state.approvals[active.runId] : undefined;
       if (!active || !approval || active.runId !== input.runId || approval.approvalId !== input.approvalId) return settled(state);
       /** Answering a run's question is joining it, exactly as steering into it is. */
-      return settled(withAttendedRun(withRunPhase(state, active.taskId, { status: "running" }), active.taskId), [{
+      return settled(withAttendedRun(withApprovalAnswered(state, active.taskId), active.taskId), [{
         type: "send-run-command",
         command: { type: "approval", taskId: active.taskId, runId: active.runId, approvalId: approval.approvalId, allow: input.allow },
       }]);

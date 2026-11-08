@@ -185,15 +185,20 @@ export function withActiveRun<T extends RunTransitionState>(state: T, threadId: 
   return { ...state, activeRuns } as T;
 }
 
-/** A run moved to another phase: what the phase it left carried goes with it, its shown approval included. */
+/** A run moved to another phase: what the phase it left carried goes with it. */
 export function withRunPhase<T extends RunTransitionState>(state: T, threadId: string, phase: RunPhase): T {
   const run = state.activeRuns[threadId];
   if (!run) return state;
   const { status: _left, retry: _retry, ...record } = run;
-  const next = withActiveRun(state, threadId, { ...record, ...phase });
-  if (phase.status === "awaiting-approval" || !(run.runId in next.approvals)) return next;
-  const { [run.runId]: _answered, ...approvals } = next.approvals;
-  return { ...next, approvals } as T;
+  return withActiveRun(state, threadId, { ...record, ...phase });
+}
+
+/** The run's approval is answered: it goes, and the run is running again. */
+export function withApprovalAnswered<T extends RunTransitionState>(state: T, threadId: string): T {
+  const run = state.activeRuns[threadId];
+  if (!run) return state;
+  const { [run.runId]: _answered, ...approvals } = state.approvals;
+  return withRunPhase({ ...state, approvals }, threadId, { status: "running" });
 }
 
 export function withRunStatus<T extends RunTransitionState>(state: T, threadId: string, status: ThreadRunStatus): T {
@@ -485,7 +490,9 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     return withWorkflows(withStreamingTail(withSequence, event.taskId, null), event.taskId, carried);
   }
   if (event.type === "run.status") {
-    if (event.status === "running" || event.status === "awaiting-approval") return withRunPhase(withSequence, event.taskId, { status: event.status });
+    /** The run says running only once no approval is left waiting, so the one shown has been answered. */
+    if (event.status === "running") return withApprovalAnswered(withSequence, event.taskId);
+    if (event.status === "awaiting-approval") return withRunPhase(withSequence, event.taskId, { status: event.status });
     return applyRunFinished(withSequence, event);
   }
   if (event.type === "question.requested") {
