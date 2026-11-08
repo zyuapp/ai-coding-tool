@@ -175,6 +175,7 @@ struct CodeBlockView: View {
                     .foregroundStyle(palette.codeInk)
                     .textSelection(.enabled)
                     .padding(14)
+                    .padding(.trailing, 24)
             }
             .mask(HStack(spacing: 0) {
                 Color.black

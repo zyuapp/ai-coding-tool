@@ -8,6 +8,7 @@ struct ThreadListScreen: View {
     @State private var renaming: MobileThreadEntry?
     @State private var archiving: ArchiveAsk?
     @State private var now = Date()
+    @State private var query = ""
 
     private struct ActivitySection: Identifiable {
         var key: KeyPath<MobileActivity, [MobileThreadEntry]>
@@ -27,9 +28,15 @@ struct ThreadListScreen: View {
     /// A project the computer no longer lists narrows nothing.
     private var narrowed: MobileProjectGroup? { projects.first { $0.projectId == model.activityProject } }
 
+    private var searching: Bool { !query.trimmingCharacters(in: .whitespaces).isEmpty }
+
     private var shown: MobileActivity {
-        guard let project = narrowed?.projectId else { return model.view.activity }
-        let keep: (MobileThreadEntry) -> Bool = { $0.projectId == project }
+        let project = narrowed?.projectId
+        let wanted = query.trimmingCharacters(in: .whitespaces)
+        guard project != nil || !wanted.isEmpty else { return model.view.activity }
+        let keep: (MobileThreadEntry) -> Bool = { entry in
+            (project == nil || entry.projectId == project) && (wanted.isEmpty || [entry.title, entry.headline ?? "", entry.projectName ?? ""].contains { $0.localizedCaseInsensitiveContains(wanted) })
+        }
         let activity = model.view.activity
         return MobileActivity(priority: activity.priority.filter(keep), running: activity.running.filter(keep), threads: activity.threads.filter(keep), snoozed: activity.snoozed.filter(keep))
     }
@@ -49,10 +56,15 @@ struct ThreadListScreen: View {
                 EmptyList { model.newThread(projectId: nil, project: nil) }
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
+            } else if searching, activity.priority.isEmpty, activity.running.isEmpty, activity.threads.isEmpty, activity.snoozed.isEmpty {
+                ContentUnavailableView.search(text: query.trimmingCharacters(in: .whitespaces))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .padding(.top, 40)
             } else {
                 ForEach(Self.sections) { section in
                     let threads = activity[keyPath: section.key]
-                    if section.id != "snoozed" || !threads.isEmpty {
+                    if (section.id != "snoozed" && !searching) || !threads.isEmpty {
                         sectionView(id: section.id, label: section.label, threads: threads, activity: activity)
                     }
                 }
@@ -69,6 +81,7 @@ struct ThreadListScreen: View {
         .notice(model)
         .navigationTitle("Threads")
         .navigationBarTitleDisplayMode(.large)
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search threads")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { ComputerMenu(model: model) }
             ToolbarItem(placement: .topBarTrailing) {

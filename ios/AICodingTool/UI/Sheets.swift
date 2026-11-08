@@ -365,7 +365,7 @@ struct ThreadSettingsSheet: View {
                     }
                 }
                 if !others.isEmpty {
-                    Section {
+                    Section(header: SectionLabel("Other engines")) {
                         ForEach(others, id: \.engine) { heading in
                             Button {
                                 dismiss()
@@ -476,7 +476,7 @@ struct MembersSheet: View {
         self.model = model
         self.members = members
         self.project = project
-        fitted = .height(CGFloat(140 + max(1, members.count) * 64))
+        fitted = .height(CGFloat(100 + max(1, members.count) * 62))
         _detent = State(initialValue: fitted)
     }
 

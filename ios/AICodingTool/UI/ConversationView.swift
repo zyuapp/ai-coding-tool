@@ -40,7 +40,7 @@ struct ConversationView: View {
                     if let tail = thread.streamingTail {
                         MarkdownView(text: tail)
                     }
-                    if thread.status == "running" {
+                    if thread.status == "running", thread.approval == nil, thread.question?.blocking != true {
                         ThinkingDots().accessibilityLabel("Working")
                     }
                     if !thread.queued.isEmpty {
@@ -273,10 +273,10 @@ private struct QueuedRow: View {
                     .accessibilityHint("Sends it into the running turn")
                     Button(action: onDrop) {
                         Image(systemName: "xmark")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(palette.muted)
-                            .frame(width: 28, height: 28)
-                            .background(palette.raised, in: Circle())
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(palette.quiet)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Remove queued message")
