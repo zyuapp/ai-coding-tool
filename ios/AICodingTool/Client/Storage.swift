@@ -109,7 +109,7 @@ struct PhoneStorage {
     }
 }
 
-/// A pairing link as the computer's QR code writes it: `https://host/m/#pair=CODE`.
+/// A pairing link as the computer's QR code writes it: `aicodingtool://pair?link=` around `https://host/#pair=CODE`.
 struct PairingLink: Equatable, Sendable {
     static let codeLength = 8
     private static let alphabet = CharacterSet(charactersIn: "0123456789ABCDEFGHJKMNPQRSTVWXYZ")

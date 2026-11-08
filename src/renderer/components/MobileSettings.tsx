@@ -277,7 +277,7 @@ export function MobileSettings({ remote, remoteChecking, onSetEnabled, onCreateP
     <main className="settings-main">
       <div className="settings-page-heading">
         <h2>Devices</h2>
-        <p>Your threads from a phone's browser or another computer, anywhere your tailnet reaches.</p>
+        <p>Your threads from the iPhone app or another computer, anywhere your tailnet reaches.</p>
       </div>
 
       <ComputerSettings {...computers} />

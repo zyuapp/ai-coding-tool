@@ -49,7 +49,7 @@ struct GateView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Pairing link").font(.footnote.weight(.semibold)).foregroundStyle(palette.muted)
                     HStack {
-                        TextField("https://…/m/#pair=…", text: $link)
+                        TextField("aicodingtool://pair?link=…", text: $link)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .keyboardType(.URL)
