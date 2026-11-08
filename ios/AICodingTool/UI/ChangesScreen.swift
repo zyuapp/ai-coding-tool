@@ -10,6 +10,7 @@ struct ChangesScreen: View {
     @State private var open: Set<String> = []
     @State private var patches: [String: Patch] = [:]
     @State private var reads = 0
+    @AppStorage(WrapLines.key) private var wrap = true
 
     enum Mode: Hashable { case uncommitted, branch }
 
@@ -53,6 +54,12 @@ struct ChangesScreen: View {
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 ConnectionMark(connection: model.state.connection)
+                Button { withAnimation(.snappy) { wrap.toggle() } } label: {
+                    Image(systemName: "arrow.turn.down.left")
+                }
+                .tint(wrap ? palette.accent : palette.inkDim)
+                .accessibilityLabel("Wrap lines")
+                .accessibilityValue(wrap ? "On" : "Off")
                 Button { refresh() } label: {
                     Image(systemName: "arrow.clockwise").symbolEffect(.rotate, isActive: summary == .reading)
                 }
@@ -207,6 +214,7 @@ private struct FileSection: View {
     @Environment(\.palette) private var palette
     @State private var whole = false
     @State private var viewport: CGFloat = 0
+    @AppStorage(WrapLines.key) private var wrap = true
 
     /// A patch drawn whole would take a phone with it, so a long one is cut here until asked for.
     private static let rowCap = 1_500
@@ -294,19 +302,21 @@ private struct FileSection: View {
             case .rows(let rows)?:
                 let drawn = whole ? rows : Array(rows.prefix(Self.rowCap))
                 let measure = DiffLine.Measure(rows: drawn)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(drawn) { row in DiffLine(row: row, gutter: measure.gutter, viewport: viewport) }
+                Group {
+                    if wrap {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(drawn) { row in DiffLine(row: row, gutter: measure.gutter, viewport: viewport, wrap: true) }
+                        }
+                    } else {
+                        ScrollView(.horizontal) {
+                            LazyVStack(alignment: .leading, spacing: 0) {
+                                ForEach(drawn) { row in DiffLine(row: row, gutter: measure.gutter, viewport: viewport, wrap: false) }
+                            }
+                            .frame(width: max(viewport, measure.width + 30), alignment: .leading)
+                        }
                     }
-                    .frame(width: max(viewport, measure.width), alignment: .leading)
                 }
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewport = $0 }
-                .mask(HStack(spacing: 0) {
-                    Color.black
-                    if measure.width > viewport {
-                        LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 44)
-                    }
-                })
                 .background(palette.sunken)
                 if rows.count > drawn.count {
                     let hidden = rows.count - drawn.count
@@ -328,6 +338,7 @@ private struct DiffLine: View {
     var row: DiffRow
     var gutter: CGFloat
     var viewport: CGFloat
+    var wrap: Bool
     @Environment(\.palette) private var palette
 
     /// The widths a patch draws at: each line-number column fits its longest number, and the rows run as wide as the longest line.
@@ -364,16 +375,18 @@ private struct DiffLine: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(palette.hunkSurface)
         } else {
-            HStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 0) {
                 number(row.oldLine)
                 number(row.newLine)
                 Text(row.kind == .add ? "+" : row.kind == .delete ? "−" : " ")
                     .foregroundStyle(row.kind == .add ? palette.success : row.kind == .delete ? palette.danger : palette.quiet)
                     .frame(width: 14)
+                    .padding(.vertical, 2)
                 Text(row.text.isEmpty ? " " : row.text)
                     .foregroundStyle(palette.ink)
-                    .fixedSize()
+                    .fixedSize(horizontal: !wrap, vertical: true)
                     .padding(.trailing, 12)
+                    .padding(.vertical, 2)
                 Spacer(minLength: 0)
             }
             .font(.caption.monospaced())
@@ -387,6 +400,8 @@ private struct DiffLine: View {
             .foregroundStyle(palette.quiet)
             .frame(width: gutter - 6, alignment: .trailing)
             .padding(.trailing, 6)
+            .padding(.vertical, 2)
+            .frame(maxHeight: .infinity, alignment: .top)
             .background(row.kind == .add ? palette.diffAddGutter : row.kind == .delete ? palette.diffDeleteGutter : palette.sunken)
             .accessibilityHidden(true)
     }

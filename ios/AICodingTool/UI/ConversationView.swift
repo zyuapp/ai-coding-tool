@@ -63,7 +63,9 @@ struct ConversationView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .hardTopEdge()
-            .defaultScrollAnchor(.bottom)
+            .defaultScrollAnchor(.top, for: .alignment)
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
+            .defaultScrollAnchor(.bottom, for: .sizeChanges)
             .onScrollGeometryChange(for: Bool.self) { geometry in
                 geometry.contentSize.height - geometry.contentOffset.y - geometry.containerSize.height + geometry.contentInsets.bottom < 48
             } action: { _, next in
@@ -292,7 +294,7 @@ private struct QueuedRow: View {
         .padding(.top, 8)
         .padding(.bottom, 12)
         .background(palette.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .padding(.leading, 40)
+        .padding(.leading, 48)
     }
 }
 

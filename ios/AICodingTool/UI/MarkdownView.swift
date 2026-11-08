@@ -143,15 +143,17 @@ struct CodeBlockView: View {
     var code: String
     var language: String? = nil
     @Environment(\.palette) private var palette
+    @AppStorage(WrapLines.key) private var wrap = true
     @State private var copied = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
+            HStack(spacing: 14) {
                 SwiftUI.Text(language.flatMap { $0.isEmpty ? nil : $0 } ?? "code")
                     .font(.caption.weight(.semibold).monospaced())
                     .foregroundStyle(palette.muted)
                 Spacer(minLength: 0)
+                WrapLinesButton(wrap: $wrap)
                 Button {
                     UIPasteboard.general.string = code
                     copied = true
@@ -168,22 +170,48 @@ struct CodeBlockView: View {
             }
             .padding(.horizontal, 14)
             palette.lineSoft.frame(height: 1)
-            ScrollView(.horizontal, showsIndicators: false) {
-                SwiftUI.Text(code)
-                    .font(.footnote.monospaced())
-                    .lineSpacing(2)
-                    .foregroundStyle(palette.codeInk)
-                    .textSelection(.enabled)
-                    .padding(14)
-                    .padding(.trailing, 24)
+            if wrap {
+                text.frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ScrollView(.horizontal) {
+                    text.padding(.trailing, 42)
+                }
             }
-            .mask(HStack(spacing: 0) {
-                Color.black
-                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 56)
-                Color.clear.frame(width: 14)
-            })
         }
         .background(palette.codeSurface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private var text: some View {
+        SwiftUI.Text(code)
+            .font(.footnote.monospaced())
+            .lineSpacing(2)
+            .foregroundStyle(palette.codeInk)
+            .textSelection(.enabled)
+            .padding(14)
+    }
+}
+
+/// Whether code and diffs wrap long lines, one choice for the whole app.
+enum WrapLines {
+    static let key = "wrapLines"
+}
+
+/// Switches code between wrapping long lines and scrolling sideways.
+struct WrapLinesButton: View {
+    @Binding var wrap: Bool
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        Button { withAnimation(.snappy) { wrap.toggle() } } label: {
+            SwiftUI.Image(systemName: "arrow.turn.down.left")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(wrap ? palette.accent : palette.muted)
+                .frame(width: 28, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Wrap lines")
+        .accessibilityValue(wrap ? "On" : "Off")
     }
 }
 

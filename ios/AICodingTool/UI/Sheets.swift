@@ -11,7 +11,7 @@ struct SheetFrame<Content: View, Actions: ToolbarContent>: View {
         NavigationStack {
             content
                 .listSectionSpacing(.compact)
-                .contentMargins(.top, 8, for: .scrollContent)
+                .contentMargins(.top, 0, for: .scrollContent)
                 .scrollContentBackground(.hidden)
                 .background(palette.menu.ignoresSafeArea())
                 .navigationTitle(title)
@@ -21,6 +21,17 @@ struct SheetFrame<Content: View, Actions: ToolbarContent>: View {
         }
         .presentationBackground(palette.menu)
         .environment(\.palette, palette)
+    }
+}
+
+extension View {
+    /// A search field for lists long enough to need one.
+    @ViewBuilder func searchableWhen(_ long: Bool, text: Binding<String>, prompt: String) -> some View {
+        if long {
+            searchable(text: text, placement: .navigationBarDrawer(displayMode: .always), prompt: Text(prompt))
+        } else {
+            self
+        }
     }
 }
 
@@ -120,7 +131,7 @@ struct ProjectSheet: View {
                     .listRowBackground(Color.clear)
                 }
             }
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search projects")
+            .searchableWhen(projects.count > 8, text: $query, prompt: "Search projects")
         } actions: {
             ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
         }
@@ -562,7 +573,8 @@ struct MemberTranscript: View {
                 }
                 .padding(16)
             }
-            .defaultScrollAnchor(.bottom)
+            .defaultScrollAnchor(.top, for: .alignment)
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
             .onChange(of: read?.messages.count) { _, _ in reader.scrollTo("end", anchor: .bottom) }
         }
         .background(palette.menu)

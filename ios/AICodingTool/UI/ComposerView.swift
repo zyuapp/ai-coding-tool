@@ -102,7 +102,7 @@ struct ComposerView<Above: View>: View {
                             return .handled
                         }
                 } else {
-                    Label("Answer the question above to continue", systemImage: "arrow.up")
+                    Label("Answer the question above to continue", systemImage: "questionmark.circle")
                         .font(.body)
                         .foregroundStyle(palette.quiet)
                         .frame(maxWidth: .infinity, alignment: .leading)

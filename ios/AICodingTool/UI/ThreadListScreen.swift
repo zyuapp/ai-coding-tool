@@ -277,8 +277,8 @@ struct ThreadRow: View {
                 if dismissable {
                     Button { model.dismiss(thread.id) } label: {
                         Image(systemName: "checkmark.circle")
-                            .font(.title3)
-                            .foregroundStyle(palette.muted)
+                            .font(.title3.weight(.light))
+                            .foregroundStyle(palette.quiet)
                             .frame(width: 44, height: 36, alignment: .trailing)
                             .contentShape(Rectangle())
                     }
