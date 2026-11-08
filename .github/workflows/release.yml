@@ -199,3 +199,14 @@ jobs:
           fi
           gh release upload "$TAG" release/* --clobber
           gh release edit "$TAG" --draft=false --latest
+
+  testflight:
+    needs:
+      - build-mac
+      - publish
+    permissions:
+      contents: read
+    uses: ./.github/workflows/testflight.yml
+    with:
+      ref: ${{ needs.build-mac.outputs.tag }}
+    secrets: inherit
