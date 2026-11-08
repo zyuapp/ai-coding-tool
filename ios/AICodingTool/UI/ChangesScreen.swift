@@ -365,7 +365,7 @@ private struct DiffLine: View {
             HStack(spacing: 0) {
                 Text(row.text)
                     .font(.caption.monospaced())
-                    .foregroundStyle(palette.info)
+                    .foregroundStyle(palette.mutedStrong)
                     .lineLimit(2)
                     .frame(width: max(0, viewport - 20), alignment: .leading)
                     .padding(.horizontal, 10)

@@ -180,6 +180,7 @@ struct CodeBlockView: View {
             }
         }
         .background(palette.codeSurface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(palette.lineSoft))
     }
 
     private var text: some View {

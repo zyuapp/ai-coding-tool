@@ -295,10 +295,10 @@ struct DraftWelcome: View {
                             Text(suggestion.text).font(.subheadline).foregroundStyle(palette.ink)
                             Spacer(minLength: 0)
                         }
-                        .padding(.horizontal, 14)
+                        .padding(.horizontal, 16)
                         .frame(minHeight: 44)
-                        .background(palette.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(palette.surface, in: Capsule())
+                        .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                     .accessibilityHint("Puts this in the message box")

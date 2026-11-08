@@ -142,7 +142,7 @@ struct ThreadListScreen: View {
             .listRowInsets(EdgeInsets(top: id == "priority" ? 12 : 26, leading: 16, bottom: 2, trailing: 16))
             if open {
                 ForEach(threads) { thread in
-                    ThreadRow(thread: thread, now: now, dismissable: id == "priority" && thread.attention, model: model) { sheet in
+                    ThreadRow(thread: thread, now: now, dismissable: id == "priority" && thread.attention, snoozed: id == "snoozed", model: model) { sheet in
                         if sheet == .rename {
                             renaming = thread
                         } else {
@@ -239,6 +239,7 @@ struct ThreadRow: View {
     var thread: MobileThreadEntry
     var now: Date
     var dismissable: Bool
+    var snoozed = false
     var model: PhoneModel
     var onSheet: (RowSheetKind) -> Void
     @Environment(\.palette) private var palette
@@ -312,7 +313,7 @@ struct ThreadRow: View {
 
     /// The project, then what the thread is doing; a thread that needs the user says so in the accent.
     private var meta: some View {
-        let state = needsYou ? "Needs you" : Format.stateLabel(thread)
+        let state = needsYou ? "Needs you" : snoozed ? "Snoozed" : Format.stateLabel(thread)
         return (Text(thread.projectName ?? "No project").foregroundStyle(palette.muted)
             + Text(state.map { " · \($0)" } ?? "").foregroundStyle(needsYou ? palette.accent : palette.muted))
             .font(.footnote)
@@ -328,6 +329,8 @@ struct ThreadRow: View {
             RoundedRectangle(cornerRadius: 2).fill(palette.mutedStrong).frame(width: 8, height: 8)
         } else if thread.unread {
             StatusDot(kind: .unread)
+        } else if snoozed {
+            Image(systemName: "moon.zzz.fill").font(.caption2).foregroundStyle(palette.quiet)
         } else if thread.attention, thread.outcome == "finished" {
             Image(systemName: "checkmark.circle.fill").font(.caption).foregroundStyle(palette.success)
         } else if thread.attention, thread.outcome == "failed" {
@@ -359,7 +362,7 @@ struct StatusDot: View {
         switch kind {
         case .needsYou:
             Circle().fill(palette.accent).frame(width: 9, height: 9)
-                .background(Circle().fill(palette.accent.opacity(0.25)).frame(width: 17, height: 17))
+                .background(Circle().fill(palette.accent.opacity(0.22)).frame(width: 15, height: 15))
         case .unread: Circle().fill(palette.info).frame(width: 9, height: 9)
         }
     }
