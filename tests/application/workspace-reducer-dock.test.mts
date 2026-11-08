@@ -238,6 +238,12 @@ test("closing a tab takes what is in front, and only then the window", () => {
   assert.deepEqual(shut.effects, [], "settings closing is not the window closing");
   assert.deepEqual(settings.effects, [{ type: "focus-window" }], "settings opening takes the keys off whatever was drawing");
 
+  const capturing = reduce(reduce(settings.state, { type: "view.set-settings-open", open: true, section: "shortcuts" }).state, { type: "view.capture-shortcut", action: "project.start" });
+  const shutCapturing = reduce(capturing.state, { type: "view.close-tab" });
+  assert.equal(shutCapturing.state.capturingShortcut, null);
+  assert.equal(shutCapturing.state.settingsSection, null);
+  assert.deepEqual(shutCapturing.effects, [{ type: "capture-shortcut", capturing: false }], "closing settings stops a shortcut capture the same way Escape does");
+
   const asked = reduce({ ...base, computerUseSetup: true }, { type: "view.close-tab" });
   assert.equal(asked.state.computerUseSetup, false, "the settings computer use opened close the same way");
 

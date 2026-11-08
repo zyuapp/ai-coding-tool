@@ -34,6 +34,8 @@ type Held = {
   /** The coordination role of the run the session was opened for, which decides the tools it holds. */
   role: CoordinationRole | null;
   usedAt: number;
+  /** The turn the pool last handed the session, until it answers. */
+  running?: Promise<unknown>;
   idle?: ReturnType<typeof setTimeout>;
   reload?: { done: Promise<void>; resolve(): void };
   /** Set once the thread is filed away: the session goes as soon as its turn has answered. */
@@ -51,12 +53,29 @@ export class SessionPool {
 
   /** Runs on the thread's session where it fits the run, and on a fresh one otherwise. */
   async execute<S extends PooledSession>(input: ProviderRunInput, key: string, opener: SessionOpener<S>): Promise<ProviderResult> {
+    const answering = this.answering(input.taskId);
+    if (answering) {
+      await answering;
+      if (input.abortController.signal.aborted) return { status: "cancelled" };
+    }
     const held = this.sessionFor(input, key, opener);
+    const running = held.session.run(input);
+    held.running = running;
     try {
-      return await held.session.run(input);
+      return await running;
     } finally {
+      if (held.running === running) held.running = undefined;
       this.rest(input.taskId, held);
     }
+  }
+
+  /**
+   * A cancelled run ends before its turn does: the engine still answers the interrupt, or the session
+   * gives up after its grace period. The next run waits for that rather than closing the session under it.
+   */
+  private answering(taskId: string): Promise<void> | undefined {
+    const held = this.sessions.get(taskId);
+    return held?.running && held.session.answering ? held.running.then(() => undefined, () => undefined) : undefined;
   }
 
   /** The thread's session, while it is live. */

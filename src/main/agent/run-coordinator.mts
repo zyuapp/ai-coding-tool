@@ -12,6 +12,7 @@ import type { CoordinationRole } from "../../domain/coordination.js";
 type PendingApproval = {
   settled: boolean;
   resolve: (decision: ToolDecision) => void;
+  intent: ToolIntent;
   /** Only an unattended run has one: the deadline after which the question is answered for it. */
   deadline?: ReturnType<typeof setTimeout>;
 };
@@ -144,7 +145,7 @@ export class RunCoordinator {
     /** Answering one is somebody being here, so the run's later questions wait for them too. */
     active.unattended = false;
     if (!this.settleApproval(active, approvalId, pending, allow ? "allow" : "deny")) return false;
-    if (!active.terminal && this.isCurrent(active)) this.publish(active, { type: "run.status", status: "running" });
+    this.showApprovals(active);
     return true;
   }
 
@@ -339,7 +340,7 @@ export class RunCoordinator {
     }
     const approvalId = randomUUID();
     return new Promise((resolve) => {
-      const pending: PendingApproval = { settled: false, resolve };
+      const pending: PendingApproval = { settled: false, resolve, intent };
       active.approvals.set(approvalId, pending);
       /**
        * Only a run the scheduler started answers for itself, and only while it stays unattended: a
@@ -348,22 +349,37 @@ export class RunCoordinator {
       if (active.unattended) {
         pending.deadline = setTimeout(() => {
           if (!active.unattended || !this.settleApproval(active, approvalId, pending, { deny: UNATTENDED_DENIAL })) return;
-          if (!active.terminal && this.isCurrent(active)) this.publish(active, { type: "run.status", status: "running" });
+          this.showApprovals(active);
         }, this.options.unattendedApprovalMs ?? DEFAULT_UNATTENDED_APPROVAL_MS);
         pending.deadline.unref?.();
       }
       active.abortController.signal.addEventListener("abort", () => {
         this.settleApproval(active, approvalId, pending, "deny");
       }, { once: true });
-      this.publish(active, {
-        type: "approval.requested",
-        approvalId,
-        intent,
-        title: `${toolLabel(intent.name)} needs approval`,
-        description: "Review this action before it runs.",
-      });
-      this.publish(active, { type: "run.status", status: "awaiting-approval" });
+      if (active.approvals.size === 1) this.showApprovals(active);
     });
+  }
+
+  /**
+   * A run shows one approval at a time, oldest first, and stays waiting until none is left; the
+   * rest are announced as each one before them is answered.
+   */
+  private showApprovals(active: ActiveRun) {
+    if (active.terminal || !this.isCurrent(active)) return;
+    const next = active.approvals.entries().next();
+    if (next.done) {
+      this.publish(active, { type: "run.status", status: "running" });
+      return;
+    }
+    const [approvalId, { intent }] = next.value;
+    this.publish(active, {
+      type: "approval.requested",
+      approvalId,
+      intent,
+      title: `${toolLabel(intent.name)} needs approval`,
+      description: "Review this action before it runs.",
+    });
+    this.publish(active, { type: "run.status", status: "awaiting-approval" });
   }
 
   private cancelActive(active: ActiveRun) {

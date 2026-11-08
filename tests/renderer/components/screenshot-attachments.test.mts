@@ -6,13 +6,14 @@ import { fakeDesktop } from "../../support/desktop-api.mts";
 import { settleUntil } from "../../support/settle.mts";
 import { useComposerAttachments, type ComposerAttachments } from "../../../src/renderer/components/ComposerAttachments.tsx";
 import { useSavingOutbox } from "../../support/composer-outbox.mts";
+import { renderAnnotatedSource } from "../../../src/renderer/annotate/marks.ts";
 import type { RunAttachment, StagedImage } from "../../../src/domain/conversation.ts";
 import type { ScreenshotContext } from "../../../src/domain/screenshot-context.ts";
 
 vi.mock("../../../src/renderer/components/ImageAnnotator.tsx", () => ({ ImageAnnotator: () => null }));
 vi.mock("../../../src/renderer/annotate/marks.ts", async (original) => ({
   ...(await original<Record<string, unknown>>()),
-  renderAnnotatedSource: async () => "data:image/png;base64,AQID",
+  renderAnnotatedSource: vi.fn(async () => "data:image/png;base64,AQID"),
 }));
 
 const context: ScreenshotContext = { version: 1, platform: "linux-hyprland", app: "Editor", title: "Draft", capturedAt: 123, accessibility: { status: "captured", text: "Document ready", truncated: false } };
@@ -27,7 +28,7 @@ test("annotating and recalling a screenshot preserves its context and original c
   let controller: ComposerAttachments;
   let sent: RunAttachment[] = [];
   function Harness({ images }: { images: StagedImage[] }) {
-    controller = useComposerAttachments(images, useSavingOutbox((attachments) => { sent = attachments; }));
+    controller = useComposerAttachments("task-1", images, useSavingOutbox((attachments) => { sent = attachments; }));
     return null;
   }
   const view = await mount(React.createElement(Harness, { images: [{ id: "shot", path: "/tmp/shot.png", label: "Editor" }] }));
@@ -50,7 +51,7 @@ test("sending again while the marks are being drawn sends the image once", async
   window.desktop = fakeDesktop({ saveAttachment: async (data) => { saved.push(data); return "/tmp/annotated.png"; } });
   let controller: ComposerAttachments;
   const images = [{ id: "shot", path: "/tmp/shot.png", label: "Editor" }];
-  function Harness() { controller = useComposerAttachments(images, useSavingOutbox(() => {})); return null; }
+  function Harness() { controller = useComposerAttachments("task-1", images, useSavingOutbox(() => {})); return null; }
   const view = await mount(React.createElement(Harness));
   await settleUntil(() => controller.items.length === 1);
   await act(async () => controller.applyAnnotations("shot", [{ kind: "box", x: 0.1, y: 0.1, width: 0.3, height: 0.2, text: "" }], "data:image/png;base64,AQID"));
@@ -64,7 +65,7 @@ test("an unavailable metadata read never prevents attaching or sending the image
   let controller: ComposerAttachments;
   const images = [{ id: "shot", path: "/tmp/shot.png", label: "Editor" }];
   let sent: RunAttachment[] = [];
-  function Harness() { controller = useComposerAttachments(images, useSavingOutbox((attachments) => { sent = attachments; })); return null; }
+  function Harness() { controller = useComposerAttachments("task-1", images, useSavingOutbox((attachments) => { sent = attachments; })); return null; }
   const view = await mount(React.createElement(Harness));
   await settleUntil(() => controller.items.length === 1);
   await act(async () => controller.send(false));
@@ -77,7 +78,7 @@ test("a second capture arriving during the first context read retains both scree
   window.desktop = fakeDesktop({ readAttachmentContext: (path) => new Promise((resolve) => pending.set(path, resolve)) });
   let controller!: ComposerAttachments;
   let sent: RunAttachment[] = [];
-  function Harness({ images }: { images: StagedImage[] }) { controller = useComposerAttachments(images, useSavingOutbox((attachments) => { sent = attachments; })); return null; }
+  function Harness({ images }: { images: StagedImage[] }) { controller = useComposerAttachments("task-1", images, useSavingOutbox((attachments) => { sent = attachments; })); return null; }
   const first = { id: "first", path: "/tmp/first.png", label: "First" };
   const second = { id: "second", path: "/tmp/second.png", label: "Second" };
   const view = await mount(React.createElement(Harness, { images: [first] }));
@@ -101,7 +102,7 @@ test("sending during metadata loading cannot silently omit the staged screenshot
   let controller!: ComposerAttachments;
   const images = [{ id: "shot", path: "/tmp/shot.png", label: "Capture" }];
   const sends: RunAttachment[][] = [];
-  function Harness() { controller = useComposerAttachments(images, useSavingOutbox((attachments) => sends.push(attachments))); return null; }
+  function Harness() { controller = useComposerAttachments("task-1", images, useSavingOutbox((attachments) => sends.push(attachments))); return null; }
   const view = await mount(React.createElement(Harness));
   try {
     assert.equal(controller.sending, true);
@@ -119,7 +120,7 @@ test("changing threads while context loads cannot restore an old thread's screen
   const pending = new Map<string, Array<(value: ScreenshotContext) => void>>();
   window.desktop = fakeDesktop({ readAttachmentContext: (path) => new Promise((resolve) => pending.set(path, [...(pending.get(path) ?? []), resolve])) });
   let controller!: ComposerAttachments;
-  function Harness({ images }: { images: StagedImage[] }) { controller = useComposerAttachments(images, useSavingOutbox(() => {})); return null; }
+  function Harness({ images }: { images: StagedImage[] }) { controller = useComposerAttachments("task-1", images, useSavingOutbox(() => {})); return null; }
   const first = { id: "first", path: "/tmp/first.png", label: "First" };
   const second = { id: "second", path: "/tmp/second.png", label: "Second" };
   const view = await mount(React.createElement(React.StrictMode, null, React.createElement(Harness, { images: [first] })));
@@ -130,5 +131,38 @@ test("changing threads while context loads cannot restore an old thread's screen
       for (const resolve of pending.get(first.path) ?? []) resolve(context);
     });
     assert.deepEqual(controller.items.map(({ id, context }) => [id, context?.title]), [["second", "Second"]]);
+  } finally { await view.unmount(); }
+});
+
+test("each thread keeps its own pasted images, and marks drawn for one never leave from another", async () => {
+  window.desktop = fakeDesktop({ saveAttachment: async () => "/tmp/annotated.png" });
+  let controller!: ComposerAttachments;
+  const sends: RunAttachment[][] = [];
+  function Harness({ scope, images }: { scope: string; images: StagedImage[] }) {
+    controller = useComposerAttachments(scope, images, useSavingOutbox((attachments) => sends.push(attachments)));
+    return null;
+  }
+  const shot = { id: "shot", path: "/tmp/shot.png", label: "Editor" };
+  const view = await mount(React.createElement(Harness, { scope: "task-1", images: [] }));
+  try {
+    await act(async () => controller.attachPasted([new File([new Uint8Array([1, 2, 3])], "pasted.png", { type: "image/png" })]));
+    assert.equal(controller.items.length, 1);
+    const pasted = controller.items[0].id;
+
+    await view.render(React.createElement(Harness, { scope: "task-2", images: [shot] }));
+    await settleUntil(() => controller.items.length === 1);
+    assert.deepEqual(controller.items.map(({ id }) => id), ["shot"], "another thread shows only its own images");
+    await act(async () => controller.applyAnnotations("shot", [{ kind: "box", x: 0.1, y: 0.1, width: 0.3, height: 0.2, text: "" }], "data:image/png;base64,AQID"));
+
+    let draw!: (source: string) => void;
+    vi.mocked(renderAnnotatedSource).mockImplementationOnce(() => new Promise((resolve) => { draw = resolve; }));
+    await act(async () => controller.send(false));
+    await view.render(React.createElement(Harness, { scope: "task-1", images: [] }));
+    await act(async () => draw("data:image/png;base64,AQID"));
+    assert.deepEqual(sends, [], "the marks drawn for task-2 do not leave from task-1");
+    assert.deepEqual(controller.items.map(({ id }) => id), [pasted], "the pasted image waited for its thread");
+
+    await view.render(React.createElement(Harness, { scope: "task-2", images: [shot] }));
+    assert.equal(controller.items[0]?.annotations.length, 1, "the marked image is still there to send");
   } finally { await view.unmount(); }
 });

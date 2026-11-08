@@ -330,7 +330,7 @@ export function ConversationComposer({
     prompt, annotations, pastes, files, images, history, queuedMessages, caret,
     onPromptChange, onAnnotationRecall, onPasteRecall, onFileRecall, onImageRecall,
   });
-  const attachments = useComposerAttachments(images, outbox, onImageRemove);
+  const attachments = useComposerAttachments(taskId ?? "", images, outbox, onImageRemove);
   const nothingToSend = !prompt.trim() && attachments.items.length === 0 && annotations.length === 0 && pastes.length === 0 && files.length === 0;
   const controls = useCommandControls();
   const sendCommand: AppCommand = { type: "attachments.send", taskId, attachments: attachments.items };

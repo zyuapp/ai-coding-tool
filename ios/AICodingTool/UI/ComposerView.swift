@@ -206,7 +206,6 @@ struct ComposerView<Above: View>: View {
             .ignoresSafeArea()
         }
         .onAppear { draft = model.draft(for: draftKey) }
-        .onChange(of: draftKey) { _, key in draft = model.draft(for: key) }
         .onChange(of: draft) { old, text in
             if focused { dictation.record(from: old, to: text) }
             model.keepDraft(text, for: draftKey)

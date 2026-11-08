@@ -235,6 +235,32 @@ test("approval is scoped to the run and resumes only after its decision", async 
   assert.deepEqual(statuses(events, "run-p"), ["running", "awaiting-approval", "running", "succeeded"]);
 });
 
+test("approvals asked together are shown one at a time, and the run waits until the last is answered", async () => {
+  const provider = new FakeProvider();
+  const events: AgentEvent[] = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event));
+
+  coordinator.start(base("task-m", "run-m"));
+  await tick();
+  const [first, second] = [
+    provider.runs[0].input.authorize({ toolId: "tool-1", name: "Bash", input: {} }),
+    provider.runs[0].input.authorize({ toolId: "tool-2", name: "Write", input: {} }),
+  ];
+  await tick();
+  const requested = () => events.filter((event): event is Extract<RunEvent, { type: "approval.requested" }> => event.type === "approval.requested");
+  assert.deepEqual(requested().map((event) => event.intent.toolId), ["tool-1"]);
+  assert.deepEqual(statuses(events, "run-m"), ["running", "awaiting-approval"]);
+
+  assert.equal(coordinator.decideApproval("task-m", "run-m", requested()[0].approvalId, true), true);
+  assert.equal(await first, "allow");
+  assert.deepEqual(requested().map((event) => event.intent.toolId), ["tool-1", "tool-2"]);
+  assert.deepEqual(statuses(events, "run-m"), ["running", "awaiting-approval", "awaiting-approval"], "one answered approval leaves the run waiting on the next");
+
+  assert.equal(coordinator.decideApproval("task-m", "run-m", requested()[1].approvalId, false), true);
+  assert.equal(await second, "deny");
+  assert.deepEqual(statuses(events, "run-m"), ["running", "awaiting-approval", "awaiting-approval", "running"]);
+});
+
 test("cancelling an approval expires it and rejects a late decision", async () => {
   const events: AgentEvent[] = [];
   let decision: Awaited<ReturnType<ProviderRunInput["authorize"]>> | undefined;

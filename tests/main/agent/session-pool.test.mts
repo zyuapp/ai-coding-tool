@@ -196,3 +196,37 @@ test("a session opened for one coordination role is retired once the thread has 
   await retiring;
   await pool.retireOutOfRole("missing", undefined);
 });
+
+test("a run started while a cancelled turn is still answering waits for it and keeps the warm session", async () => {
+  const pool = new SessionPool();
+  const opened: FakeSession[] = [];
+  let answer!: () => void;
+  const open = (hooks: SessionHooks) => {
+    const session = new FakeSession("key", "claude", hooks);
+    if (opened.length === 0) {
+      session.run = (run) => {
+        session.answering = true;
+        session.run = FakeSession.prototype.run;
+        return new Promise((resolve) => { answer = () => { session.answering = false; resolve({ status: "cancelled", message: run.taskId }); }; });
+      };
+    }
+    opened.push(session);
+    return session;
+  };
+  const first = input({ taskId: "t" });
+  const cancelled = pool.execute(first, "key", { open });
+  first.abortController.abort();
+
+  const superseded = input({ taskId: "t" });
+  const skipped = pool.execute(superseded, "key", { open });
+  const next = pool.execute(input({ taskId: "t" }), "key", { open });
+  superseded.abortController.abort();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(opened[0].live, true, "the session is not closed under its interrupted turn");
+
+  answer();
+  assert.equal((await cancelled).status, "cancelled");
+  assert.deepEqual(await skipped, { status: "cancelled" }, "a run cancelled while it waited never takes the session");
+  assert.equal((await next).status, "succeeded");
+  assert.equal(opened.length, 1, "the next run reuses the warm session");
+});

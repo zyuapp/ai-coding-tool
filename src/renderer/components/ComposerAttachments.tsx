@@ -59,14 +59,29 @@ export type ComposerAttachments = {
   send: (steer: boolean) => void;
 };
 
-/** The images riding the next send, whether they were pasted in or staged by the workspace. */
-export function useComposerAttachments(images: StagedImage[], outbox: ComposerOutbox, onImageRemove?: (imageId: string) => void): ComposerAttachments {
+/**
+ * The images riding the next send, whether they were pasted in or staged by the workspace. `scope`
+ * names the draft they belong to: another draft parks this one's strip and brings back its own.
+ */
+export function useComposerAttachments(scope: string, images: StagedImage[], outbox: ComposerOutbox, onImageRemove?: (imageId: string) => void): ComposerAttachments {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [annotating, setAnnotating] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [shownScope, setShownScope] = useState(scope);
+  const [parked, setParked] = useState<Record<string, Attachment[]>>({});
+  if (shownScope !== scope) {
+    const { [scope]: returning = [], ...others } = parked;
+    setShownScope(scope);
+    setParked(attachments.length ? { ...others, [shownScope]: attachments } : others);
+    setAttachments(returning.filter((item) => item.path === undefined || images.some((image) => image.id === item.id)));
+    setAnnotating(null);
+    setNote(null);
+  }
   const outgoing = useRef(outbox);
   outgoing.current = outbox;
+  const currentScope = useRef(scope);
+  currentScope.current = scope;
   /** Set while marks are drawn into a send, which the workspace cannot yet see has started. */
   const drawing = useRef(false);
   /** Which staged images have already been read in, so a rerender never reads the same one twice. */
@@ -117,12 +132,14 @@ export function useComposerAttachments(images: StagedImage[], outbox: ComposerOu
       return;
     }
     drawing.current = true;
+    const drawnFor = scope;
     void Promise.all(attachments.map(async (attachment, at) => leaving(
       attachment,
       attachment.annotations.length === 0 ? attachment.source : await renderAnnotatedSource(attachment.source, attachment.annotations, markPrefix(at, attachments.length)),
     ))).then(
-      (marked) => outgoing.current.send(marked, steer),
-      (error: unknown) => outgoing.current.notice(error instanceof Error ? error.message : String(error)),
+      /** A draft left mid-draw keeps its strip parked, so it is sent from there or not at all. */
+      (marked) => { if (currentScope.current === drawnFor) outgoing.current.send(marked, steer); },
+      (error: unknown) => { if (currentScope.current === drawnFor) outgoing.current.notice(error instanceof Error ? error.message : String(error)); },
     ).finally(() => { drawing.current = false; });
   }
 
