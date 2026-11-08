@@ -5,7 +5,7 @@ import { attachmentSendFor } from "../../src/application/composer-attachments.ts
 import { imagesFor } from "../../src/application/composer-drafts.ts";
 import { NEW_THREAD_DRAFT } from "../../src/application/workspace-state.ts";
 import { MAX_ATTACHMENTS, type OutgoingAttachment } from "../../src/domain/conversation.ts";
-import { effectAt, run, workspace } from "./workspace-reducer-fixtures.mts";
+import { effectAt, run, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 function image(id: string, path?: string): OutgoingAttachment {
   return { id, source: "data:image/png;base64,AQID", annotations: [], ...(path === undefined ? {} : { path }) };
@@ -130,4 +130,20 @@ test("a side chat's images are its own, and so is what the strip has to say abou
   assert.equal(attachmentSendFor(noticed.state.attachmentSends, "chat").error, "Wait for the screenshots to finish loading.");
   assert.equal(attachmentSendFor(noticed.state.attachmentSends).error, null);
   assert.equal(reduce(noticed.state, { type: "attachments.notice", taskId: "chat", message: "Wait for the screenshots to finish loading." }).state, noticed.state);
+});
+
+test("images written after the composer moved to another thread wait in the one they left from", () => {
+  const base = { ...workspace(), threads: [task("task-a"), task("task-b")], currentId: "task-a" };
+  const drafted = run(base, [{ type: "view.set-prompt", prompt: "For A" }]);
+  const sending = reduce(drafted, { type: "attachments.send", attachments: [image("one")] });
+  const moved = reduce(sending.state, { type: "task.select", taskId: "task-b" }).state;
+
+  const written = reduce(moved, { type: "attachments.saved", ids: ["one"], attachments: [{ path: "/tmp/one.png", labels: [] }] });
+  assert.deepEqual(written.effects, [], "nothing is sent from task-b");
+  assert.deepEqual(attachmentSendFor(written.state.attachmentSends), { busy: false, error: null, sent: [] }, "the strip keeps the image to send again");
+  assert.equal(written.state.prompts["task-a"], "For A");
+  assert.deepEqual(written.state.pendingRuns, {});
+
+  const stayed = reduce(sending.state, { type: "attachments.saved", ids: ["one"], attachments: [{ path: "/tmp/one.png", labels: [] }] });
+  assert.deepEqual(attachmentSendFor(stayed.state.attachmentSends).sent, ["one"], "a composer that stayed sends as before");
 });

@@ -47,7 +47,7 @@ export function reduceComposerAttachments(state: WorkspaceState, input: Attachme
       }
       if (input.attachments.length === 0) return sent(state, input, [], input.steer, input.text);
       return settled(
-        withSend(state, input.taskId, { ...send, busy: true, error: null }),
+        withSend(state, input.taskId, { busy: true, error: null, sent: send.sent, ...(input.taskId === undefined && !input.text ? { draftKey: key } : {}) }),
         [{
           type: "send-attachments",
           ...(input.taskId === undefined ? {} : { taskId: input.taskId }),
@@ -59,10 +59,12 @@ export function reduceComposerAttachments(state: WorkspaceState, input: Attachme
     }
 
     case "attachments.saved":
+      /** The main composer moved to another draft while they were written, so they wait in the one they left from. */
+      if (send.draftKey !== undefined && send.draftKey !== promptKey(state)) return settled(withSend(state, input.taskId, { busy: false, error: null, sent: [] }));
       return sent(withSend(withWrittenImages(state, input), input.taskId, { busy: false, error: null, sent: input.ids }), input, input.attachments, input.steer, input.text);
 
     case "attachments.failed":
-      return settled(withSend(state, input.taskId, { ...send, busy: false, error: input.message }), [], { ok: false, message: input.message });
+      return settled(withSend(state, input.taskId, { busy: false, error: input.message, sent: send.sent }), [], { ok: false, message: input.message });
 
     case "attachments.notice":
       if (send.error === input.message) return settled(state);

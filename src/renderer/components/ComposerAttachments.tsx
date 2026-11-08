@@ -34,6 +34,12 @@ function readImage(file: File) {
   });
 }
 
+/** A pasted image that has left belongs to its message. A staged one stays until the workspace lets it go. */
+function withoutSent(items: Attachment[], sent: string[]) {
+  const kept = items.filter((attachment) => attachment.path !== undefined || !sent.includes(attachment.id));
+  return kept.length === items.length ? items : kept;
+}
+
 /** The one way a composer's message leaves, and where the images riding it stand. */
 export type ComposerOutbox = {
   state: AttachmentSendState;
@@ -94,12 +100,18 @@ export function useComposerAttachments(scope: string, images: StagedImage[], out
       outbox.notice(null);
       return;
     }
+    const pastedFor = scope;
     try {
       const added = await Promise.all(files.slice(0, room).map(readImage));
+      if (currentScope.current !== pastedFor) {
+        setParked((current) => ({ ...current, [pastedFor]: [...(current[pastedFor] ?? []), ...added] }));
+        return;
+      }
       setAttachments((current) => [...current, ...added]);
       setNote(files.length > room ? `Only the first ${room} image${room === 1 ? "" : "s"} were attached.` : null);
       outbox.notice(null);
     } catch (error) {
+      if (currentScope.current !== pastedFor) return;
       setNote(null);
       outbox.notice(error instanceof Error ? error.message : String(error));
     }
@@ -143,14 +155,12 @@ export function useComposerAttachments(scope: string, images: StagedImage[], out
     ).finally(() => { drawing.current = false; });
   }
 
-  /** A pasted image that has left belongs to its message. A staged one stays until the workspace lets it go. */
+  /** Sent images leave the strip on screen and every parked one. */
   const sent = outbox.state.sent;
   useEffect(() => {
     if (sent.length === 0) return;
-    setAttachments((current) => {
-      const kept = current.filter((attachment) => attachment.path !== undefined || !sent.includes(attachment.id));
-      return kept.length === current.length ? current : kept;
-    });
+    setAttachments((current) => withoutSent(current, sent));
+    setParked((current) => Object.fromEntries(Object.entries(current).map(([key, items]) => [key, withoutSent(items, sent)] as const).filter(([, items]) => items.length > 0)));
   }, [sent]);
 
   /**

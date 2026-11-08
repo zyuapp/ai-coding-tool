@@ -166,3 +166,43 @@ test("each thread keeps its own pasted images, and marks drawn for one never lea
     assert.equal(controller.items[0]?.annotations.length, 1, "the marked image is still there to send");
   } finally { await view.unmount(); }
 });
+
+test("a paste that finishes after the thread changed lands in the thread it was pasted into", async () => {
+  window.desktop = fakeDesktop();
+  let controller!: ComposerAttachments;
+  function Harness({ scope }: { scope: string }) { controller = useComposerAttachments(scope, [], useSavingOutbox(() => {})); return null; }
+  const read = FileReader.prototype.readAsDataURL;
+  const held: Array<() => void> = [];
+  FileReader.prototype.readAsDataURL = function (this: FileReader, blob: Blob) { held.push(() => read.call(this, blob)); };
+  const view = await mount(React.createElement(Harness, { scope: "task-1" }));
+  try {
+    const pasting = controller.attachPasted([new File([new Uint8Array([1, 2, 3])], "pasted.png", { type: "image/png" })]);
+    await view.render(React.createElement(Harness, { scope: "task-2" }));
+    FileReader.prototype.readAsDataURL = read;
+    await act(async () => { for (const release of held) release(); await pasting; });
+    assert.deepEqual(controller.items, [], "task-2 never shows task-1's paste");
+    await view.render(React.createElement(Harness, { scope: "task-1" }));
+    assert.equal(controller.items.length, 1);
+  } finally {
+    FileReader.prototype.readAsDataURL = read;
+    await view.unmount();
+  }
+});
+
+test("an image that left while its thread was parked is not brought back with it", async () => {
+  let save!: () => void;
+  window.desktop = fakeDesktop({ saveAttachment: () => new Promise((resolve) => { save = () => resolve("/tmp/pasted.png"); }) });
+  let controller!: ComposerAttachments;
+  const sends: RunAttachment[][] = [];
+  function Harness({ scope }: { scope: string }) { controller = useComposerAttachments(scope, [], useSavingOutbox((attachments) => sends.push(attachments))); return null; }
+  const view = await mount(React.createElement(Harness, { scope: "task-1" }));
+  try {
+    await act(async () => controller.attachPasted([new File([new Uint8Array([1, 2, 3])], "pasted.png", { type: "image/png" })]));
+    await act(async () => controller.send(false));
+    await view.render(React.createElement(Harness, { scope: "task-2" }));
+    await act(async () => save());
+    await settleUntil(() => sends.length === 1);
+    await view.render(React.createElement(Harness, { scope: "task-1" }));
+    assert.deepEqual(controller.items, []);
+  } finally { await view.unmount(); }
+});

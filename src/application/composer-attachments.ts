@@ -5,6 +5,8 @@ export type AttachmentSendState = {
   error: string | null;
   /** The images this composer last sent, so the strip drops the ones that are on disk and gone. */
   sent: string[];
+  /** The main composer's draft the images left from, while they are being written out. */
+  draftKey?: string;
 };
 
 export const NO_ATTACHMENT_SEND: AttachmentSendState = { busy: false, error: null, sent: [] };
