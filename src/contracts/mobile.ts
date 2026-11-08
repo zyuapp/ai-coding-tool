@@ -8,6 +8,7 @@ import type { ThemeMode } from "../domain/theme.js";
 import type { ThreadOutcome } from "../domain/thread-run.js";
 import type { TaskMessageKind } from "./threads.js";
 import type { ToolFamily } from "../domain/tool-call.js";
+import type { ThreadRole } from "../domain/thread-role.js";
 import { isBlankable, isCount, isRecord, isString, MAX_PATH_LENGTH, MAX_PROMPT_LENGTH } from "./phone-commands.js";
 import { isPhoneCommand, type PhoneCommandType } from "./workspace-view-input.js";
 
@@ -218,6 +219,8 @@ export type MobileThreadView = {
   reviewable: boolean;
   /** The threads working under it, when the open thread is a coordinator; empty otherwise. Absent from older desktops. */
   members?: MobileMember[];
+  /** The part it plays beside other threads, null for none. Absent from older desktops. */
+  role?: ThreadRole | null;
   /** Its workflows, processes and subagents, live ones first, a hundred at most. Absent from older desktops. */
   background?: MobileBackgroundItem[];
   /** The branch comparison the desktop has this thread's review on. */
@@ -457,6 +460,8 @@ export type MobileVocabulary = {
   engines: MobileEngineTerms[];
   /** Every effort, deepest first. */
   efforts: MobileEffortTerm[];
+  /** Every role a thread may take, in menu order. Absent from older desktops. */
+  roles?: Array<{ id: ThreadRole; label: string }>;
 };
 
 export type MobilePatchMessage = Sequenced & { kind: "patch"; patch: MobilePatch };

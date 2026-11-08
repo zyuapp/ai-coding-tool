@@ -179,6 +179,16 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(PhoneCommand.stopProcess("t1", processId: "a1").json, .object(["type": .string("run.stop-process"), "taskId": .string("t1"), "processId": .string("a1")]))
     }
 
+    func testRoleTravelsAndClears() throws {
+        let view = try snapshotView()
+        let given = try XCTUnwrap(view.applying(try JSONDecoder().decode(MobilePatch.self, from: Data(#"{"thread":{"kind":"changed","id":"t1","delta":{"role":"reviewer"}}}"#.utf8))))
+        XCTAssertEqual(given.thread?.role, "reviewer")
+        let cleared = try XCTUnwrap(given.applying(try JSONDecoder().decode(MobilePatch.self, from: Data(#"{"thread":{"kind":"changed","id":"t1","delta":{"role":null}}}"#.utf8))))
+        XCTAssertNil(cleared.thread?.role)
+        XCTAssertEqual(PhoneCommand.setRole("t1", role: nil).json, .object(["type": .string("task.set-role"), "taskId": .string("t1"), "role": .null]))
+        XCTAssertEqual(EngineCatalog(vocabulary: nil, engines: [:]).roles.map(\.id), ["coordinator", "implementer", "reviewer", "researcher"])
+    }
+
     func testSnapshotNamesTheComputer() {
         let frame = snapshotFrame().replacingOccurrences(of: #""instance":"one""#, with: #""instance":"one","computer":"Studio""#)
         guard case .snapshot(_, _, _, _, _, let computer)? = parseServerFrame(frame).message else { return XCTFail("snapshot did not parse") }

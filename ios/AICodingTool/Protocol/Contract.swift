@@ -295,6 +295,7 @@ struct MobileThreadView: Codable, Equatable, Sendable {
     var reviewable: Bool
     var branchRange: DiffRange
     var members: [MobileMember]?
+    var role: String?
     var background: [MobileBackgroundItem]?
 }
 
@@ -355,6 +356,13 @@ struct MobileEngineTerms: Codable, Equatable, Sendable {
 struct MobileVocabulary: Codable, Equatable, Sendable {
     var engines: [MobileEngineTerms]
     var efforts: [MobileEffortTerm]
+    var roles: [MobileRoleTerm]?
+}
+
+/// A role a thread may take, as the computer's build names it.
+struct MobileRoleTerm: Codable, Equatable, Identifiable, Sendable {
+    var id: String
+    var label: String
 }
 
 /// What a comparison holds, as `DiffSummaryResult` says it.

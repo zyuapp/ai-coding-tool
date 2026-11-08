@@ -49,6 +49,9 @@ struct EngineCatalog: Equatable, Sendable {
         return Self.fallbackPolicies[policy] ?? policy
     }
 
+    /// Every role a thread may take, in menu order.
+    var roles: [MobileRoleTerm] { vocabulary?.roles ?? Self.fallbackRoles }
+
     func effort(_ id: String) -> MobileEffortTerm {
         vocabulary?.efforts.first { $0.id == id } ?? MobileEffortTerm(id: id, label: Self.fallbackEfforts[id] ?? id.capitalized)
     }
@@ -119,5 +122,6 @@ struct EngineCatalog: Equatable, Sendable {
 
     private static let fallbackLabels = ["claude": "Claude", "codex": "Codex", "opencode": "OpenCode"]
     private static let fallbackPolicies = ["autonomous": "Auto", "bypass": "Bypass", "allow-edits": "Edits", "confirm": "Confirm", "plan": "Plan"]
+    private static let fallbackRoles = [("coordinator", "Coordinator"), ("implementer", "Implementer"), ("reviewer", "Reviewer"), ("researcher", "Researcher")].map { MobileRoleTerm(id: $0.0, label: $0.1) }
     private static let fallbackEfforts = ["ultra": "Ultra", "max": "Max", "xhigh": "Extra high", "high": "High", "medium": "Medium", "low": "Low"]
 }

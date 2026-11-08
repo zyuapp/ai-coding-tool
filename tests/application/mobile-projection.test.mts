@@ -616,3 +616,13 @@ test("an open thread lists its workflows, processes and subagents, live ones fir
   assert.equal(patch?.thread?.kind, "changed");
   assert.deepEqual(applyMobilePatch(before, patch!)?.thread?.background?.map((item) => item.id), ["wf", "p1", "a-idle", "a-done"]);
 });
+
+test("an open thread says its role, and a cleared role travels as null", () => {
+  const state = workspace([task("t1", { role: "reviewer" })], { currentId: "t1" });
+  const before = projectMobileView(state, NOW);
+  assert.equal(before.thread?.role, "reviewer");
+  const after = projectMobileView({ ...state, threads: [task("t1")] }, NOW);
+  const patch = diffMobileView(before, after);
+  assert.equal(patch?.thread?.kind === "changed" && patch.thread.delta.role, null);
+  assert.equal(applyMobilePatch(before, patch!)?.thread?.role, null);
+});

@@ -58,7 +58,7 @@ struct ThreadScreen: View {
                         if let thread = model.view.thread, !model.pending {
                             ThreadMenu(thread: thread, onChanges: { model.enterChanges() }, onLocation: { sheet = .location }, onNewHere: {
                                 model.newThread(projectId: thread.projectId, project: thread.projectName, worktreeId: thread.worktreeId)
-                            }, onFork: { worktree in model.send(.fork(thread.id, worktree: worktree)) }, onRename: { sheet = .rename }, onArchive: { archiving = ArchiveAsk(id: thread.id, title: thread.title, running: thread.status == "running" || thread.status == "awaiting-approval") }, onCoordinate: { model.send(.setCoordinator(thread.id, $0)) }, onBackground: { sheet = .background })
+                            }, onFork: { worktree in model.send(.fork(thread.id, worktree: worktree)) }, onRename: { sheet = .rename }, onArchive: { archiving = ArchiveAsk(id: thread.id, title: thread.title, running: thread.status == "running" || thread.status == "awaiting-approval") }, roles: model.catalog.roles, onRole: { model.send(.setRole(thread.id, role: $0)) }, onBackground: { sheet = .background })
                         } else {
                             Button {} label: { Image(systemName: "ellipsis") }
                                 .disabled(true)
@@ -222,12 +222,13 @@ struct ThreadMenu: View {
     var onFork: (Bool) -> Void
     var onRename: () -> Void
     var onArchive: () -> Void
-    var onCoordinate: (Bool) -> Void
+    var roles: [MobileRoleTerm]
+    var onRole: (String?) -> Void
     var onBackground: () -> Void
 
     var body: some View {
         let inProject = thread.projectId != nil
-        let coordinating = thread.settings.coordinating == true
+        let role = thread.role ?? (thread.settings.coordinating == true ? "coordinator" : nil)
         let working = thread.location == .creating || thread.location == .releasing
         let inWorktree: Bool = { if case .worktree = thread.location { return true } else { return false } }()
         Menu {
@@ -247,7 +248,14 @@ struct ThreadMenu: View {
                 }
             }
             Section {
-                item(coordinating ? "Stop Coordinating" : "Coordinate", detail: coordinating ? "Its threads carry on alone" : "Start and steer other threads", symbol: "person.2") { onCoordinate(!coordinating) }
+                Picker(selection: Binding(get: { role ?? "" }, set: { onRole($0.isEmpty ? nil : $0) })) {
+                    ForEach(roles) { Text($0.label).tag($0.id) }
+                    Text("None").tag("")
+                } label: {
+                    Label("Role", systemImage: "person.2")
+                    Text(role.map { id in roles.first { $0.id == id }?.label ?? id.capitalized } ?? "None")
+                }
+                .pickerStyle(.menu)
             }
             Section {
                 item("Rename…", symbol: "pencil", action: onRename)

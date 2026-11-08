@@ -74,7 +74,9 @@ extension PhoneCommand {
         sources.isEmpty ? .send(taskId, text: text, steer: steer ? true : nil) : .sendImages(taskId, text: text, sources: sources, steer: steer)
     }
     /// Makes a thread, or the draft when `taskId` is nil, a coordinator, or plain again.
-    static func setCoordinator(_ taskId: String?, _ coordinating: Bool) -> PhoneCommand { PhoneCommand("task.set-role", ["taskId": jsonText(taskId), "role": coordinating ? JSONValue.string("coordinator") : JSONValue.null]) }
+    static func setCoordinator(_ taskId: String?, _ coordinating: Bool) -> PhoneCommand { setRole(taskId, role: coordinating ? "coordinator" : nil) }
+    /// Gives a thread, or the draft when `taskId` is nil, a role, or takes its role away.
+    static func setRole(_ taskId: String?, role: String?) -> PhoneCommand { PhoneCommand("task.set-role", ["taskId": jsonText(taskId), "role": role.map(JSONValue.string) ?? .null]) }
     /// Opens a folder on the computer as a project and starts a draft in it.
     static func addProject(_ root: String) -> PhoneCommand { PhoneCommand("project.add", ["root": .string(root), "start": .bool(true)]) }
 }

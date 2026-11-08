@@ -19,6 +19,7 @@ import { workspaceViewCollections } from "./workspace-view-collections.js";
 import { AGENT_EFFORTS, AGENT_ENGINES, BUILT_IN_MODELS, byEngine, capabilitiesFor, efforts, engineCatalog, engineLabel, offeredPolicies, type AgentEngine, type EngineReadiness, type EngineStatus, type ModelCatalog } from "../domain/agent-engine.js";
 import { orderSubagents, POLICIES, processLabel, subagentLine, type BackgroundProcess, type Subagent } from "../domain/run.js";
 import { workflowLabel, type Workflow } from "../domain/workflow.js";
+import { THREAD_ROLES } from "../domain/thread-role.js";
 import { ownUpkeep } from "./computer-updates.js";
 import { isPhoneCommand } from "../contracts/workspace-view-input.js";
 import type {
@@ -110,6 +111,7 @@ export const MOBILE_VOCABULARY: MobileVocabulary = {
     models: BUILT_IN_MODELS.models[engine].map((spec) => ({ id: spec.id, label: spec.label, description: spec.description, ...(spec.provider ? { provider: spec.provider } : {}), efforts: spec.efforts.map((effort) => effort.id) })),
   })),
   efforts: efforts(...AGENT_EFFORTS).map((spec) => ({ ...spec })),
+  roles: THREAD_ROLES.map(({ role, label }) => ({ id: role, label })),
 };
 
 /** The computer's engines as a phone's pickers read them: the models they offer, and each engine's readiness. */
@@ -307,6 +309,7 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
     reviewable: threadWorkspaceId(state, thread) !== undefined,
     branchRange: diff.range.kind === "branches" ? diff.range : diff.branchRange ?? DEFAULT_BRANCH_RANGE,
     members: isCoordinator(thread) ? projectMembers(state, thread.id, view) : NO_MEMBERS,
+    role: thread.role ?? null,
     background: projectBackground(view.workflows, view.backgroundProcesses, view.subagents),
   };
 }
@@ -461,7 +464,7 @@ function diffMobileThread(previous: MobileThreadView | null, next: MobileThreadV
  */
 const MOVING_KEYS = [
   "loading", "title", "projectId", "projectName", "worktreeId", "omitted", "status", "question", "approval",
-  "queued", "settings", "location", "worktrees", "canMove", "changes", "reviewable", "branchRange", "members", "background",
+  "queued", "settings", "location", "worktrees", "canMove", "changes", "reviewable", "branchRange", "members", "role", "background",
 ] as const satisfies ReadonlyArray<keyof Omit<MobileThreadView, "id" | "messages" | "streamingTail">>;
 
 /**
