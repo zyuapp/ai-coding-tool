@@ -130,7 +130,6 @@ struct MessageView: View {
     }
 }
 
-/// A run of more than one call is a card that opens to every call in order; a lone call is a plain line.
 /// A run of tool calls. One call reads as what it did; several as a summary that opens to each call
 /// and its argument, in the order they were made. A call's row opens to its whole argument.
 struct ToolRunView: View {

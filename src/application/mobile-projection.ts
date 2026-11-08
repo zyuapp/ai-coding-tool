@@ -12,7 +12,7 @@ import { coordinationMembers, coordinatorRoster, memberActivity, ownCoordination
 import { describeToolCall } from "../domain/tool-call.js";
 import { isCoordinator } from "../domain/coordination.js";
 import type { ConversationMessage } from "../domain/conversation.js";
-import type { ThreadActivity } from "./thread-activity.js";
+import { threadActivity, type ThreadActivity } from "./thread-activity.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
 import { diffFor } from "./workspace-diff.js";
 import { workspaceViewCollections } from "./workspace-view-collections.js";
@@ -319,8 +319,8 @@ export function mobileThreadRead(state: WorkspaceState, taskId: string): MobileT
   const thread = state.threads.find((item) => item.id === taskId);
   const transcript = thread && threadTranscript(state, thread.id, MOBILE_TRANSCRIPT_MESSAGES);
   if (!thread || !transcript) return null;
-  const view = deriveView(state);
-  const status: MobileRunStatus = view.blockedThreadIds.has(thread.id) ? "awaiting-approval" : view.runningThreadIds.has(thread.id) ? "running" : "idle";
+  const { working, blocked } = threadActivity(state);
+  const status: MobileRunStatus = blocked.has(thread.id) ? "awaiting-approval" : working.has(thread.id) ? "running" : "idle";
   return { title: thread.title || "Untitled thread", status, messages: withToolCalls(thread, transcript.messages), omitted: transcript.omitted, streamingTail: state.streamingTails[thread.id]?.text ?? null };
 }
 

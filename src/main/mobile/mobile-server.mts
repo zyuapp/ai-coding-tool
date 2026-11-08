@@ -284,16 +284,16 @@ export class MobileServer {
     });
   }
 
-  /**
-   * What every phone should see now. Offline sessions are numbered too, so a resume replays them. A
-   * whole view is ground truth, so a phone still waiting for one is handed it too.
-   */
   /** What this computer calls itself, for the phone's list of computers. */
   private computerName(): { computer?: string } {
     const name = this.options.workspace?.name?.();
     return name ? { computer: name } : {};
   }
 
+  /**
+   * What every phone should see now. Offline sessions are numbered too, so a resume replays them. A
+   * whole view is ground truth, so a phone still waiting for one is handed it too.
+   */
   publish(update: MobileViewUpdate) {
     this.view = update.kind === "snapshot" ? update.view : this.view && applyMobilePatch(this.view, update.patch);
     for (const session of this.sessions.values()) {

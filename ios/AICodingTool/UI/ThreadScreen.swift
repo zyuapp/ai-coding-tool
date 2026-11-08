@@ -167,7 +167,7 @@ struct ThreadScreen: View {
             AddProjectSheet(model: model)
         case .members:
             if let thread = model.view.thread {
-                MembersSheet(model: model, members: thread.members ?? [], engine: thread.settings.engine)
+                MembersSheet(model: model, members: thread.members ?? [])
             }
         case .startIn:
             if let draft = model.view.draft {

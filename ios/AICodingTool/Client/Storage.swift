@@ -38,17 +38,21 @@ struct PhoneStorage {
     func readComputers() -> [PairedComputer] {
         if let data = keychainRead(account: Self.computersAccount), let computers = try? JSONDecoder().decode([PairedComputer].self, from: data) { return computers }
         guard let data = keychainRead(account: Self.computerAccount), let computer = try? JSONDecoder().decode(PairedComputer.self, from: data) else { return [] }
-        writeComputers([computer])
-        keychainDelete(account: Self.computerAccount)
+        // The old item goes only once the list holding it reads back, so a failed write leaves the pairing where it was.
+        if writeComputers([computer]), let moved = keychainRead(account: Self.computersAccount), (try? JSONDecoder().decode([PairedComputer].self, from: moved)) == [computer] {
+            keychainDelete(account: Self.computerAccount)
+        }
         return [computer]
     }
 
-    func writeComputers(_ computers: [PairedComputer]) {
+    /// Whether the list was kept.
+    @discardableResult
+    func writeComputers(_ computers: [PairedComputer]) -> Bool {
         guard !computers.isEmpty, let data = try? JSONEncoder().encode(computers) else {
             keychainDelete(account: Self.computersAccount)
-            return
+            return true
         }
-        keychainWrite(data, account: Self.computersAccount)
+        return keychainWrite(data, account: Self.computersAccount)
     }
 
     /// The computer the app last dialled, kept apart from the token so a forgotten token still knows where to pair again.
@@ -129,12 +133,13 @@ struct PhoneStorage {
         return result as? Data
     }
 
-    private func keychainWrite(_ data: Data, account: String) {
+    private func keychainWrite(_ data: Data, account: String) -> Bool {
         let attributes: [String: Any] = [kSecValueData as String: data, kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
-        if SecItemUpdate(query(account: account) as CFDictionary, attributes as CFDictionary) == errSecItemNotFound {
-            SecItemAdd(query(account: account).merging(attributes) { _, new in new } as CFDictionary, nil)
-        }
+        let updated = SecItemUpdate(query(account: account) as CFDictionary, attributes as CFDictionary)
+        guard updated == errSecItemNotFound else { return updated == errSecSuccess }
+        return SecItemAdd(query(account: account).merging(attributes) { _, new in new } as CFDictionary, nil) == errSecSuccess
     }
+
 
     private func keychainDelete(account: String) {
         SecItemDelete(query(account: account) as CFDictionary)

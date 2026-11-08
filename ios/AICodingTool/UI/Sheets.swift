@@ -521,7 +521,6 @@ struct ThreadSettingsSheet: View {
 struct MembersSheet: View {
     var model: PhoneModel
     var members: [MobileMember]
-    var engine: String
     @Environment(\.dismiss) private var dismiss
     @Environment(\.palette) private var palette
 
@@ -534,7 +533,7 @@ struct MembersSheet: View {
                 ForEach(members) { member in
                     if member.computer == nil {
                         NavigationLink {
-                            MemberTranscript(model: model, member: member, engine: engine)
+                            MemberTranscript(model: model, member: member)
                         } label: {
                             row(member)
                         }
@@ -569,7 +568,6 @@ struct MembersSheet: View {
 struct MemberTranscript: View {
     var model: PhoneModel
     var member: MobileMember
-    var engine: String
     @Environment(\.palette) private var palette
     @State private var read: MobileThreadRead?
     @State private var problem: String?
@@ -585,7 +583,8 @@ struct MemberTranscript: View {
                         ForEach(Format.transcriptBlocks(read.messages)) { block in
                             switch block {
                             case .message(_, let message, let answer): MessageView(message: message, answer: answer)
-                            case .tools(_, let calls): ToolRunView(engine: engine, calls: calls)
+                            // The computer names each call's family, so no engine is needed to read it.
+                            case .tools(_, let calls): ToolRunView(engine: "", calls: calls)
                             }
                         }
                         if let tail = read.streamingTail { MarkdownView(text: tail) }
