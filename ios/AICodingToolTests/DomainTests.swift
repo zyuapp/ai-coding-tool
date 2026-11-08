@@ -114,4 +114,14 @@ final class DomainTests: XCTestCase {
         XCTAssertEqual(summary.effort, "High")
         XCTAssertNil(catalog.summary(MobileThreadSettings(engine: "claude", model: "haiku", effort: "high", fastMode: nil, policy: "bypass", coordinating: nil)).effort)
     }
+
+    func testSentEchoMatchesOnlyTheSentWordsSoonAfter() {
+        let now = Date()
+        let echo = SentEcho("Fix the build please", at: now)
+        XCTAssertTrue(echo.matches("fix the build, please.", at: now.addingTimeInterval(1)))
+        XCTAssertFalse(echo.matches("f", at: now.addingTimeInterval(1)))
+        XCTAssertFalse(echo.matches("Fix the build please and test", at: now.addingTimeInterval(1)))
+        XCTAssertFalse(echo.matches("Fix the build please", at: now.addingTimeInterval(SentEcho.window + 1)))
+        XCTAssertFalse(SentEcho("", at: now).matches("", at: now))
+    }
 }

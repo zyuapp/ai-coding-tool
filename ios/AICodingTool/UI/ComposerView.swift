@@ -34,6 +34,7 @@ struct ComposerView<Above: View>: View {
     @State private var shooting = false
     @State private var picked: [PhotosPickerItem] = []
     @State private var sent = 0
+    @State private var echo: SentEcho?
     @FocusState private var focused: Bool
 
     private var blocked: Bool { question?.blocking == true }
@@ -201,7 +202,13 @@ struct ComposerView<Above: View>: View {
         }
         .onAppear { draft = model.draft(for: draftKey) }
         .onChange(of: draftKey) { _, key in draft = model.draft(for: key) }
-        .onChange(of: draft) { _, text in model.keepDraft(text, for: draftKey) }
+        .onChange(of: draft) { _, text in
+            if echo?.matches(text) == true {
+                draft = ""
+                return
+            }
+            model.keepDraft(text, for: draftKey)
+        }
         .onChange(of: returned) { _, next in
             guard let next, let text = next.text, next.id != given else { return }
             given = next.id
@@ -258,6 +265,7 @@ struct ComposerView<Above: View>: View {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         let sources = images.map(\.source)
         guard !text.isEmpty || !sources.isEmpty else { return }
+        echo = SentEcho(text)
         draft = ""
         images = []
         sent += 1
