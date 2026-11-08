@@ -277,11 +277,17 @@ export type MobilePatch = {
 };
 
 /**
- * Bumped when a message shape changes in a way an older phone app could misread: a phone the Mac
- * turns away is told to update, where one left running is wrong in silence. The app's own copy in
- * `ios/AICodingTool/Protocol/Messages.swift` moves with it.
+ * Bumped with every change to the messages between the computer and the phone app. The app's own
+ * copy in `ios/AICodingTool/Protocol/Messages.swift` moves with it.
  */
 export const MOBILE_PROTOCOL_VERSION = 8;
+
+/**
+ * The oldest phone app this computer serves. Raised only when an older app would misread what the
+ * computer now sends, or would send what it no longer reads: one turned away is told to update,
+ * where one left running is wrong in silence.
+ */
+export const OLDEST_PHONE_PROTOCOL_VERSION = 8;
 
 const MAX_DEVICE_NAME_LENGTH = 128;
 const MAX_TOKEN_LENGTH = 512;
@@ -322,6 +328,8 @@ export type MobileErrorCode =
 export type MobilePairRequest = {
   kind: "pair";
   version: number;
+  /** The oldest computer the phone reads. Absent from apps that predate it. */
+  oldestComputer?: number;
   code: string;
   /** What the phone calls itself, which is how settings lists it. */
   deviceName: string;
@@ -334,6 +342,8 @@ export type MobilePairRequest = {
 export type MobileResumeRequest = {
   kind: "resume";
   version: number;
+  /** The oldest computer the phone reads. Absent from apps that predate it. */
+  oldestComputer?: number;
   token: string;
   /** The session it was last on. A session the server no longer holds starts a new one. */
   sessionId?: string;
@@ -427,9 +437,15 @@ export type MobileServerMessage = MobilePairedMessage | MobileSnapshotMessage | 
 /** What a phone sends is the security boundary, so every field of it is read defensively. */
 export function isMobileClientMessage(value: unknown): value is MobileClientMessage {
   if (!isRecord(value)) return false;
-  if (value.kind === "pair") return isCount(value.version) && isString(value.code, MAX_TOKEN_LENGTH) && isString(value.deviceName, MAX_DEVICE_NAME_LENGTH);
+  if (value.kind === "pair") {
+    return isCount(value.version)
+      && (value.oldestComputer === undefined || isCount(value.oldestComputer))
+      && isString(value.code, MAX_TOKEN_LENGTH)
+      && isString(value.deviceName, MAX_DEVICE_NAME_LENGTH);
+  }
   if (value.kind === "resume") {
     return isCount(value.version)
+      && (value.oldestComputer === undefined || isCount(value.oldestComputer))
       && isString(value.token, MAX_TOKEN_LENGTH)
       && (value.sessionId === undefined || isString(value.sessionId))
       && isCount(value.lastSequence);

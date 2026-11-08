@@ -12,7 +12,7 @@ import { MOBILE_VOCABULARY } from "../../../src/application/mobile-projection.ts
 import { PairingStore } from "../../../src/main/mobile/pairing.mts";
 import { MobileRelay } from "../../../src/main/mobile/session-host.mts";
 import { MAX_PENDING_SOCKETS, MOBILE_EVENT_BUFFER } from "../../../src/domain/mobile.ts";
-import { MOBILE_PROTOCOL_VERSION, type MobileClientMessage, type MobileCommand, type MobileQuery, type MobileRequest, type MobileServerMessage, type MobileView } from "../../../src/contracts/mobile.ts";
+import { MOBILE_PROTOCOL_VERSION, OLDEST_PHONE_PROTOCOL_VERSION, type MobileClientMessage, type MobileCommand, type MobileQuery, type MobileRequest, type MobileServerMessage, type MobileView } from "../../../src/contracts/mobile.ts";
 
 function view(title: string): MobileView {
   return { groups: [{ projectId: null, name: title, threads: [] }], activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, engines: {}, thread: null, draft: null, error: null };
@@ -213,8 +213,24 @@ test("a socket is refused without a token this Mac knows, and without an origin 
   const outdated = phone(socketUrl);
   t.onTestFinished(() => outdated.socket.close());
   await outdated.opened();
-  outdated.send({ kind: "pair", version: MOBILE_PROTOCOL_VERSION + 1, code: devices.mint(Date.now()).code, deviceName: "iPhone" });
-  assert.equal((await outdated.waitFor("error")).code, "version");
+  outdated.send({ kind: "pair", version: OLDEST_PHONE_PROTOCOL_VERSION - 1, code: devices.mint(Date.now()).code, deviceName: "iPhone" });
+  const tooOld = await outdated.waitFor("error");
+  assert.equal(tooOld.code, "version");
+  assert.match(tooOld.message, /Update the app/);
+
+  const ahead = phone(socketUrl);
+  t.onTestFinished(() => ahead.socket.close());
+  await ahead.opened();
+  ahead.send({ kind: "pair", version: MOBILE_PROTOCOL_VERSION + 2, oldestComputer: MOBILE_PROTOCOL_VERSION + 1, code: devices.mint(Date.now()).code, deviceName: "iPhone" });
+  const tooNew = await ahead.waitFor("error");
+  assert.equal(tooNew.code, "version");
+  assert.match(tooNew.message, /Update it on your computer/);
+
+  const newer = phone(socketUrl);
+  t.onTestFinished(() => newer.socket.close());
+  await newer.opened();
+  newer.send({ kind: "pair", version: MOBILE_PROTOCOL_VERSION + 1, oldestComputer: MOBILE_PROTOCOL_VERSION, code: devices.mint(Date.now()).code, deviceName: "iPhone" });
+  await newer.waitFor("paired");
 
   const allowed = phone(socketUrl, { origin });
   t.onTestFinished(() => allowed.socket.close());

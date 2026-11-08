@@ -130,6 +130,12 @@ final class ClientReducerTests: XCTestCase {
         XCTAssertTrue(effects.contains(.connect(delayMs: 500)))
     }
 
+    func testOutOfDateComputerSaysWhichSideToUpdate() {
+        let message = "AI Coding Tool on your computer is out of date for this app. Update it on your computer to carry on."
+        let (state, _) = run(paired(), [.received(.error(sequence: 2, code: .version, message: message))])
+        XCTAssertEqual(state.notice, message)
+    }
+
     func testFullOutboxRefuses() {
         var state = run(paired(), [.closed]).0
         for index in 0..<MobileClient.outboxLimit {

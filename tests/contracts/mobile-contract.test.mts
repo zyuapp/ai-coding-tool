@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "vitest";
-import { isMobileClientMessage, isMobileRequest, isMobileResponse, MOBILE_PROTOCOL_VERSION, type MobileCommand } from "../../src/contracts/mobile.ts";
+import { isMobileClientMessage, isMobileRequest, isMobileResponse, MOBILE_PROTOCOL_VERSION, OLDEST_PHONE_PROTOCOL_VERSION, type MobileCommand } from "../../src/contracts/mobile.ts";
 import { MAX_PHONE_IMAGE_LENGTH } from "../../src/contracts/phone-commands.ts";
 import { isPhoneCommand } from "../../src/contracts/workspace-view-input.ts";
 import {
@@ -137,6 +137,10 @@ test("client messages are read defensively, since the phone is the boundary", ()
   assert.equal(isMobileClientMessage({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: "ABCD2345", deviceName: "iPhone" }), true);
   assert.equal(isMobileClientMessage({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: "ABCD2345" }), false);
   assert.equal(isMobileClientMessage({ kind: "pair", version: "1", code: "ABCD2345", deviceName: "iPhone" }), false);
+  assert.equal(isMobileClientMessage({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, oldestComputer: 8, code: "ABCD2345", deviceName: "iPhone" }), true);
+  assert.equal(isMobileClientMessage({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, oldestComputer: "8", code: "ABCD2345", deviceName: "iPhone" }), false);
+  assert.equal(isMobileClientMessage({ kind: "resume", version: 1, oldestComputer: 1, token: "abc", lastSequence: 0 }), true);
+  assert.equal(isMobileClientMessage({ kind: "resume", version: 1, oldestComputer: -1, token: "abc", lastSequence: 0 }), false);
   assert.equal(isMobileClientMessage({ kind: "resume", version: 1, token: "abc", lastSequence: 0 }), true);
   assert.equal(isMobileClientMessage({ kind: "resume", version: 1, token: "abc", sessionId: "session-1", lastSequence: 12 }), true);
   assert.equal(isMobileClientMessage({ kind: "resume", version: 1, token: "abc", lastSequence: -1 }), false);
@@ -282,6 +286,8 @@ test("a phone may send exactly the commands that declare a phone rule", () => {
 test("the iOS app speaks the protocol version the computer serves", () => {
   const swift = readFileSync(new URL("../../ios/AICodingTool/Protocol/Messages.swift", import.meta.url), "utf8");
   assert.equal(Number(/let mobileProtocolVersion = (\d+)/.exec(swift)?.[1]), MOBILE_PROTOCOL_VERSION);
+  assert.ok(Number(/let oldestComputerProtocolVersion = (\d+)/.exec(swift)?.[1]) <= MOBILE_PROTOCOL_VERSION, "the app reads the computer it ships beside");
+  assert.ok(OLDEST_PHONE_PROTOCOL_VERSION <= MOBILE_PROTOCOL_VERSION);
   const composer = readFileSync(new URL("../../ios/AICodingTool/UI/ComposerView.swift", import.meta.url), "utf8");
   assert.equal(Number(/static let maxSourceLength = (\d+) \* 1024 \* 1024/.exec(composer)?.[1]) * 1024 * 1024, MAX_PHONE_IMAGE_LENGTH, "the phone shrinks pictures to what the computer takes");
 });

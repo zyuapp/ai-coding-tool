@@ -6,6 +6,7 @@ import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
 import {
   MOBILE_PROTOCOL_VERSION,
+  OLDEST_PHONE_PROTOCOL_VERSION,
   type MobileClientMessage,
   type MobileCommand,
   type MobileErrorCode,
@@ -661,7 +662,7 @@ export class MobileServer {
   }
 
   private onPair(socket: WebSocket, request: MobilePairRequest, source: string, kind: PairedDeviceKind): Session | null {
-    if (!versionAccepted(request.version, kind, socket)) return null;
+    if (!versionAccepted(request, kind, socket)) return null;
     /** A code buys a device, so it is not spent on a socket that has already gone. */
     if (socket.readyState !== socket.OPEN) return null;
     const outcome = this.options.devices.redeem(request.code, request.deviceName, source, Date.now(), kind);
@@ -690,7 +691,7 @@ export class MobileServer {
    * real phone out, since a reverse proxy makes every phone the same source address.
    */
   private onResume(socket: WebSocket, request: MobileResumeRequest, kind: PairedDeviceKind): Session | null {
-    if (!versionAccepted(request.version, kind, socket)) return null;
+    if (!versionAccepted(request, kind, socket)) return null;
     const now = Date.now();
     const device = this.options.devices.authenticate(request.token);
     /** A token this computer cannot check yet is not a token it refused: the device keeps it and asks again. */
@@ -794,11 +795,18 @@ function congested(session: Session) {
   return session.socket !== null && session.socket.bufferedAmount > MOBILE_CONGESTED_BYTES;
 }
 
-/** Computers connect best effort across versions; a phone app must speak this build's protocol. */
-function versionAccepted(version: number, kind: PairedDeviceKind, socket: WebSocket) {
-  if (kind === "computer" || version === MOBILE_PROTOCOL_VERSION) return true;
-  refuse(socket, "version", "This app is a different version from the computer. Update whichever is older.");
-  return false;
+/** Computers connect best effort across versions; a phone app and this computer must each read the other. */
+function versionAccepted(request: MobilePairRequest | MobileResumeRequest, kind: PairedDeviceKind, socket: WebSocket) {
+  if (kind === "computer") return true;
+  if (request.version < OLDEST_PHONE_PROTOCOL_VERSION) {
+    refuse(socket, "version", "This app is out of date for your computer. Update the app to carry on.");
+    return false;
+  }
+  if (MOBILE_PROTOCOL_VERSION < (request.oldestComputer ?? 0)) {
+    refuse(socket, "version", "AI Coding Tool on your computer is out of date for this app. Update it on your computer to carry on.");
+    return false;
+  }
+  return true;
 }
 
 function plain(response: ServerResponse, status: number, text: string) {

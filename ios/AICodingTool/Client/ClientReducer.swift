@@ -363,7 +363,7 @@ enum MobileClient {
             // An app cannot reload itself into a newer build, so it waits on the backoff in case the computer is what changes.
             next.attempt = state.attempt + 1
             next.connection = .offline
-            next.notice = outOfDate
+            next.notice = message.isEmpty ? outOfDate : message
             return (next, [.disconnect, .connect(delayMs: backoffDelay(next.attempt))])
         }
         let sentence = code == .rateLimited ? message : refusal(code)

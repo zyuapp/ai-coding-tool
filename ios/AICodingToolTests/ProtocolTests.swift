@@ -91,6 +91,7 @@ final class ProtocolTests: XCTestCase {
         let text = MobileClientMessage.resume(token: "t", sessionId: nil, lastSequence: 12).text
         XCTAssertTrue(text.contains(#""lastSequence":12"#))
         XCTAssertTrue(text.contains(#""version":\#(mobileProtocolVersion)"#))
+        XCTAssertTrue(text.contains(#""oldestComputer":\#(oldestComputerProtocolVersion)"#))
         XCTAssertFalse(text.contains("sessionId"))
     }
 

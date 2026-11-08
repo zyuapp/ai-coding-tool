@@ -3,6 +3,9 @@ import Foundation
 /// Bumped with `MOBILE_PROTOCOL_VERSION` in `src/contracts/mobile.ts`.
 let mobileProtocolVersion = 8
 
+/// The oldest computer this app reads. Raised only when an older computer would leave out what the app needs.
+let oldestComputerProtocolVersion = 8
+
 /// A field a patch may leave out, set, or set to null: absent and null mean different things.
 enum PatchField<Value: Equatable & Sendable>: Equatable, Sendable {
     case absent
@@ -281,10 +284,10 @@ enum MobileClientMessage: Equatable, Sendable {
     var json: JSONValue {
         switch self {
         case .pair(let code, let deviceName):
-            .object(["kind": .string("pair"), "version": .number(Double(mobileProtocolVersion)), "code": .string(code), "deviceName": .string(deviceName)])
+            .object(["kind": .string("pair"), "version": .number(Double(mobileProtocolVersion)), "oldestComputer": .number(Double(oldestComputerProtocolVersion)), "code": .string(code), "deviceName": .string(deviceName)])
         case .resume(let token, let sessionId, let lastSequence):
             {
-                var object: [String: JSONValue] = ["kind": .string("resume"), "version": .number(Double(mobileProtocolVersion)), "token": .string(token), "lastSequence": .number(Double(lastSequence))]
+                var object: [String: JSONValue] = ["kind": .string("resume"), "version": .number(Double(mobileProtocolVersion)), "oldestComputer": .number(Double(oldestComputerProtocolVersion)), "token": .string(token), "lastSequence": .number(Double(lastSequence))]
                 if let sessionId { object["sessionId"] = .string(sessionId) }
                 return .object(object)
             }()
