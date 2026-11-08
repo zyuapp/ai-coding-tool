@@ -26,6 +26,7 @@ export const simulatorEffects = {
   "simulator.input": async (effect, { dispatch, desktop }) => {
     try {
       await desktop.simulatorInput(effect.udid, effect.input);
+      if (effect.input.kind === "rotate") await dispatch({ type: "simulator.turned", udid: effect.udid, orientation: effect.input.orientation });
     } catch (error) {
       await dispatch({ type: "simulator.refused", message: errorMessage(error) });
     } finally {

@@ -8,7 +8,7 @@ import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./typ
 
 export const SIMULATOR_INPUTS = [
   "simulator.open", "simulator.refresh", "simulator.select", "simulator.input",
-  "simulator.listed", "simulator.booted", "simulator.failed", "simulator.refused", "simulator.idle",
+  "simulator.listed", "simulator.booted", "simulator.failed", "simulator.refused", "simulator.turned", "simulator.idle",
 ] as const;
 type SimulatorInput = Extract<WorkspaceInput, { type: (typeof SIMULATOR_INPUTS)[number] }>;
 
@@ -127,11 +127,10 @@ export function reduceSimulator(state: WorkspaceState, input: SimulatorInput): W
       const target = device(state, udid);
       /** A person's pointer over a device still starting goes nowhere; a run is told why. */
       if (target && target.state !== "booted") return input.taskId ? refused(state, SIMULATOR_STARTING) : settled(state);
-      const turned = input.input.kind === "rotate" ? turn(state, udid, input.input.orientation) : state;
-      if (input.taskId === undefined) return settled(turned, [{ type: "simulator.input", udid, input: input.input }]);
+      if (input.taskId === undefined) return settled(state, [{ type: "simulator.input", udid, input: input.input }]);
       const seq = (state.simulator.driver?.seq ?? 0) + 1;
       const driver = { taskId: input.taskId, udid, seq };
-      return settled(withSimulator(turned, { driver }), [{ type: "simulator.input", udid, input: input.input, taskId: input.taskId, seq }]);
+      return settled(withSimulator(state, { driver }), [{ type: "simulator.input", udid, input: input.input, taskId: input.taskId, seq }]);
     }
 
     case "simulator.listed": {
@@ -163,6 +162,9 @@ export function reduceSimulator(state: WorkspaceState, input: SimulatorInput): W
     /** A gesture the device would not take: answered to whoever sent it, and never drawn over the panel. */
     case "simulator.refused":
       return refused(state, input.message);
+
+    case "simulator.turned":
+      return settled(turn(state, input.udid, input.orientation));
 
     case "simulator.idle":
       return state.simulator.driver?.seq === input.seq ? settled(withSimulator(state, { driver: null })) : settled(state);

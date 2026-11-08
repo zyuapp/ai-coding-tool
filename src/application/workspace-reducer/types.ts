@@ -15,7 +15,7 @@ import type { AppBuild, AppUpdate } from "../../domain/app-update.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { BrowserAction, BrowserPermissions } from "../../domain/browser.js";
 import type { BrowserImportResult, BrowserImportSite, BrowserImportSource } from "../../domain/browser-import.js";
-import type { SimulatorAvailability, SimulatorDevice, SimulatorInput } from "../../domain/simulator.js";
+import type { SimulatorAvailability, SimulatorDevice, SimulatorInput, SimulatorOrientation } from "../../domain/simulator.js";
 import type { CaptureOptions } from "../../domain/capture.js";
 import type { ConversationMessage, OutgoingAttachment, RunAttachment } from "../../domain/conversation.js";
 import type { DiffRange } from "../../domain/diff.js";
@@ -98,6 +98,8 @@ export type WorkspaceEvent =
   | { type: "simulator.booted"; udid: string }
   | { type: "simulator.failed"; udid: string; message: string }
   | { type: "simulator.refused"; message: string }
+  /** A device took a rotation, which is when the panel starts drawing it that way up. */
+  | { type: "simulator.turned"; udid: string; orientation: SimulatorOrientation }
   /** A run stopped driving a device a moment ago. `seq` names the stretch of driving that ended. */
   | { type: "simulator.idle"; seq: number }
   /** What a shell did. Its output is not here: that goes straight to the view and never becomes state. */

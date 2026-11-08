@@ -250,12 +250,14 @@ async function move(udid: string, x: number, y: number) {
 
 /**
  * A device keeps the way it was last turned, but this app only knows the turns it made itself. The
- * first time it uses a device after starting, it turns it upright so the picture and every tap agree.
+ * first time it uses a device after starting, it turns it upright so the picture and every tap agree,
+ * even over a device someone left sideways in another tool. A device that will not turn is taken as
+ * upright, so its taps still land.
  */
 async function upright(udid: string) {
   if (orientations.has(udid)) return;
-  await request({ op: "rotate", udid, orientation: ORIENTATION_CODES.portrait });
   orientations.set(udid, "portrait");
+  await request({ op: "rotate", udid, orientation: ORIENTATION_CODES.portrait }).catch(() => undefined);
 }
 
 export async function simulatorInput(udid: string, input: SimulatorInput) {
@@ -327,6 +329,7 @@ export async function describeSimulator(udid: string, device: string): Promise<S
 }
 
 export async function captureSimulator(udid: string): Promise<SimulatorShot> {
+  await upright(udid);
   shotHome ??= mkdtemp(path.join(tmpdir(), "aicodingtool-simulator-"));
   const file = path.join(await shotHome, `${randomUUID()}.png`);
   const result = await request({ op: "screenshot", udid, path: file });

@@ -92,9 +92,11 @@ test("the device picked is remembered for docks that have none, and a turn is ke
   const elsewhere = reduce(run(picked.state, [{ type: "simulator.booted", udid: "PHONE" }, { type: "task.select", taskId: "other" }]), { type: "simulator.open" });
   assert.equal(dock(elsewhere.state).simulatorId, "PHONE", "not the iPad already running");
 
-  const turnedState = reduce(elsewhere.state, { type: "simulator.input", udid: "PHONE", input: { kind: "rotate", orientation: "landscape-left" } });
+  const asked = reduce(elsewhere.state, { type: "simulator.input", udid: "PHONE", input: { kind: "rotate", orientation: "landscape-left" } });
+  assert.deepEqual(effectOf(asked, "simulator.input"), { type: "simulator.input", udid: "PHONE", input: { kind: "rotate", orientation: "landscape-left" } });
+  assert.equal(asked.state.simulator.orientations.PHONE, undefined, "the panel turns once the device has, so a refused turn is never drawn");
+  const turnedState = reduce(asked.state, { type: "simulator.turned", udid: "PHONE", orientation: "landscape-left" });
   assert.equal(turnedState.state.simulator.orientations.PHONE, "landscape-left");
-  assert.deepEqual(effectOf(turnedState, "simulator.input"), { type: "simulator.input", udid: "PHONE", input: { kind: "rotate", orientation: "landscape-left" } });
   const stillUp = reduce(turnedState.state, { type: "simulator.booted", udid: "PHONE" });
   assert.equal(stillUp.state.simulator.orientations.PHONE, "landscape-left", "a boot that finds it already up leaves it turned");
   const wentDown = reduce(turnedState.state, { ...listed, devices: [{ ...phone, state: "shutdown" }, pad] });
