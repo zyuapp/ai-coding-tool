@@ -272,6 +272,5 @@ jobs:
     uses: ./.github/workflows/testflight.yml
     with:
       ref: ${{ github.sha }}
-      upload: false
       build: ${{ needs.testflight-upload.outputs.build }}
     secrets: inherit

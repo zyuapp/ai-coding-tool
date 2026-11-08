@@ -6,20 +6,20 @@ on:
       ref:
         description: Tag or branch to build, such as v0.10.0
         required: true
+      send:
+        description: Send the build to public testers
+        type: boolean
+        default: true
   workflow_call:
     inputs:
       ref:
         type: string
         required: true
-      upload:
-        type: boolean
-        default: true
       send:
-        description: Send the build to public testers
         type: boolean
         default: true
       build:
-        description: Build number to send when this run does not upload one
+        description: An uploaded build number to send instead of uploading a new one
         type: string
         default: ""
     outputs:
@@ -35,7 +35,7 @@ permissions:
 
 jobs:
   upload:
-    if: inputs.upload != false
+    if: ${{ !inputs.build }}
     runs-on: macos-26
     environment: release
     outputs:
@@ -84,7 +84,10 @@ jobs:
         run: ios/testflight.sh
       - name: Read build number
         id: build
-        run: echo "number=$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleVersion' ios/build/testflight/AICodingTool.xcarchive/Info.plist)" >> "$GITHUB_OUTPUT"
+        run: |
+          NUMBER="$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleVersion' ios/build/testflight/AICodingTool.xcarchive/Info.plist)"
+          test -n "$NUMBER"
+          echo "number=$NUMBER" >> "$GITHUB_OUTPUT"
       - name: Remove signing credentials
         if: always()
         shell: bash
@@ -98,7 +101,7 @@ jobs:
 
   send:
     needs: upload
-    if: ${{ !cancelled() && inputs.send != false && (needs.upload.result == 'success' || (needs.upload.result == 'skipped' && inputs.build != '')) }}
+    if: ${{ !cancelled() && inputs.send && (needs.upload.result == 'success' || (needs.upload.result == 'skipped' && inputs.build)) }}
     runs-on: ubuntu-24.04
     environment: release
     steps:
