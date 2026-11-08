@@ -114,4 +114,19 @@ final class DomainTests: XCTestCase {
         XCTAssertEqual(summary.effort, "High")
         XCTAssertNil(catalog.summary(MobileThreadSettings(engine: "claude", model: "haiku", effort: "high", fastMode: nil, policy: "bypass", coordinating: nil)).effort)
     }
+
+    func testDictationTraceSeesWordsAtATimeForAWhile() {
+        let now = Date()
+        var trace = DictationTrace()
+        trace.record(from: "", to: "f", at: now)
+        trace.record(from: "f", to: "fi", at: now)
+        XCTAssertFalse(trace.recent(at: now), "typing adds one character")
+        trace.record(from: "fix", to: "fi", at: now)
+        XCTAssertFalse(trace.recent(at: now))
+        trace.record(from: "fix", to: "fix the build", at: now)
+        XCTAssertTrue(trace.recent(at: now.addingTimeInterval(DictationTrace.window - 0.1)))
+        XCTAssertFalse(trace.recent(at: now.addingTimeInterval(DictationTrace.window)))
+        trace.reset()
+        XCTAssertFalse(trace.recent(at: now))
+    }
 }

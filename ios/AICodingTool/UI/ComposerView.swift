@@ -35,6 +35,7 @@ struct ComposerView<Above: View>: View {
     @State private var picked: [PhotosPickerItem] = []
     @State private var sent = 0
     @State private var finishing = false
+    @State private var dictation = DictationTrace()
     @FocusState private var focused: Bool
 
     private var blocked: Bool { question?.blocking == true }
@@ -202,7 +203,10 @@ struct ComposerView<Above: View>: View {
         }
         .onAppear { draft = model.draft(for: draftKey) }
         .onChange(of: draftKey) { _, key in draft = model.draft(for: key) }
-        .onChange(of: draft) { _, text in model.keepDraft(text, for: draftKey) }
+        .onChange(of: draft) { old, text in
+            dictation.record(from: old, to: text)
+            model.keepDraft(text, for: draftKey)
+        }
         .onChange(of: returned) { _, next in
             guard let next, let text = next.text, next.id != given else { return }
             given = next.id
@@ -258,7 +262,8 @@ struct ComposerView<Above: View>: View {
     /// Sends what is typed. Dictation still running stops first, and its last words go with the message.
     private func send(_ how: @escaping (String, [String]) -> Void) {
         guard !finishing else { return }
-        guard Dictation.finish() else { return commit(how) }
+        guard focused, dictation.recent() else { return commit(how) }
+        Dictation.finish()
         finishing = true
         Task { @MainActor in
             var last = draft
@@ -279,6 +284,7 @@ struct ComposerView<Above: View>: View {
         guard !text.isEmpty || !sources.isEmpty else { return }
         draft = ""
         images = []
+        dictation.reset()
         sent += 1
         how(text, sources)
     }
@@ -527,19 +533,18 @@ extension View {
     func fitsShortScreens() -> some View { modifier(ShortScreenFit()) }
 }
 
-/// The system's dictation in whichever field is typing.
+/// The system's dictation in the field that is typing.
 @MainActor
 private enum Dictation {
     fileprivate static weak var responder: UIResponder?
 
-    /// Stops dictation in the focused field, keeping the keyboard up. Returns whether it was running.
-    static func finish() -> Bool {
+    /// Stops dictation by handing focus away and straight back, so the keyboard stays up.
+    static func finish() {
         responder = nil
         UIApplication.shared.sendAction(#selector(UIResponder.reportFirstResponder(_:)), to: nil, from: nil, for: nil)
-        guard let field = responder, field.textInputMode?.primaryLanguage == "dictation" else { return false }
+        guard let field = responder else { return }
         field.resignFirstResponder()
         field.becomeFirstResponder()
-        return true
     }
 }
 
