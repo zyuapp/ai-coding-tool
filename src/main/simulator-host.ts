@@ -210,7 +210,6 @@ async function screenPoints(udid: string) {
   return size;
 }
 
-/** A position as fractions of the screen, from points when it was given in points. */
 /**
  * A point as the app on screen measures it, moved onto the device's portrait screen. An app drawn
  * sideways measures from the turned screen's corner; one that stayed upright, such as the home screen
@@ -221,6 +220,7 @@ function onDevice(udid: string, u: number, v: number, screen: { width: number; h
   return screen.width > screen.height ? untilted(u, v, orientation) : { x: u, y: v };
 }
 
+/** A position as fractions of the screen, from points when it was given in points. */
 async function fractions(udid: string, x: number, y: number, points: boolean | undefined) {
   if (!points) return { x, y };
   const screen = await screenPoints(udid);
@@ -248,7 +248,18 @@ async function move(udid: string, x: number, y: number) {
   }
 }
 
+/**
+ * A device keeps the way it was last turned, but this app only knows the turns it made itself. The
+ * first time it uses a device after starting, it turns it upright so the picture and every tap agree.
+ */
+async function upright(udid: string) {
+  if (orientations.has(udid)) return;
+  await request({ op: "rotate", udid, orientation: ORIENTATION_CODES.portrait });
+  orientations.set(udid, "portrait");
+}
+
 export async function simulatorInput(udid: string, input: SimulatorInput) {
+  if (input.kind !== "rotate") await upright(udid);
   switch (input.kind) {
     case "touch":
       if (input.phase === "move") return move(udid, input.x, input.y);
@@ -287,6 +298,7 @@ function listed(element: RawElement, width: number, height: number) {
 }
 
 export async function describeSimulator(udid: string, device: string): Promise<SimulatorSnapshot> {
+  await upright(udid);
   const result = await request({ op: "describe", udid });
   const raw = (Array.isArray(result.elements) ? result.elements : []) as RawElement[];
   const root = raw[0]?.frame;
@@ -329,6 +341,7 @@ export async function captureSimulator(udid: string): Promise<SimulatorShot> {
 export async function watchSimulator(udid: string) {
   watchers.set(udid, (watchers.get(udid) ?? 0) + 1);
   try {
+    await upright(udid);
     await request({ op: "watch", udid });
   } catch (error) {
     await unwatchSimulator(udid);
@@ -350,6 +363,10 @@ export function startSimulatorHost(onFrame: (frame: SimulatorFrame) => void) {
 export function stopSimulatorHost() {
   frameListener = null;
   watchers.clear();
+  /** A new window starts with every device upright in its record, so the devices are turned to match when next used. */
+  orientations.clear();
+  screens.clear();
+  snapshots.clear();
   helper?.child.kill();
   helper = null;
   const home = shotHome;

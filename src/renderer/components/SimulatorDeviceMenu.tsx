@@ -1,7 +1,7 @@
 import { Fragment, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LuChevronDown as ChevronDown, LuSmartphone as Smartphone, LuTablet as Tablet } from "react-icons/lu";
-import { simulatorGroups, type SimulatorDevice } from "../../domain/simulator";
+import { simulatorGroups, type SimulatorAvailability, type SimulatorDevice } from "../../domain/simulator";
 import { useDismissibleLayer } from "../focus";
 import { useAnchoredStyle } from "./BranchMenu";
 import { useCommandControls } from "./CommandControl";
@@ -15,8 +15,10 @@ function DeviceIcon({ name }: { name: string }) {
   return name.startsWith("iPad") ? <Tablet size={16} aria-hidden="true" /> : <Smartphone size={16} aria-hidden="true" />;
 }
 
-function DeviceList({ devices, selected, anchor, menuRef, onPick }: {
+function DeviceList({ devices, empty, selected, anchor, menuRef, onPick }: {
   devices: SimulatorDevice[];
+  /** What an empty list says: why there are no devices here. */
+  empty: string;
   selected: string | null;
   anchor: HTMLElement | null;
   menuRef: React.RefObject<HTMLDivElement | null>;
@@ -39,7 +41,7 @@ function DeviceList({ devices, selected, anchor, menuRef, onPick }: {
     >
       <PickerSearch label="Search simulators" value={query} onChange={setQuery} onSubmit={() => { if (top) onPick(top.udid); }} />
       <div role="listbox" aria-label="Simulators">
-        {!groups.length && <p className="simulator-device-empty" role="status">{devices.length ? "No simulator matches" : "No simulators. Add one in Xcode."}</p>}
+        {!groups.length && <p className="simulator-device-empty" role="status">{devices.length ? "No simulator matches" : empty}</p>}
         {groups.map((group) => (
           <Fragment key={group.label}>
             <p className="simulator-device-group">{group.label}</p>
@@ -61,8 +63,9 @@ function DeviceList({ devices, selected, anchor, menuRef, onPick }: {
 }
 
 /** Which simulator the panel shows, picked from every iOS device this Mac has, running ones first. */
-export function SimulatorDeviceMenu({ devices, selected, openMenu, onSetOpenMenu }: {
+export function SimulatorDeviceMenu({ devices, availability, selected, openMenu, onSetOpenMenu }: {
   devices: SimulatorDevice[];
+  availability: SimulatorAvailability;
   selected: SimulatorDevice | undefined;
   openMenu: string | null;
   onSetOpenMenu: (menu: string | null) => void;
@@ -92,6 +95,7 @@ export function SimulatorDeviceMenu({ devices, selected, openMenu, onSetOpenMenu
       {open && (
         <DeviceList
           devices={devices}
+          empty={availability.status === "unsupported" ? availability.reason : availability.status === "unknown" ? "Looking for simulators…" : "No simulators. Add one in Xcode."}
           selected={selected?.udid ?? null}
           anchor={row.current}
           menuRef={menu}

@@ -115,7 +115,7 @@ export function SimulatorPanel({ simulator, udid, active, openMenu, onSetOpenMen
   return (
     <section className="simulator-panel" aria-label="Simulator">
       <header className="simulator-bar">
-        <SimulatorDeviceMenu devices={simulator.devices} selected={device} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
+        <SimulatorDeviceMenu devices={simulator.devices} availability={simulator.availability} selected={device} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
         {driving && <span className="simulator-driving" role="status"><i aria-hidden="true" />Agent is using this device</span>}
         <span className="simulator-bar-gap" />
         {device && (
