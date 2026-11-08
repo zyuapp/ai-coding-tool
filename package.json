@@ -193,6 +193,9 @@
       ],
       "artifactName": "AICodingTool-${version}-${arch}.${ext}"
     },
+    "dmg": {
+      "writeUpdateInfo": false
+    },
     "deb": {
       "packageCategory": "devel",
       "priority": "optional",

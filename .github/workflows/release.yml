@@ -20,10 +20,9 @@ permissions:
   contents: read
 
 jobs:
-  build-mac:
+  version:
     if: github.ref == 'refs/heads/main'
-    runs-on: macos-latest
-    environment: release
+    runs-on: ubuntu-24.04
     outputs:
       commit: ${{ steps.version.outputs.commit }}
       tag: ${{ steps.version.outputs.tag }}
@@ -34,8 +33,6 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 24
-          cache: npm
-      - run: npm ci
       - name: Bump version
         id: version
         env:
@@ -48,6 +45,53 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           git bundle create "$RUNNER_TEMP/release.bundle" main "refs/tags/$TAG"
+      - name: Save release source
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-source
+          path: ${{ runner.temp }}/release.bundle
+          if-no-files-found: error
+
+  build-mac:
+    needs: version
+    runs-on: macos-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Restore release source
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-source
+          path: ${{ runner.temp }}/release-source
+      - name: Check out release commit
+        env:
+          RELEASE_COMMIT: ${{ needs.version.outputs.commit }}
+        run: |
+          git fetch "$RUNNER_TEMP/release-source/release.bundle" refs/heads/main:refs/remotes/release/main
+          test "$(git rev-parse refs/remotes/release/main)" = "$RELEASE_COMMIT"
+          git checkout --detach refs/remotes/release/main
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+      - name: Key dependencies
+        id: deps
+        run: echo "hash=$(jq -c 'del(.version, .packages[""].version)' package-lock.json | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - name: Restore dependencies
+        id: modules
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ steps.deps.outputs.hash }}
+      - if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci
+      - name: Save dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules
+          key: ${{ steps.modules.outputs.cache-primary-key }}
       - name: Restore signing credentials
         shell: bash
         env:
@@ -83,26 +127,19 @@ jobs:
             security delete-keychain "$SIGNING_KEYCHAIN"
           fi
           rm -f "$RUNNER_TEMP/aicodingtool.p12" "$RUNNER_TEMP/apple.p8"
-      - name: Save release source
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-source
-          path: ${{ runner.temp }}/release.bundle
-          if-no-files-found: error
       - name: Save macOS packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: packages-mac
           path: |
             release/*.dmg
-            release/*.dmg.blockmap
             release/*.zip
             release/*.zip.blockmap
             release/latest-mac.yml
           if-no-files-found: error
 
   build-linux:
-    needs: build-mac
+    needs: version
     strategy:
       fail-fast: false
       matrix:
@@ -123,7 +160,7 @@ jobs:
           path: ${{ runner.temp }}/release-source
       - name: Check out release commit
         env:
-          RELEASE_COMMIT: ${{ needs.build-mac.outputs.commit }}
+          RELEASE_COMMIT: ${{ needs.version.outputs.commit }}
         run: |
           git fetch "$RUNNER_TEMP/release-source/release.bundle" refs/heads/main:refs/remotes/release/main
           test "$(git rev-parse refs/remotes/release/main)" = "$RELEASE_COMMIT"
@@ -131,8 +168,23 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 24
-          cache: npm
-      - run: npm ci
+      - name: Key dependencies
+        id: deps
+        run: echo "hash=$(jq -c 'del(.version, .packages[""].version)' package-lock.json | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - name: Restore dependencies
+        id: modules
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ steps.deps.outputs.hash }}
+      - if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci
+      - name: Save dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules
+          key: ${{ steps.modules.outputs.cache-primary-key }}
       - name: Build Linux package
         run: npm run package:linux -- --${{ matrix.arch }}
       - name: Save Linux packages
@@ -148,6 +200,7 @@ jobs:
 
   publish:
     needs:
+      - version
       - build-mac
       - build-linux
     runs-on: ubuntu-24.04
@@ -171,8 +224,8 @@ jobs:
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_COMMIT: ${{ needs.build-mac.outputs.commit }}
-          TAG: ${{ needs.build-mac.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.version.outputs.commit }}
+          TAG: ${{ needs.version.outputs.tag }}
         run: |
           git fetch "$RUNNER_TEMP/release-source/release.bundle" \
             refs/heads/main:refs/remotes/release/main \
@@ -200,13 +253,25 @@ jobs:
           gh release upload "$TAG" release/* --clobber
           gh release edit "$TAG" --draft=false --latest
 
-  testflight:
-    needs:
-      - build-mac
-      - publish
+  testflight-upload:
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
     uses: ./.github/workflows/testflight.yml
     with:
-      ref: ${{ needs.build-mac.outputs.tag }}
+      ref: ${{ github.sha }}
+      send: false
+    secrets: inherit
+
+  testflight-send:
+    needs:
+      - publish
+      - testflight-upload
+    permissions:
+      contents: read
+    uses: ./.github/workflows/testflight.yml
+    with:
+      ref: ${{ github.sha }}
+      upload: false
+      build: ${{ needs.testflight-upload.outputs.build }}
     secrets: inherit
