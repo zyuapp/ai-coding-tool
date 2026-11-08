@@ -118,6 +118,13 @@ enum Format {
     }
 
     /// How long ago, in as few characters as a row can spare.
+    /// A name cut in its middle to `limit` characters, which keeps the start and end that tell two long names apart.
+    static func middleTruncated(_ text: String, limit: Int) -> String {
+        guard text.count > limit, limit > 1 else { return text }
+        let head = (limit - 1) / 2 + (limit - 1) % 2
+        return "\(text.prefix(head))…\(text.suffix(limit - 1 - head))"
+    }
+
     static func relativeTime(_ at: Double, now: Date) -> String {
         let gap = max(0, now.timeIntervalSince1970 * 1000 - at)
         let minute = 60_000.0, hour = 60 * minute, day = 24 * hour

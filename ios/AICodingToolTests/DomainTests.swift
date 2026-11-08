@@ -129,4 +129,11 @@ final class DomainTests: XCTestCase {
         trace.reset()
         XCTAssertFalse(trace.recent(at: now))
     }
+
+    func testMiddleTruncationKeepsBothEnds() {
+        XCTAssertEqual(Format.middleTruncated("payments-reconciliation-service-backend", limit: 26), "payments-reco…vice-backend")
+        XCTAssertEqual(Format.middleTruncated("payments-reconciliation-service-backend", limit: 26).count, 26)
+        XCTAssertEqual(Format.middleTruncated("qa-rel", limit: 26), "qa-rel")
+        XCTAssertEqual(Format.middleTruncated("abcdef", limit: 6), "abcdef")
+    }
 }

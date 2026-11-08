@@ -23,6 +23,13 @@ struct ThreadListScreen: View {
     ]
 
     private var projects: [MobileProjectGroup] { model.view.groups.filter { $0.projectId != nil } }
+
+    /// The projects worth filtering by: those with threads, most recently active first, and the one already chosen.
+    private var filterable: [MobileProjectGroup] {
+        projects
+            .filter { !$0.threads.isEmpty || $0.projectId == model.activityProject }
+            .sorted { ($0.threads.map(\.lastActivityAt).max() ?? 0) > ($1.threads.map(\.lastActivityAt).max() ?? 0) }
+    }
     /// A project the computer no longer lists narrows nothing.
     private var narrowed: MobileProjectGroup? { projects.first { $0.projectId == model.activityProject } }
 
@@ -77,7 +84,7 @@ struct ThreadListScreen: View {
         .searchable(text: $query, prompt: "Search Threads")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { ComputerMenu(model: model) }
-            if !projects.isEmpty {
+            if filterable.count > 1 || narrowed != nil {
                 ToolbarItem(placement: .topBarTrailing) { projectFilter }
             }
             if #available(iOS 26, *) {
@@ -120,9 +127,9 @@ struct ThreadListScreen: View {
     private var projectFilter: some View {
         Menu {
             Picker("Show Threads In", selection: Binding(get: { narrowed?.projectId ?? "" }, set: { model.activityProject = $0.isEmpty ? nil : $0 })) {
-                Label("All Projects", systemImage: "square.stack").tag("")
-                ForEach(projects, id: \.projectId) { project in
-                    Label(project.name, systemImage: "folder").tag(project.projectId ?? "")
+                Text("All Projects").tag("")
+                ForEach(filterable, id: \.projectId) { project in
+                    Text(Format.middleTruncated(project.name, limit: 26)).tag(project.projectId ?? "")
                 }
             }
             .pickerStyle(.inline)
