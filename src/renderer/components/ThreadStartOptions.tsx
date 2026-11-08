@@ -194,8 +194,8 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, recentPr
           onSelectProject(item.id);
         }}
       >
-        {projectName(item)}
-        {parent && <small>{parent}</small>}
+        <span className="thread-start-project-name" data-tip={projectName(item)} data-tip-overflow>{projectName(item)}</span>
+        {parent && <small data-tip={parent} data-tip-overflow>{parent}</small>}
         {showsHost && showComputers && <HostMark name={hostName(item)} offline={itemHost?.offline} reconnecting={itemHost?.reconnecting} />}
       </PickerOption>
     );

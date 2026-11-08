@@ -1583,7 +1583,10 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .thread-start-popover { display: flex; flex-direction: column; overflow: hidden; }
 .thread-start-popover > [role="listbox"] { min-height: 0; overflow: auto; }
 .thread-start-popover > .picker-search-field { flex: none; }
-.thread-start-popover .picker-label > :is(small, .host-mark) { margin-left: 8px; color: var(--quiet-strong); font-size: var(--text-meta); }
+/** A long name gives way before what tells it apart from its namesakes. */
+.thread-start-popover .picker-label:has(> .thread-start-project-name) { display: flex; align-items: baseline; gap: 8px; }
+.thread-start-popover .picker-label > :is(.thread-start-project-name, small) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.thread-start-popover .picker-label > :is(small, .host-mark) { flex: none; max-width: 45%; color: var(--quiet-strong); font-size: var(--text-meta); }
 .picker-option.thread-start-add-project { flex: none; margin-top: 4px; box-shadow: 0 -1px 0 var(--line-soft); border-radius: 0 0 6px 6px; color: var(--muted-strong); }
 .branch-menu-empty, .thread-start-empty { padding: 8px; color: var(--quiet); font-size: var(--text-meta); }
 .branch-menu-empty.error { color: var(--danger); overflow-wrap: anywhere; }
