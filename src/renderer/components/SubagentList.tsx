@@ -1,20 +1,13 @@
 import { memo, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { LuBot as Bot, LuCircleCheckBig as CheckCircle2, LuCircleDot as CircleDot, LuCirclePause as CirclePause, LuCircleStop as CircleStop, LuCircleX as XCircle, LuSearch as Search, LuX as X } from "react-icons/lu";
-import { OPEN_SUBAGENT_GROUPS, type Subagent, type SubagentGroup, type SubagentGroups, type SubagentStatus } from "../../domain/run";
+import { OPEN_SUBAGENT_GROUPS, orderSubagents, subagentLine, subagentStatusLabel as statusLabel, type Subagent, type SubagentGroup, type SubagentGroups, type SubagentStatus } from "../../domain/run";
 import { shortcutTip } from "./TooltipLayer";
-
-/** Failures first, then the work still going: a session with a thousand subagents is read from the top. */
-const STATUS_RANK: Record<SubagentStatus, number> = { failed: 0, working: 1, idle: 2, stopped: 3, completed: 4 };
 
 const STATUS_FILTERS: SubagentStatus[] = ["working", "idle", "failed", "stopped", "completed"];
 
 /** Above this many rows the list is windowed; a handful of rows are cheaper drawn whole. */
 const VIRTUALIZE_ABOVE = 50;
-
-export function statusLabel(status: SubagentStatus) {
-  return { working: "Working", idle: "Idle", completed: "Completed", failed: "Failed", stopped: "Stopped" }[status];
-}
 
 const STATUS_ICONS = { working: CircleDot, idle: CirclePause, completed: CheckCircle2, failed: XCircle, stopped: CircleStop };
 
@@ -25,16 +18,6 @@ export function StatusIcon({ status, labelled = false }: { status: SubagentStatu
   return labelled
     ? <Icon className={className} size={16} role="img" aria-label={statusLabel(status)} />
     : <Icon className={className} size={16} aria-hidden="true" />;
-}
-
-/** One steady line per subagent: what it is doing now, or what it came back with. */
-export function subagentLine(subagent: Subagent) {
-  if (subagent.status === "working") return subagent.lastToolName ? `Using ${subagent.lastToolName}` : "Working";
-  return subagent.summary?.split("\n")[0] ?? statusLabel(subagent.status);
-}
-
-export function orderSubagents(subagents: Subagent[]) {
-  return [...subagents].sort((left, right) => STATUS_RANK[left.status] - STATUS_RANK[right.status]);
 }
 
 /** What the status strip and the search box between them leave on screen. */

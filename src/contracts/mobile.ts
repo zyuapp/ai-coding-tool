@@ -99,6 +99,23 @@ export type MobileToolCall = { family: ToolFamily; label: string; argument: stri
 export type MobileMember = { id: string; title: string; status: MobileRunStatus; computer?: string };
 
 /**
+ * Work the open thread's session keeps going beside its conversation: a subagent, a shell or
+ * monitor, or a workflow. `live` is whether it is still going; `stoppable` whether Stop applies,
+ * which sends `run.stop-process` with its id.
+ */
+export type MobileBackgroundItem = {
+  id: string;
+  kind: "agent" | "shell" | "monitor" | "workflow";
+  title: string;
+  /** What it is doing now, or how it ended. */
+  detail: string;
+  status: "working" | "idle" | "completed" | "failed" | "stopped";
+  live: boolean;
+  stoppable: boolean;
+  stopping?: true;
+};
+
+/**
  * The question a run is stopped on, with enough of its input to answer it. A coordinator's view
  * carries one a thread under it is stopped on when it has none of its own, as its Needs-you card
  * does, naming that thread in `from`.
@@ -201,6 +218,8 @@ export type MobileThreadView = {
   reviewable: boolean;
   /** The threads working under it, when the open thread is a coordinator; empty otherwise. Absent from older desktops. */
   members?: MobileMember[];
+  /** Its workflows, processes and subagents, live ones first, a hundred at most. Absent from older desktops. */
+  background?: MobileBackgroundItem[];
   /** The branch comparison the desktop has this thread's review on. */
   branchRange: Extract<DiffRange, { kind: "branches" }>;
 };

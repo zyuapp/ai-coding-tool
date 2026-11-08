@@ -167,6 +167,18 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(Format.summariseTools([next.thread!.messages.last!]), "Bash")
     }
 
+    func testBackgroundWorkTravelsAndStops() throws {
+        let view = try snapshotView()
+        XCTAssertNil(view.thread?.background)
+        let patch = try JSONDecoder().decode(MobilePatch.self, from: Data(#"{"thread":{"kind":"changed","id":"t1","delta":{"background":[{"id":"a1","kind":"agent","title":"Fix tests","detail":"Using Bash","status":"working","live":true,"stoppable":true},{"id":"p1","kind":"shell","title":"npm run dev","detail":"Stopping","status":"working","live":true,"stoppable":true,"stopping":true},{"id":"a2","kind":"agent","title":"Read docs","detail":"Done","status":"completed","live":false,"stoppable":false}]}}}"#.utf8))
+        let next = try XCTUnwrap(view.applying(patch))
+        XCTAssertEqual(next.thread?.background?.map(\.id), ["a1", "p1", "a2"])
+        XCTAssertEqual(next.thread?.background?[1].stopping, true)
+        XCTAssertEqual(BackgroundWork.summary(next.thread?.background ?? []), "1 subagent · 1 shell")
+        XCTAssertEqual(BackgroundWork.summary([next.thread!.background![2]]), "")
+        XCTAssertEqual(PhoneCommand.stopProcess("t1", processId: "a1").json, .object(["type": .string("run.stop-process"), "taskId": .string("t1"), "processId": .string("a1")]))
+    }
+
     func testSnapshotNamesTheComputer() {
         let frame = snapshotFrame().replacingOccurrences(of: #""instance":"one""#, with: #""instance":"one","computer":"Studio""#)
         guard case .snapshot(_, _, _, _, _, let computer)? = parseServerFrame(frame).message else { return XCTFail("snapshot did not parse") }

@@ -52,6 +52,8 @@ extension PhoneCommand {
     static func steerQueued(_ taskId: String, messageId: String) -> PhoneCommand { PhoneCommand("task.steer-queued", ["taskId": jsonText(taskId), "messageId": .string(messageId)]) }
     static func dropQueued(_ taskId: String, messageId: String) -> PhoneCommand { PhoneCommand("task.drop-queued", ["taskId": jsonText(taskId), "messageId": .string(messageId)]) }
     static func cancel(_ taskId: String) -> PhoneCommand { PhoneCommand("run.cancel", ["taskId": jsonText(taskId)]) }
+    /// Ends one workflow, process or subagent without ending the run.
+    static func stopProcess(_ taskId: String, processId: String) -> PhoneCommand { PhoneCommand("run.stop-process", ["taskId": .string(taskId), "processId": .string(processId)]) }
     static func decide(_ approval: MobileApproval, allow: Bool) -> PhoneCommand {
         PhoneCommand("run.decide", ["taskId": .string(approval.taskId), "runId": .string(approval.runId), "approvalId": .string(approval.approvalId), "allow": .bool(allow)])
     }

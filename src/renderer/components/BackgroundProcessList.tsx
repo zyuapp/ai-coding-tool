@@ -1,14 +1,9 @@
 import { memo } from "react";
 import { LuBoxes as Boxes, LuChevronRight as ChevronRight, LuLoaderCircle as LoaderCircle, LuRadio as Radio, LuSquare as Square, LuTerminal as Terminal } from "react-icons/lu";
-import type { BackgroundProcess } from "../../domain/run";
-import { workflowAgentsDone, workflowStatusLabel, type Workflow } from "../../domain/workflow";
+import { processLabel, type BackgroundProcess } from "../../domain/run";
+import { workflowLabel, type Workflow } from "../../domain/workflow";
 import { ConfirmAction } from "./SettingRow";
 import { SpinningIcon } from "./SpinningIcon";
-
-export function processLabel(process: BackgroundProcess) {
-  if (process.stopping) return "Stopping";
-  return process.kind === "shell" ? "Shell" : "Monitor";
-}
 
 /** Stop asks once more before it ends the process; while the stop is in flight a spinner holds its place. */
 function StopButton({ name, stopping, onStop }: { name: string; stopping: boolean | undefined; onStop: () => void }) {
@@ -19,10 +14,6 @@ function StopButton({ name, stopping, onStop }: { name: string; stopping: boolea
         : <ConfirmAction className="process-stop" aria-label={`Stop ${name}`} data-tip="Stop" confirm="Stop" onConfirm={onStop}><Square size={12} fill="currentColor" aria-hidden="true" /></ConfirmAction>}
     </span>
   );
-}
-
-export function workflowLabel(workflow: Workflow) {
-  return `${workflowStatusLabel(workflow)} · ${workflowAgentsDone(workflow)}/${workflow.agents.length} agents`;
 }
 
 export const BackgroundProcessRow = memo(function BackgroundProcessRow({ process, onStop }: { process: BackgroundProcess; onStop: (processId: string) => void }) {

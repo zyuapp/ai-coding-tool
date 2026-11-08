@@ -1,14 +1,14 @@
 import { LuAlarmClock as AlarmClock, LuChevronDown as ChevronDown, LuChevronRight as ChevronRight, LuFileDiff as FileDiff, LuGitBranch as GitBranch, LuGitMerge as GitMerge, LuGitPullRequest as GitPullRequest, LuGitPullRequestClosed as GitPullRequestClosed, LuGitPullRequestDraft as GitPullRequestDraft } from "react-icons/lu";
 import { useRef, type ReactNode } from "react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
-import type { BackgroundProcess, Subagent, SubagentGroup, SubagentGroups } from "../../domain/run";
+import { orderSubagents, type BackgroundProcess, type Subagent, type SubagentGroup, type SubagentGroups } from "../../domain/run";
 import type { PullRequestAnswer, PullRequestRef, PullRequestState } from "../../domain/pull-request";
 import type { Workflow } from "../../domain/workflow";
 import { BackgroundProcessSection } from "./BackgroundProcessList";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { useDismissibleLayer } from "../focus";
-import { orderSubagents, SubagentRow } from "./SubagentList";
+import { SubagentRow } from "./SubagentList";
 import type { MemberPullRequest } from "../../application/pull-request-view";
 
 export type SessionPanelProps = {

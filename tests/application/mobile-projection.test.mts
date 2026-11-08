@@ -588,3 +588,31 @@ test("the desktop's draft offers the project's checkouts, most recently used fir
   assert.deepEqual(deriveView({ ...base, draftProjectId: null }).draftWorktreeChoices, [], "a chat has no checkouts");
   assert.deepEqual(deriveView({ ...base, currentId: "open" }).draftWorktreeChoices, [], "an open thread is no draft");
 });
+
+test("an open thread lists its workflows, processes and subagents, live ones first, and only live ones stop", () => {
+  const subagents = [
+    { id: "a-done", description: "Read the docs", status: "completed" as const, summary: "Found it\nmore", startedAt: NOW, activity: [] },
+    { id: "a-work", description: "Fix the tests", status: "working" as const, lastToolName: "Bash", startedAt: NOW, activity: [] },
+    { id: "a-idle", description: "Wait for CI", status: "idle" as const, startedAt: NOW, activity: [] },
+  ];
+  const workflow = { id: "wf", name: "review", description: "", status: "running" as const, phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: NOW };
+  const state = workspace([task("t1")], {
+    currentId: "t1",
+    subagents: { t1: subagents },
+    workflows: { t1: [workflow] },
+    backgroundProcesses: { t1: [{ id: "p1", kind: "shell", description: "npm run dev", stopping: true }] },
+  });
+  assert.deepEqual(projectMobileView(state, NOW).thread?.background, [
+    { id: "wf", kind: "workflow", title: "review", detail: "Running · 0/0 agents", status: "working", live: true, stoppable: true },
+    { id: "p1", kind: "shell", title: "npm run dev", detail: "Stopping", status: "working", live: true, stoppable: true, stopping: true },
+    { id: "a-work", kind: "agent", title: "Fix the tests", detail: "Using Bash", status: "working", live: true, stoppable: true },
+    { id: "a-idle", kind: "agent", title: "Wait for CI", detail: "Idle", status: "idle", live: true, stoppable: false },
+    { id: "a-done", kind: "agent", title: "Read the docs", detail: "Found it", status: "completed", live: false, stoppable: false },
+  ]);
+  assert.deepEqual(projectMobileView({ ...state, currentId: null }, NOW).thread, null);
+  const before = projectMobileView(state, NOW);
+  const after = projectMobileView({ ...state, subagents: { t1: subagents.filter((subagent) => subagent.id !== "a-work") } }, NOW);
+  const patch = diffMobileView(before, after);
+  assert.equal(patch?.thread?.kind, "changed");
+  assert.deepEqual(applyMobilePatch(before, patch!)?.thread?.background?.map((item) => item.id), ["wf", "p1", "a-idle", "a-done"]);
+});

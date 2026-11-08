@@ -62,12 +62,13 @@ struct MobileThreadDelta: Decodable, Equatable, Sendable {
     var reviewable: PatchField<Bool> = .absent
     var branchRange: PatchField<DiffRange> = .absent
     var members: PatchField<[MobileMember]?> = .absent
+    var background: PatchField<[MobileBackgroundItem]?> = .absent
     var spliced: Spliced?
     var messages: [MobileMessage]?
     var tail: Tail?
 
     private enum CodingKeys: String, CodingKey {
-        case loading, title, projectId, projectName, worktreeId, omitted, streamingTail, status, approval, question, queued, settings, location, worktrees, canMove, changes, reviewable, branchRange, members, spliced, messages, tail
+        case loading, title, projectId, projectName, worktreeId, omitted, streamingTail, status, approval, question, queued, settings, location, worktrees, canMove, changes, reviewable, branchRange, members, background, spliced, messages, tail
     }
 
     init() {}
@@ -93,6 +94,7 @@ struct MobileThreadDelta: Decodable, Equatable, Sendable {
         reviewable = try container.patchValue(Bool.self, forKey: .reviewable)
         branchRange = try container.patchValue(DiffRange.self, forKey: .branchRange)
         members = try container.patchField([MobileMember].self, forKey: .members)
+        background = try container.patchField([MobileBackgroundItem].self, forKey: .background)
         spliced = try container.decodeIfPresent(Spliced.self, forKey: .spliced)
         messages = try container.decodeIfPresent([MobileMessage].self, forKey: .messages)
         tail = try container.decodeIfPresent(Tail.self, forKey: .tail)
@@ -197,6 +199,7 @@ extension MobileThreadView {
         next.reviewable = delta.reviewable.applied(to: reviewable)
         next.branchRange = delta.branchRange.applied(to: branchRange)
         next.members = delta.members.applied(to: members)
+        next.background = delta.background.applied(to: background)
         if let tail = delta.tail {
             // The server counts the tail in UTF-16 code units, as JavaScript strings do.
             guard streamingTail?.utf16.count == tail.from else { return nil }

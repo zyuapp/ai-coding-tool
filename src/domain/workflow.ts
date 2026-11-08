@@ -203,3 +203,7 @@ export function workflowStatusLabel(workflow: Workflow) {
   if (workflow.stopping) return "Stopping";
   return { running: "Running", completed: "Completed", failed: "Failed", stopped: "Stopped" }[workflow.status];
 }
+
+export function workflowLabel(workflow: Workflow) {
+  return `${workflowStatusLabel(workflow)} · ${workflowAgentsDone(workflow)}/${workflow.agents.length} agents`;
+}

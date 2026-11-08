@@ -105,6 +105,23 @@ export type Subagent = SubagentMetadata & {
   activity: SubagentActivity[];
 };
 
+export function subagentStatusLabel(status: SubagentStatus) {
+  return { working: "Working", idle: "Idle", completed: "Completed", failed: "Failed", stopped: "Stopped" }[status];
+}
+
+/** One steady line per subagent: what it is doing now, or what it came back with. */
+export function subagentLine(subagent: Subagent) {
+  if (subagent.status === "working") return subagent.lastToolName ? `Using ${subagent.lastToolName}` : "Working";
+  return subagent.summary?.split("\n")[0] ?? subagentStatusLabel(subagent.status);
+}
+
+/** Failures first, then the work still going: a session with a thousand subagents is read from the top. */
+const SUBAGENT_STATUS_RANK: Record<SubagentStatus, number> = { failed: 0, working: 1, idle: 2, stopped: 3, completed: 4 };
+
+export function orderSubagents(subagents: Subagent[]) {
+  return [...subagents].sort((left, right) => SUBAGENT_STATUS_RANK[left.status] - SUBAGENT_STATUS_RANK[right.status]);
+}
+
 /** What a thread session keeps running between agent turns: a shell, or a watch feeding it events. */
 export type BackgroundProcessKind = "shell" | "monitor";
 
@@ -119,3 +136,8 @@ export type BackgroundProcess = {
   /** Set from the moment a stop is asked for until the run stops reporting the process. */
   stopping?: boolean;
 };
+
+export function processLabel(process: BackgroundProcess) {
+  if (process.stopping) return "Stopping";
+  return process.kind === "shell" ? "Shell" : "Monitor";
+}

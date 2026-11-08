@@ -68,6 +68,20 @@ struct MobileMember: Codable, Equatable, Identifiable, Sendable {
     var computer: String?
 }
 
+/// A workflow, process or subagent the open thread's session keeps going. Stop sends `run.stop-process` with its id.
+struct MobileBackgroundItem: Codable, Equatable, Identifiable, Sendable {
+    var id: String
+    /// "agent", "shell", "monitor" or "workflow".
+    var kind: String
+    var title: String
+    var detail: String
+    /// "working", "idle", "completed", "failed" or "stopped".
+    var status: String
+    var live: Bool
+    var stoppable: Bool
+    var stopping: Bool?
+}
+
 struct MobileApproval: Codable, Equatable, Sendable {
     var taskId: String
     var from: String?
@@ -281,6 +295,7 @@ struct MobileThreadView: Codable, Equatable, Sendable {
     var reviewable: Bool
     var branchRange: DiffRange
     var members: [MobileMember]?
+    var background: [MobileBackgroundItem]?
 }
 
 struct MobileDraftView: Codable, Equatable, Sendable {

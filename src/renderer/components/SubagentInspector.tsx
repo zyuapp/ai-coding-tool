@@ -1,12 +1,12 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { LuBot as Bot, LuChevronUp as ChevronUp, LuLoaderCircle as LoaderCircle, LuWrench as Wrench, LuX as X } from "react-icons/lu";
-import type { Subagent, SubagentActivity } from "../../domain/run";
+import { subagentStatusLabel, type Subagent, type SubagentActivity } from "../../domain/run";
 import { effortLabel } from "../../domain/agent-engine";
 import { Copyable } from "./CopyButton";
 import { ConfirmAction } from "./SettingRow";
 import { SpinningIcon } from "./SpinningIcon";
-import { statusLabel, StatusIcon } from "./SubagentList";
+import { StatusIcon } from "./SubagentList";
 import { shortcutTip } from "./TooltipLayer";
 
 /** How much of a log opens with the subagent. The rest is read backwards, each window twice the last. */
@@ -89,7 +89,7 @@ export function SubagentInspector({ subagent, finding = false, onClose, onStop }
             <span className={`agent-orb ${subagent.status}`} aria-hidden="true"><Bot size={18} /></span>
             <div>
               <h2>{subagent.description}</h2>
-              <span className={`agent-status ${subagent.status}`}><StatusIcon status={subagent.status} />{statusLabel(subagent.status)}</span>
+              <span className={`agent-status ${subagent.status}`}><StatusIcon status={subagent.status} />{subagentStatusLabel(subagent.status)}</span>
             </div>
             {subagent.status === "working" && (
               <span className="workflow-stop-actions">

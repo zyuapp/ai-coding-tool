@@ -8,7 +8,7 @@ struct ThreadScreen: View {
     @State private var archiving: ArchiveAsk?
 
     enum ThreadSheet: String, Identifiable {
-        case settings, location, rename, project, startIn, members, addProject
+        case settings, location, rename, project, startIn, members, background, addProject
         var id: String { rawValue }
     }
 
@@ -58,7 +58,7 @@ struct ThreadScreen: View {
                         if let thread = model.view.thread, !model.pending {
                             ThreadMenu(thread: thread, onChanges: { model.enterChanges() }, onLocation: { sheet = .location }, onNewHere: {
                                 model.newThread(projectId: thread.projectId, project: thread.projectName, worktreeId: thread.worktreeId)
-                            }, onFork: { worktree in model.send(.fork(thread.id, worktree: worktree)) }, onRename: { sheet = .rename }, onArchive: { archiving = ArchiveAsk(id: thread.id, title: thread.title, running: thread.status == "running" || thread.status == "awaiting-approval") }, onCoordinate: { model.send(.setCoordinator(thread.id, $0)) })
+                            }, onFork: { worktree in model.send(.fork(thread.id, worktree: worktree)) }, onRename: { sheet = .rename }, onArchive: { archiving = ArchiveAsk(id: thread.id, title: thread.title, running: thread.status == "running" || thread.status == "awaiting-approval") }, onCoordinate: { model.send(.setCoordinator(thread.id, $0)) }, onBackground: { sheet = .background })
                         } else {
                             Button {} label: { Image(systemName: "ellipsis") }
                                 .disabled(true)
@@ -83,6 +83,10 @@ struct ThreadScreen: View {
                 if thread.settings.coordinating == true, let members = thread.members {
                     CoordinatorStrip(members: members) { sheet = .members }
                 }
+                if let background = thread.background, background.contains(where: \.live) {
+                    BackgroundStrip(items: background) { sheet = .background }
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
                 ConversationView(thread: thread, model: model)
                     .bottomBar {
                         VStack(spacing: 0) {
@@ -99,6 +103,7 @@ struct ThreadScreen: View {
                     }
             }
             .animation(.snappy, value: thread.approval?.approvalId)
+            .animation(.snappy, value: thread.background?.contains(where: \.live) == true)
         } else if let draft {
             VStack(spacing: 0) {
                 DraftWelcome(engine: model.catalog.engineLabel(draft.settings.engine), computer: model.state.computerName) { model.handBack($0) }
@@ -149,7 +154,7 @@ struct ThreadScreen: View {
     private func fits(_ sheet: ThreadSheet) -> Bool {
         switch sheet {
         case .settings: model.view.thread != nil || model.view.draft != nil
-        case .location, .rename, .members: model.view.thread != nil
+        case .location, .rename, .members, .background: model.view.thread != nil
         case .project, .startIn: model.view.draft != nil
         case .addProject: true
         }
@@ -186,6 +191,10 @@ struct ThreadScreen: View {
             if let thread = model.view.thread {
                 MembersSheet(model: model, members: thread.members ?? [], project: thread.projectName)
             }
+        case .background:
+            if let thread = model.view.thread {
+                BackgroundSheet(items: thread.background ?? []) { model.send(.stopProcess(thread.id, processId: $0)) }
+            }
         case .startIn:
             if let draft = model.view.draft {
                 StartInSheet(draft: draft, onSetWorktree: { model.send(.setWorktree($0)) }, onStartIn: { worktreeId in
@@ -214,6 +223,7 @@ struct ThreadMenu: View {
     var onRename: () -> Void
     var onArchive: () -> Void
     var onCoordinate: (Bool) -> Void
+    var onBackground: () -> Void
 
     var body: some View {
         let inProject = thread.projectId != nil
@@ -224,6 +234,10 @@ struct ThreadMenu: View {
             Section("This Thread") {
                 item("Changes", detail: thread.reviewable ? Format.changesLabel(thread.changes) ?? "Review this thread's edits" : "No checkout to review", symbol: "plus.forwardslash.minus", disabled: !thread.reviewable, action: onChanges)
                 item("Location", detail: inProject ? Format.locationLabel(thread.location) : "Not in a project", symbol: inWorktree ? "folder.badge.gearshape" : "folder", disabled: !inProject || working, action: onLocation)
+                if let background = thread.background, !background.isEmpty {
+                    let live = BackgroundWork.summary(background)
+                    item("Background", detail: live.isEmpty ? "Nothing running" : live, symbol: "square.stack.3d.up", action: onBackground)
+                }
             }
             Section {
                 item(inWorktree ? "New Thread Here" : "New Thread", detail: !inProject ? "Not in a project" : working ? Format.locationLabel(thread.location) : nil, symbol: "square.and.pencil", disabled: !inProject || working, action: onNewHere)

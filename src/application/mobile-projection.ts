@@ -17,11 +17,13 @@ import { projectFor, threadWorkspaceId } from "./thread-location.js";
 import { diffFor } from "./workspace-diff.js";
 import { workspaceViewCollections } from "./workspace-view-collections.js";
 import { AGENT_EFFORTS, AGENT_ENGINES, BUILT_IN_MODELS, byEngine, capabilitiesFor, efforts, engineCatalog, engineLabel, offeredPolicies, type AgentEngine, type EngineReadiness, type EngineStatus, type ModelCatalog } from "../domain/agent-engine.js";
-import { POLICIES } from "../domain/run.js";
+import { orderSubagents, POLICIES, processLabel, subagentLine, type BackgroundProcess, type Subagent } from "../domain/run.js";
+import { workflowLabel, type Workflow } from "../domain/workflow.js";
 import { ownUpkeep } from "./computer-updates.js";
 import { isPhoneCommand } from "../contracts/workspace-view-input.js";
 import type {
   MobileActivity,
+  MobileBackgroundItem,
   MobileChanges,
   MobileDraftView,
   MobileEngine,
@@ -55,6 +57,9 @@ export const MOBILE_THREAD_LIMIT = 100;
 
 /** How many messages of the open thread travel. Each one is cut to length by the transcript itself. */
 export const MOBILE_TRANSCRIPT_MESSAGES = 40;
+
+/** How many of the open thread's workflows, processes and subagents travel, live ones first. */
+export const MOBILE_BACKGROUND_LIMIT = 100;
 
 /** How much of an approval's tool input is carried. Enough to judge it, never a whole file. */
 export const MOBILE_APPROVAL_DETAIL_LIMIT = 4_000;
@@ -302,7 +307,31 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
     reviewable: threadWorkspaceId(state, thread) !== undefined,
     branchRange: diff.range.kind === "branches" ? diff.range : diff.branchRange ?? DEFAULT_BRANCH_RANGE,
     members: isCoordinator(thread) ? projectMembers(state, thread.id, view) : NO_MEMBERS,
+    background: projectBackground(view.workflows, view.backgroundProcesses, view.subagents),
   };
+}
+
+let heldBackground: { workflows: Workflow[]; processes: BackgroundProcess[]; subagents: Subagent[]; items: MobileBackgroundItem[] } | undefined;
+
+/** The desktop's Processes and Subagents lists as one, kept while its sources are, since a streaming run projects many times a second. */
+function projectBackground(workflows: Workflow[], processes: BackgroundProcess[], subagents: Subagent[]): MobileBackgroundItem[] {
+  const held = heldBackground;
+  if (held && held.workflows === workflows && held.processes === processes && held.subagents === subagents) return held.items;
+  const all: MobileBackgroundItem[] = [
+    ...workflows.map((workflow): MobileBackgroundItem => {
+      const running = workflow.status === "running";
+      return { id: workflow.id, kind: "workflow", title: workflow.name, detail: workflowLabel(workflow), status: workflow.status === "running" ? "working" : workflow.status, live: running, stoppable: running, ...(workflow.stopping ? { stopping: true as const } : {}) };
+    }),
+    ...processes.map((process): MobileBackgroundItem =>
+      ({ id: process.id, kind: process.kind, title: process.description, detail: processLabel(process), status: "working", live: true, stoppable: true, ...(process.stopping ? { stopping: true as const } : {}) })),
+    ...orderSubagents(subagents).map((subagent): MobileBackgroundItem => ({
+      id: subagent.id, kind: "agent", title: subagent.description, detail: subagentLine(subagent), status: subagent.status,
+      live: subagent.status === "working" || subagent.status === "idle", stoppable: subagent.status === "working", ...(subagent.stopping ? { stopping: true as const } : {}),
+    })),
+  ];
+  const items = [...all.filter((item) => item.live), ...all.filter((item) => !item.live)].slice(0, MOBILE_BACKGROUND_LIMIT);
+  heldBackground = { workflows, processes, subagents, items };
+  return items;
 }
 
 const NO_MEMBERS: MobileMember[] = [];
@@ -432,7 +461,7 @@ function diffMobileThread(previous: MobileThreadView | null, next: MobileThreadV
  */
 const MOVING_KEYS = [
   "loading", "title", "projectId", "projectName", "worktreeId", "omitted", "status", "question", "approval",
-  "queued", "settings", "location", "worktrees", "canMove", "changes", "reviewable", "branchRange", "members",
+  "queued", "settings", "location", "worktrees", "canMove", "changes", "reviewable", "branchRange", "members", "background",
 ] as const satisfies ReadonlyArray<keyof Omit<MobileThreadView, "id" | "messages" | "streamingTail">>;
 
 /**
