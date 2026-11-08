@@ -492,18 +492,16 @@ extension View {
     }
 }
 
-/// On a screen too short for a whole card, such as a phone in landscape, the card scrolls inside a fixed height so the transcript and bar stay reachable.
+/// On a screen too short for a whole card, such as a phone in landscape, the card scrolls inside a capped height so the transcript and bar stay reachable. The card keeps one structure either way, so turning the phone keeps what it holds.
 private struct ShortScreenFit: ViewModifier {
     @Environment(\.verticalSizeClass) private var sizeClass
 
     func body(content: Content) -> some View {
-        if sizeClass == .compact {
-            ScrollView { content }
-                .frame(height: 170)
-                .scrollBounceBehavior(.basedOnSize)
-        } else {
-            content
-        }
+        ScrollView { content }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollDisabled(sizeClass != .compact)
+            .frame(maxHeight: sizeClass == .compact ? 170 : nil)
+            .fixedSize(horizontal: false, vertical: sizeClass != .compact)
     }
 }
 
