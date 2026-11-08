@@ -21,9 +21,12 @@ struct ConversationView: View {
                         Text("Loading conversation…").font(.footnote).foregroundStyle(palette.muted).frame(maxWidth: .infinity)
                     }
                     if thread.omitted > 0 {
-                        Label("\(thread.omitted) earlier \(thread.omitted == 1 ? "message" : "messages") are only on the computer.", systemImage: "clock.arrow.circlepath")
-                            .font(.footnote)
+                        Label("\(thread.omitted) earlier \(thread.omitted == 1 ? "message" : "messages") on your computer", systemImage: "clock.arrow.circlepath")
+                            .font(.footnote.weight(.medium))
                             .foregroundStyle(palette.muted)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(palette.sunken, in: Capsule())
                             .frame(maxWidth: .infinity)
                     }
                     let blocks = Format.transcriptBlocks(thread.messages)
@@ -244,21 +247,36 @@ private struct QueuedRow: View {
     @Environment(\.palette) private var palette
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Label(message.origin.map { "Queued · \($0)" } ?? "Queued", systemImage: "clock")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(palette.muted)
                 Spacer(minLength: 0)
-                if message.steering != true {
+                if message.steering == true {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.mini)
+                        Text("Steering…").font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(palette.muted)
+                    .frame(height: 28)
+                } else {
+                    Button(action: onSteer) {
+                        Label("Steer Now", systemImage: "bolt.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(palette.accent)
+                            .padding(.horizontal, 10)
+                            .frame(height: 28)
+                            .background(palette.accentChip, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Sends it into the running turn")
                     Button(action: onDrop) {
                         Image(systemName: "xmark")
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(palette.muted)
-                            .frame(width: 24, height: 24)
+                            .frame(width: 28, height: 28)
                             .background(palette.raised, in: Circle())
-                            .frame(width: 32, height: 28, alignment: .trailing)
-                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Remove queued message")
@@ -269,25 +287,6 @@ private struct QueuedRow: View {
                 .foregroundStyle(palette.ink)
                 .lineLimit(4)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if message.steering == true {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.mini)
-                    Text("Steering…").font(.footnote.weight(.medium))
-                }
-                .foregroundStyle(palette.muted)
-                .frame(height: 30)
-            } else {
-                Button(action: onSteer) {
-                    Label("Steer Now", systemImage: "bolt.fill")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(palette.accent)
-                        .padding(.horizontal, 12)
-                        .frame(height: 30)
-                        .background(palette.accentChip, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityHint("Sends it into the running turn")
-            }
         }
         .padding(.leading, 14)
         .padding(.trailing, 8)
@@ -298,7 +297,7 @@ private struct QueuedRow: View {
     }
 }
 
-private struct ThinkingDots: View {
+struct ThinkingDots: View {
     @Environment(\.palette) private var palette
 
     var body: some View {

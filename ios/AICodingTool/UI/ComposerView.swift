@@ -33,6 +33,7 @@ struct ComposerView<Above: View>: View {
     @State private var picking = false
     @State private var shooting = false
     @State private var picked: [PhotosPickerItem] = []
+    @State private var sent = 0
     @FocusState private var focused: Bool
 
     private var blocked: Bool { question?.blocking == true }
@@ -100,6 +101,12 @@ struct ComposerView<Above: View>: View {
                             send(onSend)
                             return .handled
                         }
+                } else {
+                    Label("Answer the question above to continue", systemImage: "arrow.up")
+                        .font(.body)
+                        .foregroundStyle(palette.quiet)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityLabel("Answer the question to continue")
                 }
                 HStack(spacing: 8) {
                     if !blocked {
@@ -173,6 +180,7 @@ struct ComposerView<Above: View>: View {
         }
         .padding(.top, 6)
         .background(palette.canvas)
+        .sensoryFeedback(.impact(weight: .light), trigger: sent)
         .photosPicker(isPresented: $picking, selection: $picked, maxSelectionCount: max(1, PickedImage.limit - images.count), matching: .images)
         .onChange(of: picked) { _, items in
             guard !items.isEmpty else { return }
@@ -252,6 +260,7 @@ struct ComposerView<Above: View>: View {
         guard !text.isEmpty || !sources.isEmpty else { return }
         draft = ""
         images = []
+        sent += 1
         how(text, sources)
     }
 }
@@ -306,14 +315,14 @@ struct QuestionPromptView: View {
             if !question.options.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(Array(question.options.enumerated()), id: \.offset) { index, option in
-                        if index > 0 { palette.lineSoft.frame(height: 1).padding(.leading, 14) }
+                        if index > 0 { palette.line.frame(height: 0.5).padding(.leading, 14) }
                         Button {
                             typed = false
                             answer = option.label
                         } label: {
                             HStack(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(option.label).font(.subheadline.weight(.semibold)).foregroundStyle(palette.ink)
+                                    Text(option.label).font(.subheadline.weight(.semibold)).foregroundStyle(chosen == option.label ? palette.accent : palette.ink)
                                     if !option.description.isEmpty { Text(option.description).font(.footnote).foregroundStyle(palette.muted) }
                                 }
                                 Spacer(minLength: 0)
@@ -321,10 +330,11 @@ struct QuestionPromptView: View {
                                     .font(.body.weight(.semibold))
                                     .foregroundStyle(palette.accent)
                                     .opacity(chosen == option.label ? 1 : 0)
+                                    .accessibilityHidden(true)
                             }
                             .padding(.horizontal, 14)
-                            .padding(.vertical, 11)
-                            .background(chosen == option.label ? palette.accentSurface : Color.clear)
+                            .padding(.vertical, 12)
+                            .background(chosen == option.label ? palette.accentChip : Color.clear)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -332,7 +342,7 @@ struct QuestionPromptView: View {
                         .accessibilityAddTraits(chosen == option.label ? [.isSelected] : [])
                     }
                 }
-                .background(palette.sunken)
+                .background(palette.raised)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             TextField(question.options.isEmpty ? "Type your answer…" : "Or type your own answer…", text: Binding(get: { chosen == nil ? answer : "" }, set: { value in

@@ -314,6 +314,10 @@ struct ThreadRow: View {
             RoundedRectangle(cornerRadius: 2).fill(palette.mutedStrong).frame(width: 8, height: 8)
         } else if thread.unread {
             StatusDot(kind: .unread)
+        } else if thread.attention, thread.outcome == "finished" {
+            Image(systemName: "checkmark.circle.fill").font(.caption).foregroundStyle(palette.success)
+        } else if thread.attention, thread.outcome == "failed" {
+            Image(systemName: "exclamationmark.circle.fill").font(.caption).foregroundStyle(palette.danger)
         } else {
             Color.clear.frame(height: 8)
         }

@@ -178,7 +178,7 @@ struct CodeBlockView: View {
             }
             .mask(HStack(spacing: 0) {
                 Color.black
-                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 32)
+                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 48)
             })
         }
         .background(palette.codeSurface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))

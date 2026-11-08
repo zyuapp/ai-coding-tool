@@ -361,7 +361,7 @@ struct ThreadSettingsSheet: View {
                         }
                         if index == offered.count - 1, refused.contains("model") || refused.contains("engine") { refusedText }
                     } header: {
-                        SectionLabel(index == 0 ? "Model · \(heading.label)" : heading.label)
+                        SectionLabel("\(heading.label) models")
                     }
                 }
                 if !others.isEmpty {
@@ -466,9 +466,19 @@ struct ThreadSettingsSheet: View {
 struct MembersSheet: View {
     var model: PhoneModel
     var members: [MobileMember]
+    var project: String?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.palette) private var palette
-    @State private var detent: PresentationDetent = .medium
+    @State private var detent: PresentationDetent
+    private let fitted: PresentationDetent
+
+    init(model: PhoneModel, members: [MobileMember], project: String?) {
+        self.model = model
+        self.members = members
+        self.project = project
+        fitted = .height(CGFloat(140 + max(1, members.count) * 64))
+        _detent = State(initialValue: fitted)
+    }
 
     var body: some View {
         SheetFrame(title: "Coordinated Threads") {
@@ -479,7 +489,10 @@ struct MembersSheet: View {
                 ForEach(members) { member in
                     if member.computer == nil {
                         NavigationLink {
-                            MemberTranscript(model: model, member: member)
+                            MemberTranscript(model: model, member: member) {
+                                dismiss()
+                                model.openThread(member.id, title: member.title, project: project)
+                            }
                                 .onAppear { withAnimation(.snappy) { detent = .large } }
                         } label: {
                             row(member)
@@ -495,7 +508,10 @@ struct MembersSheet: View {
         } actions: {
             ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
         }
-        .presentationDetents([.medium, .large], selection: $detent)
+        .presentationDetents([fitted, .large], selection: $detent)
+        .onChange(of: fitted) { _, next in
+            if detent != .large { detent = next }
+        }
     }
 
     private func row(_ member: MobileMember) -> some View {
@@ -515,6 +531,7 @@ struct MembersSheet: View {
 struct MemberTranscript: View {
     var model: PhoneModel
     var member: MobileMember
+    var onOpen: () -> Void
     @Environment(\.palette) private var palette
     @State private var read: MobileThreadRead?
     @State private var problem: String?
@@ -537,6 +554,7 @@ struct MemberTranscript: View {
                             }
                         }
                         if let tail = read.streamingTail { MarkdownView(text: tail) }
+                        if read.status == "running" { ThinkingDots().accessibilityLabel("Working") }
                     } else {
                         Text(problem ?? "Reading the thread…").foregroundStyle(palette.muted).frame(maxWidth: .infinity)
                     }
@@ -548,8 +566,21 @@ struct MemberTranscript: View {
             .onChange(of: read?.messages.count) { _, _ in reader.scrollTo("end", anchor: .bottom) }
         }
         .background(palette.menu)
-        .navigationTitle(read?.title ?? member.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                VStack(spacing: 1) {
+                    Text(read?.title ?? member.title).font(.headline).foregroundStyle(palette.ink).lineLimit(1)
+                    Text(Format.statusLabel(read?.status ?? member.status) ?? "Idle").font(.caption).foregroundStyle(palette.muted)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Open", action: onOpen)
+                    .accessibilityHint("Opens this thread to talk to it")
+            }
+        }
         .task {
             while !Task.isCancelled {
                 do {

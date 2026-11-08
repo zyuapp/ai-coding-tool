@@ -89,9 +89,11 @@ struct ThreadScreen: View {
                         model.send(.decide(approval, allow: allow))
                     }
                     .id(approval.approvalId)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 ComposerView(model: model, draftKey: thread.id, running: thread.status == "running", settings: thread.settings, question: thread.question, returned: returned(for: thread.id), onSend: { model.send(.message(thread.id, text: $0, sources: $1)) }, onSteer: { model.send(.message(thread.id, text: $0, sources: $1, steer: true)) }, onStop: { model.send(.cancel(thread.id)) }, onAnswer: { question, text in model.send(.answer(thread.id, question: question, text: text)) }, onSettings: { sheet = .settings })
             }
+            .animation(.snappy, value: thread.approval?.approvalId)
         } else if let draft {
             VStack(spacing: 0) {
                 DraftWelcome(engine: model.catalog.engineLabel(draft.settings.engine), computer: model.state.computerName)
@@ -177,7 +179,7 @@ struct ThreadScreen: View {
             AddProjectSheet(model: model)
         case .members:
             if let thread = model.view.thread {
-                MembersSheet(model: model, members: thread.members ?? [])
+                MembersSheet(model: model, members: thread.members ?? [], project: thread.projectName)
             }
         case .startIn:
             if let draft = model.view.draft {
@@ -214,7 +216,7 @@ struct ThreadMenu: View {
         let working = thread.location == .creating || thread.location == .releasing
         let inWorktree: Bool = { if case .worktree = thread.location { return true } else { return false } }()
         Menu {
-            Section {
+            Section("This Thread") {
                 item("Changes", detail: thread.reviewable ? Format.changesLabel(thread.changes) ?? "Review this thread's edits" : "No checkout to review", symbol: "plus.forwardslash.minus", disabled: !thread.reviewable, action: onChanges)
                 item("Location", detail: inProject ? Format.locationLabel(thread.location) : "Not in a project", symbol: inWorktree ? "folder.badge.gearshape" : "folder", disabled: !inProject || working, action: onLocation)
             }
@@ -413,6 +415,9 @@ struct ApprovalCard: View {
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .accessibilityElement(children: .contain)
+        .sensoryFeedback(trigger: decided) { _, next in
+            next.map { $0 ? .success : .warning }
+        }
         .onChange(of: refused) { _, next in
             if let next, next != released {
                 released = next
