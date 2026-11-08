@@ -7,6 +7,8 @@ import { imagesFor, withImages } from "../composer-drafts.js";
 import { promptKey, type WorkspaceState } from "../workspace-state.js";
 import { MAX_ATTACHMENTS, type RunAttachment } from "../../domain/conversation.js";
 
+const MOVED_DRAFT_ERROR = "The images were not sent because you left the new thread. Send them again from there.";
+
 export const ATTACHMENT_INPUTS = ["attachments.send", "attachments.saved", "attachments.failed", "attachments.notice"] as const;
 type AttachmentInput = Extract<WorkspaceInput, { type: (typeof ATTACHMENT_INPUTS)[number] }>;
 
@@ -16,7 +18,7 @@ function withSend(state: WorkspaceState, taskId: string | undefined, send: Attac
 
 /** A marked image leaves as a new file, so its draft follows that file until the run that carries it starts. */
 function withWrittenImages(state: WorkspaceState, { taskId, ids, attachments }: Extract<AttachmentInput, { type: "attachments.saved" }>): WorkspaceState {
-  const key = taskId ?? promptKey(state);
+  const key = taskId ?? attachmentSendFor(state.attachmentSends).draftKey ?? promptKey(state);
   return withImages(state, key, imagesFor(state, key).map((image) => {
     const at = ids.indexOf(image.id);
     return at < 0 ? image : { ...image, path: attachments[at]!.path };
@@ -58,10 +60,15 @@ export function reduceComposerAttachments(state: WorkspaceState, input: Attachme
       );
     }
 
-    case "attachments.saved":
-      /** The main composer moved to another draft while they were written, so they wait in the one they left from. */
-      if (send.draftKey !== undefined && send.draftKey !== promptKey(state)) return settled(withSend(state, input.taskId, { busy: false, error: null, sent: [] }));
-      return sent(withSend(withWrittenImages(state, input), input.taskId, { busy: false, error: null, sent: input.ids }), input, input.attachments, input.steer, input.text);
+    case "attachments.saved": {
+      /** The main composer moved on while they were written, so they go to the thread they left from. */
+      const left = send.draftKey !== undefined && send.draftKey !== promptKey(state) ? send.draftKey : undefined;
+      if (left !== undefined && !state.threads.some((thread) => thread.id === left)) {
+        return settled(withSend(state, input.taskId, { busy: false, error: MOVED_DRAFT_ERROR, sent: [] }), [], { ok: false, message: MOVED_DRAFT_ERROR });
+      }
+      const written = withSend(withWrittenImages(state, input), input.taskId, { busy: false, error: null, sent: input.ids });
+      return sent(written, left === undefined ? input : { ...input, taskId: left }, input.attachments, input.steer, input.text);
+    }
 
     case "attachments.failed":
       return settled(withSend(state, input.taskId, { busy: false, error: input.message, sent: send.sent }), [], { ok: false, message: input.message });

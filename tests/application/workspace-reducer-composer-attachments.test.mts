@@ -132,18 +132,28 @@ test("a side chat's images are its own, and so is what the strip has to say abou
   assert.equal(reduce(noticed.state, { type: "attachments.notice", taskId: "chat", message: "Wait for the screenshots to finish loading." }).state, noticed.state);
 });
 
-test("images written after the composer moved to another thread wait in the one they left from", () => {
+test("images written after the composer moved to another thread still go to the thread they left from", () => {
   const base = { ...workspace(), threads: [task("task-a"), task("task-b")], currentId: "task-a" };
   const drafted = run(base, [{ type: "view.set-prompt", prompt: "For A" }]);
   const sending = reduce(drafted, { type: "attachments.send", attachments: [image("one")] });
   const moved = reduce(sending.state, { type: "task.select", taskId: "task-b" }).state;
 
   const written = reduce(moved, { type: "attachments.saved", ids: ["one"], attachments: [{ path: "/tmp/one.png", labels: [] }] });
-  assert.deepEqual(written.effects, [], "nothing is sent from task-b");
-  assert.deepEqual(attachmentSendFor(written.state.attachmentSends), { busy: false, error: null, sent: [] }, "the strip keeps the image to send again");
-  assert.equal(written.state.prompts["task-a"], "For A");
-  assert.deepEqual(written.state.pendingRuns, {});
+  const pending = Object.values(written.state.pendingRuns).map(({ taskId, draftKey, text, attachments }) => ({ taskId, draftKey, text, attachments }));
+  assert.deepEqual(pending, [{ taskId: "task-a", draftKey: "task-a", text: "For A", attachments: ["/tmp/one.png"] }], "nothing is sent from task-b");
+  assert.deepEqual(attachmentSendFor(written.state.attachmentSends).sent, ["one"]);
+});
 
-  const stayed = reduce(sending.state, { type: "attachments.saved", ids: ["one"], attachments: [{ path: "/tmp/one.png", labels: [] }] });
-  assert.deepEqual(attachmentSendFor(stayed.state.attachmentSends).sent, ["one"], "a composer that stayed sends as before");
+test("images written after the composer left the new-thread draft wait there and say so", () => {
+  const base = { ...workspace(), threads: [task("task-b")], currentId: null };
+  const drafted = run(base, [{ type: "view.set-prompt", prompt: "A new thread" }]);
+  const sending = reduce(drafted, { type: "attachments.send", attachments: [image("one")] });
+  const moved = reduce(sending.state, { type: "task.select", taskId: "task-b" }).state;
+
+  const written = reduce(moved, { type: "attachments.saved", ids: ["one"], attachments: [{ path: "/tmp/one.png", labels: [] }] });
+  assert.equal(written.result?.ok, false);
+  assert.equal(attachmentSendFor(written.state.attachmentSends).busy, false);
+  assert.deepEqual(attachmentSendFor(written.state.attachmentSends).sent, [], "the strip keeps the image to send again");
+  assert.equal(written.state.prompts[NEW_THREAD_DRAFT], "A new thread");
+  assert.equal(written.state.threads[0]!.messages.length, 0);
 });
