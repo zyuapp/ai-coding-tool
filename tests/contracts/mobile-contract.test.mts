@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "vitest";
 import { isMobileClientMessage, isMobileRequest, isMobileResponse, isMobileServerMessage, MOBILE_PROTOCOL_VERSION, type MobileCommand } from "../../src/contracts/mobile.ts";
 import { isPhoneCommand } from "../../src/contracts/workspace-view-input.ts";
@@ -263,4 +264,9 @@ test("a phone may send exactly the commands that declare a phone rule", () => {
   for (const type of ["terminal.input", "worktree.delete", "project.remove", "browser.open", "task.set-role", "run.compact"]) {
     assert.equal(isPhoneCommand({ type, taskId: "task-1" }), false, type);
   }
+});
+
+test("the iOS app speaks the protocol version the computer serves", () => {
+  const swift = readFileSync(new URL("../../ios/AICodingTool/Protocol/Messages.swift", import.meta.url), "utf8");
+  assert.equal(Number(/let mobileProtocolVersion = (\d+)/.exec(swift)?.[1]), MOBILE_PROTOCOL_VERSION);
 });

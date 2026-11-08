@@ -147,12 +147,12 @@ final class ClientReducerTests: XCTestCase {
         XCTAssertEqual(MobileClient.backoffDelay(100), 15_000)
     }
 
-    func testSnapshotKeepsTheVocabulary() {
+    func testSnapshotNamesTheVocabulary() {
         let vocabulary = MobileVocabulary(engines: [], efforts: [MobileEffortTerm(id: "high", label: "High")])
         let start = MobileClientState(credential: MobileCredential(token: token, deviceId: "d1", deviceName: "iPhone"), code: nil, deviceName: "iPhone")
         let (state, _) = run(start, [.opened(at: 0), .received(.snapshot(sequence: 1, sessionId: "s1", build: "b", view: .empty, instance: nil, vocabulary: vocabulary))])
         XCTAssertEqual(state.vocabulary, vocabulary)
-        let (kept, _) = run(state, [.closed, .opened(at: 1), .received(snapshot(1, session: "s2"))])
-        XCTAssertEqual(kept.vocabulary, vocabulary)
+        let (older, _) = run(state, [.closed, .opened(at: 1), .received(snapshot(1, session: "s2"))])
+        XCTAssertNil(older.vocabulary, "a computer that names none is not read with another build's names")
     }
 }

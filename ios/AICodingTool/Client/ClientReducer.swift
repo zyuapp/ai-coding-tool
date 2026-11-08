@@ -290,7 +290,7 @@ enum MobileClient {
             kept.build = build
             kept.instance = instance
             kept.sessionId = sessionId
-            if let vocabulary { kept.vocabulary = vocabulary }
+            kept.vocabulary = vocabulary
             return live(shown(kept, view))
         case .patch(_, let patch):
             guard let view = seen.view.applying(patch) else { return resync(state) }

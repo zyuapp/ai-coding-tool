@@ -34,12 +34,14 @@ final class PhoneConnection {
     @ObservationIgnored private var pathSatisfied = true
     @ObservationIgnored private var pathSignature: String?
     @ObservationIgnored private var foreground = true
+    @ObservationIgnored private var storedVocabulary: MobileVocabulary?
 
     init(storage: PhoneStorage = PhoneStorage()) {
         self.storage = storage
         let computer = storage.readComputer()
         origin = computer?.origin ?? storage.origin
-        state = MobileClientState(credential: computer?.credential, code: nil, deviceName: Self.deviceName, outbox: storage.readOutbox(), vocabulary: storage.vocabulary)
+        storedVocabulary = storage.vocabulary
+        state = MobileClientState(credential: computer?.credential, code: nil, deviceName: Self.deviceName, outbox: storage.readOutbox(), vocabulary: storedVocabulary)
         reminder = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(MobileClient.resendMs))
@@ -62,9 +64,10 @@ final class PhoneConnection {
         drop()
         retry?.cancel()
         settle?.cancel()
+        // Another computer's build may name its engines differently, so only the same computer's vocabulary is kept.
+        let keepVocabulary = link.origin == origin ? state.vocabulary : nil
         origin = link.origin
         storage.origin = link.origin
-        let keepVocabulary = state.vocabulary
         state = MobileClientState(credential: nil, code: link.code, deviceName: Self.deviceName, vocabulary: keepVocabulary)
         storage.writeOutbox([])
         open()
@@ -151,7 +154,9 @@ final class PhoneConnection {
     }
 
     private func rememberVocabulary() {
-        if let vocabulary = state.vocabulary, vocabulary != storage.vocabulary { storage.vocabulary = vocabulary }
+        guard state.vocabulary != storedVocabulary else { return }
+        storedVocabulary = state.vocabulary
+        storage.vocabulary = state.vocabulary
     }
 
     private func disarm() {

@@ -61,6 +61,9 @@ struct ThreadScreen: View {
                 }
             }
             .sheet(item: $sheet) { which in sheetView(which) }
+            .onChange(of: model.current) { _, _ in
+                if let sheet, !fits(sheet) { self.sheet = nil }
+            }
     }
 
     @ViewBuilder private var content: some View {
@@ -108,6 +111,15 @@ struct ThreadScreen: View {
         if returned.command.type == "task.send", let text = returned.command.text { return .init(id: returned.requestId, text: text, answer: nil) }
         if returned.command.type == "question.answer" { return .init(id: returned.requestId, text: nil, answer: returned.command.questionId) }
         return nil
+    }
+
+    /// Whether what a sheet acts on is still open: a thread's own sheets need the thread, a draft's the draft.
+    private func fits(_ sheet: ThreadSheet) -> Bool {
+        switch sheet {
+        case .settings: model.view.thread != nil || model.view.draft != nil
+        case .menu, .location, .rename, .archive: model.view.thread != nil
+        case .project, .startIn: model.view.draft != nil
+        }
     }
 
     @ViewBuilder private func sheetView(_ which: ThreadSheet) -> some View {
