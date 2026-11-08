@@ -23,7 +23,6 @@ async function until(check: () => boolean) {
 
 test("a paired computer opens, types in, resizes, reconnects to, and closes a real host shell", async (t) => {
   const folder = await mkdtemp(path.join(os.tmpdir(), "aic-terminal-"));
-  await writeFile(path.join(folder, "index.html"), "<!doctype html>");
   const devices = new PairingStore(path.join(folder, "devices.json"));
   let state = emptyWorkspaceState();
   let revision = 0;
@@ -43,7 +42,7 @@ test("a paired computer opens, types in, resizes, reconnects to, and closes a re
   }
   terminal.startTerminalHost({ onData: () => {}, onUpdate: (update) => { dispatch({ type: "terminal.updated", update }); } });
   const server = new MobileServer({
-    devices, staticRoot: folder, port: 0, allowedOrigins: () => [],
+    devices, port: 0, allowedOrigins: () => [],
     snapshot: async () => { throw new Error("No phone view"); }, command: async () => {}, query: async () => null, onChange: () => {},
     workspace: {
       snapshot: () => ({ revision, state }),

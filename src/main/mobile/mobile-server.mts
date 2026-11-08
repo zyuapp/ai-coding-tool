@@ -1,10 +1,7 @@
 import { COMPUTER_CAPABILITIES, REMOTE_UNSUPPORTED, supportsComputerCommand, supportsComputerQuery } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { createHash, randomUUID } from "node:crypto";
-import { createReadStream, readFileSync } from "node:fs";
-import { stat } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import path from "node:path";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
 import {
@@ -44,7 +41,7 @@ import { stringifyWorkspaceJson } from "../../application/workspace-json.js";
 import { applyMobilePatch, MOBILE_VOCABULARY } from "../../application/mobile-projection.js";
 import type { PairedDeviceKind } from "../../domain/mobile.js";
 
-/** Where the phone page talks back. Pairing happens on the same socket, as its first message. */
+/** Where the phone app talks. Pairing happens on the same socket, as its first message. */
 const SOCKET_PATH = `${MOBILE_APP_PATH}/socket`;
 /** Where another computer talks, in the window's own inputs rather than the phone's. */
 export const WORKSPACE_SOCKET_PATH = `${MOBILE_APP_PATH}/workspace`;
@@ -71,27 +68,7 @@ const CATCH_UP_MS = 250;
 /** What a phone is told when it sends something the server cannot read, instead of being hung up on. */
 const PHONE_UNREADABLE = "Your computer could not read that request.";
 
-/** What the build is called when the page cannot be read. Every phone agrees on it, so none reloads. */
-const UNKNOWN_BUILD = "unknown";
-
-const MIME_TYPES: Record<string, string> = {
-  ".css": "text/css; charset=utf-8",
-  ".html": "text/html; charset=utf-8",
-  ".ico": "image/x-icon",
-  ".js": "text/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".map": "application/json; charset=utf-8",
-  ".png": "image/png",
-  ".svg": "image/svg+xml",
-  ".txt": "text/plain; charset=utf-8",
-  ".webmanifest": "application/manifest+json",
-  ".woff2": "font/woff2",
-};
-
-/**
- * The phone page is only ever the top-level document. Framed, its approval buttons could be
- * overlaid and a tap on Allow stolen, so nothing may frame it.
- */
+/** Nothing this server answers is meant to be sniffed, framed or referred from. */
 const SECURITY_HEADERS = {
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
@@ -154,10 +131,8 @@ export type WorkspaceHooks = {
 
 export type MobileServerOptions = {
   devices: PairingStore;
-  /** The built phone page. Served under {@link MOBILE_APP_PATH}. */
-  staticRoot: string;
   port: number;
-  /** The origins a page may call from, which move as Tailscale and the LAN bind come and go. */
+  /** The origins a browser may open a socket from, which move as Tailscale and the LAN bind come and go. */
   allowedOrigins: () => string[];
   snapshot: (sessionId: string) => Promise<MobileView>;
   command: (sessionId: string, command: MobileCommand) => Promise<void>;
@@ -172,7 +147,7 @@ export type MobileServerOptions = {
 };
 
 /**
- * The local server a phone reaches. It serves the phone page, trades pairing codes for tokens, and
+ * The local server a phone reaches. It trades pairing codes for tokens and
  * holds one socket per phone. Nothing here decides anything about the workspace: a command is
  * relayed to the window and acknowledged with what the window said.
  *
@@ -195,8 +170,6 @@ export class MobileServer {
   private sockets: WebSocketServer | null = null;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private listening: number | null = null;
-  /** What the served page hashes to, read once a server starts because a running one cannot change it. */
-  private build = UNKNOWN_BUILD;
   private failure: string | null = null;
   /** Sockets that have connected but not yet said who they are. */
   private pending = 0;
@@ -232,7 +205,6 @@ export class MobileServer {
     if (this.http) return;
     this.failure = null;
     this.instance = randomUUID();
-    this.build = buildStamp(this.options.staticRoot);
     const server = createServer((request, response) => {
       this.serve(request, response).catch(() => {
         if (!response.headersSent) plain(response, 500, "Something went wrong.");
@@ -322,7 +294,7 @@ export class MobileServer {
       if (session.kind !== "phone") continue;
       if (update.kind === "snapshot") {
         session.awaitingSnapshot = false;
-        this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view: update.view, instance: this.instance, vocabulary: MOBILE_VOCABULARY });
+        this.emit(session, { kind: "snapshot", sessionId: session.id, view: update.view, instance: this.instance, vocabulary: MOBILE_VOCABULARY });
       } else if (!session.awaitingSnapshot) {
         if (congested(session)) this.fallBehind(session);
         else this.emit(session, { kind: "patch", patch: update.patch });
@@ -453,7 +425,7 @@ export class MobileServer {
         this.view = view;
       }
       session.awaitingSnapshot = false;
-      this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view: this.view, instance: this.instance, vocabulary: MOBILE_VOCABULARY });
+      this.emit(session, { kind: "snapshot", sessionId: session.id, view: this.view, instance: this.instance, vocabulary: MOBILE_VOCABULARY });
     } catch (error) {
       /**
        * A session with no view to patch is no session. The phone hears why, is hung up on, and
@@ -478,7 +450,7 @@ export class MobileServer {
   }
 
   /**
-   * A page the server itself handed out is the only page allowed to talk back. A request with no
+   * A browser may open a socket only from one of this server's own addresses. A request with no
    * origin at all is not one a browser made, and is left to the token to judge.
    */
   private originAllowed(request: IncomingMessage) {
@@ -486,9 +458,9 @@ export class MobileServer {
     if (origin === undefined) return true;
     if (this.options.allowedOrigins().includes(origin)) return true;
     /**
-     * A page from the very host the socket was opened on is our own page, whatever the host is
+     * An origin naming the very host the socket was opened on is our own, whatever the host is
      * called: a browser cannot forge the Host header, and Tailscale Serve passes the name and scheme
-     * it answered on. This is what lets a tailnet phone back in before Tailscale has been asked.
+     * it answered on.
      */
     const host = forwardedHost(request);
     const scheme = forwardedScheme(request);
@@ -768,55 +740,10 @@ export class MobileServer {
   private async serve(request: IncomingMessage, response: ServerResponse) {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     if (request.method !== "GET") return plain(response, 405, "Method not allowed");
-    /** The socket path is only ever an upgrade; a plain GET on it is not the page. */
     if (url.pathname === SOCKET_PATH) return plain(response, 400, "This address is a WebSocket.");
     /** The instance header tells this process's server from another copy's behind the same name. */
     if (url.pathname === MOBILE_HEALTH_PATH) return plain(response.setHeader(MOBILE_INSTANCE_HEADER, MOBILE_INSTANCE), 200, MOBILE_HEALTH_RESPONSE);
-    if (url.pathname === "/" || url.pathname === MOBILE_APP_PATH) {
-      response.writeHead(302, { location: `${MOBILE_APP_PATH}/${url.search}`, ...SECURITY_HEADERS });
-      return response.end();
-    }
-    await this.serveFile(response, url.pathname);
-  }
-
-  /**
-   * The phone page and its assets. A build that names its assets from the root and one that names
-   * them under the app path both resolve, and neither can name anything outside the built folder.
-   */
-  private async serveFile(response: ServerResponse, pathname: string) {
-    const root = path.resolve(this.options.staticRoot);
-    const within = pathname.startsWith(`${MOBILE_APP_PATH}/`) ? pathname.slice(MOBILE_APP_PATH.length) : pathname;
-    const named = readPath(within);
-    if (named === null) return plain(response, 404, "Not found");
-    const candidates = [path.resolve(root, `.${named}`)];
-    /** Anything without an extension is a route the page draws itself, so the page is what it gets. */
-    if (!path.extname(within)) candidates.push(path.join(root, "index.html"));
-    for (const candidate of candidates) {
-      if (candidate !== root && !candidate.startsWith(`${root}${path.sep}`)) continue;
-      const entry = await stat(candidate).catch(() => null);
-      if (!entry?.isFile()) continue;
-      response.writeHead(200, {
-        "content-type": MIME_TYPES[path.extname(candidate).toLowerCase()] ?? "application/octet-stream",
-        "content-length": entry.size,
-        "cache-control": path.extname(candidate) === ".html" ? "no-store" : "public, max-age=3600",
-        ...SECURITY_HEADERS,
-      });
-      createReadStream(candidate).pipe(response);
-      return;
-    }
     plain(response, 404, "Not found");
-  }
-}
-
-/**
- * The build of the page this server hands out, which is what a phone compares its own against. A
- * page it cannot read is one no phone can be holding, so nothing is asked to reload over it.
- */
-function buildStamp(staticRoot: string): string {
-  try {
-    return createHash("sha256").update(readFileSync(path.join(staticRoot, "index.html"))).digest("hex").slice(0, 16);
-  } catch {
-    return UNKNOWN_BUILD;
   }
 }
 
@@ -826,16 +753,6 @@ function resumable(session: Session, lastSequence: number) {
   if (lastSequence === session.sequence) return true;
   const oldest = session.buffer[0];
   return oldest !== undefined && oldest.sequence <= lastSequence + 1;
-}
-
-/** A path a browser escaped, or null when it is not one this server could have handed out. */
-function readPath(pathname: string) {
-  try {
-    const decoded = decodeURIComponent(pathname);
-    return decoded.includes("\0") ? null : decoded;
-  } catch {
-    return null;
-  }
 }
 
 function write(socket: WebSocket | null, text: string, sent?: () => void) {
@@ -871,10 +788,10 @@ function congested(session: Session) {
   return session.socket !== null && session.socket.bufferedAmount > MOBILE_CONGESTED_BYTES;
 }
 
-/** Computers connect best effort across versions; a stale phone page can reload from its host. */
+/** Computers connect best effort across versions; a phone app must speak this build's protocol. */
 function versionAccepted(version: number, kind: PairedDeviceKind, socket: WebSocket) {
   if (kind === "computer" || version === MOBILE_PROTOCOL_VERSION) return true;
-  refuse(socket, "version", "This phone page is a different version from the computer. Reload it.");
+  refuse(socket, "version", "This app is a different version from the computer. Update whichever is older.");
   return false;
 }
 

@@ -12,9 +12,8 @@
   },
   "main": "dist/main/main/main.js",
   "scripts": {
-    "build": "vite build && npm run build:mobile && tsc -p tsconfig.main.json",
-    "build:mobile": "vite build --config vite.mobile.config.mts",
-    "check": "npm run check:licenses && npm run check:ios-themes && tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.preview.json && npm run lint",
+    "build": "vite build && tsc -p tsconfig.main.json",
+    "check": "npm run check:licenses && npm run check:ios-themes && tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.test.json && npm run lint",
     "check:licenses": "node scripts/generate-legal-notices.mjs --check",
     "check:ios-themes": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-ios-themes.mts --check",
     "generate:native-licenses": "node scripts/generate-native-legal-notices.mjs",
@@ -25,7 +24,6 @@
     "start": "npm run prepare:electron && npm run prepare:cua && npm run build && electron .",
     "serve": "npm run build && node --disable-warning=ExperimentalWarning dist/main/main/serve.js --dev",
     "serve:pair": "node --disable-warning=ExperimentalWarning dist/main/main/serve.js pair --dev --installed",
-    "start:mobile": "npm run prepare:electron && node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/start-mobile.mts",
     "package:mac": "npm run prepare:electron && npm run prepare:cua && npm run build && electron-builder --mac --arm64 --publish never",
     "package:linux": "npm run prepare:electron && npm run prepare:cua && npm run build && electron-builder --linux --publish never",
     "generate:codex-protocol": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-codex-protocol.mts",
@@ -110,7 +108,6 @@
       "!assets/app-plugin/**",
       "!assets/legal/**",
       "!dist/renderer/legal/**",
-      "!dist/mobile/legal/**",
       "!node_modules/@trycua/**",
       "!node_modules/@ubjs/**",
       "!**/node_modules/@openai/codex-*/**/*",
@@ -147,10 +144,6 @@
       {
         "from": "dist/renderer/legal/RENDERER-THIRD-PARTY-LICENSES.md",
         "to": "legal/RENDERER-THIRD-PARTY-LICENSES.md"
-      },
-      {
-        "from": "dist/mobile/legal/MOBILE-THIRD-PARTY-LICENSES.md",
-        "to": "legal/MOBILE-THIRD-PARTY-LICENSES.md"
       },
       {
         "from": "node_modules/electron/dist/LICENSE",

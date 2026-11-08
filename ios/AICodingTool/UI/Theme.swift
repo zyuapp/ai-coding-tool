@@ -3,7 +3,7 @@ import UIKit
 
 /// The desktop's theme as the phone wears it: the primitives from `Themes.json`, which
 /// `scripts/generate-ios-themes.mts` writes from the desktop's own `themes.css`, and the tokens the
-/// phone page derives from them in `mobile.css`.
+/// phone derives from them.
 struct Palette: Equatable {
     let id: String
     let dark: Bool

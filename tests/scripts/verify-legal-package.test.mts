@@ -39,8 +39,6 @@ async function writeAsar(resources: string, forbiddenPackage?: string, sdkVersio
   await writeFile(path.join(terminal, "package.json"), JSON.stringify({
     name: terminalName, version: lockedPackageVersion(terminalName), license: "MIT",
   }));
-  await mkdir(path.join(source, "dist/mobile"), { recursive: true });
-  await writeFile(path.join(source, "dist/mobile/index.html"), '<template id="third-party-licenses">## react-markdown - </template>');
   if (forbiddenPackage) {
     const forbidden = path.join(source, "node_modules", forbiddenPackage);
     await mkdir(forbidden, { recursive: true });
@@ -60,10 +58,6 @@ async function packageFixture() {
   await cp(path.resolve("node_modules/electron/dist/LICENSES.chromium.html"), path.join(resources, "legal/ELECTRON-THIRD-PARTY-NOTICES.html"));
   await writeFile(path.join(resources, "legal/RENDERER-THIRD-PARTY-LICENSES.md"), [
     ...["@xterm/xterm", "mermaid", "react", "shiki"]
-      .map((name) => `## ${name} - ${lockedPackageVersion(name)} (MIT)`),
-  ].join("\n"));
-  await writeFile(path.join(resources, "legal/MOBILE-THIRD-PARTY-LICENSES.md"), [
-    ...["react-markdown", "react", "remark-gfm"]
       .map((name) => `## ${name} - ${lockedPackageVersion(name)} (MIT)`),
   ].join("\n"));
   const driver = path.join(resources, "cua-driver");

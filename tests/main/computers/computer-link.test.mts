@@ -35,7 +35,6 @@ async function until<T>(check: () => T | null | false | undefined, message: stri
 /** A host with a workspace of its own, taking computers on the bridge the way the app and aic serve do. */
 async function host(t: { onTestFinished(callback: () => void | Promise<void>): void }, options: { gate?: Promise<void> } = {}) {
   const folder = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-computers-"));
-  await writeFile(path.join(folder, "index.html"), "<!doctype html><title>phone</title>");
   const devices = new PairingStore(path.join(folder, "mobile-devices.v1.json"));
   let state: WorkspaceState = { ...emptyWorkspaceState(), threads: [task("first", { title: "First" })] };
   let revision = 0;
@@ -43,7 +42,6 @@ async function host(t: { onTestFinished(callback: () => void | Promise<void>): v
   const inputs: WorkspaceInput[] = [];
   const server = new MobileServer({
     devices,
-    staticRoot: folder,
     port: 0,
     allowedOrigins: () => [],
     snapshot: async () => { throw new Error("no phones here"); },

@@ -153,10 +153,9 @@ export async function startServe(options: { userData: string; packaged: boolean;
 
   let served: string | null = null;
   let trouble: string | null = null;
-  const { servePairingSocket } = await import("./mobile/development.mjs");
+  const { servePairingSocket } = await import("./mobile/pairing-socket.mjs");
   await mobile.startMobileHost({
     userData,
-    staticRoot: path.join(__dirname, "..", "..", "mobile"),
     ...(options.port === undefined ? {} : { port: options.port }),
     ...(options.local ? { tailscale: NO_TAILSCALE } : {}),
     workspace: createComputerBridge({
@@ -220,7 +219,7 @@ async function main() {
   const packaged = !arguments_.dev;
   const userData = arguments_.userData ?? appProfile(appDataPath(), homedir(), packaged || arguments_.installed).userData;
   if (arguments_.command === "pair") {
-    const { requestPairing } = await import("./mobile/development.mjs");
+    const { requestPairing } = await import("./mobile/pairing-socket.mjs");
     const offer = await requestPairing(path.join(userData, "serve.sock")).catch((error: unknown) => {
       throw new Error(`No AI Coding Tool is serving here. Start one with \`aic serve\`. (${error instanceof Error ? error.message : String(error)})`);
     });

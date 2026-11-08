@@ -18,9 +18,8 @@ struct Opening: Equatable {
     var commands: [PhoneCommand]
 }
 
-/// The phone's screens and what they ask of the computer, ported from `src/mobile/App.tsx`. The
-/// conversation is the one the computer has open, so the phone asks for a thread and then shows
-/// whichever one arrives.
+/// The phone's screens and what they ask of the computer. The conversation is the one the computer
+/// has open, so the phone asks for a thread and then shows whichever one arrives.
 @MainActor
 @Observable
 final class PhoneModel {

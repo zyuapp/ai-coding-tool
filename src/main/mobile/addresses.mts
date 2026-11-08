@@ -36,7 +36,7 @@ export function reachableAddresses(options: { port: number; magicDnsName: string
 }
 
 /**
- * The origins a page may call the bridge from: the ones the server itself hands the page out on.
+ * The origins a browser may open a socket from: the addresses the server itself answers on.
  * `localhost` is spelled out beside the loopback address because a browser resolves it to both.
  */
 export function allowedOrigins(addresses: MobileAddress[]): string[] {

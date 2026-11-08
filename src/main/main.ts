@@ -430,7 +430,7 @@ async function createWindow() {
  * runs from launch to quit: closing the window on a Mac leaves this computer reachable.
  */
 function startPhoneBridge() {
-  return startMobileBridge({ events, workspace: workspaceHooks, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile"), ...(!app.isPackaged ? { developmentRoot: app.getAppPath() } : {}) })
+  return startMobileBridge({ events, workspace: workspaceHooks, userData: app.getPath("userData") })
     .catch((error) => console.error("Could not start the phone bridge:", error));
 }
 

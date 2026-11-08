@@ -39,7 +39,7 @@ test.skipIf(!existsSync(entry))("aic serve runs the workspace headless, hands ou
   assert.equal(await health.text(), MOBILE_HEALTH_RESPONSE);
 
   const { stdout } = await promisify(execFile)(process.execPath, ["--disable-warning=ExperimentalWarning", entry, "pair", "--dev", "--user-data", userData]);
-  assert.match(stdout, /Pair with code [0-9A-HJKMNP-TV-Z]{8} .*http:\/\/127\.0\.0\.1:\d+\/m\/#pair=/);
+  assert.match(stdout, /Pair with code [0-9A-HJKMNP-TV-Z]{8} .*aicodingtool:\/\/pair\?link=http%3A%2F%2F127\.0\.0\.1%3A\d+%2F%23pair%3D/);
 
   const second = serve(userData);
   assert.notEqual(await second.exited, 0, "a second server on the same data refuses to start");

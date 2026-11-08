@@ -1,8 +1,8 @@
 import Foundation
 
-// The phone's behaviour as one reducer, ported from `src/mobile/client/protocol.ts`: what the
-// socket says, what the user does and what iOS does to a suspended app arrive as events, and every
-// action the driver must take comes back as an effect. Nothing here opens a socket or reads the clock.
+// The phone's behaviour as one reducer: what the socket says, what the user does and what iOS does
+// to a suspended app arrive as events, and every action the driver must take comes back as an
+// effect. Nothing here opens a socket or reads the clock.
 
 struct MobileCredential: Codable, Equatable, Sendable {
     var token: String
@@ -52,7 +52,8 @@ struct MobileClientState: Equatable, Sendable {
     var connection: ConnectionState = .offline
     var sessionId: String?
     var lastSequence = 0
-    var build: String?
+    /// Set by the first snapshot, after which the view, not the stored one, carries the theme.
+    var synced = false
     var instance: String?
     var view = MobileView.empty
     var vocabulary: MobileVocabulary?
@@ -284,10 +285,10 @@ enum MobileClient {
             seen.entry = .ready
             seen.notice = nil
             return (seen, [.store(credential)])
-        case .snapshot(_, let sessionId, let build, let view, let instance, let vocabulary):
+        case .snapshot(_, let sessionId, let view, let instance, let vocabulary):
             var kept = sessionId == seen.sessionId ? seen : restarted(seen, instance: instance)
             kept.notice = kept.outbox == seen.outbox ? nil : restarted
-            kept.build = build
+            kept.synced = true
             kept.instance = instance
             kept.sessionId = sessionId
             kept.vocabulary = vocabulary

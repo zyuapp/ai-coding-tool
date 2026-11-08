@@ -79,7 +79,7 @@ test.each(["idle", "send", "query", "message-image", "abandoned"])("holder heart
   const held = new Promise<void>((resolve) => { release = resolve; });
   let received = false;
   const server = new MobileServer({
-    devices, staticRoot: folder, port: 0, allowedOrigins: () => [], onChange: () => {},
+    devices, port: 0, allowedOrigins: () => [], onChange: () => {},
     snapshot: async () => { throw new Error("No phones"); }, command: async () => {}, query: async () => null,
     workspace: {
       snapshot: () => ({ revision: 0, state: emptyWorkspaceState() }), subscribe: () => () => {},

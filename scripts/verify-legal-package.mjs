@@ -23,7 +23,6 @@ const legalFiles = [
   "LIBFFI-MIT.txt",
   "MANTLE-LICENSE.md",
   "MPL-2.0.txt",
-  "MOBILE-THIRD-PARTY-LICENSES.md",
   "NPM-RUNTIME-LICENSES.txt",
   "REACTIVEOBJC-MIT.md",
   "RENDERER-THIRD-PARTY-LICENSES.md",
@@ -103,8 +102,6 @@ export async function verifyLegalPackage(resourcesPath) {
   const licenseHeading = (name) => `## ${name} - ${lockedPackageVersion(name)} (`;
   await requireText(path.join(legalPath, "RENDERER-THIRD-PARTY-LICENSES.md"),
     ["@xterm/xterm", "mermaid", "react", "shiki"].map(licenseHeading));
-  await requireText(path.join(legalPath, "MOBILE-THIRD-PARTY-LICENSES.md"),
-    ["react-markdown", "react", "remark-gfm"].map(licenseHeading));
   for (const [packaged, source] of [
     ["ELECTRON-MIT.txt", "LICENSE"],
     ["ELECTRON-THIRD-PARTY-NOTICES.html", "LICENSES.chromium.html"],
@@ -155,13 +152,8 @@ export async function verifyLegalPackage(resourcesPath) {
     "node_modules/@openai/codex",
     "node_modules/fast-uri/benchmark/",
     "dist/renderer/legal/",
-    "dist/mobile/legal/",
   ]) {
     if (includes(forbidden)) throw new Error(`app.asar unexpectedly contains ${forbidden}.`);
-  }
-  const mobileHtml = extractFile(archive, "dist/mobile/index.html").toString();
-  if (!mobileHtml.includes('id="third-party-licenses"') || !mobileHtml.includes("## react-markdown - ")) {
-    throw new Error("The phone page does not carry its third-party license notices.");
   }
   for (const file of archivedFiles.filter((file) => file.endsWith("/package.json") && file.includes("node_modules/"))) {
     const manifest = JSON.parse(extractFile(archive, file.replace(/^\//, "")).toString());

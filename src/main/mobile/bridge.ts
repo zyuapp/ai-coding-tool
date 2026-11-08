@@ -9,9 +9,6 @@ import type { WorkspaceHooks } from "./mobile-server.mjs" with { "resolution-mod
 export type MobileBridgeHost = {
   events: DesktopEvents;
   userData: string;
-  developmentRoot?: string;
-  /** The built phone page. */
-  staticRoot: string;
   /** What another computer is handed and may drive. */
   workspace: WorkspaceHooks;
 };
@@ -64,8 +61,6 @@ export function startMobileBridge(options: MobileBridgeHost) {
     if (app !== options) return;
     await mobile.startMobileHost({
       userData: options.userData,
-      developmentRoot: options.developmentRoot,
-      staticRoot: options.staticRoot,
       send: (request) => app === options && options.events.emit("mobile:request", request),
       onState: (state) => publishState(options, state),
       workspace: options.workspace,

@@ -1,6 +1,6 @@
 import Foundation
 
-// How the phone words a thread, ported from `src/mobile/format.ts`.
+// How the phone words a thread.
 
 enum TranscriptBlock: Equatable, Identifiable {
     case message(key: String, message: MobileMessage, answer: Bool)

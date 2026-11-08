@@ -3,9 +3,8 @@ import Network
 import Observation
 import UIKit
 
-/// The one impure part, ported from `src/mobile/client/connection.ts`: a socket, its timers, and
-/// what iOS does to an app it suspends. Every decision comes from `MobileClient.reduce`; this only
-/// performs the effects and feeds back what it hears.
+/// The one impure part: a socket, its timers, and what iOS does to an app it suspends. Every
+/// decision comes from `MobileClient.reduce`; this only performs the effects and feeds back what it hears.
 @MainActor
 @Observable
 final class PhoneConnection {

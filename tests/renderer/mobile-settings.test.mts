@@ -96,8 +96,7 @@ test("a served bridge draws the QR of the code on screen, and the address it is 
   const qr = document.querySelector<HTMLImageElement>("img.phone-qr");
   assert.ok(qr, "no QR was drawn");
   assert.match(qr.src, /^data:image\/png;base64,/);
-  assert.equal(qr.alt, "QR code for https://mac.tail1234.ts.net/m/#pair=K7M2P9QX");
-  assert.equal(qr.alt.includes("?"), false, "the code rides the fragment, where no proxy sees it");
+  assert.equal(qr.alt, `QR code for ${pairingUrl(TAILNET, "K7M2P9QX")}`);
 
   click("[aria-labelledby='phone-pairing-heading'] button");
   assert.equal(calls.codes, 1);

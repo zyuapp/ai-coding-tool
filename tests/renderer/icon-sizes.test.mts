@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "vitest";
 
-const ROOTS = ["../../src/renderer", "../../src/mobile"].map((root) => fileURLToPath(new URL(root, import.meta.url)));
+const ROOT = fileURLToPath(new URL("../../src/renderer", import.meta.url));
 
 /**
  * An icon sits centred in its box only when the room around it splits into whole pixels. The boxes
@@ -24,7 +24,7 @@ async function sources(root: string): Promise<string[]> {
 
 test("every icon is sized evenly so it sits centred on whole pixels", async () => {
   const odd: string[] = [];
-  for (const file of (await Promise.all(ROOTS.map(sources))).flat()) {
+  for (const file of await sources(ROOT)) {
     const checks = ODD_SIZES.filter(({ extensions }) => extensions.includes(path.extname(file)));
     if (!checks.length) continue;
     const text = await readFile(file, "utf8");
@@ -44,7 +44,7 @@ const TEXT_BOXES = new Set([".session-toggle > span", ".model-provider-initial"]
 
 test("every box that centres an icon is sized evenly, as the icons are", async () => {
   const odd: string[] = [];
-  for (const file of (await Promise.all(ROOTS.map(sources))).flat()) {
+  for (const file of await sources(ROOT)) {
     if (path.extname(file) !== ".css") continue;
     const text = await readFile(file, "utf8");
     for (const match of text.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
@@ -79,7 +79,7 @@ function buttonClasses(sources: readonly string[]) {
  * says its padding itself.
  */
 test("every button that centres an icon sets its own padding", async () => {
-  const files = (await Promise.all(ROOTS.map(sources))).flat();
+  const files = await sources(ROOT);
   const markup = await Promise.all(files.filter((file) => path.extname(file) === ".tsx").map((file) => readFile(file, "utf8")));
   const onButtons = buttonClasses(markup);
   const sheets = await Promise.all(files.filter((file) => path.extname(file) === ".css").map(async (file) => ({ file, text: await readFile(file, "utf8") })));

@@ -1,25 +1,11 @@
-import { createHash } from "node:crypto";
-import { chmod, lstat, mkdir, realpath, rm } from "node:fs/promises";
+import { chmod, lstat, mkdir, rm } from "node:fs/promises";
 import { createServer, request } from "node:http";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import type { MobilePairingOffer } from "../../domain/mobile.js";
 
-/** Both source processes know the checkout. A private Unix socket lets the launcher ask for a
- * normal pairing code without publishing a bootstrap secret or a browser-accessible endpoint. */
-export async function developmentSocket(root: string): Promise<string> {
-  const checkout = await realpath(root);
-  const key = createHash("sha256").update(`${process.getuid?.()}:${checkout}`).digest("hex").slice(0, 12);
-  return path.join(tmpdir(), `aic-mobile-${key}`, "pair.sock");
-}
-
-export async function serveDevelopmentPairing(root: string, pair: () => Promise<MobilePairingOffer>): Promise<() => Promise<void>> {
-  return servePairingSocket(await developmentSocket(root), pair);
-}
-
 /**
- * Answers a pairing code over a private Unix socket, for a process on the same machine that has
- * every right to ask: the launcher of a source run, or the command line beside a headless host.
+ * Answers a pairing code over a private Unix socket, for the command line beside a headless host,
+ * which is on the same machine and has every right to ask.
  */
 export async function servePairingSocket(socketPath: string, pair: () => Promise<MobilePairingOffer>): Promise<() => Promise<void>> {
   const directory = path.dirname(socketPath);
@@ -50,14 +36,6 @@ export async function servePairingSocket(socketPath: string, pair: () => Promise
     });
     await rm(socketPath, { force: true });
   };
-}
-
-/** Runs in the Vite process, never in the page. */
-export async function requestDevelopmentPairing(root: string): Promise<MobilePairingOffer> {
-  const offer = await requestPairing(await developmentSocket(root));
-  const url = new URL(offer.url);
-  if (url.protocol !== "http:" || url.hostname !== "127.0.0.1") throw new Error("Invalid development pairing response.");
-  return offer;
 }
 
 /** Asks the process serving on the socket for a pairing code. */

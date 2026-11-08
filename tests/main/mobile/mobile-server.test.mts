@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { once } from "node:events";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -13,8 +13,6 @@ import { PairingStore } from "../../../src/main/mobile/pairing.mts";
 import { MobileRelay } from "../../../src/main/mobile/session-host.mts";
 import { MAX_PENDING_SOCKETS, MOBILE_EVENT_BUFFER } from "../../../src/domain/mobile.ts";
 import { MOBILE_PROTOCOL_VERSION, type MobileClientMessage, type MobileCommand, type MobileQuery, type MobileRequest, type MobileServerMessage, type MobileView } from "../../../src/contracts/mobile.ts";
-
-const PAGE = "<!doctype html><title>phone</title>";
 
 function view(title: string): MobileView {
   return { groups: [{ projectId: null, name: title, threads: [] }], activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, engines: {}, thread: null, draft: null, error: null };
@@ -31,7 +29,6 @@ async function until<T>(check: () => T | null | false | undefined, message: stri
 
 async function harness(t: { onTestFinished(callback: () => void | Promise<void>): void }) {
   const folder = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-mobile-"));
-  await writeFile(path.join(folder, "index.html"), PAGE);
   const devices = new PairingStore(path.join(folder, "mobile-devices.v1.json"));
   const commands: MobileCommand[] = [];
   const queries: MobileQuery[] = [];
@@ -42,7 +39,6 @@ async function harness(t: { onTestFinished(callback: () => void | Promise<void>)
   let release: (() => void) | null = null;
   const server = new MobileServer({
     devices,
-    staticRoot: folder,
     port: 0,
     allowedOrigins: () => [`http://127.0.0.1:${server.port}`],
     snapshot: async () => {
@@ -107,37 +103,14 @@ function phone(url: string, options?: WebSocket.ClientOptions) {
   };
 }
 
-test("the server hands out the phone page and nothing outside it", async (t) => {
+test("the server answers its health check and nothing else over plain HTTP", async (t) => {
   const { origin } = await harness(t);
-
-  const redirected = await fetch(`${origin}/m?pair=ABCDEFGH`, { redirect: "manual" });
-  assert.equal(redirected.status, 302);
-  assert.equal(redirected.headers.get("location"), "/m/?pair=ABCDEFGH");
-
-  const page = await fetch(`${origin}/m/`);
-  assert.equal(page.status, 200);
-  assert.equal(await page.text(), PAGE);
   assert.equal(await (await fetch(`${origin}/m/health`)).text(), "aicodingtool-mobile-v1");
-  assert.equal((await fetch(`${origin}/m/threads/abc`)).status, 200, "a route the page draws is still the page");
-
-  assert.equal((await fetch(`${origin}/m/../../package.json`)).status, 404);
-  assert.equal((await fetch(`${origin}/m/%2e%2e%2f%2e%2e%2fpackage.json`)).status, 404);
-  assert.equal((await fetch(`${origin}/m/%zz`)).status, 404, "a path no browser could have escaped is not one we hold");
+  for (const target of ["/", "/m", "/m/", "/m/index.html", "/m/../../package.json"]) {
+    assert.equal((await fetch(`${origin}${target}`, { redirect: "manual" })).status, 404, target);
+  }
   assert.equal((await fetch(`${origin}/m/`, { method: "POST" })).status, 405);
-  assert.equal((await fetch(`${origin}/m/socket`)).status, 400, "the socket address is not a page");
-});
-
-test("a snapshot names the build of the page the server hands out", async (t) => {
-  const { devices, socketUrl, origin } = await harness(t);
-  const code = devices.mint(Date.now());
-  const client = phone(socketUrl);
-  t.onTestFinished(() => client.socket.close());
-  await client.opened();
-
-  client.send({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: code.code, deviceName: "iPhone" });
-  const opening = await client.waitFor("snapshot");
-  const served = await (await fetch(`${origin}/m/`)).text();
-  assert.equal(opening.build, createHash("sha256").update(served).digest("hex").slice(0, 16));
+  assert.equal((await fetch(`${origin}/m/socket`)).status, 400, "the socket address is only an upgrade");
 });
 
 test("a snapshot names this build's engines, modes, models and efforts for a phone app built apart from it", async (t) => {
@@ -433,9 +406,9 @@ function clientFrame(text: string) {
   return Buffer.concat([Buffer.from([0x81, 0x80 | body.length]), mask, masked]);
 }
 
-test("every response says the page may not be framed", async (t) => {
+test("every response says it may not be framed", async (t) => {
   const { origin } = await harness(t);
-  for (const target of ["/m/", "/m/nothing-here.png", "/m/socket"]) {
+  for (const target of ["/m/", "/m/health", "/m/socket"]) {
     const response = await fetch(`${origin}${target}`);
     assert.equal(response.headers.get("x-frame-options"), "DENY", target);
     assert.match(response.headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/, target);

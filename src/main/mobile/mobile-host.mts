@@ -12,8 +12,7 @@ import {
   type MobileServerState,
   type TailscaleState,
 } from "../../domain/mobile.js";
-import { allowedOrigins, BIND_HOST, loopbackAddress, reachableAddresses, tailscaleAddress } from "./addresses.mjs";
-import { serveDevelopmentPairing } from "./development.mjs";
+import { allowedOrigins, BIND_HOST, reachableAddresses, tailscaleAddress } from "./addresses.mjs";
 import { MobileServer, type WorkspaceHooks } from "./mobile-server.mjs";
 import { PairingStore } from "./pairing.mjs";
 import { MobileRelay } from "./session-host.mjs";
@@ -21,10 +20,6 @@ import { readTailscale, startTailscaleServe, stopTailscaleServe, type TailscaleA
 
 export type MobileHostOptions = {
   userData: string;
-  /** Present only for source launches; the installed app never serves automatic pairing. */
-  developmentRoot?: string;
-  /** The built phone page, served to whatever scans the QR. */
-  staticRoot: string;
   /** Hands one relayed request to the window. False when there is no window to hand it to. */
   send(request: MobileRequest): boolean;
   /** What settings should now say. Called after anything at all moves. */
@@ -86,7 +81,6 @@ let tailscale: TailscaleState = emptyTailscaleState();
 let starting = false;
 let stopping = false;
 let failure: string | null = null;
-let stopDevelopmentPairing: (() => Promise<void>) | null = null;
 /**
  * Starting and stopping the server are awaited by IPC handlers the user can hammer, so they run one
  * after another: a start that overlapped a stop would build a second server over live sessions.
@@ -160,7 +154,7 @@ function addresses() {
 }
 
 /**
- * Where a page may have come from. A tailnet name Tailscale has told us about counts even while
+ * Where a browser may open a socket from. A tailnet name Tailscale has told us about counts even while
  * Serve is reported off, because one slow answer from the daemon would otherwise turn every phone
  * on the tailnet away at the next reconnection.
  */
@@ -203,8 +197,7 @@ function makeServer() {
   if (!store || !bridge) throw new Error("The phone bridge is not ready.");
   const made: MobileServer = new MobileServer({
     devices: store,
-    staticRoot: host().staticRoot,
-    port: host().port ?? (host().developmentRoot ? 0 : MOBILE_DEFAULT_PORT),
+    port: host().port ?? MOBILE_DEFAULT_PORT,
     allowedOrigins: origins,
     snapshot: (sessionId) => bridge.snapshot(sessionId),
     command: (sessionId, command) => bridge.command(sessionId, command),
@@ -219,8 +212,8 @@ function makeServer() {
 }
 
 /** A server that would not start is tried again for as long as phone access stays on. */
-async function startServer(localDevelopment = false) {
-  if (stopping || server || (!settings.enabled && !localDevelopment)) return;
+async function startServer() {
+  if (stopping || server || !settings.enabled) return;
   starting = true;
   failure = null;
   announce();
@@ -321,18 +314,8 @@ export async function startMobileHost(hooks: MobileHostOptions): Promise<void> {
   tailscale = { ...emptyTailscaleState(), magicDnsName: settings.magicDnsName };
   devices = new PairingStore(path.join(hooks.userData, "mobile-devices.v1.json"));
   relay = new MobileRelay({ send: hooks.send });
-  if (hooks.developmentRoot) {
-    stopDevelopmentPairing = await serveDevelopmentPairing(hooks.developmentRoot, () => inTurn(async () => {
-      await startServer(true);
-      const port = server?.port;
-      if (port == null || !devices) throw new Error("The desktop mobile bridge is not ready.");
-      const code = devices.mint(Date.now());
-      announce();
-      return pairingOffer(loopbackAddress(port), code);
-    }));
-  }
   if (settings.enabled) await inTurn(() => startServer());
-  else if (!hooks.developmentRoot) void inTailscaleTurn(refreshTailscaleState).then(announce, (error) => console.error("Could not check Tailscale:", error));
+  else void inTailscaleTurn(refreshTailscaleState).then(announce, (error) => console.error("Could not check Tailscale:", error));
 }
 
 /** Stopping never waits on Tailscale: whatever it is still being asked is aborted. */
@@ -341,8 +324,6 @@ export async function stopMobileHost(): Promise<void> {
   cancelServeRetry();
   cancelServerRetry();
   abortTailscale();
-  await stopDevelopmentPairing?.();
-  stopDevelopmentPairing = null;
   await inTurn(() => stopServer({ unserve: false }));
   await tailscaleWork;
   options = null;

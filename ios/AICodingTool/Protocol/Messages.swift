@@ -1,7 +1,7 @@
 import Foundation
 
 /// Bumped with `MOBILE_PROTOCOL_VERSION` in `src/contracts/mobile.ts`.
-let mobileProtocolVersion = 7
+let mobileProtocolVersion = 8
 
 /// A field a patch may leave out, set, or set to null: absent and null mean different things.
 enum PatchField<Value: Equatable & Sendable>: Equatable, Sendable {
@@ -204,7 +204,7 @@ enum MobileErrorCode: String, Sendable {
 
 enum MobileServerMessage: Equatable, Sendable {
     case paired(sequence: Int, deviceId: String, deviceName: String, token: String)
-    case snapshot(sequence: Int, sessionId: String, build: String, view: MobileView, instance: String?, vocabulary: MobileVocabulary?)
+    case snapshot(sequence: Int, sessionId: String, view: MobileView, instance: String?, vocabulary: MobileVocabulary?)
     case patch(sequence: Int, patch: MobilePatch)
     case ack(sequence: Int, requestId: String, ok: Bool, message: String)
     case answer(sequence: Int, requestId: String, result: Result<JSONValue, AnswerError>)
@@ -217,7 +217,7 @@ enum MobileServerMessage: Equatable, Sendable {
 
     var sequence: Int {
         switch self {
-        case .paired(let sequence, _, _, _), .snapshot(let sequence, _, _, _, _, _), .patch(let sequence, _), .ack(let sequence, _, _, _), .answer(let sequence, _, _), .error(let sequence, _, _), .ping(let sequence, _):
+        case .paired(let sequence, _, _, _), .snapshot(let sequence, _, _, _, _), .patch(let sequence, _), .ack(let sequence, _, _, _), .answer(let sequence, _, _), .error(let sequence, _, _), .ping(let sequence, _):
             sequence
         }
     }
@@ -239,9 +239,9 @@ func parseServerFrame(_ text: String) -> (message: MobileServerMessage?, sequenc
             guard let deviceId = string("deviceId"), let deviceName = string("deviceName"), let token = string("token") else { return skipped }
             return (.paired(sequence: sequence, deviceId: deviceId, deviceName: deviceName, token: token), sequence)
         case "snapshot":
-            guard let sessionId = string("sessionId"), let build = string("build"), let view = object["view"] else { return skipped }
+            guard let sessionId = string("sessionId"), let view = object["view"] else { return skipped }
             let vocabulary = try? object["vocabulary"]?.decode(MobileVocabulary.self)
-            return (.snapshot(sequence: sequence, sessionId: sessionId, build: build, view: try view.decode(MobileView.self), instance: string("instance"), vocabulary: vocabulary), sequence)
+            return (.snapshot(sequence: sequence, sessionId: sessionId, view: try view.decode(MobileView.self), instance: string("instance"), vocabulary: vocabulary), sequence)
         case "patch":
             guard let patch = object["patch"] else { return skipped }
             return (.patch(sequence: sequence, patch: try patch.decode(MobilePatch.self)), sequence)

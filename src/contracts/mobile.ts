@@ -139,7 +139,7 @@ export type MobileModel = { id: AgentModel; label: string; description: string; 
 /**
  * What a phone knows of an engine on the computer: whether it runs, which models its installed
  * command runs, and the models it names for itself. An engine left out is ready on the models this
- * build ships knowing, which the phone page, served by the same build, knows too.
+ * build ships knowing, which the vocabulary in its snapshot names.
  */
 export type MobileEngine = { access: EngineAccess; models?: AgentModel[]; catalog?: MobileModel[] };
 
@@ -264,11 +264,11 @@ export type MobilePatch = {
 };
 
 /**
- * Bumped when a message shape changes in a way an older phone page could misread, and to retire a
- * page for any other reason: a phone the Mac turns away is told to reload, where one left running
- * is wrong in silence.
+ * Bumped when a message shape changes in a way an older phone app could misread: a phone the Mac
+ * turns away is told to update, where one left running is wrong in silence. The app's own copy in
+ * `ios/AICodingTool/Protocol/Messages.swift` moves with it.
  */
-export const MOBILE_PROTOCOL_VERSION = 7;
+export const MOBILE_PROTOCOL_VERSION = 8;
 
 const MAX_DEVICE_NAME_LENGTH = 128;
 const MAX_TOKEN_LENGTH = 512;
@@ -359,8 +359,6 @@ export type MobilePairedMessage = Sequenced & {
 export type MobileSnapshotMessage = Sequenced & {
   kind: "snapshot";
   sessionId: string;
-  /** Which build of the phone page the Mac serves. A page from another one reloads itself. */
-  build: string;
   view: MobileView;
   /** Which running server this is. A new one has forgotten what it ran, so what was sent before is not sent again. */
   instance?: string;
@@ -383,7 +381,7 @@ export type MobileEngineTerms = {
   models: MobileModel[];
 };
 
-/** Everything a phone app reads by name that the page takes from the build it is served with. */
+/** Everything a phone app reads by name from the build it is connected to. */
 export type MobileVocabulary = {
   engines: MobileEngineTerms[];
   /** Every effort, deepest first. */
@@ -402,11 +400,6 @@ export type MobilePingMessage = Sequenced & { kind: "ping"; at: number };
 
 export type MobileServerMessage = MobilePairedMessage | MobileSnapshotMessage | MobilePatchMessage | MobileAckMessage | MobileAnswerMessage | MobileErrorMessage | MobilePingMessage;
 
-function isErrorCode(value: unknown): value is MobileErrorCode {
-  return value === "version" || value === "unauthorized" || value === "expired-code"
-    || value === "rate-limited" || value === "unreadable" || value === "internal";
-}
-
 /** What a phone sends is the security boundary, so every field of it is read defensively. */
 export function isMobileClientMessage(value: unknown): value is MobileClientMessage {
   if (!isRecord(value)) return false;
@@ -423,28 +416,6 @@ export function isMobileClientMessage(value: unknown): value is MobileClientMess
   return false;
 }
 
-/**
- * What the phone reads back. The view and the patch are the Mac's own derivation rather than
- * anything a stranger composes, so only the envelope is checked: a page that renders a malformed
- * body shows the wrong thing, where a page that acts on a malformed command does the wrong thing.
- */
-export function isMobileServerMessage(value: unknown): value is MobileServerMessage {
-  if (!isRecord(value) || !isCount(value.sequence)) return false;
-  if (value.kind === "paired") return isString(value.deviceId) && isString(value.deviceName, MAX_DEVICE_NAME_LENGTH) && isString(value.token, MAX_TOKEN_LENGTH);
-  if (value.kind === "snapshot") return isString(value.sessionId) && isString(value.build) && isRecord(value.view) && (value.instance === undefined || isString(value.instance));
-  if (value.kind === "patch") return isRecord(value.patch);
-  if (value.kind === "ack") {
-    if (!isString(value.requestId)) return false;
-    return value.ok === true || (value.ok === false && isBlankable(value.message, MAX_PROMPT_LENGTH));
-  }
-  if (value.kind === "answer") {
-    if (!isString(value.requestId)) return false;
-    return (value.ok === true && "result" in value) || (value.ok === false && isBlankable(value.message, MAX_PROMPT_LENGTH));
-  }
-  if (value.kind === "error") return isErrorCode(value.code) && isBlankable(value.message, MAX_PROMPT_LENGTH);
-  if (value.kind === "ping") return isCount(value.at);
-  return false;
-}
 
 /**
  * A phone's message on its way to the window, which is the only process holding workspace state.

@@ -290,7 +290,7 @@ export function MobileSettings({ remote, remoteChecking, onSetEnabled, onCreateP
             : <span className={statusTone(remote)}>{statusLabel(remote)}</span>}
         </div>
 
-        <SettingRow id="phone.availability" description="Serves the phone page and puts Tailscale in front of it. Turning it off drops every phone.">
+        <SettingRow id="phone.availability" description="Lets the iPhone app reach this computer through Tailscale. Turning it off drops every phone.">
           <SettingSwitch id="phone.availability" on={remote.enabled} onChange={onSetEnabled} />
         </SettingRow>
 

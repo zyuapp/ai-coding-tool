@@ -66,7 +66,7 @@ function header(request: IncomingMessage, name: string): string | null {
   return text?.trim() || null;
 }
 
-/** The host the page was served on, as the proxy in front of us saw it, else as this server did. */
+/** The host the request was made to, as the proxy in front of us saw it, else as this server did. */
 export function forwardedHost(request: IncomingMessage): string | null {
   if (!isLoopback(request.socket.remoteAddress ?? "")) return header(request, "host");
   return header(request, "x-forwarded-host") ?? header(request, "host");

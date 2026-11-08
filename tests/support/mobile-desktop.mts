@@ -35,7 +35,7 @@ export const engineDesktopStub: Pick<DesktopAPI, "engineStatus" | "signInEngine"
   openSourceLicenses: async () => {},
 };
 
-/** The same for the settings panel, whose phone page is not what any of these tests are about. */
+/** The same for the settings panel, whose phone section is not what any of these tests are about. */
 export const mobileSettingsProps: Pick<SettingsPanelProps, "remote" | "onSetRemoteEnabled" | "onCreateRemotePairingCode" | "onRevokeRemoteDevice" | "onRefreshRemote"> = {
   remote: emptyMobileServerState(),
   onSetRemoteEnabled() {},

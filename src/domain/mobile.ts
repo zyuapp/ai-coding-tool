@@ -46,7 +46,7 @@ export const MOBILE_DEAD_AFTER_MS = 45 * 1_000;
 /** The port the local server asks for first. Taken, it falls back to whatever the machine offers. */
 export const MOBILE_DEFAULT_PORT = 7737;
 
-/** The path the phone app is served from, which is also what a pairing URL points at. */
+/** The path the bridge's sockets and health check live under. */
 export const MOBILE_APP_PATH = "/m";
 
 /**
@@ -105,11 +105,11 @@ export type MobilePairingOffer = {
   code: string;
   expiresAt: number;
   address: MobileAddress;
-  /** The URL drawn as the QR. The phone opens it and pairs without typing anything. */
+  /** The link drawn as the QR. The phone app opens it and pairs without typing anything. */
   url: string;
 };
 
-/** What paired with this computer: a phone's page, or another computer running this app. */
+/** What paired with this computer: the phone app, or another computer running this app. */
 export type PairedDeviceKind = "phone" | "computer";
 
 /**
@@ -260,13 +260,16 @@ export function constantTimeEquals(left: string, right: string): boolean {
   return difference === 0;
 }
 
+/** The scheme the phone app registers, so a camera that scans the QR opens the app. */
+const PHONE_APP_SCHEME = "aicodingtool";
+
 /**
- * What the QR encodes: where to reach the Mac, and the code to trade once the page loads. The code
- * rides the fragment, which no proxy in front of the server ever sees, and the path ends in a slash
- * so the page is not redirected before reading it.
+ * What the QR encodes: the phone app's link around where to reach the Mac and the code to trade.
+ * The code rides the fragment of the inner link, which no proxy in front of the server ever sees.
  */
 export function pairingUrl(address: MobileAddress, code: string): string {
-  return `${addressOrigin(address)}${MOBILE_APP_PATH}/#pair=${encodeURIComponent(code)}`;
+  const link = `${addressOrigin(address)}/#pair=${encodeURIComponent(code)}`;
+  return `${PHONE_APP_SCHEME}://pair?link=${encodeURIComponent(link)}`;
 }
 
 export function pairingOffer(address: MobileAddress, pairing: PairingCode): MobilePairingOffer {

@@ -23,12 +23,10 @@ async function until<T>(check: () => T | null | false | undefined, message: stri
 /** A host with a name of its own to give the computers that dial it. */
 async function host(t: { onTestFinished(callback: () => void | Promise<void>): void }) {
   const folder = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-names-"));
-  await writeFile(path.join(folder, "index.html"), "<!doctype html><title>phone</title>");
   const devices = new PairingStore(path.join(folder, "mobile-devices.v1.json"));
   let name = "linux-box";
   const server = new MobileServer({
     devices,
-    staticRoot: folder,
     port: 0,
     allowedOrigins: () => [],
     snapshot: async () => { throw new Error("no phones here"); },

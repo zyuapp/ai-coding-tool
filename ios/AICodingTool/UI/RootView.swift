@@ -7,7 +7,7 @@ struct RootView: View {
     @State private var storedTheme = PhoneStorage().theme ?? .standard
 
     private var theme: MobileTheme {
-        model.state.build != nil ? model.view.theme : storedTheme
+        model.state.synced ? model.view.theme : storedTheme
     }
 
     var body: some View {
@@ -17,7 +17,7 @@ struct RootView: View {
             .tint(palette.accent)
             .preferredColorScheme(theme.mode == "auto" ? nil : palette.scheme)
             .onChange(of: model.view.theme) { _, next in
-                guard model.state.build != nil else { return }
+                guard model.state.synced else { return }
                 storedTheme = next
                 PhoneStorage().theme = next
             }

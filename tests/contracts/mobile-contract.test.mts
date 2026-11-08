@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "vitest";
-import { isMobileClientMessage, isMobileRequest, isMobileResponse, isMobileServerMessage, MOBILE_PROTOCOL_VERSION, type MobileCommand } from "../../src/contracts/mobile.ts";
+import { isMobileClientMessage, isMobileRequest, isMobileResponse, MOBILE_PROTOCOL_VERSION, type MobileCommand } from "../../src/contracts/mobile.ts";
 import { isPhoneCommand } from "../../src/contracts/workspace-view-input.ts";
 import {
   addressOrigin,
@@ -147,23 +147,6 @@ test("client messages are read defensively, since the phone is the boundary", ()
   assert.equal(isMobileClientMessage({ kind: "hello" }), false);
 });
 
-test("every server message carries a sequence", () => {
-  const view = { groups: [], thread: null };
-  assert.equal(isMobileServerMessage({ kind: "snapshot", sequence: 1, sessionId: "session-1", build: "b7f0c1d2e3a4b5c6", view }), true);
-  assert.equal(isMobileServerMessage({ kind: "snapshot", sessionId: "session-1", build: "b7f0c1d2e3a4b5c6", view }), false);
-  assert.equal(isMobileServerMessage({ kind: "snapshot", sequence: 1, sessionId: "session-1", build: "b7f0c1d2e3a4b5c6", view: [] }), false);
-  /** Without the build it names, a page could never tell that the Mac had started serving another. */
-  assert.equal(isMobileServerMessage({ kind: "snapshot", sequence: 1, sessionId: "session-1", view }), false);
-  assert.equal(isMobileServerMessage({ kind: "patch", sequence: 2, patch: {} }), true);
-  assert.equal(isMobileServerMessage({ kind: "paired", sequence: 1, deviceId: "device-1", deviceName: "iPhone", token: "abc" }), true);
-  assert.equal(isMobileServerMessage({ kind: "ack", sequence: 3, requestId: "request-1", ok: true }), true);
-  assert.equal(isMobileServerMessage({ kind: "ack", sequence: 3, requestId: "request-1", ok: false, message: "no such thread" }), true);
-  assert.equal(isMobileServerMessage({ kind: "ack", sequence: 3, requestId: "request-1", ok: false }), false);
-  assert.equal(isMobileServerMessage({ kind: "error", sequence: 4, code: "unauthorized", message: "pair again" }), true);
-  assert.equal(isMobileServerMessage({ kind: "error", sequence: 4, code: "teapot", message: "" }), false);
-  assert.equal(isMobileServerMessage({ kind: "ping", sequence: 5, at: NOW }), true);
-});
-
 test("a phone's request travels to the window and is answered there", () => {
   assert.equal(isMobileRequest({ type: "mobile.request", requestId: "request-1", sessionId: "session-1", op: "snapshot" }), true);
   assert.equal(isMobileRequest({ type: "mobile.request", requestId: "request-1", sessionId: "session-1", op: "command", command: { type: "task.dismiss-all" } }), true);
@@ -185,10 +168,11 @@ test("an address says where a phone reaches the Mac, and only Tailscale is secur
   assert.equal(preferredAddress([]), null);
 });
 
-test("a pairing URL carries the code in the fragment", () => {
+test("a pairing URL opens the phone app with the computer's link, the code in its fragment", () => {
   const address: MobileAddress = { kind: "tailscale-https", host: "mac.tail1234.ts.net", port: 443 };
-  const url = pairingUrl(address, "ABCD2345");
-  assert.equal(url, "https://mac.tail1234.ts.net/m/#pair=ABCD2345");
+  const url = pairingUrl(address, "K7M2P9QX");
+  /** `ios/AICodingToolTests/ProtocolTests.swift` reads this same link. */
+  assert.equal(url, "aicodingtool://pair?link=https%3A%2F%2Fmac.tail1234.ts.net%2F%23pair%3DK7M2P9QX");
 });
 
 test("a pairing code expires on the clock and is matched exactly", () => {
@@ -244,9 +228,6 @@ test("a query names a thread and a comparison, and travels to the window like a 
   assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "diff-summary", taskId: "task-1", range: { kind: "commit", commit: "nope" } } }), false, "a range is read as strictly as the desktop reads it");
   assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "read-file", taskId: "task-1", path: "/etc/passwd" } }), false);
   assert.equal(isMobileRequest({ type: "mobile.request", requestId: "r1", sessionId: "s1", op: "query", query: summary }), true);
-  assert.equal(isMobileServerMessage({ kind: "answer", sequence: 3, requestId: "q1", ok: true, result: { status: "available", patch: "" } }), true);
-  assert.equal(isMobileServerMessage({ kind: "answer", sequence: 3, requestId: "q1", ok: false, message: "No checkout." }), true);
-  assert.equal(isMobileServerMessage({ kind: "answer", sequence: 3, requestId: "q1", ok: true }), false, "an answer carries what was read");
 });
 
 test("a phone may send exactly the commands that declare a phone rule", () => {

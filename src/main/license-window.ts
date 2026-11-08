@@ -18,7 +18,6 @@ export async function licenseFiles(): Promise<Map<string, string>> {
   if (!app.isPackaged) {
     for (const [directory, name] of [
       ["dist/renderer/legal", "RENDERER-THIRD-PARTY-LICENSES.md"],
-      ["dist/mobile/legal", "MOBILE-THIRD-PARTY-LICENSES.md"],
       ["node_modules/electron/dist", "LICENSE"],
       ["node_modules/electron/dist", "LICENSES.chromium.html"],
     ]) {

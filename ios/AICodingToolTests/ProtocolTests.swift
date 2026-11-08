@@ -12,17 +12,17 @@ final class ProtocolTests: XCTestCase {
 
     private func snapshotFrame() -> String {
         """
-        {"kind":"snapshot","sequence":1,"sessionId":"s1","build":"b","instance":"one","view":{"groups":[],"activity":{"priority":[],"running":[],"threads":[],"snoozed":[]},"theme":{"dark":"nord","light":"nord-snow","mode":"auto"},"engines":{"claude":{"access":"ready"}},"thread":\(threadJSON),"draft":null,"error":null},"vocabulary":{"engines":[{"id":"claude","label":"Claude","fastMode":false,"policies":[{"id":"confirm","label":"Confirm","description":"Ask"}],"models":[{"id":"opus","label":"Opus","description":"Best","efforts":["max","high"]}]}],"efforts":[{"id":"max","label":"Max"},{"id":"high","label":"High"}]}}
+        {"kind":"snapshot","sequence":1,"sessionId":"s1","instance":"one","view":{"groups":[],"activity":{"priority":[],"running":[],"threads":[],"snoozed":[]},"theme":{"dark":"nord","light":"nord-snow","mode":"auto"},"engines":{"claude":{"access":"ready"}},"thread":\(threadJSON),"draft":null,"error":null},"vocabulary":{"engines":[{"id":"claude","label":"Claude","fastMode":false,"policies":[{"id":"confirm","label":"Confirm","description":"Ask"}],"models":[{"id":"opus","label":"Opus","description":"Best","efforts":["max","high"]}]}],"efforts":[{"id":"max","label":"Max"},{"id":"high","label":"High"}]}}
         """
     }
 
     private func snapshotView() throws -> MobileView {
-        guard case .snapshot(_, _, _, let view, _, _)? = frame(snapshotFrame()) else { throw XCTSkip("snapshot did not parse") }
+        guard case .snapshot(_, _, let view, _, _)? = frame(snapshotFrame()) else { throw XCTSkip("snapshot did not parse") }
         return view
     }
 
     func testSnapshotDecodes() throws {
-        guard case .snapshot(let sequence, let session, _, let view, let instance, let vocabulary)? = frame(snapshotFrame()) else { return XCTFail("snapshot did not parse") }
+        guard case .snapshot(let sequence, let session, let view, let instance, let vocabulary)? = frame(snapshotFrame()) else { return XCTFail("snapshot did not parse") }
         XCTAssertEqual(sequence, 1)
         XCTAssertEqual(session, "s1")
         XCTAssertEqual(instance, "one")
@@ -90,7 +90,7 @@ final class ProtocolTests: XCTestCase {
     func testResumeSendsWholeNumbers() {
         let text = MobileClientMessage.resume(token: "t", sessionId: nil, lastSequence: 12).text
         XCTAssertTrue(text.contains(#""lastSequence":12"#))
-        XCTAssertTrue(text.contains(#""version":7"#))
+        XCTAssertTrue(text.contains(#""version":\#(mobileProtocolVersion)"#))
         XCTAssertFalse(text.contains("sessionId"))
     }
 
@@ -105,6 +105,7 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(link?.origin.absoluteString, "https://mac.tail1234.ts.net")
         XCTAssertEqual(PairingLink("http://127.0.0.1:47321/m/?pair=k7m2p9qx")?.origin.absoluteString, "http://127.0.0.1:47321")
         XCTAssertEqual(PairingLink("aicodingtool://pair?link=http%3A%2F%2F127.0.0.1%3A5%2Fm%2F%23pair%3DK7M2P9QX")?.code, "K7M2P9QX")
+        XCTAssertEqual(PairingLink("aicodingtool://pair?link=https%3A%2F%2Fmac.tail1234.ts.net%2F%23pair%3DK7M2P9QX"), link, "the link the computer draws as its QR")
         XCTAssertNil(PairingLink("https://mac/m/#pair=K7M2P9QU"))
         XCTAssertNil(PairingLink("https://mac/m/"))
         XCTAssertEqual(socketURL(origin: URL(string: "https://mac.ts.net")!)?.absoluteString, "wss://mac.ts.net/m/socket")

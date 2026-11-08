@@ -55,7 +55,6 @@ async function bridge(t: { onTestFinished(callback: () => void | Promise<void>):
   const requests: MobileRequest[] = [];
   const options: MobileHostOptions = {
     userData: folder,
-    staticRoot: folder,
     tailscale: noTailscale(),
     /** Whatever the machine offers, so this never takes the port the developer's own app serves on. */
     port: 0,
@@ -81,25 +80,24 @@ test("the bridge starts off, comes up on the loopback, and goes back down prompt
   assert.deepEqual(on.primary, { kind: "loopback", host: "127.0.0.1", port: on.port });
   assert.equal(JSON.parse(await readFile(path.join(folder, "mobile.v1.json"), "utf8")).enabled, true);
 
-  const page = await fetch(`http://127.0.0.1:${on.port}/m/`);
-  assert.equal(page.status, 404, "the built page is not in a temporary folder, but the server answered");
+  assert.equal((await fetch(`http://127.0.0.1:${on.port}/m/health`)).status, 200);
 
   const started = Date.now();
   const off = await host.setMobileEnabled(false);
   assert.ok(Date.now() - started < 3_000, `turning it off took ${Date.now() - started}ms`);
   assert.equal(off.status, "off");
   assert.equal(off.port, null);
-  await assert.rejects(fetch(`http://127.0.0.1:${on.port}/m/`), "the port was let go");
+  await assert.rejects(fetch(`http://127.0.0.1:${on.port}/m/health`), "the port was let go");
 });
 
-test("a pairing code needs a listening server and carries the address in its fragment", async (t) => {
+test("a pairing code needs a listening server and carries the address in its link", async (t) => {
   const { host } = await bridge(t);
   await assert.rejects(host.createMobilePairingCode(), /Turn the phone bridge on/);
 
   const on = await host.setMobileEnabled(true);
   const offer = await host.createMobilePairingCode();
   assert.match(offer.code, /^[0-9A-Z]{8}$/);
-  assert.equal(offer.url, `http://127.0.0.1:${on.port}/m/#pair=${offer.code}`);
+  assert.equal(offer.url, `aicodingtool://pair?link=${encodeURIComponent(`http://127.0.0.1:${on.port}/#pair=${offer.code}`)}`);
   assert.equal(host.mobileState().pairing?.code, offer.code, "settings draws the code that was minted");
 
   const second = await host.createMobilePairingCode();

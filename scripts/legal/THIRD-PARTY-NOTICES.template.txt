@@ -151,9 +151,8 @@ npm runtime, renderer, and font licenses
 The copyright notices and license texts for npm packages loaded by the main
 process, native terminal support, and bundled font files are in
 NPM-RUNTIME-LICENSES.txt. The build generates notices for JavaScript folded
-into the desktop and phone interfaces as RENDERER-THIRD-PARTY-LICENSES.md and
-MOBILE-THIRD-PARTY-LICENSES.md. These files sit beside this notice in the
-packaged app.
+into the desktop interface as RENDERER-THIRD-PARTY-LICENSES.md. These files sit
+beside this notice in the packaged app.
 
 Names and trademarks
 --------------------
