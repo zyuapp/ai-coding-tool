@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { MAIN_COMPOSER } from "../../src/application/composer-attachments.ts";
-import { NEW_THREAD_DRAFT, deriveView } from "../../src/application/workspace-state.ts";
+import { NEW_THREAD_DRAFT, deriveView, promptKey } from "../../src/application/workspace-state.ts";
 import { DICTATION_HEARD_NOTHING, DICTATION_MISSING, withSpokenWords } from "../../src/domain/dictation.ts";
 import { effectOf, run, task, workspace } from "./workspace-reducer-fixtures.mts";
 
@@ -43,7 +43,7 @@ test("words for a thread left during the hold stay in its draft and are not sent
 
   assert.equal(heard.state.prompts.a, "keep me");
   assert.equal(heard.state.prompts.b, undefined);
-  assert.equal(heard.state.dictation.release.count, state.dictation.release.count);
+  assert.equal(heard.state.dictation.release, state.dictation.release);
 });
 
 test("a hold that heard nothing sends nothing and says so under the composer", () => {
@@ -52,7 +52,7 @@ test("a hold that heard nothing sends nothing and says so under the composer", (
 
   assert.equal(heard.state.prompts[NEW_THREAD_DRAFT], undefined);
   assert.equal(heard.state.attachmentSends[MAIN_COMPOSER]?.error, DICTATION_HEARD_NOTHING);
-  assert.equal(heard.state.dictation.release.count, 0);
+  assert.equal(heard.state.dictation.release, 0);
 });
 
 test("cancelling drops the hold, and a late answer for it changes nothing", () => {
@@ -63,6 +63,15 @@ test("cancelling drops the hold, and a late answer for it changes nothing", () =
 
   const late = reduce(cancelled.state, { type: "dictation.transcribed", id, text: "too late" });
   assert.equal(late.state, cancelled.state);
+});
+
+test("words that are sent clear what an earlier hold said under the composer", () => {
+  const first = held();
+  const missed = run(first.state, [{ type: "dictation.stop" }, { type: "dictation.transcribed", id: first.id, text: "" }]);
+  assert.equal(missed.attachmentSends[MAIN_COMPOSER]?.error, DICTATION_HEARD_NOTHING);
+  const second = held(missed);
+  const heard = run(second.state, [{ type: "dictation.stop" }, { type: "dictation.transcribed", id: second.id, text: "now it heard" }]);
+  assert.equal(heard.attachmentSends[MAIN_COMPOSER]?.error, null);
 });
 
 test("a failed hold ends and shows why", () => {
@@ -94,4 +103,17 @@ test("spoken words join typing with one space, or start the draft", () => {
   assert.equal(withSpokenWords("Fix it.", "Now."), "Fix it. Now.");
   assert.equal(withSpokenWords("Fix it.\n", "Now."), "Fix it.\nNow.");
   assert.equal(withSpokenWords("Fix it.", ""), "Fix it.");
+});
+
+test("holding to talk on a paired computer's thread shows this computer's microphone and sends from here", () => {
+  const remote = workspace({ threads: [task("remote-thread")], currentId: "remote-thread", dictation: { model: "unsupported", message: null, session: null, release: 7 } });
+  const local = workspace({ dictation: { model: "ready", message: null, session: null, release: 0 } });
+  const link = { id: "linux", name: "linux", host: "linux.tail.ts.net", status: "connected" as const, error: null, pairedAt: 1, state: remote };
+  const state = { ...local, computers: { ...local.computers, name: "This Mac", paired: [link], active: "linux" } };
+  const key = promptKey(state);
+  assert.equal(key, "remote-thread");
+  const view = deriveView({ ...state, dictation: { ...state.dictation, session: { id: "hold", key, phase: "recording" }, release: 1 } });
+  assert.equal(view.dictation.model, "ready");
+  assert.equal(view.dictation.phase, "recording");
+  assert.equal(view.dictation.release, 1);
 });

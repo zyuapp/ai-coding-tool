@@ -383,11 +383,12 @@ struct ComposerView<Above: View>: View {
             talk = .pressing
             talkReleased = false
             talkEnded = false
+            talkCancelling = false
             Task { @MainActor in
                 try? await Task.sleep(for: TalkPhase.holdDelay)
                 if talk == .pressing { startTalking() }
             }
-        case .listening, .starting:
+        case .pressing, .starting, .listening:
             let cancelling = rise < -TalkPhase.cancelDistance
             if cancelling != talkCancelling { talkCancelling = cancelling }
         default:
@@ -400,7 +401,7 @@ struct ComposerView<Above: View>: View {
         switch talk {
         case .pressing:
             talk = .idle
-            send(onSend)
+            if !talkCancelling { send(onSend) }
         case .starting:
             talkReleased = true
         case .listening:
@@ -412,7 +413,6 @@ struct ComposerView<Above: View>: View {
 
     private func startTalking() {
         talkNote = nil
-        talkCancelling = false
         /// The first hold only asks, since the alert takes the finger; the next hold listens.
         guard AVAudioApplication.shared.recordPermission != .undetermined else {
             talk = .idle

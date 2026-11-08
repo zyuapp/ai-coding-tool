@@ -14,11 +14,11 @@ export type DictationState = {
   /** Why the model is unsupported or failed. */
   message: string | null;
   session: DictationSession | null;
-  /** Bumped when spoken words are in a draft and its composer should send it. */
-  release: { key: string; count: number };
+  /** Bumped when spoken words are in the draft on screen and its composer should send it. */
+  release: number;
 };
 
-export const NO_DICTATION: DictationState = { model: "unsupported", message: null, session: null, release: { key: "", count: 0 } };
+export const NO_DICTATION: DictationState = { model: "unsupported", message: null, session: null, release: 0 };
 
 /** How long the send button must be held before it listens rather than sends. */
 export const DICTATION_HOLD_MS = 250;

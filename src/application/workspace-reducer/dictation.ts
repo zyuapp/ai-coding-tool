@@ -15,9 +15,10 @@ function withDictation(state: WorkspaceState, patch: Partial<DictationState>): W
   return { ...state, dictation: { ...state.dictation, ...patch } };
 }
 
-/** What the hold has to say, on the line under the main composer that its own sends use. */
-function noticed(state: WorkspaceState, message: string): WorkspaceState {
+/** What the hold has to say, on the line under the main composer that its own sends use. Null clears it. */
+function noticed(state: WorkspaceState, message: string | null): WorkspaceState {
   const held = state.attachmentSends[MAIN_COMPOSER] ?? NO_ATTACHMENT_SEND;
+  if (held.error === message) return state;
   return { ...state, attachmentSends: { ...state.attachmentSends, [MAIN_COMPOSER]: { ...held, error: message } } };
 }
 
@@ -75,9 +76,9 @@ export function reduceDictation(state: WorkspaceState, input: DictationInput): W
       if (!session) return settled(state);
       const ended = withDictation(state, { session: null });
       if (!input.text.trim()) return settled(noticed(ended, DICTATION_HEARD_NOTHING));
-      const written = withPrompt(ended, session.key, withSpokenWords(ended.prompts[session.key] ?? "", input.text));
+      const written = noticed(withPrompt(ended, session.key, withSpokenWords(ended.prompts[session.key] ?? "", input.text)), null);
       if (session.key !== promptKey(written)) return settled(written);
-      return settled(withDictation(written, { release: { key: session.key, count: written.dictation.release.count + 1 } }));
+      return settled(withDictation(written, { release: written.dictation.release + 1 }));
     }
   }
 }

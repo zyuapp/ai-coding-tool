@@ -606,7 +606,7 @@ export const NEW_THREAD_DRAFT = "draft:";
 /** The main composer's hold to talk: whether it can, what the hold on this draft is doing, and how many holds have sent. */
 function dictationView(state: WorkspaceState) {
   const { model, message, session, release } = state.dictation;
-  return { model, message, phase: session && session.key === promptKey(state) ? session.phase : null, release: release.count };
+  return { model, message, phase: session && session.key === promptKey(state) ? session.phase : null, release };
 }
 
 export function promptKey(state: Pick<WorkspaceState, "currentId"> & { computers?: WorkspaceState["computers"] }): string {

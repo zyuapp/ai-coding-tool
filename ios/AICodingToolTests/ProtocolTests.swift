@@ -57,6 +57,8 @@ final class ProtocolTests: XCTestCase {
 
     func testTranscribeQueryCarriesTheRecording() {
         XCTAssertEqual(MobileQuery.transcribe(audio: "UklGRg==").json, .object(["kind": .string("transcribe"), "audio": .string("UklGRg==")]))
+        XCTAssertGreaterThan(MobileQuery.transcribe(audio: "").timeout, .seconds(120), "the computer may take its whole two minutes")
+        XCTAssertEqual(MobileQuery.directories(prefix: "/").timeout, .seconds(10))
     }
 
     func testUpkeepMarksWhatWantsTheUser() throws {

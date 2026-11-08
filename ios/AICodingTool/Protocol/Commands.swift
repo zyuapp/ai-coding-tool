@@ -105,6 +105,13 @@ enum MobileQuery: Sendable {
     /// A held recording, base64 16 kHz mono WAV, which the computer answers with `{ text }`.
     case transcribe(audio: String)
 
+    /// How long the computer may take. A recording waits out the computer's own limit, which covers
+    /// loading its speech model and writing down two minutes of speech.
+    var timeout: Duration {
+        if case .transcribe = self { return .seconds(135) }
+        return .seconds(10)
+    }
+
     var json: JSONValue {
         switch self {
         case .diffSummary(let taskId, let range):

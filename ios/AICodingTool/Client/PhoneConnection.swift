@@ -18,7 +18,6 @@ final class PhoneConnection {
     /// The computer pings every 15 seconds, so silence past this means the line is gone.
     static let staleAfter: Duration = .seconds(20)
     static let probeTimeout: Duration = .seconds(5)
-    static let queryTimeout: Duration = .seconds(10)
     static let offline = "Not connected to your computer."
 
     @ObservationIgnored private let storage: PhoneStorage
@@ -123,7 +122,7 @@ final class PhoneConnection {
         return try await withCheckedThrowingContinuation { continuation in
             reads[requestId] = continuation
             readTimers[requestId] = Task { [weak self] in
-                try? await Task.sleep(for: Self.queryTimeout)
+                try? await Task.sleep(for: query.timeout)
                 guard !Task.isCancelled else { return }
                 self?.finishRead(requestId, .failure(QueryError(message: "Your computer did not answer in time.")))
             }

@@ -19,7 +19,7 @@ const OWN_VIEW_KEYS = [
   "favoriteModels", "recentProjects", "shortcuts", "capturingShortcut", "desktopShortcutUnavailable", "composerFocus", "settingsOpen", "settingsSection", "settingsFocus", "usageComputer",
   "openMenu", "jump", "zen", "remote", "remoteChecking", "appUpdate", "visibleToasts", "automationEdits", "canGoBack", "canGoForward", "browserOrigins", "browserImport",
   "computerLinks", "computerUsage", "computerUpkeep", "activeComputer", "computerName", "computerFilter", "computerPairing", "computersFound", "computersSearching", "computersSearchError", "threadHosts", "projectHosts",
-  "threadsByCoordinator", "waitingLines", "coordinatorsByComputer",
+  "threadsByCoordinator", "waitingLines", "coordinatorsByComputer", "dictation",
 ] as const;
 
 type OwnView = Pick<OwnWorkspaceView, (typeof OWN_VIEW_KEYS)[number]>;
