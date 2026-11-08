@@ -84,15 +84,6 @@ enum Format {
         return entry.outcome.flatMap(outcomeLabel)
     }
 
-    /// What the thread is doing and when it last moved.
-    static func threadMeta(_ entry: MobileThreadEntry, now: Date) -> String {
-        let when = relativeTime(entry.lastActivityAt, now: now)
-        return stateLabel(entry).map { "\($0) · \(when)" } ?? when
-    }
-
-    static func activityMeta(_ entry: MobileThreadEntry, now: Date) -> String {
-        "\(entry.projectName ?? "No project") · \(threadMeta(entry, now: now))"
-    }
 
     static func locationLabel(_ location: MobileLocation) -> String {
         switch location {

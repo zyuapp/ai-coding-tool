@@ -349,26 +349,24 @@ private struct DiffLine: View {
         init(rows: [DiffRow]) {
             let font = UIFont.monospacedSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .regular)
             let advance = ("0" as NSString).size(withAttributes: [.font: font]).width
-            var longest = 0
+            var widest: CGFloat = 0
             var highest = 0
             for row in rows where row.kind != .hunk {
-                longest = max(longest, row.text.utf16.count + row.text.filter { $0 == "\t" }.count * 3)
+                widest = max(widest, (row.text as NSString).size(withAttributes: [.font: font]).width)
                 highest = max(highest, row.oldLine ?? 0, row.newLine ?? 0)
             }
             gutter = CGFloat(max(2, String(highest).count)) * advance + 12
-            width = CGFloat(longest) * advance + 2 * gutter + 14 + 12
+            width = ceil(widest) + 2 * gutter + 14 + 16
         }
     }
 
     var body: some View {
         if row.kind == .hunk {
             HStack(spacing: 0) {
-                Text(row.text)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(palette.mutedStrong)
-                    .lineLimit(2)
-                    .frame(width: max(0, viewport - 20), alignment: .leading)
-                    .padding(.horizontal, 10)
+                WrappedLine(text: row.text, color: UIColor(palette.mutedStrong))
+                    .frame(width: max(0, viewport - 26))
+                    .padding(.leading, 10)
+                    .padding(.trailing, 16)
                     .padding(.vertical, 6)
                 Spacer(minLength: 0)
             }
@@ -388,7 +386,7 @@ private struct DiffLine: View {
                     .padding(.vertical, 2)
                 if wrap {
                     WrappedLine(text: row.text.isEmpty ? " " : row.text, color: UIColor(palette.ink))
-                        .padding(.trailing, 12)
+                        .padding(.trailing, 16)
                         .padding(.vertical, 2)
                 } else {
                     Text(row.text.isEmpty ? " " : row.text)

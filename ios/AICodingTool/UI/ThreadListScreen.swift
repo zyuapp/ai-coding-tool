@@ -6,7 +6,6 @@ struct ThreadListScreen: View {
     @Environment(\.palette) private var palette
     @State private var picking = false
     @State private var renaming: MobileThreadEntry?
-    @State private var archiving: ArchiveAsk?
     @State private var now = Date()
     @State private var query = ""
 
@@ -100,7 +99,6 @@ struct ThreadListScreen: View {
         .sheet(item: $renaming) { thread in
             RenameSheet(title: thread.title) { title in model.send(.rename(thread.id, title: title)) }
         }
-        .archiveConfirmation($archiving) { asked in model.archive(asked.id, leaving: false) }
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
@@ -136,19 +134,13 @@ struct ThreadListScreen: View {
         Section {
             SectionHeading(label: label, count: threads.count, open: open, mark: open ? nil : Format.groupMark(threads), onToggle: {
                 withAnimation(.snappy) { model.toggleFolded(key) }
-            }, onDismissAll: dismissable.isEmpty ? nil : { model.dismissAll(projectId: narrowed?.projectId) }, quiet: model.notice != nil)
+            }, onDismissAll: dismissable.isEmpty || searching ? nil : { model.dismissAll(projectId: narrowed?.projectId) }, quiet: model.notice != nil)
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: id == "priority" ? 12 : 26, leading: 16, bottom: 2, trailing: 16))
             if open {
                 ForEach(threads) { thread in
-                    ThreadRow(thread: thread, now: now, dismissable: id == "priority" && thread.attention, snoozed: id == "snoozed", model: model) { sheet in
-                        if sheet == .rename {
-                            renaming = thread
-                        } else {
-                            archiving = ArchiveAsk(id: thread.id, title: thread.title, running: thread.status == "running" || thread.status == "awaiting-approval")
-                        }
-                    }
+                    ThreadRow(thread: thread, now: now, dismissable: id == "priority" && thread.attention, snoozed: id == "snoozed", model: model) { renaming = thread }
                 }
                 if threads.isEmpty, id == "priority" {
                     Label("Nothing needs you", systemImage: "checkmark.circle")
@@ -233,16 +225,15 @@ private struct EmptyList: View {
     }
 }
 
-enum RowSheetKind { case rename, archive }
-
 struct ThreadRow: View {
     var thread: MobileThreadEntry
     var now: Date
     var dismissable: Bool
     var snoozed = false
     var model: PhoneModel
-    var onSheet: (RowSheetKind) -> Void
+    var onRename: () -> Void
     @Environment(\.palette) private var palette
+    @State private var archiving: ArchiveAsk?
 
     private var needsYou: Bool { thread.status == "awaiting-approval" || thread.waiting == true }
     private var running: Bool { thread.status == "running" && !needsYou }
@@ -295,15 +286,16 @@ struct ThreadRow: View {
         .listRowBackground(Color.clear)
         .listRowSeparatorTint(palette.lineSoft)
         .contextMenu { menuItems }
+        .archiveConfirmation($archiving) { asked in model.archive(asked.id, leaving: false) }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive) { onSheet(.archive) } label: { Label("Archive", systemImage: "archivebox") }
+            Button(role: .destructive) { askArchive() } label: { Label("Archive", systemImage: "archivebox") }
             if thread.attention {
                 Button { model.dismiss(thread.id) } label: { Label("Dismiss", systemImage: "checkmark") }
                     .tint(palette.success)
             }
         }
         .swipeActions(edge: .leading, allowsFullSwipe: false) {
-            Button { onSheet(.rename) } label: { Label("Rename", systemImage: "pencil") }
+            Button(action: onRename) { Label("Rename", systemImage: "pencil") }
                 .tint(palette.info)
         }
         .accessibilityElement(children: .contain)
@@ -330,7 +322,7 @@ struct ThreadRow: View {
         } else if thread.unread {
             StatusDot(kind: .unread)
         } else if snoozed {
-            Image(systemName: "moon.zzz.fill").font(.caption2).foregroundStyle(palette.quiet)
+            Image(systemName: "moon.zzz.fill").font(.footnote).foregroundStyle(palette.muted)
         } else if thread.attention, thread.outcome == "finished" {
             Image(systemName: "checkmark.circle.fill").font(.caption).foregroundStyle(palette.success)
         } else if thread.attention, thread.outcome == "failed" {
@@ -340,16 +332,20 @@ struct ThreadRow: View {
         }
     }
 
+    private func askArchive() {
+        archiving = ArchiveAsk(id: thread.id, title: thread.title, running: thread.status == "running" || thread.status == "awaiting-approval")
+    }
+
     @ViewBuilder private var menuItems: some View {
         Button { model.openThread(thread.id, title: thread.title, project: thread.projectName) } label: { Label("Open", systemImage: "text.bubble") }
         Divider()
-        Button { onSheet(.rename) } label: { Label("Rename…", systemImage: "pencil") }
+        Button(action: onRename) { Label("Rename…", systemImage: "pencil") }
         Button { model.send(.fork(thread.id, worktree: false)) } label: { Label("Fork Thread", systemImage: "arrow.triangle.branch") }
         Divider()
         if thread.attention {
             Button { model.dismiss(thread.id) } label: { Label("Dismiss from Priority", systemImage: "checkmark") }
         }
-        Button(role: .destructive) { onSheet(.archive) } label: { Label("Archive…", systemImage: "archivebox") }
+        Button(role: .destructive) { askArchive() } label: { Label("Archive…", systemImage: "archivebox") }
     }
 }
 

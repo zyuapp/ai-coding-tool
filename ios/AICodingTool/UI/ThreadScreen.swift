@@ -228,7 +228,7 @@ struct ThreadMenu: View {
                 item(inWorktree ? "New Thread Here" : "New Thread", detail: !inProject ? "Not in a project" : working ? Format.locationLabel(thread.location) : nil, symbol: "square.and.pencil", disabled: !inProject || working, action: onNewHere)
                 item("Fork Thread", detail: "Copy into a new thread", symbol: "arrow.triangle.branch") { onFork(false) }
                 if inProject {
-                    item("Fork in Worktree", detail: working ? Format.locationLabel(thread.location) : "Copy with a checkout of its own", symbol: "folder.badge.plus", disabled: working) { onFork(true) }
+                    item("Fork in Worktree", detail: working ? Format.locationLabel(thread.location) : "With its own checkout", symbol: "folder.badge.plus", disabled: working) { onFork(true) }
                 }
             }
             Section {

@@ -9,6 +9,7 @@ struct GateView: View {
     @State private var link = ""
     @State private var code = ""
     @State private var scanning = false
+    @State private var viewport: CGFloat = 0
     @FocusState private var focused: Bool
 
     private var origin: URL? { model.connection.origin }
@@ -147,8 +148,9 @@ struct GateView: View {
             .padding(.vertical, 32)
             .frame(maxWidth: 480)
             .frame(maxWidth: .infinity)
-            .containerRelativeFrame(.vertical, alignment: .center) { length, _ in length }
+            .frame(minHeight: viewport)
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewport = $0 }
         .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.interactively)
         .background(palette.canvas.ignoresSafeArea())

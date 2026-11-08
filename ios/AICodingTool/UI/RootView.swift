@@ -77,7 +77,7 @@ struct NoticeBanner: View {
     @Environment(\.palette) private var palette
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
             Image(systemName: "exclamationmark.circle.fill")
                 .font(.subheadline)
                 .foregroundStyle(palette.accent)
