@@ -9,7 +9,7 @@ settings:
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
-    DEVELOPMENT_TEAM: ""
+    DEVELOPMENT_TEAM: T3Y739SK63
 packages:
   Markdown:
     url: https://github.com/swiftlang/swift-markdown
@@ -35,6 +35,7 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         NSCameraUsageDescription: Scan the pairing QR code your computer shows.
+        ITSAppUsesNonExemptEncryption: false
         CFBundleURLTypes:
           - CFBundleURLName: com.zyuapp.aicodingtool.phone
             CFBundleURLSchemes: [aicodingtool]
