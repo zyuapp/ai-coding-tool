@@ -75,7 +75,7 @@ export function reduceDesktop(state: WorkspaceState, input: DesktopInput): Works
     }
 
     case "app.check-for-updates":
-      return settled(state, [{ type: "app.check-for-updates" }]);
+      return settled(state, [input.quiet ? { type: "app.check-for-updates", quiet: true } : { type: "app.check-for-updates" }]);
 
     /** Main answers with the stage it moved to, so neither command writes the update itself. */
     case "app.download-update":

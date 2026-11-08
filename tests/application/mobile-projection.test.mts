@@ -114,6 +114,25 @@ test("what went wrong after the phone was acknowledged travels as part of the vi
   assert.equal(applyMobilePatch(failed, { groups: [] })?.error, "That worktree is busy.", "a patch that says nothing about it leaves it alone");
 });
 
+test("the computer's own app and engines travel with a step the phone may send back, and only when they move", () => {
+  const status: EngineStatus = { claude: { access: "ready", version: "2.1.0", latest: "2.2.0", fix: "claude update" }, codex: { access: "ready", version: "0.162.1" } } as EngineStatus;
+  const idle = workspace([], { appBuild: { version: "0.7.10", selfUpdating: true }, engineStatus: status });
+  const offered = projectMobileView({ ...idle, appUpdate: { status: "available", version: "0.7.11" } }, NOW);
+  assert.deepEqual(offered.upkeep.map((item) => [item.key, item.version, item.state.text, item.action?.command]), [
+    ["app", "0.7.10", "0.7.11 available", { type: "app.update" }],
+    ["claude", "2.1.0", "2.2.0 available", { type: "engine.update", engine: "claude" }],
+    ["codex", "0.162.1", "Up to date", undefined],
+  ], "commands name no computer, so the one the phone is on carries them out");
+
+  const waiting = projectMobileView({ ...idle, appUpdate: { status: "ready", version: "0.7.11" }, appUpdateRequest: { status: "waiting" }, threads: [task("a")], activeRuns: { a: activeRun("a", "r", "running") } }, NOW);
+  assert.deepEqual([waiting.upkeep[0]!.state.text, waiting.upkeep[0]!.action?.command], ["Waiting for 1 thread", { type: "app.cancel-update" }]);
+
+  assert.deepEqual(diffMobileView(offered, waiting)?.upkeep, waiting.upkeep);
+  assert.equal(diffMobileView(offered, projectMobileView({ ...idle, appUpdate: { status: "available", version: "0.7.11" } }, NOW)), null);
+  assert.deepEqual(applyMobilePatch(offered, { upkeep: waiting.upkeep })?.upkeep, waiting.upkeep);
+  assert.deepEqual(applyMobilePatch(offered, { groups: [] })?.upkeep, offered.upkeep, "a patch that says nothing about it leaves it alone");
+});
+
 test("a running thread and a blocked one are told apart in the list", () => {
   const state = workspace([task("running", { projectId: "project-app" }), task("asking", { projectId: "project-app" })], {
     activeRuns: { running: activeRun("running", "run-1", "running"), asking: activeRun("asking", "run-2", "awaiting-approval") },
@@ -481,7 +500,7 @@ test("the phone is told the models the computer's engines name, leanly, and only
     opencode: { access: "ready", catalog: [{ id: "openrouter/qwen-4", label: "Qwen 4", description: "qwen-4", provider: "OpenRouter", efforts: ["high", "low"] }] },
   }, "only what a picker reads travels");
   assert.equal(projectMobileView(workspace([], { engineStatus: status, theme: "nord" }), NOW).engines, read.engines, "a view that did not read the engines again carries the same ones");
-  assert.deepEqual(diffMobileView(before, read), { engines: read.engines });
+  assert.deepEqual(diffMobileView(before, read), { engines: read.engines, upkeep: read.upkeep });
   assert.equal(diffMobileView(read, projectMobileView(workspace([], { engineStatus: { ...status } }), NOW)), null, "engines read again the same send nothing");
   const applied = applyMobilePatch(before, diffMobileView(before, read)!)!;
   assert.deepEqual(applied, read);

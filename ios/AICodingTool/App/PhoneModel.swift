@@ -40,6 +40,7 @@ final class PhoneModel {
 
     @ObservationIgnored private let storage: PhoneStorage
     @ObservationIgnored private var openingTimer: Task<Void, Never>?
+    @ObservationIgnored private var updatesChecked: (origin: URL?, at: Date)?
 
     init(connection: PhoneConnection, storage: PhoneStorage = PhoneStorage()) {
         self.connection = connection
@@ -138,6 +139,30 @@ final class PhoneModel {
     /// The changes screen belongs to one thread; when the computer moves on, so does the phone.
     func threadMoved() {
         if path.last == .changes, view.thread == nil { path.removeLast() }
+    }
+
+    // MARK: Updates
+
+    /// The computer's software that wants the user: an update offered, one under way, or one that failed.
+    var pendingUpkeep: [MobileUpkeepItem] {
+        (view.upkeep ?? []).filter { $0.action != nil || $0.state.tone == "progress" || $0.state.tone == "error" }
+    }
+
+    var updateOffered: Bool { pendingUpkeep.contains { $0.state.tone == "offer" && $0.action != nil } }
+
+    /// Whether the line dropped because the computer is restarting into the update it was installing.
+    var restarting: Bool {
+        !live && view.upkeep?.first { $0.key == "app" }?.state.text.hasPrefix("Installing") == true
+    }
+
+    /// Has the computer look for a newer app and engines now, at most once a minute per computer.
+    func checkForUpdates() {
+        guard live, view.upkeep != nil else { return }
+        let origin = connection.origin
+        if let checked = updatesChecked, checked.origin == origin, Date().timeIntervalSince(checked.at) < 60 { return }
+        updatesChecked = (origin, Date())
+        send(.checkForUpdates)
+        send(.rereadEngines)
     }
 
     // MARK: Actions

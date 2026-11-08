@@ -167,3 +167,13 @@ export const sendsImages: PhoneRule = (command) => named(command)
     && attachment.path === undefined && attachment.context === undefined);
 
 export const setsPrompt: PhoneRule = (command) => named(command) && isBlankable(command.prompt, MAX_PROMPT_LENGTH);
+
+/** The app on this computer, never one on a computer the desktop is linked to. */
+export const updatesHere: PhoneRule = (command) => command.computerId === undefined;
+
+export const updatesEngineHere: PhoneRule = (command) => isAgentEngine(command.engine) && command.computerId === undefined;
+
+/** A phone looks for a newer build without a dialog, since nobody may be at the computer to close one. */
+export const checksQuietly: PhoneRule = (command) => command.quiet === true;
+
+export const rereadsEngines: PhoneRule = (command) => command.refresh === true;

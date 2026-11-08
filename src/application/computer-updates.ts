@@ -36,28 +36,40 @@ function threads(count: number) {
   return count === 1 ? "1 thread" : `${count} threads`;
 }
 
+/** The computer whose software a row moves on: a paired one by id and by what it accepts, or this one, which accepts everything. */
+type Target = { computerId?: string; supports: (command: AppCommand) => boolean };
+
+const HERE: Target = { supports: () => true };
+
+function pairedTarget(computer: PairedComputer): Target {
+  return { computerId: computer.id, supports: (command) => supportsComputerCommand(computer.capabilities, command) };
+}
+
+function at<Command extends AppCommand>(target: Target, command: Command): Command {
+  return target.computerId === undefined ? command : { ...command, computerId: target.computerId };
+}
+
 /** Where a newer build of the app stands there: on its way, waiting, failed, or one only that computer can install. */
-function appItem(computer: PairedComputer, remote: WorkspaceState, own: AppBuild | null): UpkeepItem {
-  const id = computer.id;
+function appItem(target: Target, remote: WorkspaceState, own: AppBuild | null): UpkeepItem {
   const item = { key: "app" as const, label: "AI Coding Tool", version: remote.appBuild?.version ?? null };
   const request = remote.appUpdateRequest;
   const update = remote.appUpdate;
-  if (!supportsComputerCommand(computer.capabilities, { type: "app.update" })) {
+  if (!target.supports({ type: "app.update" })) {
     return { ...item, state: { text: "Update it there once to manage it from here" }, action: null };
   }
   if (request?.status === "installing") return { ...item, state: { text: `Installing ${request.version}…`, tone: "progress" }, action: null };
   if (update.status === "downloading") return { ...item, state: { text: `Downloading ${update.version} · ${update.percent}%`, tone: "progress" }, action: null };
   if (request?.status === "failed") {
-    return { ...item, state: { text: request.message.replace(/\.$/, ""), tone: "error" }, action: { label: "Try again", command: { type: "app.update", computerId: id } } };
+    return { ...item, state: { text: request.message.replace(/\.$/, ""), tone: "error" }, action: { label: "Try again", command: at(target, { type: "app.update" }) } };
   }
   if (update.status === "available" || update.status === "ready") {
     const running = runningThreads(remote);
     if (request?.status === "waiting") {
-      return { ...item, state: { text: `Waiting for ${threads(running)}`, tone: "progress" }, action: { label: "Cancel", command: { type: "app.cancel-update", computerId: id } } };
+      return { ...item, state: { text: `Waiting for ${threads(running)}`, tone: "progress" }, action: { label: "Cancel", command: at(target, { type: "app.cancel-update" }) } };
     }
     /** Updating never cuts a run off: the install waits for running threads, which the line says beforehand. */
     const waits = running > 0 ? ` · waits for ${threads(running)}` : "";
-    return { ...item, state: { text: `${update.version} available${waits}`, tone: "offer" }, action: { label: "Update", command: { type: "app.update", computerId: id } } };
+    return { ...item, state: { text: `${update.version} available${waits}`, tone: "offer" }, action: { label: "Update", command: at(target, { type: "app.update" }) } };
   }
   /** A copy that cannot update itself only learns of a newer build from one that runs it. */
   const build = remote.appBuild;
@@ -81,7 +93,7 @@ function reportedEngines(remote: WorkspaceState, status: Readonly<Partial<Record
  * Where an engine stands there: missing, too old to run, behind, or current, and whether the app can
  * move it on. One only a newer build knows is named by its id and updated there.
  */
-function engineItem(computer: PairedComputer, remote: WorkspaceState, status: Readonly<Partial<Record<EngineId, EngineReadiness>>>, engine: EngineId): UpkeepItem {
+function engineItem(target: Target, remote: WorkspaceState, status: Readonly<Partial<Record<EngineId, EngineReadiness>>>, engine: EngineId): UpkeepItem {
   const readiness = status[engine];
   const known = isAgentEngine(engine) ? engine : undefined;
   const item = { key: engine, label: engineLabel(engine), version: readiness?.version ?? null };
@@ -92,8 +104,8 @@ function engineItem(computer: PairedComputer, remote: WorkspaceState, status: Re
   if (readiness.access === "unavailable") return { ...item, state: { text: "Won't start", tone: "error" }, action: null };
   const update = engineUpdate(readiness);
   if (!update) return { ...item, state: UP_TO_DATE, action: null };
-  const upgradable = known !== undefined && Boolean(update.command) && supportsComputerCommand(computer.capabilities, { type: "engine.update", engine: known });
-  const action = upgradable ? { label: "Update", command: { type: "engine.update", engine: known, computerId: computer.id } as const } : null;
+  const upgradable = known !== undefined && Boolean(update.command) && target.supports({ type: "engine.update", engine: known });
+  const action = upgradable ? { label: "Update", command: at(target, { type: "engine.update", engine: known } as const) } : null;
   const where = upgradable ? "" : " · update it there";
   if (readiness.required) {
     /** An engine too old to speak to stops its runs; one only behind hides newer models. */
@@ -122,10 +134,19 @@ export function computerUpkeep(paired: readonly PairedComputer[], own: AppBuild 
       return { id: computer.id, status, action: restarting ? null : { label: "Reconnect", command: { type: "computers.reconnect", id: computer.id } }, items: [] };
     }
     if (!remote) return { id: computer.id, status, action: null, items: [] };
-    /** Keyed by the engines that computer knows, which may include one this build does not. */
-    const engines: Readonly<Partial<Record<EngineId, EngineReadiness>>> = remote.engineStatus ?? {};
-    return { id: computer.id, status, action: null, items: [appItem(computer, remote, own), ...reportedEngines(remote, engines).map((engine) => engineItem(computer, remote, engines, engine))] };
+    return { id: computer.id, status, action: null, items: upkeepItems(pairedTarget(computer), remote, own) };
   });
+}
+
+function upkeepItems(target: Target, state: WorkspaceState, own: AppBuild | null): UpkeepItem[] {
+  /** Keyed by the engines that computer knows, which may include one this build does not. */
+  const engines: Readonly<Partial<Record<EngineId, EngineReadiness>>> = state.engineStatus ?? {};
+  return [appItem(target, state, own), ...reportedEngines(state, engines).map((engine) => engineItem(target, state, engines, engine))];
+}
+
+/** This computer's own app and engines, as a paired phone reads them, each moved on by a command naming no computer. */
+export function ownUpkeep(state: WorkspaceState): UpkeepItem[] {
+  return upkeepItems(HERE, state, null);
 }
 
 function samePart(before: UpkeepPart, next: UpkeepPart) {

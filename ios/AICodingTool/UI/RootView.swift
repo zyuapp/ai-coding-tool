@@ -152,6 +152,9 @@ struct ComputerMenu: View {
                     }
                 }
             }
+            if model.live, let upkeep = model.view.upkeep {
+                Section("Updates") { UpkeepRows(model: model, items: model.pendingUpkeep, all: upkeep) }
+            }
             Section {
                 Button { pairing = true } label: { Label("Pair a Computer…", systemImage: "plus") }
                 if let current {
@@ -162,15 +165,22 @@ struct ComputerMenu: View {
             HStack(spacing: 6) {
                 Image(systemName: "desktopcomputer").font(.footnote.weight(.semibold))
                 Text(model.state.computerName ?? current?.title ?? "Computer").lineLimit(1)
-                if model.state.connection != .live {
+                if model.restarting {
+                    ProgressView().controlSize(.mini)
+                    Text("Restarting").font(.caption.weight(.medium)).foregroundStyle(palette.muted)
+                } else if model.state.connection != .live {
                     ConnectionMark(connection: model.state.connection)
+                } else if model.updateOffered {
+                    Circle().fill(palette.accent).frame(width: 7, height: 7).accessibilityHidden(true)
                 }
                 Image(systemName: "chevron.down").font(.caption2.weight(.bold)).opacity(0.6)
             }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(palette.ink)
         }
-        .accessibilityLabel("Computer: \(model.state.computerName ?? current?.title ?? "none"), \(model.state.connection.label)")
+        .accessibilityLabel("Computer: \(model.state.computerName ?? current?.title ?? "none"), \(model.restarting ? "Restarting" : model.state.connection.label)\(model.updateOffered ? ", update available" : "")")
+        .simultaneousGesture(TapGesture().onEnded { model.checkForUpdates() })
+        .onChange(of: model.live, initial: true) { _, live in if live { model.checkForUpdates() } }
         .sheet(isPresented: $pairing) { PairAnotherSheet(model: model) }
         .confirmationDialog(forgetting.map { "Forget \($0.title)?" } ?? "", isPresented: Binding(get: { forgetting != nil }, set: { if !$0 { forgetting = nil } }), titleVisibility: .visible) {
             Button("Forget", role: .destructive) {
@@ -178,6 +188,40 @@ struct ComputerMenu: View {
             }
         } message: {
             Text("This phone stops connecting to it. Remove the phone from that computer's Settings › Devices too.")
+        }
+    }
+}
+
+/// The computer's app and engines that want the user, each a step when there is one; "Up to date" when none do.
+private struct UpkeepRows: View {
+    var model: PhoneModel
+    var items: [MobileUpkeepItem]
+    var all: [MobileUpkeepItem]
+
+    var body: some View {
+        if items.isEmpty {
+            Button {} label: {
+                Text("Up to Date")
+                if let app = all.first(where: { $0.key == "app" }), let version = app.version { Text("\(app.label) \(version)") }
+            }
+            .disabled(true)
+        }
+        ForEach(items) { item in
+            if let action = item.action {
+                Button { model.send(action.command) } label: {
+                    if action.label == "Update" {
+                        Text("Update \(item.label)")
+                        Text(item.state.text)
+                        Image(systemName: "arrow.down.circle")
+                    } else {
+                        Text(action.label)
+                        Text("\(item.label) · \(item.state.text)")
+                        Image(systemName: action.label == "Cancel" ? "xmark.circle" : "arrow.clockwise")
+                    }
+                }
+            } else {
+                Button {} label: { Text(item.label); Text(item.state.text) }.disabled(true)
+            }
         }
     }
 }

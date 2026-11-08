@@ -138,6 +138,11 @@ test("a paired computer's row lists its app and engines, each with where it stan
   assert.deepEqual([away.status.map((part) => part.text), away.action?.label, away.items], [["Offline", "The bridge was turned off"], "Reconnect", []]);
 });
 
+test("a look for updates a phone asks for shows nothing on this screen", () => {
+  assert.deepEqual(effectOf(reduce(workspace(), { type: "app.check-for-updates", quiet: true }), "app.check-for-updates"), { type: "app.check-for-updates", quiet: true });
+  assert.deepEqual(effectOf(reduce(workspace(), { type: "app.check-for-updates" }), "app.check-for-updates"), { type: "app.check-for-updates" });
+});
+
 test("the Computers page keeps its rows while nothing it shows has changed", () => {
   let state = withComputers([paired("mac", workspace({ appUpdate: available }))]);
   const before = deriveView(state).computerUpkeep;

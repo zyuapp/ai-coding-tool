@@ -290,7 +290,8 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   signInEngine(engine: AgentEngine): Promise<EngineStatus>;
   /** Upgrades the engine's command the way the user installed it, and answers with the status after it. */
   updateEngine(engine: AgentEngine): Promise<EngineStatus>;
-  checkForUpdates(): void;
+  /** `quiet` looks without a dialog for any answer, for a check nobody at this screen asked for. */
+  checkForUpdates(quiet?: boolean): void;
   /** Where a newer build stands, and each change to it from then on. */
   appUpdate(): Promise<AppUpdate>;
   onAppUpdate(listener: (update: AppUpdate) => void): () => void;

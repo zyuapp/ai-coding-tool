@@ -266,6 +266,20 @@ test("a phone makes coordinators and adds projects on this computer only", () =>
   assert.equal(isPhoneCommand({ type: "project.add", root: "/code/app", computerId: "mac-2" }), false, "never on a linked computer");
 });
 
+test("a phone updates this computer's app and engines only, and looks for updates without a dialog", () => {
+  assert.equal(isPhoneCommand({ type: "app.update" }), true);
+  assert.equal(isPhoneCommand({ type: "app.cancel-update" }), true);
+  assert.equal(isPhoneCommand({ type: "engine.update", engine: "claude" }), true);
+  assert.equal(isPhoneCommand({ type: "app.update", computerId: "mac-2" }), false, "never a linked computer");
+  assert.equal(isPhoneCommand({ type: "app.cancel-update", computerId: "mac-2" }), false, "never a linked computer");
+  assert.equal(isPhoneCommand({ type: "engine.update", engine: "claude", computerId: "mac-2" }), false, "never a linked computer");
+  assert.equal(isPhoneCommand({ type: "engine.update", engine: "nope" }), false);
+  assert.equal(isPhoneCommand({ type: "app.check-for-updates", quiet: true }), true);
+  assert.equal(isPhoneCommand({ type: "app.check-for-updates" }), false, "a dialog nobody may be there to close");
+  assert.equal(isPhoneCommand({ type: "engine.read", refresh: true }), true);
+  assert.equal(isPhoneCommand({ type: "engine.read" }), false);
+});
+
 test("a phone may send exactly the commands that declare a phone rule", () => {
   const types: Record<MobileCommand["type"], true> = {
     "task.new": true, "task.select": true, "task.send": true, "task.archive": true, "task.restore": true, "task.rename": true,
@@ -276,8 +290,9 @@ test("a phone may send exactly the commands that declare a phone rule", () => {
     "annotation.add": true, "annotation.note": true, "annotation.remove": true, "annotation.recall": true,
     "paste.add": true, "paste.remove": true, "paste.recall": true,
     "view.set-prompt": true, "task.set-role": true, "project.add": true, "attachments.send": true,
+    "app.update": true, "app.cancel-update": true, "app.check-for-updates": true, "engine.read": true, "engine.update": true,
   };
-  assert.equal(Object.keys(types).length, 32);
+  assert.equal(Object.keys(types).length, 37);
   for (const type of ["terminal.input", "worktree.delete", "project.remove", "browser.open", "task.set-coordinator", "run.compact"]) {
     assert.equal(isPhoneCommand({ type, taskId: "task-1" }), false, type);
   }

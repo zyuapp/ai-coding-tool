@@ -207,7 +207,7 @@ type WorkspaceWork =
   | { type: "cli.uninstall" }
   /** The thread's checkout, opened in another application on the machine. */
   | { type: "app.open-folder"; root: string; appId: string }
-  | { type: "app.check-for-updates" }
+  | { type: "app.check-for-updates"; quiet?: true }
   /** `unattended` is for an update asked from another computer: nobody may be at this screen to answer a dialog. */
   | { type: "app.download-update"; unattended?: true }
   | { type: "app.install-update"; unattended?: true }

@@ -18,6 +18,8 @@ import { diffFor } from "./workspace-diff.js";
 import { workspaceViewCollections } from "./workspace-view-collections.js";
 import { AGENT_EFFORTS, AGENT_ENGINES, BUILT_IN_MODELS, byEngine, capabilitiesFor, efforts, engineCatalog, engineLabel, offeredPolicies, type AgentEngine, type EngineReadiness, type EngineStatus, type ModelCatalog } from "../domain/agent-engine.js";
 import { POLICIES } from "../domain/run.js";
+import { ownUpkeep } from "./computer-updates.js";
+import { isPhoneCommand } from "../contracts/workspace-view-input.js";
 import type {
   MobileActivity,
   MobileChanges,
@@ -36,6 +38,7 @@ import type {
   MobileThreadDelta,
   MobileThreadEntry,
   MobileThreadView,
+  MobileUpkeepItem,
   MobileView,
   MobileVocabulary,
   MobileWorktreeChoice,
@@ -62,6 +65,7 @@ export function emptyMobileView(): MobileView {
     activity: { priority: [], running: [], threads: [], snoozed: [] },
     theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" },
     engines: NO_ENGINES,
+    upkeep: [],
     thread: null,
     draft: null,
     error: null,
@@ -179,10 +183,19 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
     activity: projectMobileActivity(state, here, entriesById),
     theme: projectMobileTheme(state),
     engines: projectMobileEngines(state.engineStatus),
+    upkeep: projectMobileUpkeep(state),
     thread,
     draft: thread ? null : projectMobileDraft(state, view),
     error: state.actionError,
   };
+}
+
+/** This computer's update rows as the Computers page draws a paired one's, each with a command a phone may send. */
+function projectMobileUpkeep(state: WorkspaceState): MobileUpkeepItem[] {
+  return ownUpkeep(state).map(({ key, label, version, state: part, action }) => ({
+    key, label, version, state: part,
+    action: action && isPhoneCommand(action.command) ? { label: action.label, command: action.command } : null,
+  }));
 }
 
 /**
@@ -354,6 +367,7 @@ export function diffMobileView(previous: MobileView, next: MobileView): MobilePa
   if (!sameActivity(previous.activity, next.activity)) patch.activity = next.activity;
   if (!same(previous.theme, next.theme)) patch.theme = next.theme;
   if (previous.engines !== next.engines && !same(previous.engines, next.engines)) patch.engines = next.engines;
+  if (!same(previous.upkeep, next.upkeep)) patch.upkeep = next.upkeep;
   const thread = diffMobileThread(previous.thread, next.thread);
   if (thread) patch.thread = thread;
   if (!same(previous.draft, next.draft)) patch.draft = next.draft;
@@ -449,6 +463,7 @@ export function applyMobilePatch(view: MobileView, patch: MobilePatch): MobileVi
     activity: patch.activity ?? view.activity,
     theme: patch.theme ?? view.theme,
     engines: patch.engines ?? view.engines,
+    upkeep: patch.upkeep ?? view.upkeep,
     draft: "draft" in patch ? patch.draft ?? null : view.draft,
     error: "error" in patch ? patch.error ?? null : view.error,
   };

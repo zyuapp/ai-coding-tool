@@ -23,7 +23,7 @@ export const surfaceEffects = {
 
   "app.open-folder": (effect, host) => reportFailure(host, host.desktop.openFolderInApp(effect.appId, effect.root)),
 
-  "app.check-for-updates": (_effect, { desktop }) => desktop.checkForUpdates(),
+  "app.check-for-updates": (effect, { desktop }) => desktop.checkForUpdates(effect.quiet),
 
   "app.download-update": (effect, { desktop }) => desktop.downloadUpdate(effect.unattended),
 

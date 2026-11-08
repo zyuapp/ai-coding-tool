@@ -15,7 +15,8 @@ import { isPhoneCommand, type PhoneCommandType } from "./workspace-view-input.js
  * The commands a paired phone may dispatch. The phone is the user on a small screen, not an agent,
  * so it gets the whole conversation: starting, opening, sending, queueing, forking, renaming,
  * archiving and restoring threads, answering approvals, stopping work, changing what a thread runs
- * as, and where it runs: a checkout of its own, an existing one, or the project's. It gets nothing
+ * as, and where it runs: a checkout of its own, an existing one, or the project's. It updates the
+ * computer's app and engines, which waits for running threads as it does on the desktop. It gets nothing
  * that only makes sense in front of the Mac — the terminal panel, the browser panel, handing a
  * checkout to another application, deleting a worktree, removing a project, window and shortcut
  * commands, and how the desktop is painted — because a phone cannot see the result and a mistyped
@@ -23,6 +24,18 @@ import { isPhoneCommand, type PhoneCommandType } from "./workspace-view-input.js
  * a phone reviewing a diff moves nothing on the desktop.
  */
 export type MobileCommand = Extract<AppCommand, { type: PhoneCommandType }>;
+
+/**
+ * One piece of software on the computer, the app or an engine: what it runs, where a newer one
+ * stands, and the command that moves it on, which the phone sends back as it came.
+ */
+export type MobileUpkeepItem = {
+  key: string;
+  label: string;
+  version: string | null;
+  state: { text: string; tone?: "live" | "quiet" | "progress" | "offer" | "error" };
+  action: { label: string; command: MobileCommand } | null;
+};
 
 /** A thread's state as one row: what it is doing outranks what it last did. */
 export type MobileRunStatus = "idle" | "running" | "stopped" | "awaiting-approval";
@@ -229,6 +242,8 @@ export type MobileView = {
   theme: MobileTheme;
   /** The computer's engines, which say the models a thread or draft may pick. */
   engines: MobileEngines;
+  /** The computer's app, then its engines. */
+  upkeep: MobileUpkeepItem[];
   /** The thread the phone has open, which is the thread the desktop has open. */
   thread: MobileThreadView | null;
   /** Where the desktop stands with no thread open. Null whenever `thread` is not. */
@@ -266,6 +281,7 @@ export type MobilePatch = {
   activity?: MobileActivity;
   theme?: MobileTheme;
   engines?: MobileEngines;
+  upkeep?: MobileUpkeepItem[];
   thread?:
     | { kind: "closed" }
     | { kind: "opened"; thread: MobileThreadView }

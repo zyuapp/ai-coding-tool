@@ -167,6 +167,28 @@ struct MobileModel: Codable, Equatable, Sendable {
     var efforts: [String]
 }
 
+/// One piece of software on the computer, the app or an engine, and the command that moves it on, sent back as it came.
+struct MobileUpkeepItem: Codable, Equatable, Sendable, Identifiable {
+    struct Part: Codable, Equatable, Sendable {
+        var text: String
+        /// "live", "quiet", "progress", "offer" or "error".
+        var tone: String?
+    }
+
+    struct Action: Codable, Equatable, Sendable {
+        var label: String
+        var command: PhoneCommand
+    }
+
+    var key: String
+    var label: String
+    var version: String?
+    var state: Part
+    var action: Action?
+
+    var id: String { key }
+}
+
 struct MobileEngine: Codable, Equatable, Sendable {
     var access: String
     var models: [String]?
@@ -268,11 +290,13 @@ struct MobileView: Codable, Equatable, Sendable {
     var activity: MobileActivity
     var theme: MobileTheme
     var engines: [String: MobileEngine]
+    /// The computer's app, then its engines. Nil from a computer too old to be updated from the phone.
+    var upkeep: [MobileUpkeepItem]?
     var thread: MobileThreadView?
     var draft: MobileDraftView?
     var error: String?
 
-    static let empty = MobileView(groups: [], activity: MobileActivity(), theme: MobileTheme(dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark"), engines: [:], thread: nil, draft: nil, error: nil)
+    static let empty = MobileView(groups: [], activity: MobileActivity(), theme: MobileTheme(dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark"), engines: [:], upkeep: nil, thread: nil, draft: nil, error: nil)
 }
 
 struct MobileEffortTerm: Codable, Equatable, Sendable {

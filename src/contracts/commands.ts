@@ -390,8 +390,8 @@ export type ExternalAppCommand =
   /** The applications this machine has, read again whenever a list of them is opened. */
   | { type: "app.list" }
   | { type: "app.open-folder"; appId: string }
-  /** Asks the updater to look now, from the notice about threads a newer version wrote. */
-  | { type: "app.check-for-updates" }
+  /** Asks the updater to look now. `quiet` is a phone's look, which shows nothing on this screen. */
+  | { type: "app.check-for-updates"; quiet?: true }
   /** Downloads the newer build a check found. */
   | { type: "app.download-update" }
   /** Quits and installs the downloaded build. */

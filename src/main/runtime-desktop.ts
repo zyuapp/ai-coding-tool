@@ -98,7 +98,11 @@ function windowDesktop(host: RuntimeDesktopHost) {
       if (!window) throw new Error("There is no window to save into.");
       await downloadImage(window, source);
     },
-    checkForUpdates: () => { void checkForUpdates(host.updates, { userRequested: true }).catch((error) => console.error("Update check failed:", error)); },
+    checkForUpdates: (quiet) => {
+      const stage = appUpdate().status;
+      if (quiet && (stage === "downloading" || stage === "ready")) return;
+      void checkForUpdates(host.updates, { userRequested: !quiet }).catch((error) => console.error("Update check failed:", error));
+    },
     appUpdate: async () => appUpdate(),
     launchedUpdate: async () => {
       const version = launchedUpdate;

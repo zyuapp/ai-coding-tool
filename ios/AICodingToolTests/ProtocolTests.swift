@@ -31,6 +31,19 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(vocabulary?.engines.first?.models.first?.efforts, ["max", "high"])
     }
 
+    func testUpkeepTravelsWithTheCommandItSendsBack() throws {
+        let view = try snapshotView()
+        XCTAssertNil(view.upkeep, "a computer too old to be updated from the phone sends none")
+        let patch = try JSONDecoder().decode(MobilePatch.self, from: Data(#"{"upkeep":[{"key":"app","label":"AI Coding Tool","version":"0.7.10","state":{"text":"0.7.11 available","tone":"offer"},"action":{"label":"Update","command":{"type":"app.update"}}},{"key":"codex","label":"Codex","version":null,"state":{"text":"Not installed","tone":"quiet"},"action":null}]}"#.utf8))
+        let next = try XCTUnwrap(view.applying(patch))
+        XCTAssertEqual(next.upkeep?.map(\.key), ["app", "codex"])
+        XCTAssertEqual(next.upkeep?.first?.action?.command.json, .object(["type": .string("app.update")]))
+        XCTAssertNil(next.upkeep?.last?.version)
+        let untouched = try JSONDecoder().decode(MobilePatch.self, from: Data(#"{"groups":[]}"#.utf8))
+        XCTAssertEqual(next.applying(untouched)?.upkeep, next.upkeep)
+        XCTAssertEqual(PhoneCommand.checkForUpdates.json, .object(["type": .string("app.check-for-updates"), "quiet": .bool(true)]))
+    }
+
     func testTailGrowsByUTF16Count() throws {
         let view = try snapshotView()
         let patch = try JSONDecoder().decode(MobilePatch.self, from: Data(#"{"thread":{"kind":"changed","id":"t1","delta":{"tail":{"from":2,"text":"c😀"}}}}"#.utf8))

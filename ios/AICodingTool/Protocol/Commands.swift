@@ -58,6 +58,9 @@ extension PhoneCommand {
     static func answer(_ taskId: String, question: PendingQuestion, text answer: String) -> PhoneCommand {
         PhoneCommand("question.answer", ["taskId": .string(taskId), "runId": .string(question.runId), "requestId": .string(question.requestId), "questionId": .string(question.questionId), "text": .string(answer)])
     }
+    /// Has the computer look for a newer app without a dialog, and read its engines' versions again.
+    static let checkForUpdates = PhoneCommand("app.check-for-updates", ["quiet": .bool(true)])
+    static let rereadEngines = PhoneCommand("engine.read", ["refresh": .bool(true)])
     static func setPrompt(_ prompt: String) -> PhoneCommand { PhoneCommand("view.set-prompt", ["prompt": .string(prompt)]) }
     /// Pictures, as data URLs, with the words that go with them, into a thread or the draft when `taskId` is nil.
     static func sendImages(_ taskId: String?, text: String, sources: [String], steer: Bool = false) -> PhoneCommand {
