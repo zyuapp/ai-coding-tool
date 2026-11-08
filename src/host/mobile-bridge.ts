@@ -85,7 +85,9 @@ export async function answerMobileRequest(host: MobileBridgeHost, request: Mobil
     if (!isPhoneCommand(request.command) || !isWorkspaceViewInput(request.command)) return failed(MOBILE_REFUSED);
     const taskId = "taskId" in request.command ? request.command.taskId : undefined;
     if (taskId !== undefined && !phoneReaches(host.state(), request.command, taskId)) return failed(`No thread has the ID ${taskId}.`);
-    const execution = host.execute(request.command);
+    /** A phone's images leave its composer at once, so its send carries its words, even none, and never waits on a desktop draft. */
+    const command = request.command.type === "attachments.send" && request.command.text === undefined ? { ...request.command, text: "" } : request.command;
+    const execution = host.execute(command);
     const accepted = execution.accepted instanceof Promise ? await execution.accepted : execution.accepted;
     if (!accepted.ok) return failed(accepted.message);
     return ok(projectMobileView(host.state(), Date.now()));

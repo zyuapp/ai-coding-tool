@@ -12,6 +12,7 @@ import type { Thread } from "../../src/domain/thread.ts";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 import { activeRun, required } from "../application/workspace-reducer-fixtures.mts";
 import { projectMobileView } from "../../src/application/mobile-projection.ts";
+import { attachmentSendFor } from "../../src/application/composer-attachments.ts";
 
 const NOW = 1_800_000_000_000;
 
@@ -95,6 +96,17 @@ test("a phone is answered as soon as the reducer has decided, not when the run e
   assert.equal(typeof response === "object" && response.ok, true);
   assert.deepEqual(inputs, [{ type: "task.send", text: "ship it" }]);
   finishRun();
+});
+
+test("a phone's photo-only send names its words, so it never waits on the desktop's draft", async () => {
+  const driver = host(workspace({ threads: [task("task-1")], currentId: "task-1" }));
+  const response = await answerMobileRequest(driver.bridge, request({
+    type: "mobile.request", requestId: "req-1", sessionId: "session-1", op: "command",
+    command: { type: "attachments.send", attachments: [{ id: "photo", source: "data:image/png;base64,AQID", annotations: [] }] },
+  }));
+  assert.equal(response.ok, true);
+  assert.deepEqual(driver.inputs, [{ type: "attachments.send", text: "", attachments: [{ id: "photo", source: "data:image/png;base64,AQID", annotations: [] }] }]);
+  assert.equal(attachmentSendFor(driver.current().attachmentSends).draftKey, undefined);
 });
 
 test("the settings screen's commands describe the bridge's work and never do it", () => {

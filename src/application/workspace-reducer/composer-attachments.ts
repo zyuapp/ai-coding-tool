@@ -49,7 +49,7 @@ export function reduceComposerAttachments(state: WorkspaceState, input: Attachme
       }
       if (input.attachments.length === 0) return sent(state, input, [], input.steer, input.text);
       return settled(
-        withSend(state, input.taskId, { busy: true, error: null, sent: send.sent, ...(input.taskId === undefined && !input.text ? { draftKey: key } : {}) }),
+        withSend(state, input.taskId, { busy: true, error: null, sent: send.sent, ...(input.taskId === undefined && input.text === undefined ? { draftKey: key } : {}) }),
         [{
           type: "send-attachments",
           ...(input.taskId === undefined ? {} : { taskId: input.taskId }),
