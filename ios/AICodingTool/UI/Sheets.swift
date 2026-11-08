@@ -11,7 +11,7 @@ struct SheetFrame<Content: View, Actions: ToolbarContent>: View {
         NavigationStack {
             content
                 .listSectionSpacing(.compact)
-                .contentMargins(.top, 0, for: .scrollContent)
+                .contentMargins(.top, -12, for: .scrollContent)
                 .scrollContentBackground(.hidden)
                 .background(palette.menu.ignoresSafeArea())
                 .navigationTitle(title)

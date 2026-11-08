@@ -91,6 +91,7 @@ struct ThreadScreen: View {
                                     model.send(.decide(approval, allow: allow))
                                 }
                                 .id(approval.approvalId)
+                                .fitsShortScreens()
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
                             ComposerView(model: model, draftKey: thread.id, running: thread.status == "running", settings: thread.settings, question: thread.question, returned: returned(for: thread.id), onSend: { model.send(.message(thread.id, text: $0, sources: $1)) }, onSteer: { model.send(.message(thread.id, text: $0, sources: $1, steer: true)) }, onStop: { model.send(.cancel(thread.id)) }, onAnswer: { question, text in model.send(.answer(thread.id, question: question, text: text)) }, onSettings: { sheet = .settings })

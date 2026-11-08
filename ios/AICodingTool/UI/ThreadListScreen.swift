@@ -261,7 +261,7 @@ struct ThreadRow: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(RowPress())
             VStack(alignment: .trailing, spacing: 8) {
                 Text(Format.relativeTime(thread.lastActivityAt, now: now))
                     .font(.subheadline.monospacedDigit())
@@ -375,5 +375,14 @@ struct RunningMark: View {
             .scaleEffect(0.85)
             .frame(width: 14, height: 14)
             .accessibilityLabel("Working")
+    }
+}
+
+/// A row that dims while pressed, as a system list row highlights.
+struct RowPress: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.55 : 1)
+            .animation(.easeOut(duration: configuration.isPressed ? 0.05 : 0.2), value: configuration.isPressed)
     }
 }

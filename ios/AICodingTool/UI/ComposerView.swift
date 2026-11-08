@@ -59,6 +59,7 @@ struct ComposerView<Above: View>: View {
             if let question, let onAnswer {
                 QuestionPromptView(question: question, refused: returned?.answer != nil ? returned?.id : nil, onSubmit: { onAnswer(question, $0) })
                     .id("\(question.runId)|\(question.requestId)|\(question.questionId)")
+                    .fitsShortScreens()
             }
             above
             VStack(spacing: 8) {
@@ -489,4 +490,23 @@ extension View {
             background(palette.canvas)
         }
     }
+}
+
+/// On a screen too short for a whole card, such as a phone in landscape, the card scrolls inside a fixed height so the transcript and bar stay reachable.
+private struct ShortScreenFit: ViewModifier {
+    @Environment(\.verticalSizeClass) private var sizeClass
+
+    func body(content: Content) -> some View {
+        if sizeClass == .compact {
+            ScrollView { content }
+                .frame(height: 170)
+                .scrollBounceBehavior(.basedOnSize)
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func fitsShortScreens() -> some View { modifier(ShortScreenFit()) }
 }
