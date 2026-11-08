@@ -80,13 +80,13 @@ struct NoticeBanner: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.circle.fill")
                 .font(.subheadline)
-                .foregroundStyle(palette.warning)
+                .foregroundStyle(palette.accent)
                 .accessibilityHidden(true)
             Button { open.toggle() } label: {
                 Text(notice)
                     .font(.subheadline)
                     .foregroundStyle(palette.ink)
-                    .lineLimit(open ? nil : 2)
+                    .lineLimit(open ? nil : 3)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
@@ -114,8 +114,10 @@ extension View {
             if let notice = model.notice {
                 NoticeBanner(notice: notice) { model.connection.dismissNotice() }
                     .id(notice)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
+        .animation(.snappy, value: model.notice)
     }
 
     func screenBackground(_ palette: Palette) -> some View {

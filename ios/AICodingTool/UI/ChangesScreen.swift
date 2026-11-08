@@ -304,7 +304,7 @@ private struct FileSection: View {
                 .mask(HStack(spacing: 0) {
                     Color.black
                     if measure.width > viewport {
-                        LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 28)
+                        LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 44)
                     }
                 })
                 .background(palette.sunken)

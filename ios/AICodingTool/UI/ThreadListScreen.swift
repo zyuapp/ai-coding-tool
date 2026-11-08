@@ -81,7 +81,7 @@ struct ThreadListScreen: View {
         .notice(model)
         .navigationTitle("Threads")
         .navigationBarTitleDisplayMode(.large)
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search threads")
+        .searchable(text: $query, prompt: "Search threads")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { ComputerMenu(model: model) }
             ToolbarItem(placement: .topBarTrailing) {

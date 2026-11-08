@@ -263,11 +263,10 @@ private struct QueuedRow: View {
                 } else {
                     Button(action: onSteer) {
                         Label("Steer Now", systemImage: "bolt.fill")
-                            .font(.caption.weight(.semibold))
+                            .font(.footnote.weight(.semibold))
                             .foregroundStyle(palette.accent)
-                            .padding(.horizontal, 10)
-                            .frame(height: 28)
-                            .background(palette.accentChip, in: Capsule())
+                            .frame(height: 32)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityHint("Sends it into the running turn")
