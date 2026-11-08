@@ -120,6 +120,15 @@ extension View {
         .animation(.snappy, value: model.notice)
     }
 
+    /// The bar's second line under the title, on iOS 26 where the system draws one.
+    @ViewBuilder func barSubtitle(_ text: String?) -> some View {
+        if #available(iOS 26, *), let text, !text.isEmpty {
+            navigationSubtitle(text)
+        } else {
+            self
+        }
+    }
+
     func screenBackground(_ palette: Palette) -> some View {
         background(palette.canvas.ignoresSafeArea())
     }
@@ -162,21 +171,31 @@ struct ComputerMenu: View {
                 }
             }
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "desktopcomputer").font(.footnote.weight(.semibold))
-                Text(model.state.computerName ?? current?.title ?? "Computer").lineLimit(1)
-                if model.restarting {
-                    ProgressView().controlSize(.mini)
-                    Text("Restarting").font(.caption.weight(.medium)).foregroundStyle(palette.muted)
-                } else if model.state.connection != .live {
-                    ConnectionMark(connection: model.state.connection)
-                } else if model.view.updateOffered {
-                    Circle().fill(palette.accent).frame(width: 7, height: 7).accessibilityHidden(true)
+            if #available(iOS 26, *) {
+                // The bar's subtitle names the computer and its line; the button only opens the list.
+                Image(systemName: "desktopcomputer")
+                    .foregroundStyle(palette.ink)
+                    .overlay(alignment: .topTrailing) {
+                        if model.view.updateOffered, model.live {
+                            Circle().fill(palette.accent).frame(width: 7, height: 7).offset(x: 3, y: -2).accessibilityHidden(true)
+                        }
+                    }
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: "desktopcomputer").font(.footnote.weight(.semibold))
+                    Text(model.state.computerName ?? current?.title ?? "Computer").lineLimit(1)
+                    if model.restarting {
+                        ProgressView().controlSize(.mini)
+                    } else if model.state.connection != .live {
+                        ConnectionMark(connection: model.state.connection)
+                    } else if model.view.updateOffered {
+                        Circle().fill(palette.accent).frame(width: 7, height: 7).accessibilityHidden(true)
+                    }
+                    Image(systemName: "chevron.down").font(.caption2.weight(.bold)).opacity(0.6)
                 }
-                Image(systemName: "chevron.down").font(.caption2.weight(.bold)).opacity(0.6)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(palette.ink)
             }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(palette.ink)
         }
         .accessibilityLabel("Computer: \(model.state.computerName ?? current?.title ?? "none"), \(model.restarting ? "Restarting" : model.state.connection.label)\(model.view.updateOffered ? ", update available" : "")")
         .simultaneousGesture(TapGesture().onEnded { model.checkForUpdates() })

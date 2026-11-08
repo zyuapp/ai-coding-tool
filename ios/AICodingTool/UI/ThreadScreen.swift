@@ -31,39 +31,29 @@ struct ThreadScreen: View {
         return nil
     }
 
+    /// The bar's second line: where the thread works, and the line to the computer when it is down.
     private var subtitle: String? {
-        guard let project else { return nil }
-        let name = project ?? "No project"
-        if let thread, thread.location != .local { return "\(name) · \(Format.locationLabel(thread.location))" }
-        return name
+        var parts: [String] = []
+        if let project { parts.append(project ?? "No project") }
+        if let thread, thread.location != .local { parts.append(Format.locationLabel(thread.location)) }
+        if model.state.connection != .live { parts.append(model.state.connection.label) }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     var body: some View {
         content
             .screenBackground(palette)
             .notice(model)
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
+            .barSubtitle(subtitle)
+            .toolbarTitleMenu {
+                if let thread { titleMenu(thread) }
+            }
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    VStack(spacing: 1) {
-                        Text(title).font(.headline).foregroundStyle(palette.ink).lineLimit(1)
-                        if let subtitle { Text(subtitle).font(.caption).foregroundStyle(palette.muted).lineLimit(1) }
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityAddTraits(.isHeader)
-                }
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    ConnectionMark(connection: model.state.connection)
-                    if model.pending ? model.opening?.want != "draft" : model.view.thread != nil {
-                        if let thread = model.view.thread, !model.pending {
-                            ThreadMenu(thread: thread, onChanges: { model.enterChanges() }, onLocation: { sheet = .location }, onNewHere: {
-                                model.newThread(projectId: thread.projectId, project: thread.projectName, worktreeId: thread.worktreeId)
-                            }, onFork: { worktree in model.send(.fork(thread.id, worktree: worktree)) }, onRename: { sheet = .rename }, onArchive: { archiving = ArchiveAsk(id: thread.id, title: thread.title, running: thread.status == "running" || thread.status == "awaiting-approval") }, roles: model.catalog.roles, onRole: { model.send(.setRole(thread.id, role: $0)) }, onBackground: { sheet = .background })
-                        } else {
-                            Button {} label: { Image(systemName: "ellipsis") }
-                                .disabled(true)
-                                .accessibilityLabel("Thread options")
-                        }
+                if let thread {
+                    if thread.reviewable {
+                        ToolbarItem(placement: .topBarTrailing) { changesButton(thread).badge(thread.changes?.files ?? 0) }
                     }
                 }
             }
@@ -75,6 +65,67 @@ struct ThreadScreen: View {
                 if let sheet, !fits(sheet) { self.sheet = nil }
                 if let archiving, archiving.id != model.view.thread?.id { self.archiving = nil }
             }
+    }
+
+    private func changesButton(_ thread: MobileThreadView) -> some View {
+        Button("Changes") { model.enterChanges() }
+            .tint(palette.ink)
+        .accessibilityValue(Format.changesLabel(thread.changes) ?? "")
+    }
+
+    /// The thread as a document: what changes it as a whole, behind its title, as Apple's document menus hold them.
+    @ViewBuilder private func titleMenu(_ thread: MobileThreadView) -> some View {
+        let inProject = thread.projectId != nil
+        let moving = thread.location == .creating || thread.location == .releasing
+        let roles = model.catalog.roles
+        let role = thread.role ?? (thread.settings.coordinating == true ? "coordinator" : nil)
+        Section {
+            Button { sheet = .rename } label: { Label("Rename…", systemImage: "pencil") }
+            if inProject {
+                Button { sheet = .location } label: {
+                    Label("Move…", systemImage: "folder")
+                    Text(Format.locationLabel(thread.location))
+                }
+                .disabled(moving)
+            }
+            if inProject {
+                Button {
+                    model.newThread(projectId: thread.projectId, project: thread.projectName, worktreeId: thread.worktreeId)
+                } label: {
+                    Label("New Thread", systemImage: "square.and.pencil")
+                }
+                .disabled(moving)
+            }
+            Button { model.send(.fork(thread.id, worktree: false)) } label: { Label("Fork", systemImage: "arrow.triangle.branch") }
+            if inProject {
+                Button { model.send(.fork(thread.id, worktree: true)) } label: { Label("Fork in New Worktree", systemImage: "folder.badge.plus") }
+                    .disabled(moving)
+            }
+        }
+        Section {
+            Picker(selection: Binding(get: { role ?? "" }, set: { model.send(.setRole(thread.id, role: $0.isEmpty ? nil : $0)) })) {
+                ForEach(roles) { Text($0.label).tag($0.id) }
+                Text("None").tag("")
+            } label: {
+                Label("Role", systemImage: "person.2")
+                Text(role.map { id in roles.first { $0.id == id }?.label ?? id.capitalized } ?? "None")
+            }
+            .pickerStyle(.menu)
+            if let background = thread.background, !background.isEmpty {
+                let live = BackgroundWork.summary(background)
+                Button { sheet = .background } label: {
+                    Label("Background Work", systemImage: "square.stack.3d.up")
+                    Text(live.isEmpty ? "Nothing running" : live)
+                }
+            }
+        }
+        Section {
+            Button(role: .destructive) {
+                archiving = ArchiveAsk(id: thread.id, title: thread.title, running: thread.status == "running" || thread.status == "awaiting-approval")
+            } label: {
+                Label("Archive…", systemImage: "archivebox")
+            }
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -98,7 +149,7 @@ struct ThreadScreen: View {
                                 .fitsShortScreens()
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
-                            ComposerView(model: model, draftKey: thread.id, running: thread.status == "running", settings: thread.settings, question: thread.question, returned: returned(for: thread.id), onSend: { model.send(.message(thread.id, text: $0, sources: $1)) }, onSteer: { model.send(.message(thread.id, text: $0, sources: $1, steer: true)) }, onStop: { model.send(.cancel(thread.id)) }, onAnswer: { question, text in model.send(.answer(thread.id, question: question, text: text)) }, onSettings: { sheet = .settings })
+                            ComposerView(model: model, draftKey: thread.id, running: thread.status == "running", settings: thread.settings, question: thread.question, returned: returned(for: thread.id), onSend: { model.send(.message(thread.id, text: $0, sources: $1)) }, onSteer: { model.send(.message(thread.id, text: $0, sources: $1, steer: true)) }, onStop: { model.send(.cancel(thread.id)) }, onAnswer: { question, text in model.send(.answer(thread.id, question: question, text: text)) }, onSettings: { sheet = .settings }, quick: QuickSettings(locked: true, onPolicy: { model.send(.setPolicy(thread.id, policy: $0)) }, onModel: { model.send(.setModel(thread.id, engine: $0, model: $1)) }, onEffort: { model.send(.setEffort(thread.id, engine: $0, effort: $1)) }, onFastMode: { model.send(.setFastMode(thread.id, fastMode: $0)) }))
                         }
                     }
             }
@@ -115,7 +166,7 @@ struct ThreadScreen: View {
                     } else {
                         model.send(.sendImages(nil, text: text, sources: sources))
                     }
-                }, onSteer: nil, onStop: nil, onAnswer: nil, onSettings: { sheet = .settings }) {
+                }, onSteer: nil, onStop: nil, onAnswer: nil, onSettings: { sheet = .settings }, quick: QuickSettings(locked: false, onPolicy: { model.send(.setPolicy(nil, policy: $0)) }, onModel: { model.send(.setModel(nil, engine: $0, model: $1)) }, onEffort: { model.send(.setEffort(nil, engine: $0, effort: $1)) }, onFastMode: { model.send(.setFastMode(nil, fastMode: $0)) })) {
                     StartOptions(draft: draft, onPickProject: { sheet = .project }, onPickPlace: { sheet = .startIn }, onCoordinate: { model.send(.setCoordinator(nil, $0)) })
                 }
             }
@@ -210,69 +261,6 @@ struct ThreadScreen: View {
             try? await Task.sleep(for: .milliseconds(350))
             sheet = next
         }
-    }
-}
-
-/// What a thread can do beyond talking, as the desktop's header offers it, in the bar's options menu.
-struct ThreadMenu: View {
-    var thread: MobileThreadView
-    var onChanges: () -> Void
-    var onLocation: () -> Void
-    var onNewHere: () -> Void
-    var onFork: (Bool) -> Void
-    var onRename: () -> Void
-    var onArchive: () -> Void
-    var roles: [MobileRoleTerm]
-    var onRole: (String?) -> Void
-    var onBackground: () -> Void
-
-    var body: some View {
-        let inProject = thread.projectId != nil
-        let role = thread.role ?? (thread.settings.coordinating == true ? "coordinator" : nil)
-        let working = thread.location == .creating || thread.location == .releasing
-        let inWorktree: Bool = { if case .worktree = thread.location { return true } else { return false } }()
-        Menu {
-            Section("This Thread") {
-                item("Changes", detail: thread.reviewable ? Format.changesLabel(thread.changes) ?? "Review this thread's edits" : "No checkout to review", symbol: "plus.forwardslash.minus", disabled: !thread.reviewable, action: onChanges)
-                item("Location", detail: inProject ? Format.locationLabel(thread.location) : "Not in a project", symbol: inWorktree ? "folder.badge.gearshape" : "folder", disabled: !inProject || working, action: onLocation)
-                if let background = thread.background, !background.isEmpty {
-                    let live = BackgroundWork.summary(background)
-                    item("Background", detail: live.isEmpty ? "Nothing running" : live, symbol: "square.stack.3d.up", action: onBackground)
-                }
-            }
-            Section {
-                item(inWorktree ? "New Thread Here" : "New Thread", detail: !inProject ? "Not in a project" : working ? Format.locationLabel(thread.location) : nil, symbol: "square.and.pencil", disabled: !inProject || working, action: onNewHere)
-                item("Fork Thread", detail: "Copy into a new thread", symbol: "arrow.triangle.branch") { onFork(false) }
-                if inProject {
-                    item("Fork in Worktree", detail: working ? Format.locationLabel(thread.location) : "With its own checkout", symbol: "folder.badge.plus", disabled: working) { onFork(true) }
-                }
-            }
-            Section {
-                Picker(selection: Binding(get: { role ?? "" }, set: { onRole($0.isEmpty ? nil : $0) })) {
-                    ForEach(roles) { Text($0.label).tag($0.id) }
-                    Text("None").tag("")
-                } label: {
-                    Label("Role", systemImage: "person.2")
-                    Text(role.map { id in roles.first { $0.id == id }?.label ?? id.capitalized } ?? "None")
-                }
-                .pickerStyle(.menu)
-            }
-            Section {
-                item("Rename…", symbol: "pencil", action: onRename)
-                Button(role: .destructive, action: onArchive) { Label("Archive…", systemImage: "archivebox") }
-            }
-        } label: {
-            Image(systemName: "ellipsis")
-        }
-        .accessibilityLabel("Thread options")
-    }
-
-    private func item(_ label: String, detail: String? = nil, symbol: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(label, systemImage: symbol)
-            if let detail { Text(detail) }
-        }
-        .disabled(disabled)
     }
 }
 

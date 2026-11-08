@@ -23,6 +23,7 @@ struct ComposerView<Above: View>: View {
     var onStop: (() -> Void)?
     var onAnswer: ((PendingQuestion, String) -> Void)?
     var onSettings: () -> Void
+    var quick: QuickSettings? = nil
     @ViewBuilder var above: Above
 
     @Environment(\.palette) private var palette
@@ -81,15 +82,17 @@ struct ComposerView<Above: View>: View {
                                                 .foregroundStyle(palette.ink, palette.raised)
                                                 .font(.body)
                                         }
+                                        .frame(width: 44, height: 44)
+                                        .contentShape(Rectangle())
                                         .buttonStyle(.plain)
-                                        .offset(x: 6, y: -6)
+                                        .offset(x: 16, y: -16)
                                         .accessibilityLabel("Remove picture")
                                     }
                                     .accessibilityLabel("Picture to send")
                             }
                         }
-                        .padding(.top, 6)
-                        .padding(.trailing, 6)
+                        .padding(.top, 16)
+                        .padding(.trailing, 16)
                     }
                 }
                 if !blocked {
@@ -124,26 +127,24 @@ struct ComposerView<Above: View>: View {
                                 .foregroundStyle(palette.inkDim)
                                 .frame(width: 34, height: 34)
                                 .background(palette.raised, in: Circle())
-                                .contentShape(Circle())
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
                         }
                         .disabled(images.count >= PickedImage.limit)
                         .accessibilityLabel("Add pictures")
                     }
-                    Button(action: onSettings) {
-                        // The summary gives up its axis names, then its values, before the run's buttons give up any room.
-                        ViewThatFits(in: .horizontal) {
-                            settingsSummary([summary.model, summary.effort, summary.mode].compactMap { $0 })
-                            settingsSummary([summary.model, summary.effort].compactMap { $0 })
-                            settingsSummary([summary.model])
-                            Image(systemName: "slider.horizontal.3")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(palette.inkDim)
-                                .frame(width: 34, height: 34)
-                                .background(palette.raised, in: Circle())
+                    Group {
+                        if let quick {
+                            Menu {
+                                QuickSettingsItems(settings: settings, catalog: model.catalog, quick: quick, onMore: onSettings)
+                            } label: {
+                                settingsChip(summary)
+                            }
+                        } else {
+                            Button(action: onSettings) { settingsChip(summary) }
+                                .buttonStyle(.plain)
                         }
-                        .contentShape(Capsule())
                     }
-                    .buttonStyle(.plain)
                     .accessibilityLabel("Thread settings: \([summary.mode, summary.model, summary.effort].compactMap { $0 }.joined(separator: ", "))")
                     Spacer(minLength: 4)
                     if queueing {
@@ -164,6 +165,8 @@ struct ComposerView<Above: View>: View {
                                 .frame(width: 34, height: 34)
                                 .background(typed ? palette.accent : palette.raised, in: Circle())
                                 .animation(.snappy(duration: 0.2), value: typed)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .disabled(!typed)
@@ -173,8 +176,9 @@ struct ComposerView<Above: View>: View {
                 }
             }
             .padding(.top, 14)
-            .padding(.horizontal, 14)
-            .padding(.bottom, 10)
+            .padding(.leading, 14)
+            .padding(.trailing, 9)
+            .padding(.bottom, 5)
             .composerSurface(palette, focused: focused)
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
@@ -220,6 +224,22 @@ struct ComposerView<Above: View>: View {
         }
     }
 
+    /// The summary gives up its axis names, then its values, before the run's buttons give up any room.
+    private func settingsChip(_ summary: (mode: String, model: String, effort: String?)) -> some View {
+        ViewThatFits(in: .horizontal) {
+            settingsSummary([summary.model, summary.effort, summary.mode].compactMap { $0 })
+            settingsSummary([summary.model, summary.effort].compactMap { $0 })
+            settingsSummary([summary.model])
+            Image(systemName: "slider.horizontal.3")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(palette.inkDim)
+                .frame(width: 34, height: 34)
+                .background(palette.raised, in: Circle())
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+    }
+
     /// The thread's model, effort and mode as one chip, dropping from the end when room runs out.
     private func settingsSummary(_ values: [String]) -> some View {
         HStack(spacing: 5) {
@@ -243,6 +263,8 @@ struct ComposerView<Above: View>: View {
                 .frame(height: 34)
                 .foregroundStyle(primary ? palette.accentInk : palette.ink)
                 .background(primary ? palette.accent : palette.raised, in: Capsule())
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -254,6 +276,8 @@ struct ComposerView<Above: View>: View {
                 .frame(width: 11, height: 11)
                 .frame(width: 34, height: 34)
                 .background(aside ? palette.raised : palette.contrast, in: Circle())
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Stop this run")
@@ -292,8 +316,81 @@ struct ComposerView<Above: View>: View {
 }
 
 extension ComposerView where Above == EmptyView {
-    init(model: PhoneModel, draftKey: String, running: Bool, settings: MobileThreadSettings, question: PendingQuestion?, returned: ComposerReturned?, onSend: @escaping (String, [String]) -> Void, onSteer: ((String, [String]) -> Void)?, onStop: (() -> Void)?, onAnswer: ((PendingQuestion, String) -> Void)?, onSettings: @escaping () -> Void) {
-        self.init(model: model, draftKey: draftKey, running: running, settings: settings, question: question, returned: returned, onSend: onSend, onSteer: onSteer, onStop: onStop, onAnswer: onAnswer, onSettings: onSettings) { EmptyView() }
+    init(model: PhoneModel, draftKey: String, running: Bool, settings: MobileThreadSettings, question: PendingQuestion?, returned: ComposerReturned?, onSend: @escaping (String, [String]) -> Void, onSteer: ((String, [String]) -> Void)?, onStop: (() -> Void)?, onAnswer: ((PendingQuestion, String) -> Void)?, onSettings: @escaping () -> Void, quick: QuickSettings? = nil) {
+        self.init(model: model, draftKey: draftKey, running: running, settings: settings, question: question, returned: returned, onSend: onSend, onSteer: onSteer, onStop: onStop, onAnswer: onAnswer, onSettings: onSettings, quick: quick) { EmptyView() }
+    }
+}
+
+/// What the settings chip changes in place, without opening the sheet.
+struct QuickSettings {
+    /// A thread keeps its engine; a draft may pick any.
+    var locked: Bool
+    var onPolicy: (String) -> Void
+    var onModel: (String, String) -> Void
+    var onEffort: (String, String) -> Void
+    var onFastMode: (Bool) -> Void
+}
+
+/// The settings chip's menu: the mode inline, since it changes most, then the model and effort a level down.
+struct QuickSettingsItems: View {
+    var settings: MobileThreadSettings
+    var catalog: EngineCatalog
+    var quick: QuickSettings
+    var onMore: () -> Void
+
+    var body: some View {
+        let known = catalog.knows(settings.engine)
+        let coordinating = settings.coordinating == true
+        let headings = catalog.library(engine: settings.engine, locked: quick.locked).filter { !$0.locked && !$0.models.isEmpty }
+        let efforts = known && settings.model != nil ? catalog.efforts(settings.engine, model: settings.model!, coordinating: coordinating) : []
+        let chosenEffort = settings.model.map { catalog.effortForModel(settings.engine, model: $0, effort: settings.effort, coordinating: coordinating) }
+        if known {
+            Section("Mode") {
+                Picker("Mode", selection: Binding(get: { settings.policy }, set: quick.onPolicy)) {
+                    ForEach(catalog.policies(settings.engine), id: \.id) { policy in
+                        Label(policy.label, systemImage: ThreadSettingsSheet.policySymbol(policy.id)).tag(policy.id)
+                    }
+                }
+                .pickerStyle(.inline)
+            }
+        }
+        Section {
+            if !headings.isEmpty {
+                Picker(selection: Binding(get: { "\(settings.engine)|\(settings.model ?? "")" }, set: { value in
+                    let parts = value.split(separator: "|", maxSplits: 1).map(String.init)
+                    if parts.count == 2 { quick.onModel(parts[0], parts[1]) }
+                })) {
+                    ForEach(headings, id: \.key) { heading in
+                        Section(headings.count > 1 ? heading.label : "") {
+                            ForEach(heading.models, id: \.id) { spec in
+                                Text(spec.label).tag("\(heading.engine)|\(spec.id)")
+                            }
+                        }
+                    }
+                } label: {
+                    Label("Model", systemImage: "cpu")
+                    Text(catalog.model(settings.engine, settings.model)?.label ?? settings.model ?? "None")
+                }
+                .pickerStyle(.menu)
+            }
+            if !efforts.isEmpty, let chosenEffort {
+                Picker(selection: Binding(get: { chosenEffort }, set: { quick.onEffort(settings.engine, $0) })) {
+                    ForEach(efforts, id: \.id) { Text($0.label).tag($0.id) }
+                } label: {
+                    Label("Effort", systemImage: "gauge.with.dots.needle.50percent")
+                    Text(efforts.first { $0.id == chosenEffort }?.label ?? chosenEffort)
+                }
+                .pickerStyle(.menu)
+            }
+            if catalog.fastMode(settings.engine) {
+                Toggle(isOn: Binding(get: { settings.fastMode == true }, set: quick.onFastMode)) {
+                    Label("Fast Mode", systemImage: "hare")
+                }
+            }
+        }
+        Section {
+            Button(action: onMore) { Label("All Settings…", systemImage: "slider.horizontal.3") }
+        }
     }
 }
 

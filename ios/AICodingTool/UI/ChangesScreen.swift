@@ -44,26 +44,20 @@ struct ChangesScreen: View {
         }
         .screenBackground(palette)
         .notice(model)
+        .navigationTitle("Changes")
         .navigationBarTitleDisplayMode(.inline)
+        .barSubtitle([thread?.title, model.state.connection != .live ? model.state.connection.label : nil].compactMap { $0 }.joined(separator: " · "))
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                VStack(spacing: 1) {
-                    Text("Changes").font(.headline).foregroundStyle(palette.ink)
-                    if let title = thread?.title { Text(title).font(.caption).foregroundStyle(palette.muted).lineLimit(1) }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Toggle(isOn: Binding(get: { wrap }, set: { value in withAnimation(.snappy) { wrap = value } })) {
+                        Label("Wrap Lines", systemImage: "text.word.spacing")
+                    }
+                    Button { refresh() } label: { Label("Reload", systemImage: "arrow.clockwise") }
+                } label: {
+                    Label("View Options", systemImage: "ellipsis")
                 }
-            }
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                ConnectionMark(connection: model.state.connection)
-                Button { withAnimation(.snappy) { wrap.toggle() } } label: {
-                    Image(systemName: "arrow.turn.down.left")
-                }
-                .tint(wrap ? palette.accent : palette.inkDim)
-                .accessibilityLabel("Wrap lines")
-                .accessibilityValue(wrap ? "On" : "Off")
-                Button { refresh() } label: {
-                    Image(systemName: "arrow.clockwise").symbolEffect(.rotate, isActive: summary == .reading)
-                }
-                .accessibilityLabel("Read the comparison again")
+                .tint(palette.ink)
             }
         }
         .task(id: "\(thread?.id ?? ""):\(range.key):\(reads):\(model.live)") { await readSummary() }
@@ -91,12 +85,19 @@ struct ChangesScreen: View {
                 .listRowSeparator(.hidden)
             }
             if let note = note {
-                VStack(spacing: 10) {
-                    Text(note).foregroundStyle(palette.muted).multilineTextAlignment(.center)
-                    if model.live, isFailure { Button("Try again") { refresh() }.buttonStyle(.bordered) }
+                Group {
+                    if model.live, summary == .reading {
+                        ProgressView(note).frame(maxWidth: .infinity).padding(.vertical, 40)
+                    } else {
+                        ContentUnavailableView {
+                            Label(noteTitle, systemImage: isFailure ? "exclamationmark.triangle" : model.live ? "plus.forwardslash.minus" : "icloud.slash")
+                        } description: {
+                            Text(note)
+                        } actions: {
+                            if model.live, isFailure { Button("Try Again") { refresh() } }
+                        }
+                    }
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             }
@@ -109,6 +110,10 @@ struct ChangesScreen: View {
             }
         }
         .listStyle(.plain)
+        .refreshable {
+            patches = [:]
+            await readSummary()
+        }
         .hardTopEdge()
         // Row separators keep the tint they were first drawn with, so a theme change redraws the list.
         .id(palette.id)
@@ -127,6 +132,12 @@ struct ChangesScreen: View {
         }
     }
 
+    private var noteTitle: String {
+        if !model.live { return "Offline" }
+        if isFailure { return "Couldn't Read Changes" }
+        return "No Changes"
+    }
+
     private var note: String? {
         guard model.live else { return "Waiting for the line to come back." }
         switch summary {
@@ -134,7 +145,7 @@ struct ChangesScreen: View {
         case .failed(let message), .read(.error(let message)): return message
         case .read(.unknown): return "The checkout is no longer registered."
         case .read(.unavailable(let reason)): return "The checkout is \(reason)."
-        case .read(.available(_, let files, _, _)): return files.isEmpty ? "Nothing has changed in this comparison." : nil
+        case .read(.available(_, let files, _, _)): return files.isEmpty ? "Nothing differs in this comparison." : nil
         }
     }
 

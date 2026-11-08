@@ -154,14 +154,19 @@ struct GateView: View {
         .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.interactively)
         .background(palette.canvas.ignoresSafeArea())
-        .sheet(isPresented: $scanning) {
-            QRScanner { text in
-                guard let link = PairingLink(text) else { return false }
-                scanning = false
-                model.connection.pair(with: link)
-                return true
+        .fullScreenCover(isPresented: $scanning) {
+            NavigationStack {
+                QRScanner { text in
+                    guard let link = PairingLink(text) else { return false }
+                    scanning = false
+                    model.connection.pair(with: link)
+                    return true
+                }
+                .ignoresSafeArea()
+                .navigationTitle("Scan Pairing Code")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { SheetClose { scanning = false } }
             }
-            .ignoresSafeArea()
         }
     }
 

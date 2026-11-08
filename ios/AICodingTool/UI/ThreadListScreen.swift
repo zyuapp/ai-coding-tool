@@ -4,7 +4,6 @@ import SwiftUI
 struct ThreadListScreen: View {
     var model: PhoneModel
     @Environment(\.palette) private var palette
-    @State private var picking = false
     @State private var renaming: MobileThreadEntry?
     @State private var now = Date()
     @State private var query = ""
@@ -45,12 +44,6 @@ struct ThreadListScreen: View {
     var body: some View {
         let activity = shown
         List {
-            if !projects.isEmpty {
-                projectFilter
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 6, trailing: 16))
-            }
             if bare {
                 EmptyList { model.newThread(projectId: nil, project: nil) }
                     .listRowBackground(Color.clear)
@@ -63,7 +56,7 @@ struct ThreadListScreen: View {
             } else {
                 ForEach(Self.sections) { section in
                     let threads = activity[keyPath: section.key]
-                    if (section.id != "snoozed" && !searching) || !threads.isEmpty {
+                    if !threads.isEmpty {
                         sectionView(id: section.id, label: section.label, threads: threads, activity: activity)
                     }
                 }
@@ -78,22 +71,21 @@ struct ThreadListScreen: View {
         .scrollContentBackground(.hidden)
         .screenBackground(palette)
         .notice(model)
-        .navigationTitle("Threads")
+        .navigationTitle(narrowed?.name ?? "Threads")
         .navigationBarTitleDisplayMode(.large)
-        .searchable(text: $query, prompt: "Search threads")
+        .barSubtitle(computerLine)
+        .searchable(text: $query, prompt: "Search Threads")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { ComputerMenu(model: model) }
-            ToolbarItem(placement: .topBarTrailing) {
-                let start = model.startingProject
-                Button { model.newThread(projectId: start?.projectId, project: start?.name) } label: {
-                    Image(systemName: "square.and.pencil")
-                }
-                .accessibilityLabel(start.map { "New thread in \($0.name)" } ?? "New thread")
+            if !projects.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) { projectFilter }
             }
-        }
-        .sheet(isPresented: $picking) {
-            ProjectSheet(projects: projects, selected: narrowed?.projectId, none: "All projects", label: "Show threads in") { projectId in
-                model.activityProject = projectId
+            if #available(iOS 26, *) {
+                DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                ToolbarSpacer(.fixed, placement: .bottomBar)
+                ToolbarItem(placement: .bottomBar) { composeButton }
+            } else {
+                ToolbarItem(placement: .topBarTrailing) { composeButton }
             }
         }
         .sheet(item: $renaming) { thread in
@@ -107,23 +99,39 @@ struct ThreadListScreen: View {
         }
     }
 
-    private var projectFilter: some View {
-        Button { picking = true } label: {
-            HStack(spacing: 6) {
-                Image(systemName: narrowed != nil ? "folder.fill" : "folder")
-                    .font(.footnote.weight(.semibold))
-                Text(narrowed?.name ?? "All projects").lineLimit(1)
-                Image(systemName: "chevron.down").font(.caption2.weight(.bold)).opacity(0.7)
-            }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(narrowed != nil ? palette.accent : palette.inkDim)
-            .padding(.horizontal, 14)
-            .frame(height: 34)
-            .background(narrowed != nil ? palette.accentChip : palette.surface, in: Capsule())
-            .contentShape(Capsule())
+    /// The computer the list is from, and its line when that is not live.
+    private var computerLine: String? {
+        let name = model.state.computerName ?? model.connection.computers.first { $0.origin == model.connection.origin }?.title
+        let state = model.restarting ? "Restarting" : model.state.connection != .live ? model.state.connection.label : model.view.updateOffered ? "Update available" : nil
+        let parts = [name, state].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private var composeButton: some View {
+        let start = model.startingProject
+        return Button { model.newThread(projectId: start?.projectId, project: start?.name) } label: {
+            Label("New Thread", systemImage: "square.and.pencil")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Show threads in \(narrowed?.name ?? "all projects")")
+        .tint(palette.ink)
+        .accessibilityLabel(start.map { "New thread in \($0.name)" } ?? "New thread")
+    }
+
+    /// Which project's threads the list shows, picked like any other filter.
+    private var projectFilter: some View {
+        Menu {
+            Picker("Show Threads In", selection: Binding(get: { narrowed?.projectId ?? "" }, set: { model.activityProject = $0.isEmpty ? nil : $0 })) {
+                Label("All Projects", systemImage: "square.stack").tag("")
+                ForEach(projects, id: \.projectId) { project in
+                    Label(project.name, systemImage: "folder").tag(project.projectId ?? "")
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Label("Filter by Project", systemImage: "line.3.horizontal.decrease")
+        }
+        // Tinted only while it narrows the list, which is what the color says.
+        .tint(narrowed != nil ? palette.accent : palette.ink)
+        .accessibilityValue(narrowed?.name ?? "All projects")
     }
 
     @ViewBuilder
@@ -140,15 +148,7 @@ struct ThreadListScreen: View {
             .listRowInsets(EdgeInsets(top: id == "priority" ? 12 : 26, leading: 16, bottom: 2, trailing: 16))
             if open {
                 ForEach(threads) { thread in
-                    ThreadRow(thread: thread, now: now, dismissable: id == "priority" && thread.attention, snoozed: id == "snoozed", model: model) { renaming = thread }
-                }
-                if threads.isEmpty, id == "priority" {
-                    Label("Nothing needs you", systemImage: "checkmark.circle")
-                        .font(.subheadline)
-                        .foregroundStyle(palette.quiet)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                    ThreadRow(thread: thread, now: now, snoozed: id == "snoozed", model: model) { renaming = thread }
                 }
             }
         }
@@ -228,7 +228,6 @@ private struct EmptyList: View {
 struct ThreadRow: View {
     var thread: MobileThreadEntry
     var now: Date
-    var dismissable: Bool
     var snoozed = false
     var model: PhoneModel
     var onRename: () -> Void
@@ -258,27 +257,13 @@ struct ThreadRow: View {
                         meta
                     }
                     Spacer(minLength: 0)
+                    Text(Format.relativeTime(thread.lastActivityAt, now: now))
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(palette.muted)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(RowPress())
-            VStack(alignment: .trailing, spacing: 8) {
-                Text(Format.relativeTime(thread.lastActivityAt, now: now))
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(palette.muted)
-                    .padding(.top, 1)
-                if dismissable {
-                    Button { model.dismiss(thread.id) } label: {
-                        Image(systemName: "checkmark.circle")
-                            .font(.body.weight(.light))
-                            .foregroundStyle(palette.quiet)
-                            .frame(width: 44, height: 36, alignment: .trailing)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Dismiss \(thread.title)")
-                }
-            }
         }
         .padding(.vertical, 10)
         .listRowInsets(EdgeInsets(top: 0, leading: 9, bottom: 0, trailing: 16))
@@ -289,14 +274,14 @@ struct ThreadRow: View {
         .archiveConfirmation($archiving) { asked in model.archive(asked.id, leaving: false) }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) { askArchive() } label: { Label("Archive", systemImage: "archivebox") }
+            Button(action: onRename) { Label("Rename", systemImage: "pencil") }
+                .tint(palette.info)
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
             if thread.attention {
                 Button { model.dismiss(thread.id) } label: { Label("Dismiss", systemImage: "checkmark") }
                     .tint(palette.success)
             }
-        }
-        .swipeActions(edge: .leading, allowsFullSwipe: false) {
-            Button(action: onRename) { Label("Rename", systemImage: "pencil") }
-                .tint(palette.info)
         }
         .accessibilityElement(children: .contain)
         .accessibilityValue([needsYou ? "Needs you" : nil, running ? "Running" : nil, thread.unread ? "Unread" : nil].compactMap { $0 }.joined(separator: ", "))
@@ -337,13 +322,14 @@ struct ThreadRow: View {
     }
 
     @ViewBuilder private var menuItems: some View {
-        Button { model.openThread(thread.id, title: thread.title, project: thread.projectName) } label: { Label("Open", systemImage: "text.bubble") }
-        Divider()
-        Button(action: onRename) { Label("Rename…", systemImage: "pencil") }
-        Button { model.send(.fork(thread.id, worktree: false)) } label: { Label("Fork Thread", systemImage: "arrow.triangle.branch") }
-        Divider()
         if thread.attention {
-            Button { model.dismiss(thread.id) } label: { Label("Dismiss from Priority", systemImage: "checkmark") }
+            Section {
+                Button { model.dismiss(thread.id) } label: { Label("Dismiss", systemImage: "checkmark.circle") }
+            }
+        }
+        Section {
+            Button(action: onRename) { Label("Rename…", systemImage: "pencil") }
+            Button { model.send(.fork(thread.id, worktree: false)) } label: { Label("Fork", systemImage: "arrow.triangle.branch") }
         }
         Button(role: .destructive) { askArchive() } label: { Label("Archive…", systemImage: "archivebox") }
     }

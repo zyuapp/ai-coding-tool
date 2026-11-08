@@ -146,7 +146,7 @@ struct MessageView: View {
                             Image(systemName: copied ? "checkmark" : "square.on.square")
                                 .font(.caption.weight(.medium))
                                 .foregroundStyle(copied ? palette.success : palette.quiet)
-                                .frame(width: 28, height: 24)
+                                .frame(width: 44, height: 44)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -267,7 +267,7 @@ private struct QueuedRow: View {
                         Label("Steer Now", systemImage: "bolt.fill")
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(palette.accent)
-                            .frame(height: 32)
+                            .frame(height: 44)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -276,7 +276,7 @@ private struct QueuedRow: View {
                         Image(systemName: "xmark")
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(palette.quiet)
-                            .frame(width: 32, height: 32)
+                            .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

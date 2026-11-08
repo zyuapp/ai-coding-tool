@@ -58,7 +58,7 @@ struct BackgroundSheet: View {
                 }
             }
         } actions: {
-            ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            SheetClose { dismiss() }
         }
         .presentationDetents([.medium, .large])
         .confirmationDialog(stopping.map { "Stop \($0.title)?" } ?? "", isPresented: Binding(get: { stopping != nil }, set: { if !$0 { stopping = nil } }), titleVisibility: .visible, presenting: stopping) { item in
@@ -82,8 +82,8 @@ struct BackgroundSheet: View {
             Spacer(minLength: 0)
             trailing(item)
         }
-        .listRowBackground(palette.raised)
-        .accessibilityElement(children: .combine)
+        .sheetRow()
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder private func trailing(_ item: MobileBackgroundItem) -> some View {
@@ -96,7 +96,8 @@ struct BackgroundSheet: View {
                     .foregroundStyle(palette.danger)
                     .frame(width: 32, height: 32)
                     .background(palette.dangerSurface, in: Circle())
-                    .contentShape(Circle())
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Stop \(item.title)")

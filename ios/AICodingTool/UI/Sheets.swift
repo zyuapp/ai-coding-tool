@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// A sheet's frame: a title bar with Done, over the palette's menu ground.
+/// A sheet's frame: a title bar over the palette's menu ground. On iOS 26 the system's glass shows
+/// through the bar, and a partial sheet floats inset as glass.
 struct SheetFrame<Content: View, Actions: ToolbarContent>: View {
     var title: String
     @ViewBuilder var content: Content
@@ -11,16 +12,108 @@ struct SheetFrame<Content: View, Actions: ToolbarContent>: View {
         NavigationStack {
             content
                 .listSectionSpacing(.compact)
-                .contentMargins(.top, -12, for: .scrollContent)
+                .contentMargins(.top, 8, for: .scrollContent)
                 .scrollContentBackground(.hidden)
-                .background(palette.menu.ignoresSafeArea())
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbarBackground(palette.menu, for: .navigationBar)
                 .toolbar { actions }
+                .sheetGround(palette)
         }
-        .presentationBackground(palette.menu)
+        .presentationDragIndicator(.visible)
+        .sheetPresentationGround(palette)
         .environment(\.palette, palette)
+    }
+}
+
+extension View {
+    @ViewBuilder fileprivate func sheetGround(_ palette: Palette) -> some View {
+        if #available(iOS 26, *) {
+            self
+        } else {
+            background(palette.menu.ignoresSafeArea()).toolbarBackground(palette.menu, for: .navigationBar)
+        }
+    }
+
+    @ViewBuilder fileprivate func sheetPresentationGround(_ palette: Palette) -> some View {
+        if #available(iOS 26, *) {
+            self
+        } else {
+            presentationBackground(palette.menu)
+        }
+    }
+}
+
+/// The button that puts away a sheet whose choices take effect as they are made: the system's close glyph on iOS 26.
+struct SheetClose: ToolbarContent {
+    var action: () -> Void
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            if #available(iOS 26, *) {
+                Button(role: .close, action: action).tint(nil)
+            } else {
+                Button("Done", action: action)
+            }
+        }
+    }
+}
+
+/// Cancel and a confirming action, for a sheet whose change waits until it is confirmed.
+struct SheetConfirm: ToolbarContent {
+    var label: String
+    var enabled: Bool
+    var onCancel: () -> Void
+    var onConfirm: () -> Void
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            if #available(iOS 26, *) {
+                Button(role: .cancel, action: onCancel)
+            } else {
+                Button("Cancel", action: onCancel)
+            }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+            if #available(iOS 26, *) {
+                Button(label, role: .confirm, action: onConfirm).disabled(!enabled)
+            } else {
+                Button(label, action: onConfirm).disabled(!enabled)
+            }
+        }
+    }
+}
+
+/// A row's background in a sheet: the palette's raised ground, translucent over iOS 26's glass.
+struct SheetRowGround: ViewModifier {
+    @Environment(\.palette) private var palette
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content.listRowBackground(palette.raised.opacity(0.55))
+        } else {
+            content.listRowBackground(palette.raised)
+        }
+    }
+}
+
+extension View {
+    func sheetRow() -> some View { modifier(SheetRowGround()) }
+}
+
+/// One setting's choices, pushed inside its sheet. A pick goes back to the setting.
+struct ChoicePage<Content: View>: View {
+    var title: String
+    @ViewBuilder var content: (_ done: @escaping () -> Void) -> Content
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        List { content { dismiss() } }
+            .listSectionSpacing(.compact)
+            .scrollContentBackground(.hidden)
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .sheetGround(palette)
     }
 }
 
@@ -78,7 +171,7 @@ struct OptionRow: View {
         .buttonStyle(.plain)
         .disabled(disabled && !selected)
         .opacity(disabled && !selected ? 0.5 : 1)
-        .listRowBackground(palette.raised)
+        .sheetRow()
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 }
@@ -119,7 +212,7 @@ struct ProjectSheet: View {
                         } label: {
                             Label("Add project…", systemImage: "folder.badge.plus").foregroundStyle(palette.accent)
                         }
-                        .listRowBackground(palette.raised)
+                        .sheetRow()
                     }
                 }
                 if searching, matches.isEmpty {
@@ -133,7 +226,7 @@ struct ProjectSheet: View {
             }
             .searchableWhen(projects.count > 8, text: $query, prompt: "Search projects")
         } actions: {
-            ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            SheetClose { dismiss() }
         }
         .presentationDetents([.medium, .large])
     }
@@ -169,14 +262,13 @@ struct RenameSheet: View {
                         .submitLabel(.done)
                         .onSubmit { if changed { save() } }
                         .onChange(of: draft) { _, next in if next.count > 1_000 { draft = String(next.prefix(1_000)) } }
-                        .listRowBackground(palette.raised)
+                        .sheetRow()
                 } footer: {
                     Text("An empty name lets the next reply name the thread.").foregroundStyle(palette.muted)
                 }
             }
         } actions: {
-            ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-            ToolbarItem(placement: .confirmationAction) { Button("Save", action: save).disabled(!changed) }
+            SheetConfirm(label: "Save", enabled: changed, onCancel: { dismiss() }, onConfirm: save)
         }
         .presentationDetents([.medium])
         .onAppear { focused = true }
@@ -233,7 +325,7 @@ struct LocationSheet: View {
                 }
             }
         } actions: {
-            ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            SheetClose { dismiss() }
         }
         .presentationDetents([.medium, .large])
     }
@@ -273,7 +365,7 @@ struct StartInSheet: View {
                 }
             }
         } actions: {
-            ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            SheetClose { dismiss() }
         }
         .presentationDetents([.medium, .large])
     }
@@ -344,90 +436,118 @@ struct ThreadSettingsSheet: View {
         let headings = catalog.library(engine: current.engine, locked: locked)
         let offering = Set(headings.filter { !$0.models.isEmpty }.map(\.engine))
         let others = onNewWith == nil ? [] : headings.filter { $0.locked && $0.first && offering.contains($0.engine) }
+        let offered = headings.filter { !$0.locked && !$0.models.isEmpty }
         let efforts = known && current.model != nil ? catalog.efforts(current.engine, model: current.model!, coordinating: coordinating) : []
-        SheetFrame(title: "Settings") {
+        let chosenEffort = current.model.map { catalog.effortForModel(current.engine, model: $0, effort: current.effort, coordinating: coordinating) }
+        let modelName = known ? catalog.model(current.engine, current.model)?.label : nil
+        SheetFrame(title: "Thread Settings") {
             List {
-                if known {
-                    Section {
-                        ForEach(catalog.policies(current.engine), id: \.id) { policy in
-                            OptionRow(label: policy.label, detail: policy.description, symbol: Self.policySymbol(policy.id), selected: policy.id == current.policy) {
-                                choose { $0.policy = policy.id }
-                                onPolicy(policy.id)
+                Section {
+                    if !offered.isEmpty {
+                        drill("Model", value: modelName ?? current.model ?? "None", symbol: "cpu") {
+                            ChoicePage(title: "Model") { done in
+                                ForEach(offered, id: \.key) { heading in
+                                    Section {
+                                        ForEach(heading.models, id: \.id) { spec in
+                                            OptionRow(label: spec.label, detail: spec.description, selected: heading.engine == current.engine && spec.id == current.model) {
+                                                choose { $0.engine = heading.engine; $0.model = spec.id }
+                                                onModel(heading.engine, spec.id)
+                                                done()
+                                            }
+                                        }
+                                    } header: {
+                                        if offered.count > 1 { SectionLabel(heading.label) }
+                                    }
+                                }
                             }
                         }
-                        refusedLine("policy")
-                    } header: {
-                        SectionLabel("Mode")
                     }
-                }
-                // Each engine or provider is a card of its own under its name, so every card keeps its rounded corners.
-                let offered = headings.filter { !$0.locked && !$0.models.isEmpty }
-                ForEach(Array(offered.enumerated()), id: \.element.key) { index, heading in
-                    Section {
-                        ForEach(heading.models, id: \.id) { spec in
-                            OptionRow(label: spec.label, detail: spec.description, selected: heading.engine == current.engine && spec.id == current.model) {
-                                choose { $0.engine = heading.engine; $0.model = spec.id }
-                                onModel(heading.engine, spec.id)
+                    if !efforts.isEmpty, let chosenEffort {
+                        drill("Effort", value: efforts.first { $0.id == chosenEffort }?.label ?? chosenEffort, symbol: "gauge.with.dots.needle.50percent") {
+                            ChoicePage(title: "Effort") { done in
+                                Section {
+                                    ForEach(efforts, id: \.id) { effort in
+                                        OptionRow(label: effort.label, detail: effort.description, selected: effort.id == chosenEffort) {
+                                            choose { $0.effort = effort.id }
+                                            onEffort(current.engine, effort.id)
+                                            done()
+                                        }
+                                    }
+                                }
                             }
                         }
-                        if index == offered.count - 1, refused.contains("model") || refused.contains("engine") { refusedText }
-                    } header: {
-                        SectionLabel("\(heading.label) models")
+                    }
+                    if known {
+                        drill("Mode", value: catalog.policyLabel(current.policy), symbol: Self.policySymbol(current.policy)) {
+                            ChoicePage(title: "Mode") { done in
+                                Section {
+                                    ForEach(catalog.policies(current.engine), id: \.id) { policy in
+                                        OptionRow(label: policy.label, detail: policy.description, symbol: Self.policySymbol(policy.id), selected: policy.id == current.policy) {
+                                            choose { $0.policy = policy.id }
+                                            onPolicy(policy.id)
+                                            done()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if catalog.fastMode(current.engine) {
+                        Toggle(isOn: Binding(get: { current.fastMode == true }, set: { value in
+                            choose { $0.fastMode = value }
+                            onFastMode(value)
+                        })) {
+                            Label("Fast Mode", systemImage: "hare").foregroundStyle(palette.ink)
+                        }
+                        .sheetRow()
+                    }
+                } footer: {
+                    if let refusedNames {
+                        Text("Couldn't change \(refusedNames). Try again.").foregroundStyle(palette.danger)
                     }
                 }
                 if !others.isEmpty {
-                    Section(header: SectionLabel("Other engines")) {
+                    Section {
                         ForEach(others, id: \.engine) { heading in
                             Button {
                                 dismiss()
                                 onNewWith?(heading.engine)
                             } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "square.and.pencil").frame(width: 24).foregroundStyle(palette.muted)
-                                    Text("New thread with \(catalog.engineLabel(heading.engine))").foregroundStyle(palette.ink)
-                                    Spacer()
-                                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(palette.quiet)
-                                }
-                                .contentShape(Rectangle())
+                                Label("New Thread with \(catalog.engineLabel(heading.engine))", systemImage: "square.and.pencil").foregroundStyle(palette.ink)
                             }
-                            .buttonStyle(.plain)
-                            .listRowBackground(palette.raised)
+                            .sheetRow()
                         }
-                    }
-                }
-                if known, let model = current.model, !efforts.isEmpty {
-                    let chosen = catalog.effortForModel(current.engine, model: model, effort: current.effort, coordinating: coordinating)
-                    Section {
-                        ForEach(efforts, id: \.id) { effort in
-                            OptionRow(label: effort.label, detail: effort.description, selected: effort.id == chosen) {
-                                choose { $0.effort = effort.id }
-                                onEffort(current.engine, effort.id)
-                            }
-                        }
-                        refusedLine("effort")
-                    } header: {
-                        SectionLabel("Effort")
-                    }
-                }
-                if catalog.fastMode(current.engine) {
-                    Section {
-                        Toggle(isOn: Binding(get: { current.fastMode == true }, set: { value in
-                            choose { $0.fastMode = value }
-                            onFastMode(value)
-                        })) {
-                            Label("Fast mode", systemImage: "bolt").foregroundStyle(palette.ink)
-                        }
-                        .listRowBackground(palette.raised)
-                        refusedLine("fastMode")
+                    } footer: {
+                        Text("A thread keeps the engine it started with.").foregroundStyle(palette.muted)
                     }
                 }
             }
         } actions: {
-            ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            SheetClose { dismiss() }
         }
         .presentationDetents([.medium, .large])
         .onChange(of: settings) { _, _ in reconsider() }
         .onChange(of: live) { _, _ in reconsider() }
+    }
+
+    /// What the computer turned down, named as the rows name it.
+    private var refusedNames: String? {
+        let names = [("model", "the model"), ("engine", "the model"), ("effort", "the effort"), ("policy", "the mode"), ("fastMode", "fast mode")]
+            .filter { refused.contains($0.0) }.map(\.1)
+        let unique = names.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+        return unique.isEmpty ? nil : ListFormatter.localizedString(byJoining: unique)
+    }
+
+    /// A setting's row, showing its value and opening its choices.
+    private func drill<Page: View>(_ title: String, value: String, symbol: String, @ViewBuilder page: @escaping () -> Page) -> some View {
+        NavigationLink(destination: page) {
+            LabeledContent {
+                Text(value).foregroundStyle(palette.muted).lineLimit(1)
+            } label: {
+                Label(title, systemImage: symbol).foregroundStyle(palette.ink)
+            }
+        }
+        .sheetRow()
     }
 
     static func policySymbol(_ policy: String) -> String {
@@ -438,14 +558,6 @@ struct ThreadSettingsSheet: View {
         case "bypass": "bolt"
         default: "circle.dashed"
         }
-    }
-
-    @ViewBuilder private func refusedLine(_ key: String) -> some View {
-        if refused.contains(key) { refusedText }
-    }
-
-    private var refusedText: some View {
-        Text("Couldn't change. Try again.").font(.footnote).foregroundStyle(palette.danger).listRowBackground(palette.menu)
     }
 
     private func choose(_ change: (inout Pending) -> Void) {
@@ -508,16 +620,16 @@ struct MembersSheet: View {
                         } label: {
                             row(member)
                         }
-                        .listRowBackground(palette.raised)
+                        .sheetRow()
                     } else {
                         row(member)
-                            .listRowBackground(palette.raised)
+                            .sheetRow()
                             .accessibilityHint("Open it on \(member.computer ?? "that computer")")
                     }
                 }
             }
         } actions: {
-            ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            SheetClose { dismiss() }
         }
         .presentationDetents([fitted, .large], selection: $detent)
         .onChange(of: fitted) { _, next in
@@ -656,7 +768,7 @@ struct AddProjectSheet: View {
                         .submitLabel(.done)
                         .focused($focused)
                         .onSubmit(add)
-                        .listRowBackground(palette.raised)
+                        .sheetRow()
                         .accessibilityLabel("Folder path")
                 } footer: {
                     Text(problem ?? "A thread starts in it once it is added.").foregroundStyle(problem == nil ? palette.muted : palette.danger)
@@ -674,7 +786,7 @@ struct AddProjectSheet: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .listRowBackground(palette.raised)
+                            .sheetRow()
                         }
                     } header: {
                         SectionLabel("Folders")
@@ -682,8 +794,7 @@ struct AddProjectSheet: View {
                 }
             }
         } actions: {
-            ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-            ToolbarItem(placement: .confirmationAction) { Button("Add", action: add).disabled(root.isEmpty || root == "~" || root == "~/") }
+            SheetConfirm(label: "Add", enabled: !(root.isEmpty || root == "~" || root == "~/"), onCancel: { dismiss() }, onConfirm: add)
         }
         .presentationDetents([.large])
         .onAppear { focused = true }
