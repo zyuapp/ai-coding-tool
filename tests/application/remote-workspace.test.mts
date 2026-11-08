@@ -93,9 +93,9 @@ test("a thread on an engine only a newer build knows is shown read-only, and a s
 test("a paired computer's simulator stays off this Mac's panel, which says why instead", () => {
   const read = createRemoteWorkspaceReader();
   const device = { udid: "REMOTE", name: "iPhone 17", runtime: "iOS 26.4", state: "booted" as const };
-  const remote = read({ ...emptyWorkspaceState(), threads: [task("t1")], currentId: "t1", simulator: { availability: { status: "available" }, devices: [device], booting: [], errors: {}, driver: null }, docks: { t1: { open: true, expanded: false, panels: ["simulator"], tab: "simulator", workflowId: null, browserTabs: [], browserTabId: null, terminals: [], terminalId: null, simulatorId: "REMOTE", threadTabs: [], subjects: {} } } });
+  const remote = read({ ...emptyWorkspaceState(), threads: [task("t1")], currentId: "t1", simulator: { availability: { status: "available" }, devices: [device], booting: [], errors: {}, driver: null, orientations: {} }, docks: { t1: { open: true, expanded: false, panels: ["simulator"], tab: "simulator", workflowId: null, browserTabs: [], browserTabId: null, terminals: [], terminalId: null, simulatorId: "REMOTE", threadTabs: [], subjects: {} } } });
   const local = emptyWorkspaceState();
   const view = deriveView({ ...local, computers: { ...local.computers, name: "Mac", active: "linux", paired: [{ id: "linux", name: "Linux", host: "linux.ts.net", status: "connected" as const, error: null, pairedAt: 1, state: remote }] } });
-  assert.deepEqual(view.simulator, { availability: { status: "unsupported", reason: "The simulator only runs on the computer you are using." }, devices: [], booting: [], errors: {}, driver: null });
+  assert.deepEqual(view.simulator, { availability: { status: "unsupported", reason: "The simulator only runs on the computer you are using." }, devices: [], booting: [], errors: {}, driver: null, orientations: {} });
   assert.equal(view.simulatorId, null);
 });

@@ -135,6 +135,7 @@ const OWN_TOOLS: Record<string, OwnTool> = {
   simulator_swipe: { family: "other", label: "Swipe" },
   simulator_type: { family: "other", label: "Type", argument: text("text") },
   simulator_button: { family: "other", label: "Press button", argument: text("button") },
+  simulator_rotate: { family: "other", label: "Rotate", argument: text("orientation") },
   request_setup: { family: "other", label: "Set up computer use" },
 };
 

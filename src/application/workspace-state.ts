@@ -301,6 +301,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   terminalSize: number;
   /** The one project the sidebar's lists are narrowed to, or null for every project. */
   activityProject: string | null;
+  /** The simulator last picked or opened, which a dock with none of its own shows. */
+  simulatorDevice: string | null;
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
   /** Whether grabbing a window plays the shutter, and whether it brings the window forward. */
@@ -488,6 +490,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     readingSize: READING_SIZE.default,
     terminalSize: TERMINAL_SIZE.default,
     activityProject: null,
+    simulatorDevice: null,
     sidebarOpen: true,
     subagentGroups: OPEN_SUBAGENT_GROUPS,
     overviewFolds: {},

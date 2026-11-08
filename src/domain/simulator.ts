@@ -1,4 +1,5 @@
 /** The iOS simulator panel: the devices this Mac has, and what a person or a run does to one. */
+import { rankedMatches } from "./match-rank.js";
 
 export type SimulatorDeviceState = "booted" | "booting" | "shutdown" | "other";
 
@@ -29,9 +30,45 @@ export type SimulatorState = {
   errors: Record<string, string>;
   /** The run driving a device right now. `seq` names this stretch of driving, so an older idle report cannot end a newer one. */
   driver: { taskId: string; udid: string; seq: number } | null;
+  /** How each device is turned, for a device anyone has turned since it booted. */
+  orientations: Record<string, SimulatorOrientation>;
 };
 
-export const NO_SIMULATORS: SimulatorState = { availability: { status: "unknown" }, devices: [], booting: [], errors: {}, driver: null };
+export const NO_SIMULATORS: SimulatorState = { availability: { status: "unknown" }, devices: [], booting: [], errors: {}, driver: null, orientations: {} };
+
+export const SIMULATOR_ORIENTATIONS = ["portrait", "landscape-left", "landscape-right", "portrait-upside-down"] as const;
+
+/** How the device is held, named as UIDeviceOrientation names it. */
+export type SimulatorOrientation = (typeof SIMULATOR_ORIENTATIONS)[number];
+
+/** UIDeviceOrientation's own number for each. */
+export const ORIENTATION_CODES: Record<SimulatorOrientation, number> = { "portrait": 1, "portrait-upside-down": 2, "landscape-left": 3, "landscape-right": 4 };
+
+/** How far clockwise, in quarter turns, the panel turns the device's portrait picture so it reads upright. */
+const QUARTER_TURNS: Record<SimulatorOrientation, number> = { "portrait": 0, "landscape-right": 1, "portrait-upside-down": 2, "landscape-left": 3 };
+const BY_TURNS: SimulatorOrientation[] = ["portrait", "landscape-right", "portrait-upside-down", "landscape-left"];
+
+export function screenTurns(orientation: SimulatorOrientation) {
+  return QUARTER_TURNS[orientation];
+}
+
+/** The orientation after turning the device a quarter turn: clockwise for 1, counterclockwise for -1. */
+export function turned(orientation: SimulatorOrientation, direction: 1 | -1): SimulatorOrientation {
+  return BY_TURNS[(QUARTER_TURNS[orientation] + direction + 4) % 4]!;
+}
+
+/**
+ * Where a point on the turned picture lands on the device's own portrait screen, both as fractions
+ * from the top left. Touches always land on the portrait screen, however the device is held.
+ */
+export function untilted(u: number, v: number, orientation: SimulatorOrientation): { x: number; y: number } {
+  switch (QUARTER_TURNS[orientation]) {
+    case 1: return { x: v, y: 1 - u };
+    case 2: return { x: 1 - u, y: 1 - v };
+    case 3: return { x: 1 - v, y: u };
+    default: return { x: u, y: v };
+  }
+}
 
 export type SimulatorButton = "home" | "lock";
 
@@ -46,7 +83,8 @@ export type SimulatorInput =
   | { kind: "button"; button: SimulatorButton }
   | { kind: "type"; text: string }
   /** One key going down or up, by its USB HID usage, for a keyboard held over the panel. */
-  | { kind: "key"; usage: number; down: boolean };
+  | { kind: "key"; usage: number; down: boolean }
+  | { kind: "rotate"; orientation: SimulatorOrientation };
 
 /** One element of the app on screen, with its frame in points from the screen's top left. */
 export type SimulatorElement = {
@@ -97,25 +135,22 @@ export function isSimulatorInput(value: unknown): value is SimulatorInput {
       && (value.durationMs === undefined || (typeof value.durationMs === "number" && value.durationMs >= 0 && value.durationMs <= MAX_SWIPE_MS));
     case "button": return value.button === "home" || value.button === "lock";
     case "type": return typeof value.text === "string" && value.text.length > 0 && value.text.length <= MAX_SIMULATOR_TEXT;
+    case "rotate": return SIMULATOR_ORIENTATIONS.includes(value.orientation as SimulatorOrientation);
     case "key": return Number.isInteger(value.usage) && (value.usage as number) > 0 && (value.usage as number) <= MAX_KEY_USAGE && typeof value.down === "boolean";
     default: return false;
   }
 }
 
-/** The device a panel shows when nobody has picked one: one already running, else the newest iPhone. */
-export function defaultSimulator(devices: SimulatorDevice[]): SimulatorDevice | undefined {
-  return devices.find((device) => device.state === "booted")
+/** The device a panel shows when its dock has none: the one last picked, else one already running, else the newest iPhone. */
+export function defaultSimulator(devices: SimulatorDevice[], remembered: string | null = null): SimulatorDevice | undefined {
+  return devices.find((device) => device.udid === remembered)
+    ?? devices.find((device) => device.state === "booted")
     ?? devices.find((device) => device.name.startsWith("iPhone"))
     ?? devices[0];
 }
 
 export function simulatorLabel(device: Pick<SimulatorDevice, "name" | "runtime">) {
   return `${device.name} · ${device.runtime}`;
-}
-
-/** Whether a gesture is one the agent makes rather than the drag a person's pointer streams. */
-export function isDiscreteInput(input: SimulatorInput) {
-  return input.kind !== "touch" && input.kind !== "key";
 }
 
 /** A piece of a device's screen stream: the H.264 decoder setup, or one encoded frame of it. */
@@ -141,4 +176,29 @@ export function hidUsage(code: string): number | undefined {
 /** The screen's corner radius as a fraction of its width: an iPad's corners are far tighter than a phone's. */
 export function screenCornerRadius(name: string) {
   return name.startsWith("iPad") ? 0.024 : 0.137;
+}
+
+export type SimulatorGroup = { label: string; running: boolean; devices: SimulatorDevice[] };
+
+/**
+ * The devices a picker lists, narrowed by what is typed: the ones running first, then the rest under
+ * the runtime they run, in the order the Mac lists them, newest runtime first.
+ */
+export function simulatorGroups(devices: SimulatorDevice[], query: string): SimulatorGroup[] {
+  const ranked = rankedMatches(devices, query, (device) => [device.name, device.runtime, `${device.runtime} ${device.name}`]);
+  /** A query that names a device outright puts it first, ahead of the longer names it is the start of. */
+  const wanted = query.trim().toLowerCase();
+  const exact = ranked.filter((device) => device.name.toLowerCase() === wanted);
+  const matched = [...exact, ...ranked.filter((device) => !exact.includes(device))];
+  const running = matched.filter((device) => device.state === "booted" || device.state === "booting");
+  const groups: SimulatorGroup[] = running.length ? [{ label: "Running", running: true, devices: running }] : [];
+  for (const device of matched) {
+    if (running.includes(device)) continue;
+    const group = groups.find((item) => !item.running && item.label === device.runtime);
+    if (group) group.devices.push(device);
+    else groups.push({ label: device.runtime, running: false, devices: [device] });
+  }
+  /** While searching, the group holding the best match leads, so Enter takes what heads the list. */
+  if (wanted) groups.sort((left, right) => matched.indexOf(left.devices[0]!) - matched.indexOf(right.devices[0]!));
+  return groups;
 }

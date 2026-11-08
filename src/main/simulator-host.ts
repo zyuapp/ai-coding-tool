@@ -6,7 +6,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import { app } from "electron";
-import type { SimulatorAvailability, SimulatorDevice, SimulatorDeviceState, SimulatorElement, SimulatorFrame, SimulatorInput, SimulatorShot, SimulatorSnapshot } from "../domain/simulator.js";
+import { ORIENTATION_CODES, untilted, type SimulatorAvailability, type SimulatorDevice, type SimulatorDeviceState, type SimulatorElement, type SimulatorFrame, type SimulatorInput, type SimulatorOrientation, type SimulatorShot, type SimulatorSnapshot } from "../domain/simulator.js";
 import { FrameReader, type HelperMessage } from "./simulator-frames.js";
 
 const run = promisify(execFile);
@@ -34,6 +34,8 @@ const snapshots = new Map<string, Snapshot>();
 const moves = new Map<string, Moves>();
 /** Each device's screen in points, learned from its accessibility root. */
 const screens = new Map<string, { width: number; height: number }>();
+/** How each device is held, as the last rotation sent to it left it. */
+const orientations = new Map<string, SimulatorOrientation>();
 let frameListener: ((frame: SimulatorFrame) => void) | null = null;
 
 function helperPath() {
@@ -97,7 +99,10 @@ export async function listSimulators(): Promise<{ availability: SimulatorAvailab
   const availability = await simulatorAvailability();
   if (availability.status !== "available") return { availability, devices: [] };
   const { stdout } = await run("xcrun", ["simctl", "list", "devices", "available", "-j"], { maxBuffer: 16 * 1024 * 1024 });
-  return { availability, devices: parseDeviceList(stdout) };
+  const devices = parseDeviceList(stdout);
+  /** A device that went down boots again held upright. */
+  for (const device of devices) if (device.state !== "booted") orientations.delete(device.udid);
+  return { availability, devices };
 }
 
 /** `bootstatus -b` boots a device that is down and waits until it is up, so one call covers both. */
@@ -191,7 +196,7 @@ function elementCenter(udid: string, ref: string) {
   const element = snapshot.elements.find((item) => item.ref === ref);
   if (!element || index === undefined) throw new Error(`The latest read has no element ${ref}.`);
   const [x, y, width, height] = element.frame;
-  return { x: ratio((x + width / 2) / snapshot.width), y: ratio((y + height / 2) / snapshot.height) };
+  return onDevice(udid, ratio((x + width / 2) / snapshot.width), ratio((y + height / 2) / snapshot.height), snapshot);
 }
 
 async function screenPoints(udid: string) {
@@ -206,10 +211,20 @@ async function screenPoints(udid: string) {
 }
 
 /** A position as fractions of the screen, from points when it was given in points. */
+/**
+ * A point as the app on screen measures it, moved onto the device's portrait screen. An app drawn
+ * sideways measures from the turned screen's corner; one that stayed upright, such as the home screen
+ * on a turned phone, measures from the device's own.
+ */
+function onDevice(udid: string, u: number, v: number, screen: { width: number; height: number }) {
+  const orientation = orientations.get(udid) ?? "portrait";
+  return screen.width > screen.height ? untilted(u, v, orientation) : { x: u, y: v };
+}
+
 async function fractions(udid: string, x: number, y: number, points: boolean | undefined) {
   if (!points) return { x, y };
   const screen = await screenPoints(udid);
-  return { x: ratio(x / screen.width), y: ratio(y / screen.height) };
+  return onDevice(udid, ratio(x / screen.width), ratio(y / screen.height), screen);
 }
 
 /** A drag streams moves faster than the device takes them, so only the newest waiting move is kept. */
@@ -252,6 +267,13 @@ export async function simulatorInput(udid: string, input: SimulatorInput) {
     case "button": await request({ op: "button", udid, button: input.button }); return;
     case "type": await request({ op: "type", udid, text: input.text }, REQUEST_TIMEOUT_MS + input.text.length * 40); return;
     case "key": await request({ op: "key", udid, usage: input.usage, down: input.down }); return;
+    case "rotate":
+      await request({ op: "rotate", udid, orientation: ORIENTATION_CODES[input.orientation] });
+      orientations.set(udid, input.orientation);
+      /** The app redraws for the new way up, so what was read of it before no longer holds. */
+      screens.delete(udid);
+      snapshots.delete(udid);
+      return;
   }
 }
 

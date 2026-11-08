@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { SimulatorReadResult, SimulatorWrite } from "../../contracts/threads.js";
-import { MAX_SIMULATOR_TEXT, MAX_SWIPE_MS, simulatorLabel, type SimulatorElement, type SimulatorSnapshot } from "../../domain/simulator.js";
+import { MAX_SIMULATOR_TEXT, MAX_SWIPE_MS, SIMULATOR_ORIENTATIONS, simulatorLabel, type SimulatorElement, type SimulatorSnapshot } from "../../domain/simulator.js";
 import type { SimulatorBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 
@@ -128,6 +128,13 @@ export const SIMULATOR_TOOLS: readonly ToolDefinition<SimulatorBridge>[] = [
     input: { button: z.enum(["home", "lock"]) },
     readOnly: false,
     run: (bridge, args) => report(() => act(bridge, { type: "simulator.input", input: { kind: "button", button: args.button } })),
+  }),
+  defineTool({
+    name: "simulator_rotate",
+    description: "Turn the simulator to portrait or landscape, to check how the app lays out each way. Answers with the elements on screen afterwards, measured the way the app now draws them.",
+    input: { orientation: z.enum(SIMULATOR_ORIENTATIONS).describe("How to hold the device. landscape-left has the top of the screen on the left.") },
+    readOnly: false,
+    run: (bridge, args) => report(() => act(bridge, { type: "simulator.input", input: { kind: "rotate", orientation: args.orientation } })),
   }),
 ];
 

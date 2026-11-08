@@ -18,6 +18,8 @@
 #import <IOSurface/IOSurface.h>
 #import <VideoToolbox/VideoToolbox.h>
 #include <dlfcn.h>
+#include <mach/mach.h>
+#include <mach/mach_time.h>
 #include <unistd.h>
 
 #pragma mark - Private interfaces
@@ -35,6 +37,7 @@
 - (NSUUID *)UDID;
 - (unsigned long long)state;
 - (id)io;
+- (mach_port_t)lookup:(NSString *)name error:(NSError **)error;
 - (void)sendAccessibilityRequestAsync:(id)request completionQueue:(dispatch_queue_t)queue completionHandler:(void (^)(id))handler;
 @end
 
@@ -299,6 +302,61 @@ static BOOL swipe(AICDevice *entry, double x0, double y0, double x1, double y1, 
     if (!touch(entry, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, YES, error)) return NO;
   }
   return touch(entry, x1, y1, NO, error);
+}
+
+/**
+ * The GSEvent Simulator.app sends to turn a device: a device-orientation event (type 50, flagged as
+ * coming from the host) carrying one UIDeviceOrientation, posted to the device's workspace port.
+ */
+#pragma pack(push, 4)
+typedef struct {
+  mach_msg_header_t header;
+  uint32_t type;
+  int32_t subtype;
+  float location[2];
+  float windowLocation[2];
+  uint32_t windowContextId;
+  uint64_t timestamp;
+  uint32_t window;
+  int32_t flags;
+  int32_t senderPid;
+  uint32_t infoSize;
+  uint32_t orientation;
+  uint8_t padding[28];
+} AICOrientationEvent;
+#pragma pack(pop)
+
+static const uint32_t kOrientationEvent = 50;
+static const uint32_t kHostEventFlag = 0x20000;
+static const mach_msg_id_t kPurpleEventId = 123;
+
+static BOOL rotate(AICDevice *entry, uint32_t orientation, NSString **error) {
+  if (orientation < 1 || orientation > 4) {
+    *error = @"Unknown orientation.";
+    return NO;
+  }
+  NSError *lookupError = nil;
+  mach_port_t port = [(id<AICSimDevice>)entry.device lookup:@"PurpleWorkspacePort" error:&lookupError];
+  if (port == MACH_PORT_NULL) {
+    *error = lookupError.localizedDescription ?: @"The simulator cannot be turned yet.";
+    return NO;
+  }
+  AICOrientationEvent event = {0};
+  event.header.msgh_bits = MACH_MSGH_BITS(MACH_MSG_TYPE_COPY_SEND, 0);
+  event.header.msgh_size = sizeof(event);
+  event.header.msgh_remote_port = port;
+  event.header.msgh_id = kPurpleEventId;
+  event.type = kOrientationEvent | kHostEventFlag;
+  event.timestamp = mach_absolute_time();
+  event.infoSize = sizeof(event.orientation);
+  event.orientation = orientation;
+  kern_return_t sent = mach_msg(&event.header, MACH_SEND_MSG | MACH_SEND_TIMEOUT, sizeof(event), 0, MACH_PORT_NULL, 1000, MACH_PORT_NULL);
+  mach_port_deallocate(mach_task_self(), port);
+  if (sent != KERN_SUCCESS) {
+    *error = @"The simulator did not take the rotation.";
+    return NO;
+  }
+  return YES;
 }
 
 #pragma mark - Screenshot
@@ -668,6 +726,8 @@ static void handle(NSDictionary *request) {
       ok = swipe(entry, number(request, @"x", 0), number(request, @"y", 0), number(request, @"toX", 0), number(request, @"toY", 0), fmin(fmax(number(request, @"durationMs", 300), 50), 5000), &failure);
     } else if ([op isEqualToString:@"button"]) {
       ok = pressButton(entry, request[@"button"], &failure);
+    } else if ([op isEqualToString:@"rotate"]) {
+      ok = rotate(entry, (uint32_t)number(request, @"orientation", 0), &failure);
     } else if ([op isEqualToString:@"key"]) {
       ok = key(entry, (uint32_t)number(request, @"usage", 0), [request[@"down"] boolValue], &failure);
     } else if ([op isEqualToString:@"type"]) {

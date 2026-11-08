@@ -1227,17 +1227,31 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .simulator-bar > button:disabled { opacity: 0.35; cursor: default; }
 .simulator-bar-gap { flex: 1; }
 .simulator-device-menu { position: relative; min-width: 0; }
-.simulator-device-menu > .menu-trigger { max-width: 100%; min-height: 28px; display: flex; align-items: center; gap: 7px; border-radius: 8px; padding: 0 8px; color: var(--ink-soft); font: 560 var(--text-control)/1.2 var(--ui-font); }
-.simulator-device-menu > .menu-trigger:hover, .simulator-device-menu.open > .menu-trigger { background: var(--surface-hover); }
-.simulator-device-menu > .menu-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.simulator-device-menu > .menu-trigger > small { flex: none; color: var(--quiet-strong); font-weight: 450; font-size: var(--text-meta); }
-.simulator-device-menu > .menu-trigger > svg { flex: none; color: var(--quiet-strong); }
-.simulator-device-popover { min-width: 220px; max-height: 360px; overflow-y: auto; }
+.simulator-device-trigger { max-width: 100%; min-height: 30px; display: flex; align-items: center; gap: 7px; border: 0; border-radius: 8px; padding: 0 8px; background: transparent; color: var(--ink-soft); font: 560 var(--text-control)/1.2 var(--ui-font); cursor: pointer; }
+.simulator-device-trigger:hover, .simulator-device-menu.open > .simulator-device-trigger { background: var(--surface-hover); }
+.simulator-device-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.simulator-device-trigger > small { flex: none; color: var(--quiet-strong); font-weight: 450; font-size: var(--text-meta); }
+.simulator-device-trigger > svg { flex: none; color: var(--quiet-strong); }
+/** A roomy list: each device on a tall row under the runtime it runs, running ones first. */
+.picker-popover.simulator-device-popover { position: fixed; z-index: 1000; max-height: min(440px, var(--branch-menu-room, 100vh)); padding: 6px; }
+.picker-popover.simulator-device-popover > .picker-search-field { position: sticky; top: -6px; z-index: 1; margin: -6px -6px 4px; border-width: 0 0 1px; border-radius: 10px 10px 0 0; padding: 4px 12px; background: var(--surface-menu); }
+.picker-popover.simulator-device-popover .picker-option { grid-template-columns: 16px 16px minmax(0, 1fr) auto; min-height: 36px; gap: 10px; padding: 0 10px; }
+.picker-popover.simulator-device-popover .picker-label { display: contents; }
+.simulator-device-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.simulator-device-state { display: inline-flex; align-items: center; gap: 6px; color: var(--quiet-strong); font-size: var(--text-meta); white-space: nowrap; }
+.simulator-device-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+.simulator-device-state.booting::before { background: var(--quiet-strong); animation: simulator-pulse 1.4s ease-in-out infinite; }
+.simulator-device-group { margin: 0; padding: 12px 10px 5px; color: var(--muted); font-size: var(--text-badge); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.simulator-device-group:first-child { padding-top: 6px; }
+.simulator-device-empty { margin: 0; padding: 14px 10px; color: var(--quiet-strong); font-size: var(--text-control); text-align: center; }
 .simulator-driving { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 3px 9px 3px 8px; background: var(--info-surface); color: var(--info); font: 550 var(--text-meta)/1.3 var(--ui-font); white-space: nowrap; animation: preview-fade 160ms ease-out; }
 .simulator-driving > i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: simulator-pulse 1.4s ease-in-out infinite; }
 @keyframes simulator-pulse { 50% { opacity: 0.35; transform: scale(0.8); } }
 .simulator-stage { position: relative; min-height: 0; flex: 1; display: grid; place-items: center; padding: 18px; background: var(--sunken); container-type: size; }
-.simulator-screen { width: min(100cqw, calc(100cqh * var(--simulator-aspect, 0.46))); aspect-ratio: var(--simulator-aspect, 0.46); background: #000; box-shadow: 0 0 0 1px var(--line-strong), 0 18px 40px -18px rgb(0 0 0 / 0.45); cursor: default; touch-action: none; outline: none; transition: box-shadow 160ms ease-out; }
+/** The picture is the device's portrait screen, turned inside a box shaped like the screen as it is held. */
+.simulator-screen { position: relative; width: min(100cqw, calc(100cqh * var(--simulator-aspect, 0.46))); aspect-ratio: var(--simulator-aspect, 0.46); overflow: hidden; background: #000; box-shadow: 0 0 0 1px var(--line-strong), 0 18px 40px -18px rgb(0 0 0 / 0.45); container-type: size; cursor: default; touch-action: none; outline: none; transition: box-shadow 160ms ease-out; }
+.simulator-screen > canvas { position: absolute; top: 50%; left: 50%; width: 100cqw; height: 100cqh; transform: translate(-50%, -50%) rotate(var(--simulator-turn, 0deg)); }
+.simulator-screen.sideways > canvas { width: 100cqh; height: 100cqw; }
 .simulator-screen:focus-visible { box-shadow: 0 0 0 2px var(--info), 0 18px 40px -18px rgb(0 0 0 / 0.45); }
 .simulator-screen.driven { box-shadow: 0 0 0 2px var(--info), 0 0 0 6px var(--info-surface), 0 18px 40px -18px rgb(0 0 0 / 0.45); }
 .simulator-screen[hidden] { display: none; }

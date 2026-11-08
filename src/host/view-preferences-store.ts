@@ -25,6 +25,7 @@ export function loadViewPreferences(storage: KeyValueStorage, viewportWidth?: nu
     notifications: stored.notifications ?? true,
     sidebarOpen: stored.sidebarOpen ?? (viewportWidth === undefined || viewportWidth >= 900),
     ...(stored.activityProject ? { activityProject: stored.activityProject } : {}),
+    ...(stored.simulatorDevice ? { simulatorDevice: stored.simulatorDevice } : {}),
     sections: stored.sections ?? OPEN_SIDEBAR_SECTIONS,
     subagentGroups: stored.subagentGroups ?? OPEN_SUBAGENT_GROUPS,
     favoriteModels: stored.favoriteModels ?? [],

@@ -72,3 +72,10 @@ test("typing can press Return, and a coordinator only reads", async () => {
   assert.deepEqual(bridge.writes, [{ type: "simulator.input", input: { kind: "type", text: "hello\n" } }]);
   assert.deepEqual(simulatorTools(bridge, { readOnly: true }).map((tool) => tool.name), ["simulator_read"]);
 });
+
+test("rotating names how to hold the device and answers with the screen as the app now draws it", async () => {
+  const bridge = fakeBridge();
+  await call(bridge, "simulator_rotate", { orientation: "landscape-right" });
+  assert.deepEqual(bridge.writes, [{ type: "simulator.input", input: { kind: "rotate", orientation: "landscape-right" } }]);
+  assert.deepEqual(bridge.reads.at(-1), { op: "snapshot", screenshot: false });
+});

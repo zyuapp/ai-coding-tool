@@ -27,6 +27,8 @@ export type ViewPreferences = {
   captureFocus: boolean;
   /** The one project the activity lists are narrowed to. Every project when absent. */
   activityProject?: string;
+  /** The simulator last picked or opened, which a Simulator panel shows when its dock has none. */
+  simulatorDevice?: string;
   /** Which of the sidebar's lists are unfolded. */
   sections: SidebarSections;
   /** Which subagent groups are unfolded: the sidebar's list, and each status heading in the panel. */

@@ -1,8 +1,8 @@
 /** The Simulator panel: which device each dock shows, booting it, and the gestures sent to it. */
-import { defaultSimulator, type SimulatorDevice, type SimulatorState } from "../../domain/simulator.js";
+import { defaultSimulator, type SimulatorDevice, type SimulatorOrientation, type SimulatorState } from "../../domain/simulator.js";
 import { dockFor, dockOwner, SIMULATOR_PANEL, withDock, type ThreadDock } from "../workspace-dock.js";
 import type { WorkspaceState } from "../workspace-state.js";
-import { focusDockTab, showDockTab } from "./dock-tabs.js";
+import { focusDockTab, persistView, showDockTab } from "./dock-tabs.js";
 import { settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 
@@ -20,10 +20,21 @@ function withSimulator(state: WorkspaceState, patch: Partial<SimulatorState>): W
   return { ...state, simulator: { ...state.simulator, ...patch } };
 }
 
-function withoutError(errors: Record<string, string>, udid: string) {
-  if (!(udid in errors)) return errors;
-  const { [udid]: _cleared, ...rest } = errors;
+function without<Value>(record: Record<string, Value>, udid: string) {
+  if (!(udid in record)) return record;
+  const { [udid]: _cleared, ...rest } = record;
   return rest;
+}
+
+/** The device picked or opened by name is the one a dock with none shows from then on, across launches. */
+function remember(transition: WorkspaceTransition, udid: string): WorkspaceTransition {
+  if (transition.state.simulatorDevice === udid) return transition;
+  const remembered = { ...transition.state, simulatorDevice: udid };
+  return { ...transition, state: remembered, effects: [...transition.effects, ...persistView(remembered)] };
+}
+
+function fallbackDevice(state: WorkspaceState) {
+  return defaultSimulator(state.simulator.devices, state.simulatorDevice);
 }
 
 /** A refusal shown in the panel rather than the workspace banner, and answered to whoever asked. */
@@ -45,7 +56,7 @@ function named(state: WorkspaceState, name: string): SimulatorDevice | undefined
 function boot(state: WorkspaceState, udid: string): WorkspaceTransition {
   const known = device(state, udid);
   if (known?.state === "booted" || state.simulator.booting.includes(udid)) return settled(state);
-  const booting = withSimulator(state, { booting: [...state.simulator.booting, udid], errors: withoutError(state.simulator.errors, udid) });
+  const booting = withSimulator(state, { booting: [...state.simulator.booting, udid], errors: without(state.simulator.errors, udid) });
   return settled(booting, [{ type: "simulator.boot", udid, followUp: true }]);
 }
 
@@ -63,7 +74,7 @@ function openIn(state: WorkspaceState, owner: string, udid: string | null, byUse
 
 /** A dock showing the panel with nothing picked yet takes the default device once there is a list to pick from. */
 function adoptDefaults(state: WorkspaceState): WorkspaceTransition {
-  const fallback = defaultSimulator(state.simulator.devices);
+  const fallback = fallbackDevice(state);
   if (!fallback) return settled(state);
   let next = state;
   let effects: WorkspaceEffect[] = [];
@@ -79,6 +90,11 @@ function adoptDefaults(state: WorkspaceState): WorkspaceTransition {
   return settled(next, effects);
 }
 
+function turn(state: WorkspaceState, udid: string, orientation: SimulatorOrientation): WorkspaceState {
+  if (state.simulator.orientations[udid] === orientation) return state;
+  return withSimulator(state, { orientations: { ...state.simulator.orientations, [udid]: orientation } });
+}
+
 function patchDevice(state: WorkspaceState, udid: string, patch: Partial<SimulatorDevice>): SimulatorDevice[] {
   return state.simulator.devices.map((item) => item.udid === udid ? { ...item, ...patch } : item);
 }
@@ -90,8 +106,9 @@ export function reduceSimulator(state: WorkspaceState, input: SimulatorInput): W
       const owner = dockOwner(state, input.taskId);
       const picked = input.device === undefined ? undefined : named(state, input.device);
       if (input.device !== undefined && !picked) return refused(state, `No simulator is called ${input.device}.`);
-      const udid = picked?.udid ?? dockFor(state, owner).simulatorId ?? defaultSimulator(state.simulator.devices)?.udid ?? null;
-      return openIn(state, owner, udid, input.taskId === undefined);
+      const udid = picked?.udid ?? dockFor(state, owner).simulatorId ?? fallbackDevice(state)?.udid ?? null;
+      const opened = openIn(state, owner, udid, input.taskId === undefined);
+      return picked ? remember(opened, picked.udid) : opened;
     }
 
     case "simulator.refresh":
@@ -100,7 +117,7 @@ export function reduceSimulator(state: WorkspaceState, input: SimulatorInput): W
     case "simulator.select": {
       if (!device(state, input.udid)) return settled(state);
       const owner = dockOwner(state);
-      return boot(withDock(state, owner, { simulatorId: input.udid }), input.udid);
+      return remember(boot(withDock(state, owner, { simulatorId: input.udid }), input.udid), input.udid);
     }
 
     case "simulator.input": {
@@ -110,24 +127,27 @@ export function reduceSimulator(state: WorkspaceState, input: SimulatorInput): W
       const target = device(state, udid);
       /** A person's pointer over a device still starting goes nowhere; a run is told why. */
       if (target && target.state !== "booted") return input.taskId ? refused(state, SIMULATOR_STARTING) : settled(state);
-      if (input.taskId === undefined) return settled(state, [{ type: "simulator.input", udid, input: input.input }]);
-      const current = state.simulator.driver;
-      const seq = (current?.seq ?? 0) + 1;
+      const turned = input.input.kind === "rotate" ? turn(state, udid, input.input.orientation) : state;
+      if (input.taskId === undefined) return settled(turned, [{ type: "simulator.input", udid, input: input.input }]);
+      const seq = (state.simulator.driver?.seq ?? 0) + 1;
       const driver = { taskId: input.taskId, udid, seq };
-      return settled(withSimulator(state, { driver }), [{ type: "simulator.input", udid, input: input.input, taskId: input.taskId, seq }]);
+      return settled(withSimulator(turned, { driver }), [{ type: "simulator.input", udid, input: input.input, taskId: input.taskId, seq }]);
     }
 
     case "simulator.listed": {
       const booting = state.simulator.booting.filter((udid) => input.devices.some((item) => item.udid === udid && item.state !== "booted"));
-      const listed = withSimulator(state, { availability: input.availability, devices: input.devices, booting });
+      /** A device that went down comes back up held upright. */
+      const orientations = Object.fromEntries(Object.entries(state.simulator.orientations).filter(([udid]) => input.devices.some((item) => item.udid === udid && item.state === "booted")));
+      const listed = withSimulator(state, { availability: input.availability, devices: input.devices, booting, orientations });
       return adoptDefaults(listed);
     }
 
     case "simulator.booted":
       return settled(withSimulator(state, {
         devices: patchDevice(state, input.udid, { state: "booted" }),
+        orientations: device(state, input.udid)?.state === "booted" ? state.simulator.orientations : without(state.simulator.orientations, input.udid),
         booting: state.simulator.booting.filter((udid) => udid !== input.udid),
-        errors: withoutError(state.simulator.errors, input.udid),
+        errors: without(state.simulator.errors, input.udid),
       }));
 
     case "simulator.failed":

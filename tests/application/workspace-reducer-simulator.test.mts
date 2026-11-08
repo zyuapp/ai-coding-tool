@@ -83,3 +83,20 @@ test("an unsupported Mac refuses the panel with its reason", () => {
   const state = run(workspace(), [{ type: "simulator.listed", availability: { status: "unsupported", reason: "Install Xcode to use the simulator." }, devices: [] }]);
   assert.deepEqual(reduce(state, { type: "simulator.open" }).result, { ok: false, message: "Install Xcode to use the simulator." });
 });
+
+test("the device picked is remembered for docks that have none, and a turn is kept until the device goes down", () => {
+  const picked = reduce(run(workspace(), [listed]), { type: "simulator.select", udid: "PHONE" });
+  assert.equal(picked.state.simulatorDevice, "PHONE");
+  assert.ok(picked.effects.some((effect) => effect.type === "persist-preferences" && effect.preferences.simulatorDevice === "PHONE"));
+
+  const elsewhere = reduce(run(picked.state, [{ type: "simulator.booted", udid: "PHONE" }, { type: "task.select", taskId: "other" }]), { type: "simulator.open" });
+  assert.equal(dock(elsewhere.state).simulatorId, "PHONE", "not the iPad already running");
+
+  const turnedState = reduce(elsewhere.state, { type: "simulator.input", udid: "PHONE", input: { kind: "rotate", orientation: "landscape-left" } });
+  assert.equal(turnedState.state.simulator.orientations.PHONE, "landscape-left");
+  assert.deepEqual(effectOf(turnedState, "simulator.input"), { type: "simulator.input", udid: "PHONE", input: { kind: "rotate", orientation: "landscape-left" } });
+  const stillUp = reduce(turnedState.state, { type: "simulator.booted", udid: "PHONE" });
+  assert.equal(stillUp.state.simulator.orientations.PHONE, "landscape-left", "a boot that finds it already up leaves it turned");
+  const wentDown = reduce(turnedState.state, { ...listed, devices: [{ ...phone, state: "shutdown" }, pad] });
+  assert.equal(wentDown.state.simulator.orientations.PHONE, undefined);
+});
