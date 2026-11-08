@@ -1235,9 +1235,13 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 /** A roomy list: each device on a tall row under the runtime it runs, running ones first. */
 .picker-popover.simulator-device-popover { position: fixed; z-index: 1000; max-height: min(440px, var(--branch-menu-room, 100vh)); padding: 6px; }
 .picker-popover.simulator-device-popover > .picker-search-field { position: sticky; top: -6px; z-index: 1; margin: -6px -6px 4px; border-width: 0 0 1px; border-radius: 10px 10px 0 0; padding: 4px 12px; background: var(--surface-menu); }
-.picker-popover.simulator-device-popover .picker-option { grid-template-columns: 16px 16px minmax(0, 1fr) auto; min-height: 36px; gap: 10px; padding: 0 10px; }
+/** Every row shares the list's columns, so the state column is as wide as its widest entry and its dots line up. */
+.simulator-device-popover [role="listbox"] { display: grid; grid-template-columns: 16px 16px minmax(0, 1fr) auto; column-gap: 12px; }
+.simulator-device-popover [role="listbox"] > p { grid-column: 1 / -1; }
+.picker-popover.simulator-device-popover .picker-option { grid-column: 1 / -1; grid-template-columns: subgrid; min-height: 36px; padding: 0 10px; }
 .picker-popover.simulator-device-popover .picker-label { display: contents; }
 .simulator-device-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.simulator-device-name:last-child { grid-column: span 2; }
 .simulator-device-state { display: inline-flex; align-items: center; gap: 6px; color: var(--quiet-strong); font-size: var(--text-meta); white-space: nowrap; }
 .simulator-device-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
 .simulator-device-state.booting::before { background: var(--quiet-strong); animation: simulator-pulse 1.4s ease-in-out infinite; }
