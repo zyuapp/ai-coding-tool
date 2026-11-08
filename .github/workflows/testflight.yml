@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Release tag to build, such as v0.10.0
+        description: Tag or branch to build, such as v0.10.0
         required: true
   workflow_call:
     inputs:
@@ -63,8 +63,7 @@ jobs:
           ASC_KEY_ID: ${{ secrets.IOS_ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
           ASC_KEY_PATH: ${{ runner.temp }}/asc.p8
-          REF: ${{ inputs.ref }}
-        run: MARKETING_VERSION="${REF#v}" ios/testflight.sh
+        run: MARKETING_VERSION="$(node -p 'require("./package.json").version')" ios/testflight.sh
       - name: Remove signing credentials
         if: always()
         shell: bash
