@@ -34,7 +34,7 @@ struct ComposerView<Above: View>: View {
     @State private var shooting = false
     @State private var picked: [PhotosPickerItem] = []
     @State private var sent = 0
-    @State private var echo: SentEcho?
+    @State private var finishing = false
     @FocusState private var focused: Bool
 
     private var blocked: Bool { question?.blocking == true }
@@ -202,13 +202,7 @@ struct ComposerView<Above: View>: View {
         }
         .onAppear { draft = model.draft(for: draftKey) }
         .onChange(of: draftKey) { _, key in draft = model.draft(for: key) }
-        .onChange(of: draft) { _, text in
-            if echo?.matches(text) == true {
-                draft = ""
-                return
-            }
-            model.keepDraft(text, for: draftKey)
-        }
+        .onChange(of: draft) { _, text in model.keepDraft(text, for: draftKey) }
         .onChange(of: returned) { _, next in
             guard let next, let text = next.text, next.id != given else { return }
             given = next.id
@@ -261,11 +255,28 @@ struct ComposerView<Above: View>: View {
         .accessibilityLabel("Stop this run")
     }
 
-    private func send(_ how: (String, [String]) -> Void) {
+    /// Sends what is typed. Dictation still running stops first, and its last words go with the message.
+    private func send(_ how: @escaping (String, [String]) -> Void) {
+        guard !finishing else { return }
+        guard Dictation.finish() else { return commit(how) }
+        finishing = true
+        Task { @MainActor in
+            var last = draft
+            var quiet = 0
+            for _ in 0..<15 where quiet < 4 {
+                try? await Task.sleep(for: .milliseconds(100))
+                quiet = draft == last ? quiet + 1 : 0
+                last = draft
+            }
+            finishing = false
+            commit(how)
+        }
+    }
+
+    private func commit(_ how: (String, [String]) -> Void) {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         let sources = images.map(\.source)
         guard !text.isEmpty || !sources.isEmpty else { return }
-        echo = SentEcho(text)
         draft = ""
         images = []
         sent += 1
@@ -514,4 +525,26 @@ private struct ShortScreenFit: ViewModifier {
 
 extension View {
     func fitsShortScreens() -> some View { modifier(ShortScreenFit()) }
+}
+
+/// The system's dictation in whichever field is typing.
+@MainActor
+private enum Dictation {
+    fileprivate static weak var responder: UIResponder?
+
+    /// Stops dictation in the focused field, keeping the keyboard up. Returns whether it was running.
+    static func finish() -> Bool {
+        responder = nil
+        UIApplication.shared.sendAction(#selector(UIResponder.reportFirstResponder(_:)), to: nil, from: nil, for: nil)
+        guard let field = responder, field.textInputMode?.primaryLanguage == "dictation" else { return false }
+        field.resignFirstResponder()
+        field.becomeFirstResponder()
+        return true
+    }
+}
+
+private extension UIResponder {
+    @objc func reportFirstResponder(_ sender: Any?) {
+        Dictation.responder = self
+    }
 }
