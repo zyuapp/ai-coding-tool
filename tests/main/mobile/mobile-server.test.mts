@@ -8,6 +8,7 @@ import path from "node:path";
 import { test } from "vitest";
 import WebSocket from "ws";
 import { MobileServer } from "../../../src/main/mobile/mobile-server.mts";
+import { MOBILE_VOCABULARY } from "../../../src/application/mobile-projection.ts";
 import { PairingStore } from "../../../src/main/mobile/pairing.mts";
 import { MobileRelay } from "../../../src/main/mobile/session-host.mts";
 import { MAX_PENDING_SOCKETS, MOBILE_EVENT_BUFFER } from "../../../src/domain/mobile.ts";
@@ -137,6 +138,24 @@ test("a snapshot names the build of the page the server hands out", async (t) =>
   const opening = await client.waitFor("snapshot");
   const served = await (await fetch(`${origin}/m/`)).text();
   assert.equal(opening.build, createHash("sha256").update(served).digest("hex").slice(0, 16));
+});
+
+test("a snapshot names this build's engines, modes, models and efforts for a phone app built apart from it", async (t) => {
+  const { devices, socketUrl } = await harness(t);
+  const code = devices.mint(Date.now());
+  const client = phone(socketUrl);
+  t.onTestFinished(() => client.socket.close());
+  await client.opened();
+
+  client.send({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: code.code, deviceName: "iPhone" });
+  const opening = await client.waitFor("snapshot");
+  assert.deepEqual(opening.vocabulary, MOBILE_VOCABULARY);
+  const claude = MOBILE_VOCABULARY.engines.find((engine) => engine.id === "claude");
+  assert.equal(claude?.label, "Claude");
+  assert.ok(claude?.models.some((model) => model.id === "opus" && model.efforts.includes("high")));
+  assert.deepEqual(claude?.policies.map((policy) => policy.id), ["autonomous", "bypass", "allow-edits", "confirm"]);
+  assert.equal(MOBILE_VOCABULARY.efforts[0]?.id, "ultra");
+  assert.equal(MOBILE_VOCABULARY.efforts[0]?.delegates, true);
 });
 
 test("a phone trades its code for a token and is handed the view", async (t) => {

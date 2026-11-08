@@ -14,8 +14,9 @@
   "scripts": {
     "build": "vite build && npm run build:mobile && tsc -p tsconfig.main.json",
     "build:mobile": "vite build --config vite.mobile.config.mts",
-    "check": "npm run check:licenses && tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.preview.json && npm run lint",
+    "check": "npm run check:licenses && npm run check:ios-themes && tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.preview.json && npm run lint",
     "check:licenses": "node scripts/generate-legal-notices.mjs --check",
+    "check:ios-themes": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-ios-themes.mts --check",
     "generate:native-licenses": "node scripts/generate-native-legal-notices.mjs",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "test": "npm run check && npm run build && vitest run",
@@ -28,7 +29,8 @@
     "package:mac": "npm run prepare:electron && npm run prepare:cua && npm run build && electron-builder --mac --arm64 --publish never",
     "package:linux": "npm run prepare:electron && npm run prepare:cua && npm run build && electron-builder --linux --publish never",
     "generate:codex-protocol": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-codex-protocol.mts",
-    "generate:claude-baseline": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-claude-baseline.mts"
+    "generate:claude-baseline": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-claude-baseline.mts",
+    "generate:ios-themes": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-ios-themes.mts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.319",

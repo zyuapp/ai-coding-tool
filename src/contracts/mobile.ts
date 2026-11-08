@@ -364,6 +364,30 @@ export type MobileSnapshotMessage = Sequenced & {
   view: MobileView;
   /** Which running server this is. A new one has forgotten what it ran, so what was sent before is not sent again. */
   instance?: string;
+  /** What this build calls its engines, modes, models and efforts, for a phone app not built beside it. Absent from older desktops. */
+  vocabulary?: MobileVocabulary;
+};
+
+/** One effort as a picker names it. `delegates` is an effort a coordinator never takes. */
+export type MobileEffortTerm = { id: AgentEffort; label: string; description?: string; delegates?: true };
+
+/**
+ * One engine as this build names it: the modes a picker offers, in order, whether it has a fast
+ * mode, and the models it ships knowing, which stand for its catalogue wherever `engines` sends none.
+ */
+export type MobileEngineTerms = {
+  id: AgentEngine;
+  label: string;
+  fastMode: boolean;
+  policies: { id: ExecutionPolicy; label: string; description: string }[];
+  models: MobileModel[];
+};
+
+/** Everything a phone app reads by name that the page takes from the build it is served with. */
+export type MobileVocabulary = {
+  engines: MobileEngineTerms[];
+  /** Every effort, deepest first. */
+  efforts: MobileEffortTerm[];
 };
 
 export type MobilePatchMessage = Sequenced & { kind: "patch"; patch: MobilePatch };

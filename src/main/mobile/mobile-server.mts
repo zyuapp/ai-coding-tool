@@ -41,7 +41,7 @@ import { COMPUTER_TRANSFER_TIMEOUT_MS, MAX_COMPUTER_MESSAGE_BYTES, isComputerTra
 import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/workspace-reducer.js";
 import type { WorkspaceUpdate } from "../../contracts/workspace-runtime.js";
 import { stringifyWorkspaceJson } from "../../application/workspace-json.js";
-import { applyMobilePatch } from "../../application/mobile-projection.js";
+import { applyMobilePatch, MOBILE_VOCABULARY } from "../../application/mobile-projection.js";
 import type { PairedDeviceKind } from "../../domain/mobile.js";
 
 /** Where the phone page talks back. Pairing happens on the same socket, as its first message. */
@@ -322,7 +322,7 @@ export class MobileServer {
       if (session.kind !== "phone") continue;
       if (update.kind === "snapshot") {
         session.awaitingSnapshot = false;
-        this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view: update.view, instance: this.instance });
+        this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view: update.view, instance: this.instance, vocabulary: MOBILE_VOCABULARY });
       } else if (!session.awaitingSnapshot) {
         if (congested(session)) this.fallBehind(session);
         else this.emit(session, { kind: "patch", patch: update.patch });
@@ -453,7 +453,7 @@ export class MobileServer {
         this.view = view;
       }
       session.awaitingSnapshot = false;
-      this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view: this.view, instance: this.instance });
+      this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view: this.view, instance: this.instance, vocabulary: MOBILE_VOCABULARY });
     } catch (error) {
       /**
        * A session with no view to patch is no session. The phone hears why, is hung up on, and

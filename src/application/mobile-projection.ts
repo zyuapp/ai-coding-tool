@@ -13,7 +13,8 @@ import type { ThreadActivity } from "./thread-activity.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
 import { diffFor } from "./workspace-diff.js";
 import { workspaceViewCollections } from "./workspace-view-collections.js";
-import { AGENT_ENGINES, byEngine, efforts, engineCatalog, type AgentEngine, type EngineReadiness, type EngineStatus, type ModelCatalog } from "../domain/agent-engine.js";
+import { AGENT_EFFORTS, AGENT_ENGINES, BUILT_IN_MODELS, byEngine, capabilitiesFor, efforts, engineCatalog, engineLabel, offeredPolicies, type AgentEngine, type EngineReadiness, type EngineStatus, type ModelCatalog } from "../domain/agent-engine.js";
+import { POLICIES } from "../domain/run.js";
 import type {
   MobileActivity,
   MobileChanges,
@@ -29,6 +30,7 @@ import type {
   MobileThreadEntry,
   MobileThreadView,
   MobileView,
+  MobileVocabulary,
   MobileWorktreeChoice,
 } from "../contracts/mobile.js";
 
@@ -81,6 +83,18 @@ export function projectMobileEngines(status: EngineStatus | null): MobileEngines
   }
   return engines;
 }
+
+/** What this build calls its engines, modes, models and efforts, as a phone app built apart from it reads them. */
+export const MOBILE_VOCABULARY: MobileVocabulary = {
+  engines: AGENT_ENGINES.map((engine) => ({
+    id: engine,
+    label: engineLabel(engine),
+    fastMode: capabilitiesFor(engine).fastMode,
+    policies: offeredPolicies(engine).map((policy) => ({ id: policy, ...POLICIES[policy] })),
+    models: BUILT_IN_MODELS.models[engine].map((spec) => ({ id: spec.id, label: spec.label, description: spec.description, ...(spec.provider ? { provider: spec.provider } : {}), efforts: spec.efforts.map((effort) => effort.id) })),
+  })),
+  efforts: efforts(...AGENT_EFFORTS).map((spec) => ({ ...spec })),
+};
 
 /** The computer's engines as a phone's pickers read them: the models they offer, and each engine's readiness. */
 export type MobileEngineView = { catalog: ModelCatalog; access: Readonly<Record<AgentEngine, EngineReadiness>> };

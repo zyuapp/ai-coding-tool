@@ -1,0 +1,64 @@
+name: AICodingTool
+options:
+  bundleIdPrefix: com.zyuapp
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+packages:
+  Markdown:
+    url: https://github.com/swiftlang/swift-markdown
+    from: 0.7.3
+targets:
+  AICodingTool:
+    type: application
+    platform: iOS
+    sources:
+      - path: AICodingTool
+      - path: ../assets/icon.icon
+        buildPhase: resources
+    dependencies:
+      - package: Markdown
+    info:
+      path: AICodingTool/Info.plist
+      properties:
+        CFBundleDisplayName: AI Coding Tool
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        NSCameraUsageDescription: Scan the pairing QR code your computer shows.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.zyuapp.aicodingtool.phone
+            CFBundleURLSchemes: [aicodingtool]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.zyuapp.aicodingtool.phone
+        PRODUCT_NAME: AICodingTool
+        ASSETCATALOG_COMPILER_APPICON_NAME: icon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_PREVIEWS: YES
+    postBuildScripts:
+      - name: Allow plain sockets to this computer in debug builds
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ "$CONFIGURATION" = "Debug" ]; then
+            plist="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
+            /usr/libexec/PlistBuddy -c "Delete :NSAppTransportSecurity" "$plist" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" "$plist"
+          fi
+schemes:
+  AICodingTool:
+    build:
+      targets:
+        AICodingTool: all
