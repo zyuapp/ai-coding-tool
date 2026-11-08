@@ -228,9 +228,32 @@ export async function showTerminalView(terminalId: string, parent: HTMLElement, 
   view.opened = true;
   try {
     const { WebglAddon } = await import("@xterm/addon-webgl");
+    trimCanvasFonts();
     view.terminal.loadAddon(new WebglAddon());
   } catch {
     /** No WebGL here; xterm falls back to its own renderer. */
+  }
+}
+
+let canvasFontsTrimmed = false;
+
+/**
+ * Chromium rejects a canvas font with leading whitespace and draws in 10px sans-serif instead. The
+ * WebGL addon writes one for every upright glyph, so its text comes out a fraction of the cell size.
+ */
+function trimCanvasFonts() {
+  if (canvasFontsTrimmed) return;
+  canvasFontsTrimmed = true;
+  for (const prototype of [CanvasRenderingContext2D.prototype, OffscreenCanvasRenderingContext2D.prototype]) {
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, "font");
+    const setFont = descriptor?.set;
+    if (!descriptor || !setFont) continue;
+    Object.defineProperty(prototype, "font", {
+      ...descriptor,
+      set(this: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, font: string) {
+        setFont.call(this, font.trim());
+      },
+    });
   }
 }
 
