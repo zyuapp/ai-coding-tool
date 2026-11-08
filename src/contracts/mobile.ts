@@ -277,8 +277,8 @@ export type MobilePatch = {
 };
 
 /**
- * Bumped with every change to the messages between the computer and the phone app. The app's own
- * copy in `ios/AICodingTool/Protocol/Messages.swift` moves with it.
+ * Bumped when either side needs to know the other has a change, such as a field it now relies on.
+ * The app's own copy in `ios/AICodingTool/Protocol/Messages.swift` moves with it.
  */
 export const MOBILE_PROTOCOL_VERSION = 8;
 

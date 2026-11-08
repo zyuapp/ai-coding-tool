@@ -95,6 +95,12 @@ final class ProtocolTests: XCTestCase {
         XCTAssertFalse(text.contains("sessionId"))
     }
 
+    func testPairSaysWhichComputersItReads() {
+        let text = MobileClientMessage.pair(code: "c", deviceName: "d").text
+        XCTAssertTrue(text.contains(#""version":\#(mobileProtocolVersion)"#))
+        XCTAssertTrue(text.contains(#""oldestComputer":\#(oldestComputerProtocolVersion)"#))
+    }
+
     func testClockFieldsTravelAsWholeNumbers() {
         XCTAssertTrue(MobileClientMessage.ping(at: 1_794_115_674_991).text.contains(#""at":1794115674991"#))
         XCTAssertTrue(MobileClientMessage.pong(at: 42).text.contains(#""at":42"#))
