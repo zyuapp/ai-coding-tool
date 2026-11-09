@@ -34,7 +34,7 @@ targets:
           UIColorName: LaunchBackground
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
-        NSCameraUsageDescription: Scan the pairing QR code your computer shows.
+        NSCameraUsageDescription: Scan the pairing QR code your computer shows, and take photos to send to a thread.
         NSMicrophoneUsageDescription: Talk to the microphone, and your computer writes down what you say.
         ITSAppUsesNonExemptEncryption: false
         CFBundleURLTypes:

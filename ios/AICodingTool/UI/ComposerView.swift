@@ -31,7 +31,8 @@ struct ComposerView<Above: View>: View {
     @State private var given: String?
     @State private var seenHandBack: UUID?
     @State private var images: [PickedImage] = []
-    @State private var settingUp = false
+    @State private var tray: ComposerTray?
+    @State private var shooting = false
     @State private var picking = false
     @State private var picked: [PhotosPickerItem] = []
     @State private var sent = 0
@@ -101,9 +102,20 @@ struct ComposerView<Above: View>: View {
                     .fitsShortScreens()
             }
             above
-            if settingUp {
-                SettingsTray(settings: settings, catalog: model.catalog, quick: quick, usage: usage) {
-                    withAnimation(.snappy) { settingUp = false }
+            if let tray {
+                Group {
+                    switch tray {
+                    case .attach:
+                        AttachTray(canShoot: UIImagePickerController.isSourceTypeAvailable(.camera), onLibrary: {
+                            closeTray()
+                            picking = true
+                        }, onCamera: {
+                            closeTray()
+                            shooting = true
+                        }, onClose: closeTray)
+                    case .settings:
+                        SettingsTray(settings: settings, catalog: model.catalog, quick: quick, usage: usage, onClose: closeTray)
+                    }
                 }
                 .composerSurface(palette, focused: true)
                 .padding(.horizontal, 12)
@@ -137,6 +149,14 @@ struct ComposerView<Above: View>: View {
             guard !items.isEmpty else { return }
             picked = []
             load(items)
+        }
+        .fullScreenCover(isPresented: $shooting) {
+            CameraPicker { data in
+                shooting = false
+                guard let data else { return }
+                Task { if images.count < PickedImage.limit, let image = await PickedImage.make(from: data) { images.append(image) } }
+            }
+            .ignoresSafeArea()
         }
         .onAppear { draft = model.draft(for: draftKey) }
         .onChange(of: model.spokenInto?.id) { _, id in
@@ -229,7 +249,7 @@ struct ComposerView<Above: View>: View {
                 if !blocked && !talk.active {
                     Button {
                         focused = false
-                        picking = true
+                        withAnimation(.snappy) { tray = .attach }
                     } label: {
                         Image(systemName: "plus")
                             .font(.body.weight(.semibold))
@@ -246,7 +266,7 @@ struct ComposerView<Above: View>: View {
                 if !talk.active {
                 Button {
                     focused = false
-                    withAnimation(.snappy) { settingUp = true }
+                    withAnimation(.snappy) { tray = .settings }
                 } label: {
                     settingsChip(summary)
                 }
@@ -553,6 +573,10 @@ struct ComposerView<Above: View>: View {
         }
     }
 
+    private func closeTray() {
+        withAnimation(.snappy) { tray = nil }
+    }
+
     private func load(_ items: [PhotosPickerItem]) {
         Task {
             for item in items {
@@ -594,22 +618,18 @@ struct QuickSettings {
     var onUsage: (() -> Void)? = nil
 }
 
-/// Stands in for the composer while the thread's settings change; each pick applies at once.
-struct SettingsTray: View {
-    var settings: MobileThreadSettings
-    var catalog: EngineCatalog
-    var quick: QuickSettings
-    var usage: MobileComposerUsage?
+enum ComposerTray {
+    case attach, settings
+}
+
+/// A tray's grabber over its content; a tap on the grabber or a swipe down closes it.
+struct TrayFrame<Content: View>: View {
     var onClose: () -> Void
+    @ViewBuilder var content: Content
     @Environment(\.palette) private var palette
     @GestureState private var drag: CGFloat = 0
 
     var body: some View {
-        let known = catalog.knows(settings.engine)
-        let coordinating = settings.coordinating == true
-        let headings = catalog.library(engine: settings.engine, locked: quick.locked).filter { !$0.locked && !$0.models.isEmpty }
-        let efforts = known && settings.model != nil ? catalog.efforts(settings.engine, model: settings.model!, coordinating: coordinating) : []
-        let chosenEffort = settings.model.map { catalog.effortForModel(settings.engine, model: $0, effort: settings.effort, coordinating: coordinating) }
         VStack(spacing: 0) {
             Capsule()
                 .fill(palette.lineStrong)
@@ -619,55 +639,7 @@ struct SettingsTray: View {
                 .onTapGesture(perform: onClose)
                 .accessibilityLabel("Close")
                 .accessibilityAddTraits(.isButton)
-            if headings.reduce(0, { $0 + $1.models.count }) > 6 {
-                ScrollView { models(headings) }.frame(height: 360)
-            } else {
-                models(headings)
-            }
-            palette.line.frame(height: 0.5).padding(.horizontal, 14)
-            VStack(spacing: 0) {
-                if !efforts.isEmpty, let chosenEffort {
-                    row("Effort", symbol: "gauge.with.dots.needle.50percent") {
-                        Picker("Effort", selection: Binding(get: { chosenEffort }, set: { quick.onEffort(settings.engine, $0) })) {
-                            ForEach(efforts, id: \.id) { Text($0.label).tag($0.id) }
-                        }
-                    }
-                }
-                if known {
-                    if !efforts.isEmpty { divider }
-                    row("Mode", symbol: "hand.raised") {
-                        Picker("Mode", selection: Binding(get: { settings.policy }, set: quick.onPolicy)) {
-                            ForEach(catalog.policies(settings.engine), id: \.id) { policy in
-                                Text(policy.label).tag(policy.id)
-                            }
-                        }
-                    }
-                }
-                if catalog.fastMode(settings.engine) {
-                    divider
-                    Toggle(isOn: Binding(get: { settings.fastMode == true }, set: quick.onFastMode)) {
-                        rowLabel("Fast Mode", symbol: "hare")
-                    }
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: 50)
-                }
-                if let usage, let onUsage = quick.onUsage {
-                    divider
-                    Button(action: onUsage) {
-                        HStack(spacing: 8) {
-                            rowLabel("Usage", symbol: usage.symbol)
-                            Spacer(minLength: 8)
-                            Text(usage.summary).font(.subheadline).foregroundStyle(palette.muted).lineLimit(1)
-                            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(palette.quiet)
-                        }
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 50)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.bottom, 6)
+            content.padding(.bottom, 6)
         }
         .offset(y: max(0, drag))
         .gesture(
@@ -677,6 +649,136 @@ struct SettingsTray: View {
                     if value.translation.height > 60 || value.predictedEndTranslation.height > 160 { onClose() }
                 }
         )
+    }
+}
+
+/// Where pictures come from: the photo library, or the camera.
+struct AttachTray: View {
+    var canShoot: Bool
+    var onLibrary: () -> Void
+    var onCamera: () -> Void
+    var onClose: () -> Void
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        TrayFrame(onClose: onClose) {
+            VStack(spacing: 0) {
+                row("Photo Library", symbol: "photo.on.rectangle", action: onLibrary)
+                if canShoot {
+                    palette.line.frame(height: 0.5).padding(.leading, 48)
+                    row("Take Photo", symbol: "camera", action: onCamera)
+                }
+            }
+        }
+    }
+
+    private func row(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label {
+                Text(title).font(.body).foregroundStyle(palette.ink)
+            } icon: {
+                Image(systemName: symbol).foregroundStyle(palette.inkDim).frame(width: 22)
+            }
+            .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
+            .padding(.horizontal, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Stands in for the composer while the thread's settings change; each pick applies at once.
+struct SettingsTray: View {
+    var settings: MobileThreadSettings
+    var catalog: EngineCatalog
+    var quick: QuickSettings
+    var usage: MobileComposerUsage?
+    var onClose: () -> Void
+    @Environment(\.palette) private var palette
+    @State private var page: Page?
+
+    private enum Page {
+        case effort, mode
+    }
+
+    /// One choice on a page: its name, what it means, and its id.
+    private struct Choice: Identifiable {
+        var id: String
+        var label: String
+        var detail: String?
+    }
+
+    var body: some View {
+        TrayFrame(onClose: onClose) {
+            ZStack(alignment: .top) {
+                switch page {
+                case nil:
+                    home.transition(.move(edge: .leading).combined(with: .opacity))
+                case .effort:
+                    let efforts = self.efforts
+                    choices("Effort", efforts.map { Choice(id: $0.id, label: $0.label, detail: $0.description) }, selected: chosenEffort) { quick.onEffort(settings.engine, $0) }
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                case .mode:
+                    choices("Mode", catalog.policies(settings.engine).map { Choice(id: $0.id, label: $0.label, detail: $0.description) }, selected: settings.policy) { quick.onPolicy($0) }
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+            }
+            .clipped()
+        }
+    }
+
+    private var known: Bool { catalog.knows(settings.engine) }
+
+    private var efforts: [MobileEffortTerm] {
+        guard known, let model = settings.model else { return [] }
+        return catalog.efforts(settings.engine, model: model, coordinating: settings.coordinating == true)
+    }
+
+    private var chosenEffort: String? {
+        settings.model.map { catalog.effortForModel(settings.engine, model: $0, effort: settings.effort, coordinating: settings.coordinating == true) }
+    }
+
+    private var home: some View {
+        let headings = catalog.library(engine: settings.engine, locked: quick.locked).filter { !$0.locked && !$0.models.isEmpty }
+        let efforts = self.efforts
+        return VStack(spacing: 0) {
+            if headings.reduce(0, { $0 + $1.models.count }) > 6 {
+                ScrollView { models(headings) }.frame(height: 360)
+            } else {
+                models(headings)
+            }
+            palette.line.frame(height: 0.5).padding(.horizontal, 14)
+            if !efforts.isEmpty, let chosenEffort {
+                link("Effort", symbol: "gauge.with.dots.needle.50percent", value: efforts.first { $0.id == chosenEffort }?.label ?? chosenEffort, to: .effort)
+            }
+            if known {
+                if !efforts.isEmpty { divider }
+                link("Mode", symbol: "hand.raised", value: catalog.policyLabel(settings.policy), to: .mode)
+            }
+            if catalog.fastMode(settings.engine) {
+                divider
+                Toggle(isOn: Binding(get: { settings.fastMode == true }, set: quick.onFastMode)) {
+                    rowLabel("Fast Mode", symbol: "hare")
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 50)
+            }
+            if let usage, let onUsage = quick.onUsage {
+                divider
+                Button(action: onUsage) {
+                    HStack(spacing: 8) {
+                        rowLabel("Usage", symbol: usage.symbol)
+                        Spacer(minLength: 8)
+                        Text(usage.summary).font(.subheadline).foregroundStyle(palette.muted).lineLimit(1)
+                        Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(palette.quiet)
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 50)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     private var divider: some View {
@@ -691,6 +793,80 @@ struct SettingsTray: View {
         }
     }
 
+    /// A setting's name and value, opening its choices on a page of their own.
+    private func link(_ title: String, symbol: String, value: String, to target: Page) -> some View {
+        Button {
+            withAnimation(.snappy) { page = target }
+        } label: {
+            HStack(spacing: 8) {
+                rowLabel(title, symbol: symbol)
+                Spacer(minLength: 8)
+                Text(value).font(.body).foregroundStyle(palette.muted).lineLimit(1)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(palette.quiet)
+            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: 50)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title), \(value)")
+    }
+
+    /// One setting's choices; a pick applies and goes back.
+    private func choices(_ title: String, _ items: [Choice], selected: String?, pick: @escaping (String) -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack {
+                Text(title).font(.headline).foregroundStyle(palette.ink)
+                HStack {
+                    Button {
+                        withAnimation(.snappy) { page = nil }
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(palette.inkDim)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Back")
+                    Spacer()
+                }
+            }
+            .padding(.horizontal, 4)
+            ForEach(items) { item in
+                option(item.label, detail: item.detail, selected: item.id == selected) {
+                    pick(item.id)
+                    withAnimation(.snappy) { page = nil }
+                }
+            }
+        }
+    }
+
+    /// A row naming one choice and what it is for, checked when chosen.
+    private func option(_ label: String, detail: String?, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label).font(.body.weight(.medium)).foregroundStyle(palette.ink)
+                    if let detail, !detail.isEmpty {
+                        Text(detail).font(.footnote).foregroundStyle(palette.muted).lineLimit(2)
+                    }
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "checkmark")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(palette.accent)
+                    .opacity(selected ? 1 : 0)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .frame(minHeight: 50)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
     /// The models to choose from, each with what it is for; one tap picks it.
     private func models(_ headings: [ModelHeading]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -699,47 +875,13 @@ struct SettingsTray: View {
                     SectionLabel(heading.label).padding(.horizontal, 14).padding(.top, 8).padding(.bottom, 2)
                 }
                 ForEach(heading.models, id: \.id) { spec in
-                    let selected = heading.engine == settings.engine && spec.id == settings.model
-                    Button { quick.onModel(heading.engine, spec.id) } label: {
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(spec.label).font(.body.weight(.medium)).foregroundStyle(palette.ink)
-                                if !spec.description.isEmpty {
-                                    Text(spec.description).font(.footnote).foregroundStyle(palette.muted).lineLimit(2)
-                                }
-                            }
-                            Spacer(minLength: 8)
-                            Image(systemName: "checkmark")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(palette.accent)
-                                .opacity(selected ? 1 : 0)
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .frame(minHeight: 50)
-                        .contentShape(Rectangle())
+                    option(spec.label, detail: spec.description, selected: heading.engine == settings.engine && spec.id == settings.model) {
+                        quick.onModel(heading.engine, spec.id)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(selected ? [.isSelected] : [])
                 }
             }
         }
         .padding(.bottom, 4)
-    }
-
-    /// A setting's name, then its value as the system's menu picker.
-    private func row<Choices: View>(_ title: String, symbol: String, @ViewBuilder picker: () -> Choices) -> some View {
-        HStack(spacing: 8) {
-            rowLabel(title, symbol: symbol)
-            Spacer(minLength: 8)
-            picker()
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .tint(palette.muted)
-        }
-        .padding(.leading, 14)
-        .padding(.trailing, 4)
-        .frame(minHeight: 50)
     }
 }
 
@@ -897,6 +1039,38 @@ struct PickedImage: Identifiable {
             }
             return nil
         }.value
+    }
+}
+
+/// The camera, handing back one photo or nothing.
+struct CameraPicker: UIViewControllerRepresentable {
+    var onDone: (Data?) -> Void
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ controller: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(onDone: onDone) }
+
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let onDone: (Data?) -> Void
+
+        init(onDone: @escaping (Data?) -> Void) {
+            self.onDone = onDone
+        }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            onDone((info[.originalImage] as? UIImage)?.jpegData(compressionQuality: 0.9))
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            onDone(nil)
+        }
     }
 }
 
