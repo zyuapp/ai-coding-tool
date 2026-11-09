@@ -93,6 +93,9 @@ final class PhoneConnection {
 
     /// Unpairs from a computer on this phone. Its own list keeps the phone until it is revoked there.
     func forget(_ computer: PairedComputer) {
+        if computer.origin == origin, state.connection == .live, state.takesPush, let socket {
+            socket.send(.string(MobileClientMessage.pushToken(nil).text)) { _ in }
+        }
         computers.removeAll { $0.origin == computer.origin }
         storage.writeComputers(computers)
         storage.writeOutbox([], for: computer.origin)

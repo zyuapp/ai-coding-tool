@@ -10,7 +10,7 @@ APNS_TOPIC = "com.zyuapp.aicodingtool.phone"
 [[ratelimits]]
 name = "PER_DEVICE"
 namespace_id = "1001"
-simple = { limit = 30, period = 60 }
+simple = { limit = 10, period = 60 }
 
 [observability]
 enabled = false

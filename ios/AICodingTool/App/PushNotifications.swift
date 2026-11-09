@@ -77,6 +77,11 @@ final class PushNotifications: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
+    /// A notice from a computer this phone has since forgotten is not shown.
+    private func known(_ target: NoticeTarget) -> Bool {
+        model?.connection.computers.contains { $0.credential.deviceId == target.deviceId } ?? true
+    }
+
     private func showing(_ target: NoticeTarget) -> Bool {
         guard let model, UIApplication.shared.applicationState == .active else { return false }
         return model.connection.state.credential?.deviceId == target.deviceId && model.current == target.taskId && model.path.last == .thread
@@ -96,7 +101,8 @@ final class PushNotifications: NSObject, UNUserNotificationCenterDelegate {
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         guard let target = NoticeTarget(notification.request.content) else { return [.banner, .list, .sound] }
-        return await showing(target) ? [] : [.banner, .list, .sound]
+        let quiet = await MainActor.run { !known(target) || showing(target) }
+        return quiet ? [] : [.banner, .list, .sound]
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
