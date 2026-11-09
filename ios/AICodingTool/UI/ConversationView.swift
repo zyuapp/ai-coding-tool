@@ -229,7 +229,7 @@ private struct ToolCallRow: View {
                         Text(argument)
                             .font(.caption.monospaced())
                             .foregroundStyle(palette.muted)
-                            .lineLimit(whole ? nil : 2)
+                            .lineLimit(whole ? nil : 1)
                             .textSelection(.enabled)
                     }
                 }
