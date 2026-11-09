@@ -10,6 +10,10 @@ on:
         description: Send the build to public testers
         type: boolean
         default: true
+      build:
+        description: An uploaded build number to send instead of uploading a new one
+        type: string
+        default: ""
   workflow_call:
     inputs:
       ref:

@@ -1,5 +1,5 @@
 // Waits for TestFlight to finish processing build BUILD_NUMBER, adds it to the GROUP_NAME beta group,
-// and submits it for beta review unless it was already submitted.
+// and submits it for beta review unless it was already submitted, in place of any older build still waiting.
 import { createPrivateKey, createSign } from "node:crypto";
 
 const { ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8, APP_ID, GROUP_NAME, BUILD_NUMBER } = process.env;
@@ -52,9 +52,37 @@ const external = detail.body?.data?.attributes.externalBuildState;
 if (external !== "READY_FOR_BETA_SUBMISSION") {
   console.log(`Sent to ${GROUP_NAME}; beta review is ${external}.`);
 } else {
-  const submitted = await api("POST", "/v1/betaAppReviewSubmissions", {
+  let submitted = await submit();
+  // Only one build of a version may wait for beta review. An older one still waiting is superseded by
+  // this build, so it is expired, which takes it out of review, and this one is sent in its place.
+  if (anotherInReview(submitted)) {
+    for (const older of await waitingForReview()) {
+      const expired = await api("PATCH", `/v1/builds/${older.id}`, { data: { type: "builds", id: older.id, attributes: { expired: true } } });
+      console.log(expired.status < 400 ? `Expired build ${older.attributes.version}, which was waiting for beta review.` : `Could not expire build ${older.attributes.version}: ${JSON.stringify(expired.body)}`);
+    }
+    submitted = await submit();
+  }
+  if (anotherInReview(submitted)) {
+    console.log(`::warning::Build ${BUILD_NUMBER} is in ${GROUP_NAME} but not sent for beta review: Apple is already reviewing another build of this version. Send it again once that review ends.`);
+  } else {
+    if (submitted.status >= 400) throw new Error(`Beta review: ${JSON.stringify(submitted.body)}`);
+    console.log(`Sent to ${GROUP_NAME}; beta review is ${submitted.body.data.attributes.betaReviewState}.`);
+  }
+}
+
+function submit() {
+  return api("POST", "/v1/betaAppReviewSubmissions", {
     data: { type: "betaAppReviewSubmissions", relationships: { build: { data: { type: "builds", id: build.id } } } },
   });
-  if (submitted.status >= 400) throw new Error(`Beta review: ${JSON.stringify(submitted.body)}`);
-  console.log(`Sent to ${GROUP_NAME}; beta review is ${submitted.body.data.attributes.betaReviewState}.`);
+}
+
+function anotherInReview(response) {
+  return response.status === 422 && response.body?.errors?.some((error) => error.code === "ENTITY_UNPROCESSABLE.ANOTHER_BUILD_IN_REVIEW");
+}
+
+/** This app's other unexpired builds that are queued for beta review but not yet being reviewed. */
+async function waitingForReview() {
+  const listed = await api("GET", `/v1/builds?filter[app]=${APP_ID}&filter[expired]=false&filter[betaAppReviewSubmission.betaReviewState]=WAITING_FOR_REVIEW&fields[builds]=version&limit=50`);
+  if (listed.status >= 400) throw new Error(`Builds waiting for review: ${JSON.stringify(listed.body)}`);
+  return (listed.body?.data ?? []).filter((item) => item.id !== build.id);
 }
