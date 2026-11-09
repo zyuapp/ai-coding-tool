@@ -348,6 +348,12 @@ test("a phone's edit of a paired computer's queue that is not answered in time s
   const paired = { id: "linux", name: "Linux", host: "linux.ts.net", status: "connected" as const, error: null, pairedAt: 1, capabilities: COMPUTER_CAPABILITIES, state: holder };
   let answer!: () => void;
   const driver = host({ ...base, computers: { ...base.computers, name: "Mac", paired: [paired] } }, () => new Promise<void>((resolve) => { answer = resolve; }));
+  /** Taking the edit in can itself wait, behind a read of the thread's history. */
+  const execute = driver.bridge.execute;
+  driver.bridge.execute = (input) => {
+    const execution = execute(input);
+    return { ...execution, accepted: new Promise((resolve) => setTimeout(() => resolve(execution.accepted), 4_000)) };
+  };
 
   vi.useFakeTimers();
   try {

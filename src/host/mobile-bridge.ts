@@ -119,14 +119,17 @@ async function answerEdit(host: MobileBridgeHost, command: Extract<AppCommand, {
   const edited = editedQueued(host.state(), command);
   if ("refusal" in edited) return { ok: false, message: edited.refusal };
   const execution = host.execute(edited.drop);
-  const accepted = execution.accepted instanceof Promise ? await execution.accepted : execution.accepted;
-  if (!accepted.ok) return accepted;
+  /** Acceptance can itself wait, behind a read of the thread's history, so the wait covers it too. */
+  const outcome = (async () => {
+    const accepted = await execution.accepted;
+    return accepted.ok ? execution.completed : accepted;
+  })();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), MOBILE_EDIT_WAIT_MS); });
-  const answer = await Promise.race([execution.completed, late]).finally(() => clearTimeout(timer));
+  const answer = await Promise.race([outcome, late]).finally(() => clearTimeout(timer));
   if (answer) return answer;
   const { taskId } = edited;
-  void execution.completed.then((result) => {
+  void outcome.then((result) => {
     if (!result.ok) return;
     const typed = host.state().prompts[taskId] ?? "";
     host.execute({ type: "view.set-prompt", taskId, prompt: [edited.text, typed].filter(Boolean).join("\n\n") });
