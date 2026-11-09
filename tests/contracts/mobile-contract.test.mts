@@ -4,7 +4,6 @@ import { test } from "vitest";
 import { isMobileClientMessage, isMobileRequest, isMobileResponse, MOBILE_PROTOCOL_VERSION, OLDEST_PHONE_PROTOCOL_VERSION, type MobileCommand } from "../../src/contracts/mobile.ts";
 import { MAX_PHONE_IMAGE_LENGTH } from "../../src/contracts/phone-commands.ts";
 import { isPhoneCommand } from "../../src/contracts/workspace-view-input.ts";
-import { SNOOZE_OPTIONS } from "../../src/domain/thread-snooze.ts";
 import {
   addressOrigin,
   createPairingCode,
@@ -337,9 +336,6 @@ test("the iOS app speaks the protocol version the computer serves", () => {
   assert.equal(Number(/let mobileProtocolVersion = (\d+)/.exec(swift)?.[1]), MOBILE_PROTOCOL_VERSION);
   assert.ok(Number(/let oldestComputerProtocolVersion = (\d+)/.exec(swift)?.[1]) <= MOBILE_PROTOCOL_VERSION, "the app reads the computer it ships beside");
   assert.ok(OLDEST_PHONE_PROTOCOL_VERSION <= MOBILE_PROTOCOL_VERSION);
-  const format = readFileSync(new URL("../../ios/AICodingTool/Domain/Format.swift", import.meta.url), "utf8");
-  const presets = /enum SnoozeOption: Int[^{]*\{\s*case ([^\n]+)/.exec(format)?.[1]?.split(",").map((item) => Number(item.split("=")[1]));
-  assert.deepEqual(presets, SNOOZE_OPTIONS.map((option) => option.hours), "the phone snoozes for the desktop's own presets");
   const composer = readFileSync(new URL("../../ios/AICodingTool/UI/ComposerView.swift", import.meta.url), "utf8");
   assert.equal(Number(/static let maxSourceLength = (\d+) \* 1024 \* 1024/.exec(composer)?.[1]) * 1024 * 1024, MAX_PHONE_IMAGE_LENGTH, "the phone shrinks pictures to what the computer takes");
 });

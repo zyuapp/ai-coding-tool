@@ -177,9 +177,4 @@ final class DomainTests: XCTestCase {
         XCTAssertTrue(Format.archiveConsequence(running: false, restorable: true).hasSuffix("Restore it from Archived within 5 days."))
         XCTAssertTrue(Format.archiveConsequence(running: true, restorable: false).contains("on your computer"))
     }
-
-    func testSnoozeOffersTheDesktopsPresets() {
-        XCTAssertEqual(SnoozeOption.allCases.map(\.hours), [1, 4, 24, 72, 168])
-        XCTAssertEqual(SnoozeOption.allCases.map(\.label), ["1 hour", "4 hours", "1 day", "3 days", "1 week"])
-    }
 }

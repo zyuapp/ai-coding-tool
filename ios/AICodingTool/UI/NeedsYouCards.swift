@@ -17,13 +17,19 @@ private struct CardFrame: ViewModifier {
 }
 
 extension View {
-    /// Lets a card's pending step go once the computer turns it down or reports a failure, so its controls answer again.
-    func releasing(refused: String?, failure: String?, _ release: @escaping () -> Void) -> some View {
+    /// Lets a card's pending step go once the computer turns it down or reports a failure, so its controls
+    /// answer again; one still on screen after a while is let go too, since a failure repeating the last
+    /// one's words changes nothing the phone can see.
+    func releasing<Pending: Equatable>(_ pending: Pending, refused: String?, failure: String?, _ release: @escaping () -> Void) -> some View {
         onChange(of: refused) { was, next in
             if next != nil, next != was { release() }
         }
         .onChange(of: failure) { was, next in
             if next != nil, next != was { release() }
+        }
+        .task(id: pending) {
+            try? await Task.sleep(for: .seconds(15))
+            if !Task.isCancelled { release() }
         }
     }
 }
@@ -128,7 +134,7 @@ struct DecisionCard: View {
         } message: {
             Text(decision.question)
         }
-        .releasing(refused: refused, failure: failure) { answered = nil }
+        .releasing(answered, refused: refused, failure: failure) { answered = nil }
     }
 
     /// The context, the options and the way to answer in the user's own words, which scroll together once they outgrow the card.
@@ -252,7 +258,7 @@ struct SuggestionsCard: View {
             }
         }
         .modifier(CardFrame())
-        .releasing(refused: refused, failure: failure) { asked = [:] }
+        .releasing(asked.keys.sorted(), refused: refused, failure: failure) { asked = [:] }
         .onChange(of: suggestions) { _, next in
             // The computer's own word takes over once it shows the start, or a failure the row did not show before.
             asked = asked.filter { id, error in next.contains { $0.id == id && $0.starting != true && $0.error == error } }
@@ -397,6 +403,6 @@ struct LimitRow: View {
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .accessibilityElement(children: .contain)
-        .releasing(refused: refused, failure: failure) { acting = false }
+        .releasing(acting, refused: refused, failure: failure) { acting = false }
     }
 }
