@@ -36,7 +36,7 @@ export type ComputerDesktop = {
  * screen uses, such as file drops, the terminal's own output, and the keystrokes a window hears.
  */
 export type RuntimeDesktop = Pick<DesktopAPI,
-  | "directories" | "openFolder" | "registerProject" | "onOpenProject" | "projectlessWorkspace"
+  | "directories" | "openFolder" | "registerProject" | "onOpenProject" | "projectlessWorkspace" | "commands"
   | "cliStatus" | "installCli" | "uninstallCli"
   | "computerUsePermissions" | "enableComputerUse" | "restartForComputerUse" | "planUsage"
   | "send" | "onAgentEvent"

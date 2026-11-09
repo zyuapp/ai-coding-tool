@@ -445,7 +445,13 @@ export type MobileQuery =
    */
   | { kind: "image"; taskId: string; messageId: string; href: string; preview?: boolean }
   /** The archived threads, newest first, as {@link MobileArchivedThread} rows. */
-  | { kind: "archived" };
+  | { kind: "archived" }
+  /**
+   * What the "/" menu offers a thread, or the new thread's draft when `taskId` is absent: its engine's
+   * slash commands and enabled skills in its checkout, read on the computer holding it. Answers a
+   * `CommandDiscoveryResult`.
+   */
+  | { kind: "commands"; taskId?: string };
 
 export type MobileImageRead = { data: string; contentType: string };
 
@@ -456,6 +462,7 @@ export function isMobileQuery(value: unknown): value is MobileQuery {
   if (isRecord(value) && value.kind === "directories") return typeof value.prefix === "string" && value.prefix.length <= MAX_PATH_LENGTH && !value.prefix.includes("\0");
   if (isRecord(value) && value.kind === "thread") return isString(value.taskId);
   if (isRecord(value) && value.kind === "archived") return true;
+  if (isRecord(value) && value.kind === "commands") return value.taskId === undefined || isString(value.taskId);
   if (isRecord(value) && value.kind === "transcribe") return isDictationAudio(value.audio);
   if (isRecord(value) && value.kind === "image") return isString(value.taskId) && isString(value.messageId) && isString(value.href, MAX_PATH_LENGTH)
     && (value.preview === undefined || typeof value.preview === "boolean");

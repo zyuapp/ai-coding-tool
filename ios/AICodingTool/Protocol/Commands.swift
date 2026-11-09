@@ -123,12 +123,16 @@ enum MobileQuery: Sendable {
     case transcribe(audio: String)
     /// An image a reply links, by the link's destination, answered with `{ data, contentType }`: the computer's preview, or the original.
     case image(taskId: String, messageId: String, href: String, preview: Bool)
+    /// What the "/" menu offers a thread, or the new thread's draft when `taskId` is nil, answered as a `CommandDiscovery`.
+    case commands(taskId: String?)
 
     /// How long the computer may take. A recording waits out the computer's own limit, which covers
     /// loading its speech model and writing down two minutes of speech.
     var timeout: Duration {
         if case .transcribe = self { return .seconds(135) }
         if case .image = self { return .seconds(30) }
+        /// Codex starts a server to list its skills, which the computer gives twenty seconds.
+        if case .commands = self { return .seconds(25) }
         return .seconds(10)
     }
 
@@ -142,6 +146,8 @@ enum MobileQuery: Sendable {
             .object(["kind": .string("thread"), "taskId": .string(taskId)])
         case .archived:
             .object(["kind": .string("archived")])
+        case .commands(let taskId):
+            .object(["kind": .string("commands")].merging(taskId.map { ["taskId": .string($0)] } ?? [:]) { $1 })
         case .transcribe(let audio):
             .object(["kind": .string("transcribe"), "audio": .string(audio)])
         case .image(let taskId, let messageId, let href, let preview):

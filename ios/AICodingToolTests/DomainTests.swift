@@ -177,4 +177,14 @@ final class DomainTests: XCTestCase {
         XCTAssertTrue(Format.archiveConsequence(running: false, restorable: true).hasSuffix("Restore it from Archived within 5 days."))
         XCTAssertTrue(Format.archiveConsequence(running: true, restorable: false).contains("on your computer"))
     }
+
+    func testSlashMenuOpensOnlyForTheDraftsFirstWord() {
+        XCTAssertEqual(SlashCommands.query(in: "/Rev"), "rev")
+        XCTAssertEqual(SlashCommands.query(in: "/"), "")
+        XCTAssertNil(SlashCommands.query(in: "/review now"), "arguments close it")
+        XCTAssertNil(SlashCommands.query(in: "/tmp/file"), "a path is not a command")
+        XCTAssertNil(SlashCommands.query(in: "see /review"))
+        let commands = [SlashCommand(name: "code-review", description: "", argumentHint: "", aliases: ["review"]), SlashCommand(name: "visualize", description: "", argumentHint: "")]
+        XCTAssertEqual(SlashCommands.matching(commands, "rev").map(\.name), ["code-review"], "an alias matches")
+    }
 }

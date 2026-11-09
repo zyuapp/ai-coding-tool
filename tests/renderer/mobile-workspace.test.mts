@@ -4,7 +4,7 @@ import { test, vi } from "vitest";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
 import { deriveView, emptyWorkspaceState, NEW_THREAD_DRAFT, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import { answerMobileRequest, MOBILE_DRAFT_BUSY, MOBILE_EDIT_LATE, MOBILE_EDIT_WAIT_MS, MOBILE_NO_CHECKOUT, MOBILE_QUEUED_NOT_WORDS, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/host/mobile-bridge.ts";
+import { answerMobileRequest, MOBILE_DRAFT_BUSY, MOBILE_EDIT_LATE, MOBILE_EDIT_WAIT_MS, MOBILE_NO_CHECKOUT, MOBILE_NO_COMMANDS, MOBILE_QUEUED_NOT_WORDS, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/host/mobile-bridge.ts";
 import { QUEUED_NOT_YOURS, QUEUED_SENT } from "../../src/application/computers.ts";
 import { emptyMobileServerState, type MobileServerState, type MobileSessionView } from "../../src/domain/mobile.ts";
 import type { MobileRequest, MobileView } from "../../src/contracts/mobile.ts";
@@ -291,6 +291,8 @@ test("a phone opens a coordinator's thread on a paired computer and acts on it t
     directories: async () => [],
     transcribeAudio: async () => "",
     readMessageImage: async (...args) => { reads.push(args); return { data: "iVBORw0KGgo=", contentType: "image/png" }; },
+    commands: async () => assert.fail("no commands are read"),
+    projectlessWorkspace: async () => assert.fail("no checkout is named"),
   };
   const send = (command: object) => answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "r1", sessionId: "s1", op: "command", command: command as never }));
   const read = (taskId: string) => answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "q1", sessionId: "s1", op: "query", query: { kind: "thread", taskId } }));
@@ -518,6 +520,8 @@ test("a phone's review is read from the thread's own checkout, and refused for a
       directories: async (prefix) => { reads.push([prefix]); return ["/code/app", "/code/api"]; },
       transcribeAudio: async (audio) => { reads.push([audio]); return "run the tests"; },
       readMessageImage: async (...args) => { reads.push(args); return { data: "iVBORw0KGgo=", contentType: "image/png" }; },
+      commands: async () => assert.fail("no commands are read"),
+      projectlessWorkspace: async () => assert.fail("no checkout is named"),
     },
   };
   const folders = await answerMobileRequest(bridge, request({ type: "mobile.request", requestId: "q0", sessionId: "s1", op: "query", query: { kind: "directories", prefix: "/code/" } }));
@@ -548,6 +552,40 @@ test("a phone's review is read from the thread's own checkout, and refused for a
   assert.equal(blind.ok, false, "a host with nothing to read from refuses rather than reads nothing");
 });
 
+test("a phone's \"/\" menu is read for the thread's engine from its checkout, on the computer holding it", async () => {
+  const holder = workspace({
+    threads: [task("member", { remoteLead: { threadId: "lead", title: "Lead", computer: "Mac" }, projectId: "p-far", engine: "codex" }), task("far-loose", { remoteLead: { threadId: "lead", title: "Lead", computer: "Mac" } })],
+    projects: [{ id: "p-far", root: "/far/app", workspaceId: "ws-far" }],
+  });
+  const base = workspace({
+    threads: [task("lead", { role: "coordinator" }), task("task-1", { projectId: "project-app", worktreeId: "wt-1", engine: "codex" }), task("loose")],
+    projects: [{ id: "project-app", root: "/code/app", workspaceId: "ws-app" }],
+    worktrees: [{ id: "wt-1", projectId: "project-app", root: "/code/app-wt", workspaceId: "ws-wt", baseCommit: "abc", createdAt: NOW, lastUsedAt: NOW }],
+    draftProjectId: "project-app",
+    draftEngine: "opencode",
+    currentId: "lead",
+  });
+  const paired = { id: "linux", name: "Linux", host: "linux.ts.net", status: "connected" as const, error: null, pairedAt: 1, capabilities: COMPUTER_CAPABILITIES, state: holder };
+  const reads: unknown[][] = [];
+  const bridge: MobileBridgeHost = { ...host({ ...base, computers: { ...base.computers, name: "Mac", paired: [paired] } }).bridge, read: {
+    diffSummary: async () => assert.fail("no review is read"),
+    diffPatch: async () => assert.fail("no patch is read"),
+    directories: async () => [],
+    transcribeAudio: async () => "",
+    readMessageImage: async () => assert.fail("no image is read"),
+    commands: async (...args) => { reads.push(args); return { status: "available", commands: [{ name: "review", description: "Review", argumentHint: "" }] }; },
+    projectlessWorkspace: async () => ({ id: "ws-none", kind: "projectless", root: "/tmp" }),
+  } };
+  const commands = (taskId?: string) => answerMobileRequest(bridge, request({ type: "mobile.request", requestId: "c1", sessionId: "s1", op: "query", query: { kind: "commands", ...(taskId ? { taskId } : {}) } }));
+
+  const answer = await commands("task-1");
+  assert.deepEqual(answer.ok && answer.result, { status: "available", commands: [{ name: "review", description: "Review", argumentHint: "" }] });
+  for (const taskId of ["loose", undefined, "member"]) assert.equal((await commands(taskId)).ok, true);
+  assert.deepEqual(reads, [["ws-wt", "codex"], ["ws-none", "claude"], ["ws-app", "opencode"], ["ws-far", "codex"]], "the worktree, the projectless checkout, the draft's project, and the paired computer's checkout");
+  assert.deepEqual(await commands("far-loose"), { type: "mobile.response", requestId: "c1", ok: true, result: { status: "error", message: MOBILE_NO_COMMANDS } }, "this computer cannot name another's projectless checkout");
+  assert.equal((await commands("nowhere")).ok, false);
+});
+
 test("a phone reads only the images a reply links, by the reply's ID, from the thread's checkout", async () => {
   const reply = message("Here: ![Home](shots/home.png) and [settings](/tmp/settings.png).", NOW, "assistant");
   const plain = message("No pictures here.", NOW + 1, "assistant");
@@ -567,6 +605,8 @@ test("a phone reads only the images a reply links, by the reply's ID, from the t
     directories: async () => [],
     transcribeAudio: async () => "",
     readMessageImage: async (...args) => { reads.push(args); return { data: "iVBORw0KGgo=", contentType: "image/png" }; },
+    commands: async () => assert.fail("no commands are read"),
+    projectlessWorkspace: async () => assert.fail("no checkout is named"),
   } };
   const ask = (requestId: string, href: string, messageId = reply.id, preview?: boolean) =>
     answerMobileRequest(bridge, request({ type: "mobile.request", requestId, sessionId: "s1", op: "query", query: { kind: "image", taskId: "task-1", messageId, href, ...(preview === undefined ? {} : { preview }) } }));

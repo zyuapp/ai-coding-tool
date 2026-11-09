@@ -3,6 +3,7 @@ import { NEW_THREAD_DRAFT, promptKey, type WorkspaceState } from "../application
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
 import type { WorkspaceCommandResult, WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
 import type { AppCommand } from "../contracts/commands.js";
+import type { CommandDiscoveryResult } from "../contracts/ipc.js";
 import { isMobileQuery, isMobileRequest, type MobileQuery, type MobileRequest, type MobileResponse, type MobileView, type MobileViewUpdate } from "../contracts/mobile.js";
 import { isPhoneCommand, isWorkspaceViewInput } from "../contracts/workspace-view-input.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
@@ -25,7 +26,7 @@ export const MOBILE_QUEUED_NOT_WORDS = "A message with images, files, pasted tex
 export const MOBILE_NO_CHECKOUT = "This thread has no checkout to review.";
 
 /** The reads a phone's queries are answered from. Content only; state never travels this way. */
-export type MobileBridgeReader = Pick<RuntimeDesktop, "diffSummary" | "diffPatch" | "directories" | "transcribeAudio" | "readMessageImage">;
+export type MobileBridgeReader = Pick<RuntimeDesktop, "diffSummary" | "diffPatch" | "directories" | "transcribeAudio" | "readMessageImage" | "commands" | "projectlessWorkspace">;
 
 /** The runtime state and the command execution that answers each phone request. */
 export type MobileBridgeHost = {
@@ -61,6 +62,7 @@ async function answerQuery(host: MobileBridgeHost, query: MobileQuery): Promise<
   if (query.kind === "directories") return reader.directories(query.prefix);
   if (query.kind === "transcribe") return { text: await reader.transcribeAudio(query.audio) };
   if (query.kind === "image") return linkedImage(host, reader, query);
+  if (query.kind === "commands") return composerCommands(host, reader, query.taskId);
   const state = host.state();
   const thread = state.threads.find((item) => item.id === query.taskId);
   if (!thread) throw new Error(`No thread has the ID ${query.taskId}.`);
@@ -68,6 +70,28 @@ async function answerQuery(host: MobileBridgeHost, query: MobileQuery): Promise<
   if (!workspaceId) throw new Error(MOBILE_NO_CHECKOUT);
   if (query.kind === "diff-summary") return reader.diffSummary(workspaceId, query.range, true);
   return reader.diffPatch(workspaceId, query.range, query.path, query.previousPath, true);
+}
+
+/** What a phone is told for a paired computer's thread in no project, whose projectless checkout only that computer can name. */
+export const MOBILE_NO_COMMANDS = "That computer does not say what this thread's commands are.";
+
+/**
+ * The "/" menu the desktop's composer would show: the engine's commands in the thread's checkout, read
+ * on the computer holding it, or in the draft's project. One in no project reads the projectless checkout.
+ */
+async function composerCommands(host: MobileBridgeHost, reader: MobileBridgeReader, taskId: string | undefined): Promise<CommandDiscoveryResult> {
+  const state = host.state();
+  const remote = taskId === undefined ? undefined : remoteMemberHolder(state, taskId)?.state;
+  const holder = remote ?? state;
+  const thread = taskId === undefined ? undefined : holder.threads.find((item) => item.id === taskId);
+  if (taskId !== undefined && !thread) throw new Error(`No thread has the ID ${taskId}.`);
+  const engine = thread?.engine ?? state.draftEngine;
+  const workspaceId = thread
+    ? threadWorkspaceId(holder, thread)
+    : state.projects.find((project) => project.id === state.draftProjectId)?.workspaceId;
+  if (workspaceId) return reader.commands(workspaceId, engine);
+  if (remote) return { status: "error", message: MOBILE_NO_COMMANDS };
+  return reader.commands((await reader.projectlessWorkspace()).id, engine);
 }
 
 let images: Promise<typeof import("../application/message-images.js")> | undefined;

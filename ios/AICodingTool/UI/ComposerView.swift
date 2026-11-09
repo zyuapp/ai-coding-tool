@@ -24,6 +24,8 @@ struct ComposerView<Above: View>: View {
     var onStop: (() -> Void)?
     var onAnswer: ((PendingQuestion, String) -> Void)?
     var quick: QuickSettings
+    /// Where the "/" menu is read from; nil offers none.
+    var commandScope: PhoneModel.CommandScope?
     @ViewBuilder var above: Above
 
     @Environment(\.palette) private var palette
@@ -53,6 +55,7 @@ struct ComposerView<Above: View>: View {
     /// A tap left the microphone listening, until the next press adds the words.
     @State private var talkHandsFree = false
     @State private var pressedAt = Date.distantPast
+    @State private var commandsPicked = 0
     @GestureState private var pressing = false
     @Environment(\.scenePhase) private var scenePhase
     @FocusState private var focused: Bool
@@ -63,6 +66,8 @@ struct ComposerView<Above: View>: View {
     private var queueing: Bool { running && typed }
     private var canTalk: Bool { model.canDictate && !blocked }
     private var usage: MobileComposerUsage? { model.view.usage?.composer }
+    /// What follows the "/" starting the draft, when there is a menu to read.
+    private var commandQuery: String? { !blocked && commandScope != nil ? SlashCommands.query(in: draft) : nil }
 
     var body: some View {
         let summary = model.catalog.summary(settings)
@@ -107,6 +112,13 @@ struct ComposerView<Above: View>: View {
                     .fitsShortScreens()
             }
             above
+            if tray == nil, let commandQuery, let commandScope, model.commands(for: commandScope)?.isEmpty != true {
+                CommandPicker(commands: model.commands(for: commandScope), query: commandQuery) { command in
+                    draft = SlashCommands.inserting(command)
+                    commandsPicked += 1
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             if let tray {
                 Group {
                     switch tray {
@@ -134,6 +146,11 @@ struct ComposerView<Above: View>: View {
         .sensoryFeedback(.impact(weight: .light), trigger: sent)
         .sensoryFeedback(.impact(weight: .medium), trigger: heard)
         .sensoryFeedback(.selection, trigger: talkCancelling)
+        .sensoryFeedback(.selection, trigger: commandsPicked)
+        .animation(.snappy(duration: 0.2), value: commandQuery == nil)
+        .onChange(of: commandQuery == nil ? nil : commandScope) { _, scope in
+            if let scope { model.readCommands(for: scope) }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { cancelTalk() }
         }
@@ -623,8 +640,8 @@ struct ComposerView<Above: View>: View {
 }
 
 extension ComposerView where Above == EmptyView {
-    init(model: PhoneModel, draftKey: String, running: Bool, settings: MobileThreadSettings, question: PendingQuestion?, returned: ComposerReturned?, onSend: @escaping (String, [String]) -> Void, onSteer: ((String, [String]) -> Void)?, onStop: (() -> Void)?, onAnswer: ((PendingQuestion, String) -> Void)?, quick: QuickSettings) {
-        self.init(model: model, draftKey: draftKey, running: running, settings: settings, question: question, returned: returned, onSend: onSend, onSteer: onSteer, onStop: onStop, onAnswer: onAnswer, quick: quick) { EmptyView() }
+    init(model: PhoneModel, draftKey: String, running: Bool, settings: MobileThreadSettings, question: PendingQuestion?, returned: ComposerReturned?, onSend: @escaping (String, [String]) -> Void, onSteer: ((String, [String]) -> Void)?, onStop: (() -> Void)?, onAnswer: ((PendingQuestion, String) -> Void)?, quick: QuickSettings, commandScope: PhoneModel.CommandScope?) {
+        self.init(model: model, draftKey: draftKey, running: running, settings: settings, question: question, returned: returned, onSend: onSend, onSteer: onSteer, onStop: onStop, onAnswer: onAnswer, quick: quick, commandScope: commandScope) { EmptyView() }
     }
 }
 

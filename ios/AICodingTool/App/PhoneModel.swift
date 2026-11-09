@@ -49,6 +49,9 @@ final class PhoneModel {
     @ObservationIgnored private var openingTimer: Task<Void, Never>?
     @ObservationIgnored private var updatesChecked: (origin: URL?, at: Date)?
     @ObservationIgnored private var usageRead: (origin: URL?, at: Date)?
+    /// Each "/" menu read, by computer, checkout and engine: empty when the computer had none to give.
+    private(set) var commandLists: [String: [SlashCommand]] = [:]
+    @ObservationIgnored private var commandsRead: [String: Date] = [:]
 
     init(connection: PhoneConnection, storage: PhoneStorage = PhoneStorage()) {
         self.connection = connection
@@ -219,6 +222,34 @@ final class PhoneModel {
 
     func keepDraft(_ text: String, for key: String) {
         drafts[key] = text.isEmpty ? nil : text
+    }
+
+    /// Where a "/" menu is read from: the thread, or the draft when `taskId` is nil, and the checkout and
+    /// engine it runs in, which is what the list is kept by.
+    struct CommandScope: Equatable {
+        var taskId: String?
+        var checkout: String
+        var engine: String
+    }
+
+    private func commandsKey(_ scope: CommandScope) -> String {
+        "\(connection.origin?.absoluteString ?? "")|\(scope.checkout)|\(scope.engine)"
+    }
+
+    /// The list last read for the scope, or nil before its first read has answered.
+    func commands(for scope: CommandScope) -> [SlashCommand]? { commandLists[commandsKey(scope)] }
+
+    /// Reads the scope's list again at most once a minute, keeping the last one meanwhile, so skills
+    /// installed since show up without typing waiting on the computer.
+    func readCommands(for scope: CommandScope) {
+        let key = commandsKey(scope)
+        guard live else { return }
+        if let read = commandsRead[key], Date().timeIntervalSince(read) < 60 { return }
+        commandsRead[key] = Date()
+        Task {
+            let answer = try? await connection.query(.commands(taskId: scope.taskId)).decode(CommandDiscovery.self)
+            commandLists[key] = answer?.commands ?? commandLists[key] ?? []
+        }
     }
 
     /// Spoken words follow whatever that draft holds, whether or not its thread is still on screen.

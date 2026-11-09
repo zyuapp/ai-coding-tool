@@ -58,6 +58,7 @@ function workspaceDesktop(host: ServiceDesktopHost) {
     },
     onOpenProject: (listener) => events.on("workspace:open-project", listener),
     projectlessWorkspace: async () => (await host.workspaces().getProjectless()).workspace,
+    commands: (workspaceId, engine) => host.reads.read({ kind: "commands", workspaceId, engine }, { workspace: workspaceId }),
     changedFiles: async (workspaceId) => {
       try {
         const { changedFiles } = await import("./workspace/git-changes.mjs");
