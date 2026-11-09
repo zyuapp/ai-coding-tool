@@ -468,8 +468,10 @@ struct ComposerView<Above: View>: View {
         guard !talkHandsFree, talk == .starting || talk == .listening else { return }
         if rise < -TalkPhase.cancelDistance { return cancelTalk() }
         if time.timeIntervalSince(pressedAt) < TalkPhase.tapSeconds {
-            talkCancelling = false
-            talkHandsFree = true
+            unanimated {
+                talkCancelling = false
+                talkHandsFree = true
+            }
             return
         }
         if talk == .starting { talkReleased = true } else { finishTalking() }
@@ -481,13 +483,22 @@ struct ComposerView<Above: View>: View {
         talkReleased = false
         talkCancelling = false
         startTalking()
-        if talk == .starting { talkHandsFree = true }
+        if talk == .starting { unanimated { talkHandsFree = true } }
     }
 
     /// The press that ends hands-free listening, adding the words. Then sends them too when given how.
     private func finishHandsFree(then how: ((String, [String]) -> Void)? = nil) {
-        talkHandsFree = false
-        if talk == .starting { talkReleased = true } else if talk == .listening { finishTalking(then: how) }
+        unanimated {
+            talkHandsFree = false
+            if talk == .starting { talkReleased = true } else if talk == .listening { finishTalking(then: how) }
+        }
+    }
+
+    /// The microphone lights, and the hands-free checkmark comes and goes, without animating.
+    private func unanimated(_ body: () -> Void) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction, body)
     }
 
     private func startTalking() {
@@ -499,7 +510,7 @@ struct ComposerView<Above: View>: View {
             }
             return
         }
-        talk = .starting
+        unanimated { talk = .starting }
         Dictation.finish()
         Task { @MainActor in
             do {
@@ -517,7 +528,7 @@ struct ComposerView<Above: View>: View {
     }
 
     private func cancelTalk() {
-        talkHandsFree = false
+        if talkHandsFree { return unanimated { talkHandsFree = false; cancelTalk() } }
         guard talk.active else { return }
         if talk == .listening { recorder.cancel() }
         talk = .idle
