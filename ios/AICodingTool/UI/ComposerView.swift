@@ -117,7 +117,6 @@ struct ComposerView<Above: View>: View {
                         SettingsTray(settings: settings, catalog: model.catalog, quick: quick, usage: usage, onClose: closeTray)
                     }
                 }
-                .composerSurface(palette, focused: true)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -622,12 +621,12 @@ enum ComposerTray {
     case attach, settings
 }
 
-/// A tray's grabber over its content; a tap on the grabber or a swipe down closes it.
+/// A tray's card: a grabber over its content. A tap on the grabber or a swipe down closes it; the card follows the finger and leaves from where it was let go.
 struct TrayFrame<Content: View>: View {
     var onClose: () -> Void
     @ViewBuilder var content: Content
     @Environment(\.palette) private var palette
-    @GestureState private var drag: CGFloat = 0
+    @State private var drag: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -641,12 +640,17 @@ struct TrayFrame<Content: View>: View {
                 .accessibilityAddTraits(.isButton)
             content.padding(.bottom, 6)
         }
-        .offset(y: max(0, drag))
+        .composerSurface(palette, focused: true)
+        .offset(y: drag)
         .gesture(
             DragGesture(minimumDistance: 8)
-                .updating($drag) { value, state, _ in state = value.translation.height }
+                .onChanged { value in drag = max(0, value.translation.height) }
                 .onEnded { value in
-                    if value.translation.height > 60 || value.predictedEndTranslation.height > 160 { onClose() }
+                    if value.translation.height > 60 || value.predictedEndTranslation.height > 160 {
+                        onClose()
+                    } else {
+                        withAnimation(.snappy) { drag = 0 }
+                    }
                 }
         )
     }
