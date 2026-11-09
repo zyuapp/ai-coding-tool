@@ -54,6 +54,21 @@ jobs:
           xcodebuild -version
           xcodebuild -showsdks | grep -q iphoneos || xcodebuild -downloadPlatform iOS
       - run: brew install xcodegen
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+      - name: Key dependencies
+        id: deps
+        run: echo "hash=$(jq -c 'del(.version, .packages[""].version)' package-lock.json | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - name: Restore dependencies
+        id: modules
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ steps.deps.outputs.hash }}
+      # The phone app bundles Mermaid from node_modules; the scripts only matter to the desktop build.
+      - if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci --ignore-scripts
       - name: Restore signing credentials
         shell: bash
         env:

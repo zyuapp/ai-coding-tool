@@ -10,6 +10,35 @@ struct MarkdownView: View {
         let document = Document(parsing: text, options: [.disableSmartOpts])
         BlockList(blocks: document.blockChildren.map { $0 as any Markup })
             .frame(maxWidth: .infinity, alignment: .leading)
+            .environment(\.openFenceLine, Self.openFenceLine(text))
+    }
+
+    /// The line, counted from 1, that opens a code fence the text has not closed yet.
+    static func openFenceLine(_ text: String) -> Int? {
+        var open: (run: Substring, line: Int)?
+        for (index, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+            let trimmed = line.drop { $0 == " " }
+            guard let mark = trimmed.first, mark == "`" || mark == "~" else { continue }
+            let run = trimmed.prefix { $0 == mark }
+            guard run.count >= 3 else { continue }
+            if let fence = open?.run {
+                if fence.first == mark, run.count >= fence.count, trimmed.dropFirst(run.count).allSatisfy(\.isWhitespace) { open = nil }
+            } else if mark == "~" || !trimmed.dropFirst(run.count).contains("`") {
+                open = (run, index + 1)
+            }
+        }
+        return open?.line
+    }
+}
+
+private struct OpenFenceLineKey: EnvironmentKey {
+    static let defaultValue: Int? = nil
+}
+
+private extension EnvironmentValues {
+    var openFenceLine: Int? {
+        get { self[OpenFenceLineKey.self] }
+        set { self[OpenFenceLineKey.self] = newValue }
     }
 }
 
@@ -28,6 +57,7 @@ private struct BlockList: View {
 private struct BlockView: View {
     var block: any Markup
     @Environment(\.palette) private var palette
+    @Environment(\.openFenceLine) private var openFenceLine
 
     var body: some View {
         switch block {
@@ -42,6 +72,9 @@ private struct BlockView: View {
                 .lineSpacing(3)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
+        case let code as CodeBlock where code.language?.lowercased() == "mermaid":
+            let source = code.code.hasSuffix("\n") ? String(code.code.dropLast()) : code.code
+            MermaidBlockView(source: source, pending: openFenceLine != nil && code.range?.lowerBound.line == openFenceLine)
         case let code as CodeBlock:
             CodeBlockView(code: code.code.hasSuffix("\n") ? String(code.code.dropLast()) : code.code, language: code.language)
         case let quote as BlockQuote:

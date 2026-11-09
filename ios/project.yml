@@ -50,6 +50,20 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic
         ENABLE_PREVIEWS: YES
+    preBuildScripts:
+      - name: Bundle the Mermaid library
+        inputFiles:
+          - $(SRCROOT)/../node_modules/mermaid/dist/mermaid.min.js
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/mermaid.min.js
+        script: |
+          source="$SRCROOT/../node_modules/mermaid/dist/mermaid.min.js"
+          if [ ! -f "$source" ]; then
+            echo "error: $source is missing. Run npm ci in the repository root."
+            exit 1
+          fi
+          mkdir -p "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
+          cp "$source" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/mermaid.min.js"
     postBuildScripts:
       - name: Allow plain sockets to this computer in debug builds
         basedOnDependencyAnalysis: false
