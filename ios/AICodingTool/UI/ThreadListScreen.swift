@@ -280,12 +280,7 @@ struct ThreadRow: View {
         .listRowBackground(Color.clear)
         .listRowSeparatorTint(palette.lineSoft)
         .contextMenu { menuItems }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive) { askArchive() } label: { Label("Archive", systemImage: "archivebox") }
-            Button(action: onRename) { Label("Rename", systemImage: "pencil") }
-                .tint(palette.info)
-        }
-        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             if thread.attention {
                 Button { model.dismiss(thread.id) } label: { Label("Dismiss", systemImage: "checkmark") }
                     .tint(palette.success)
