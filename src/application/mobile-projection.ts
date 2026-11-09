@@ -10,7 +10,9 @@ import { orderThreads } from "./thread-order.js";
 import { worktreeChoices } from "./worktree-choices.js";
 import { coordinationMembers, coordinatorRoster, memberActivity, ownCoordinationSections, rowHeadline, waitingLine } from "./coordination.js";
 import { describeToolCall } from "../domain/tool-call.js";
-import { isCoordinator } from "../domain/coordination.js";
+import { deliveryLabel, isCoordinator } from "../domain/coordination.js";
+import type { CoordinationDecisionView, ProposalView } from "./coordination-view.js";
+import { ARCHIVE_RETENTION_MS } from "../domain/thread-retention.js";
 import type { ConversationMessage } from "../domain/conversation.js";
 import { mayLinkImages } from "../domain/message-artifacts.js";
 import { threadActivity, type ThreadActivity } from "./thread-activity.js";
@@ -26,6 +28,9 @@ import { ownUpkeep } from "./computer-updates.js";
 import { isPhoneCommand } from "../contracts/workspace-view-input.js";
 import type {
   MobileActivity,
+  MobileArchivedThread,
+  MobileDecision,
+  MobileSuggestion,
   MobileBackgroundItem,
   MobileChanges,
   MobileComposerUsage,
@@ -77,6 +82,15 @@ export const MOBILE_BACKGROUND_DETAIL_LIMIT = 300;
 /** How much of an approval's tool input is carried. Enough to judge it, never a whole file. */
 export const MOBILE_APPROVAL_DETAIL_LIMIT = 4_000;
 
+/** How many open decisions the open thread carries; the phone answers them one at a time. */
+export const MOBILE_DECISION_LIMIT = 20;
+
+/** How much of a suggestion's prompt is carried. The phone shows it only on request. */
+export const MOBILE_SUGGESTION_PROMPT_LIMIT = 4_000;
+
+/** How many archived threads an "archived" query lists, newest first. */
+export const MOBILE_ARCHIVED_LIMIT = 100;
+
 export function emptyMobileView(): MobileView {
   return {
     groups: [],
@@ -86,6 +100,7 @@ export function emptyMobileView(): MobileView {
     upkeep: [],
     dictation: false,
     usage: NO_USAGE,
+    archived: 0,
     thread: null,
     draft: null,
     error: null,
@@ -191,6 +206,7 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
       ...(headline !== null ? { headline } : {}),
       ...(waiting !== null ? { waiting: true as const } : {}),
       attention: Boolean(roster?.dismissable),
+      ...(thread?.snoozedUntil !== undefined ? { snoozedUntil: thread.snoozedUntil } : {}),
     };
     entries.get(key)?.push(entry) ?? entries.set(key, [entry]);
     entriesById.set(entry.id, entry);
@@ -209,6 +225,7 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
     upkeep: projectMobileUpkeep(state),
     dictation: state.dictation.model === "ready",
     usage: projectMobileUsage(state, view),
+    archived: workspaceViewCollections(state).archivedThreads.length,
     thread,
     draft: thread ? null : projectMobileDraft(state, view),
     error: state.actionError,
@@ -268,7 +285,8 @@ function projectMobileActivity(state: WorkspaceState, here: Pick<ThreadActivity,
   const listed = workspaceViewCollections(state).visibleThreads.filter((thread) => entriesById.has(thread.id));
   const { sections } = ownCoordinationSections(state, listed, here, state.computers.paired);
   const rows = (threads: Thread[]) => threads.flatMap((thread) => entriesById.get(thread.id) ?? []);
-  return { priority: rows(sections.priority), running: rows(sections.running), threads: rows(sections.threads), snoozed: rows(sections.snoozed) };
+  const snoozable = (entry: MobileThreadEntry): MobileThreadEntry => ({ ...entry, snoozable: true });
+  return { priority: rows(sections.priority).map(snoozable), running: rows(sections.running), threads: rows(sections.threads), snoozed: rows(sections.snoozed) };
 }
 
 /** The desktop's family in both faces, so a phone on "auto" can pick its own without asking. */
@@ -363,7 +381,56 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
     members: isCoordinator(thread) ? projectMembers(state, thread.id, view) : NO_MEMBERS,
     role: thread.role ?? null,
     background: projectBackground(view.workflows, view.backgroundProcesses, view.subagents),
+    decisions: projectDecisions(thread, view.coordination.decisions),
+    suggestions: projectSuggestions(view.coordination.proposals),
+    limit: view.limitPause ? { resetsAt: view.limitPause.resetsAt, window: view.limitPause.window, position: view.limitPause.position } : null,
   };
+}
+
+const NO_DECISIONS: MobileDecision[] = [];
+
+/** The decisions the open thread's Needs-you card answers, naming the thread that asks when it is another. */
+function projectDecisions(open: Thread, decisions: readonly CoordinationDecisionView[]): MobileDecision[] {
+  if (!decisions.length) return NO_DECISIONS;
+  return decisions.slice(0, MOBILE_DECISION_LIMIT).map(({ thread, decision }) => ({
+    taskId: thread.id,
+    ...(thread.id !== open.id ? { from: thread.title || "Untitled thread" } : {}),
+    id: decision.id,
+    question: decision.question,
+    ...(decision.context ? { context: decision.context } : {}),
+    options: decision.options.map((option) => ({ label: option.label, ...(option.description ? { description: option.description } : {}), ...(option.recommended ? { recommended: true as const } : {}) })),
+  }));
+}
+
+const NO_SUGGESTIONS: MobileSuggestion[] = [];
+
+const projectedSuggestions = new WeakMap<readonly ProposalView[], MobileSuggestion[]>();
+
+/** The suggestions to start here, kept per list since the view holds the list while no suggestion moves. */
+function projectSuggestions(proposals: readonly ProposalView[]): MobileSuggestion[] {
+  if (!proposals.length) return NO_SUGGESTIONS;
+  let suggestions = projectedSuggestions.get(proposals);
+  if (!suggestions) {
+    suggestions = proposals.flatMap(({ proposal, starting, elsewhere }): MobileSuggestion[] => elsewhere ? [] : [{
+      id: proposal.id,
+      title: proposal.title,
+      ...(proposal.brief ? { brief: { intent: proposal.brief.intent, doneWhen: proposal.brief.doneWhen, delivers: deliveryLabel(proposal.brief.delivers) } } : {}),
+      prompt: clipText(proposal.prompt, MOBILE_SUGGESTION_PROMPT_LIMIT),
+      ...(starting ? { starting: true as const } : {}),
+      ...(proposal.error && !starting ? { error: proposal.error } : {}),
+    }]);
+    projectedSuggestions.set(proposals, suggestions);
+  }
+  return suggestions;
+}
+
+/** The archived threads as the phone's Archived list reads them, newest first. */
+export function mobileArchivedThreads(state: WorkspaceState): MobileArchivedThread[] {
+  return workspaceViewCollections(state).archivedThreads.slice(0, MOBILE_ARCHIVED_LIMIT).map((thread) => {
+    const project = projectFor(state, thread);
+    const archivedAt = thread.archivedAt!;
+    return { id: thread.id, title: thread.title || "Untitled thread", projectName: project ? projectName(project) : null, archivedAt, deletesAt: archivedAt + ARCHIVE_RETENTION_MS };
+  });
 }
 
 let heldBackground: { workflows: Workflow[]; processes: BackgroundProcess[]; subagents: Subagent[]; items: MobileBackgroundItem[] } | undefined;
@@ -474,6 +541,7 @@ export function diffMobileView(previous: MobileView, next: MobileView): MobilePa
   if (!same(previous.upkeep, next.upkeep)) patch.upkeep = next.upkeep;
   if (previous.dictation !== next.dictation) patch.dictation = next.dictation;
   if (!same(previous.usage, next.usage)) patch.usage = next.usage;
+  if (previous.archived !== next.archived) patch.archived = next.archived;
   const thread = diffMobileThread(previous.thread, next.thread);
   if (thread) patch.thread = thread;
   if (!same(previous.draft, next.draft)) patch.draft = next.draft;
@@ -519,7 +587,7 @@ function diffMobileThread(previous: MobileThreadView | null, next: MobileThreadV
   if (!previous || previous.id !== next.id) return { kind: "opened", thread: next };
   const delta: MobileThreadDelta = {};
   for (const key of MOVING_KEYS) {
-    if (!same(previous[key], next[key])) (delta as Record<string, unknown>)[key] = next[key];
+    if (previous[key] !== next[key] && !same(previous[key], next[key])) (delta as Record<string, unknown>)[key] = next[key];
   }
   const tail = previous.streamingTail;
   if (tail !== next.streamingTail) {
@@ -536,7 +604,7 @@ function diffMobileThread(previous: MobileThreadView | null, next: MobileThreadV
  */
 const MOVING_KEYS = [
   "loading", "title", "projectId", "projectName", "worktreeId", "omitted", "status", "question", "approval",
-  "queued", "settings", "location", "worktrees", "canMove", "changes", "reviewable", "branchRange", "members", "role", "background",
+  "queued", "settings", "location", "worktrees", "canMove", "changes", "reviewable", "branchRange", "members", "role", "background", "decisions", "suggestions", "limit",
 ] as const satisfies ReadonlyArray<keyof Omit<MobileThreadView, "id" | "messages" | "streamingTail">>;
 
 /**
@@ -572,6 +640,7 @@ export function applyMobilePatch(view: MobileView, patch: MobilePatch): MobileVi
     upkeep: patch.upkeep ?? view.upkeep,
     dictation: patch.dictation ?? view.dictation,
     usage: patch.usage ?? view.usage,
+    archived: patch.archived ?? view.archived,
     draft: "draft" in patch ? patch.draft ?? null : view.draft,
     error: "error" in patch ? patch.error ?? null : view.error,
   };

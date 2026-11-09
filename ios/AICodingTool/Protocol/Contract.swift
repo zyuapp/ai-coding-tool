@@ -16,6 +16,10 @@ struct MobileThreadEntry: Codable, Equatable, Identifiable, Sendable {
     var headline: String?
     var waiting: Bool?
     var attention: Bool
+    /// Set on a Priority row, which Snooze takes out of the list for a while. Nil from older computers.
+    var snoozable: Bool?
+    /// When a snoozed thread comes back, in milliseconds. Nil from older computers.
+    var snoozedUntil: Double?
 }
 
 struct MobileActivity: Codable, Equatable, Sendable {
@@ -93,6 +97,57 @@ struct MobileApproval: Codable, Equatable, Sendable {
     var description: String
     var toolName: String
     var detail: String
+}
+
+/// A choice a thread raised for the user. A coordinator's view names the thread under it that asks in `from`.
+struct MobileDecision: Codable, Equatable, Identifiable, Sendable {
+    struct Option: Codable, Equatable, Sendable {
+        var label: String
+        var description: String?
+        var recommended: Bool?
+    }
+
+    var taskId: String
+    var from: String?
+    var id: String
+    var question: String
+    var context: String?
+    var options: [Option]
+}
+
+/// What a coordinator handed a suggested thread. `delivers` is already a label.
+struct MobileBrief: Codable, Equatable, Sendable {
+    var intent: String
+    var doneWhen: String
+    var delivers: String
+}
+
+/// A thread the open coordinator suggested here, started with `proposal.start`. Its prompt arrives cut to length.
+struct MobileSuggestion: Codable, Equatable, Identifiable, Sendable {
+    var id: String
+    var title: String
+    var brief: MobileBrief?
+    var prompt: String
+    var starting: Bool?
+    var error: String?
+}
+
+/// The open thread waiting out a usage limit: a session limit resumes on its own, a weekly one waits for Resume.
+struct MobileLimitPause: Codable, Equatable, Sendable {
+    var resetsAt: Double
+    var window: String
+    var position: Int?
+
+    var resumesOnItsOwn: Bool { window == "session" }
+}
+
+/// An archived thread as the Archived list reads it.
+struct MobileArchivedThread: Codable, Equatable, Identifiable, Sendable {
+    var id: String
+    var title: String
+    var projectName: String?
+    var archivedAt: Double
+    var deletesAt: Double
 }
 
 struct QuestionOption: Codable, Equatable, Sendable {
@@ -299,6 +354,10 @@ struct MobileThreadView: Codable, Equatable, Sendable {
     var members: [MobileMember]?
     var role: String?
     var background: [MobileBackgroundItem]?
+    /// Nil from computers too old to send them, which take no answer from a phone.
+    var decisions: [MobileDecision]? = nil
+    var suggestions: [MobileSuggestion]? = nil
+    var limit: MobileLimitPause? = nil
 }
 
 struct MobileDraftView: Codable, Equatable, Sendable {
@@ -374,6 +433,8 @@ struct MobileView: Codable, Equatable, Sendable {
     var dictation: Bool? = nil
     /// The plan limits of the computer's accounts. Nil from a computer too old to send them.
     var usage: MobileUsage? = nil
+    /// How many threads are archived. Nil from a computer too old to list them.
+    var archived: Int? = nil
     var thread: MobileThreadView?
     var draft: MobileDraftView?
     var error: String?

@@ -1,0 +1,415 @@
+import SwiftUI
+
+/// The frame every card over the composer wears: raised off the transcript, edged in the accent.
+private struct CardFrame: ViewModifier {
+    @Environment(\.palette) private var palette
+
+    func body(content: Content) -> some View {
+        content
+            .padding(16)
+            .background(palette.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(palette.accentLine, lineWidth: 1))
+            .shadow(color: .black.opacity(palette.dark ? 0.35 : 0.08), radius: 16, y: 6)
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .accessibilityElement(children: .contain)
+    }
+}
+
+/// A card's glyph and its first lines: who asks and what.
+private struct CardHead: View {
+    var symbol: String
+    var caption: String
+    var count: String?
+    var title: String
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(palette.accent)
+                .frame(width: 34, height: 34)
+                .background(palette.accentChip, in: Circle())
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(caption).font(.caption.weight(.semibold)).foregroundStyle(palette.accent).lineLimit(1)
+                    Spacer(minLength: 0)
+                    if let count { Text(count).font(.caption.monospacedDigit()).foregroundStyle(palette.muted) }
+                }
+                Text(title).font(.headline).foregroundStyle(palette.ink).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+/// A labelled block that opens on a tap, for what is there to read only on request.
+private struct Disclosure<Inner: View>: View {
+    var label: String
+    var symbol: String
+    @Binding var open: Bool
+    @ViewBuilder var inner: () -> Inner
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.snappy) { open.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: symbol).font(.caption.weight(.semibold))
+                    Text(label).font(.footnote.weight(.semibold))
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.down").font(.caption2.weight(.bold)).rotationEffect(.degrees(open ? 180 : 0))
+                }
+                .foregroundStyle(palette.muted)
+                .padding(.horizontal, 12)
+                .frame(height: 34)
+            }
+            .buttonStyle(.target)
+            .accessibilityValue(open ? "Expanded" : "Collapsed")
+            if open {
+                ScrollView {
+                    inner()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 12)
+                }
+                .frame(maxHeight: 180)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .background(palette.codeSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+/// A choice a thread raised for the user. One tap on an option answers it, as the desktop's Send
+/// answer does; the user's own words go through a field of their own. `count` is how many wait.
+struct DecisionCard: View {
+    var decision: MobileDecision
+    var count: Int
+    var refused: String?
+    var onAnswer: (String) -> Void
+    @Environment(\.palette) private var palette
+    @State private var answered: String?
+    @State private var released: String?
+    @State private var contextOpen = false
+    @State private var writing = false
+    @State private var own = ""
+
+    init(decision: MobileDecision, count: Int, refused: String?, onAnswer: @escaping (String) -> Void) {
+        self.decision = decision
+        self.count = count
+        self.refused = refused
+        self.onAnswer = onAnswer
+        _released = State(initialValue: refused)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            CardHead(symbol: "signpost.right.and.left.fill", caption: decision.from.map { "\($0) · Needs your decision" } ?? "Needs your decision", count: count > 1 ? "1 of \(count)" : nil, title: decision.question)
+            if let context = decision.context, !context.isEmpty {
+                Disclosure(label: "Context", symbol: "text.alignleft", open: $contextOpen) {
+                    Text(context).font(.subheadline).foregroundStyle(palette.inkDim).textSelection(.enabled)
+                }
+            }
+            if !decision.options.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(decision.options, id: \.label) { option(for: $0) }
+                }
+            }
+            Button {
+                own = ""
+                writing = true
+            } label: {
+                Text(decision.options.isEmpty ? "Answer…" : "Other Answer…")
+                    .font(.body.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .foregroundStyle(decision.options.isEmpty ? palette.accentInk : palette.ink)
+                    .background(decision.options.isEmpty ? palette.accent : palette.raised, in: Capsule())
+            }
+            .buttonStyle(.target)
+            .disabled(answered != nil)
+            .opacity(answered != nil ? 0.45 : 1)
+        }
+        .modifier(CardFrame())
+        .sensoryFeedback(.success, trigger: answered) { _, next in next != nil }
+        .alert("Your Answer", isPresented: $writing) {
+            TextField("Answer", text: $own)
+            Button("Cancel", role: .cancel) {}
+            Button("Send") { answer(own.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                .disabled(own.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        } message: {
+            Text(decision.question)
+        }
+        .onChange(of: refused) { _, next in
+            if let next, next != released {
+                released = next
+                answered = nil
+            }
+        }
+    }
+
+    private func answer(_ text: String) {
+        guard !text.isEmpty, answered == nil else { return }
+        answered = text
+        onAnswer(text)
+    }
+
+    private func option(for option: MobileDecision.Option) -> some View {
+        let chosen = answered == option.label
+        let recommended = option.recommended == true
+        return Button { answer(option.label) } label: {
+            HStack(alignment: .center, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(option.label).font(.body.weight(.semibold)).foregroundStyle(palette.ink)
+                        if recommended {
+                            Text("Recommended")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(palette.accent)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(palette.accentChip, in: Capsule())
+                        }
+                    }
+                    if let description = option.description, !description.isEmpty {
+                        Text(description).font(.footnote).foregroundStyle(palette.muted).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+                if chosen { ProgressView().controlSize(.small).tint(palette.ink) }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .background(palette.raised, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(recommended ? palette.accentLine : .clear, lineWidth: 1))
+        }
+        .buttonStyle(.target)
+        .disabled(answered != nil)
+        .opacity(answered != nil && !chosen ? 0.45 : 1)
+        .accessibilityLabel(recommended ? "\(option.label), recommended" : option.label)
+        .accessibilityHint(option.description ?? "")
+    }
+}
+
+/// The threads the open coordinator suggested. Each title opens its brief, whose full prompt stays
+/// shut until asked for, and each starts on its own. The card folds to its first line.
+struct SuggestionsCard: View {
+    var suggestions: [MobileSuggestion]
+    var refused: String?
+    var onStart: (String) -> Void
+    @Environment(\.palette) private var palette
+    @State private var folded = false
+    @State private var opened: String?
+    @State private var promptOpen = false
+    @State private var asked: Set<String> = []
+    @State private var released: String?
+
+    init(suggestions: [MobileSuggestion], refused: String?, onStart: @escaping (String) -> Void) {
+        self.suggestions = suggestions
+        self.refused = refused
+        self.onStart = onStart
+        _released = State(initialValue: refused)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.snappy) { folded.toggle() }
+            } label: {
+                HStack(alignment: .center, spacing: 12) {
+                    Image(systemName: "rectangle.stack.badge.plus")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(palette.accent)
+                        .frame(width: 34, height: 34)
+                        .background(palette.accentChip, in: Circle())
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Suggested threads").font(.caption.weight(.semibold)).foregroundStyle(palette.accent)
+                        Text(suggestions.count == 1 ? "1 thread to start" : "\(suggestions.count) threads to start").font(.headline).foregroundStyle(palette.ink)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.down")
+                        .font(.footnote.weight(.bold))
+                        .foregroundStyle(palette.quiet)
+                        .rotationEffect(.degrees(folded ? -90 : 0))
+                }
+            }
+            .buttonStyle(.target)
+            .accessibilityValue(folded ? "Collapsed" : "Expanded")
+            if !folded {
+                ViewThatFits(in: .vertical) {
+                    rows
+                    ScrollView { rows }.scrollBounceBehavior(.basedOnSize)
+                }
+                .frame(maxHeight: 420)
+            }
+        }
+        .modifier(CardFrame())
+        .onChange(of: refused) { _, next in
+            if let next, next != released {
+                released = next
+                asked = []
+            }
+        }
+        .onChange(of: suggestions.map(\.id)) { _, ids in
+            asked.formIntersection(ids)
+            if let opened, !ids.contains(opened) { self.opened = nil }
+        }
+    }
+
+    private var rows: some View {
+        VStack(spacing: 8) {
+            ForEach(suggestions) { row($0) }
+        }
+    }
+
+    private func row(_ suggestion: MobileSuggestion) -> some View {
+        let open = opened == suggestion.id
+        let starting = suggestion.starting == true || asked.contains(suggestion.id)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
+                Button {
+                    withAnimation(.snappy) {
+                        opened = open ? nil : suggestion.id
+                        promptOpen = false
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(suggestion.title)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(palette.ink)
+                            .lineLimit(open ? nil : 2)
+                            .multilineTextAlignment(.leading)
+                        Image(systemName: "chevron.down")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(palette.quiet)
+                            .rotationEffect(.degrees(open ? 180 : 0))
+                        Spacer(minLength: 0)
+                    }
+                    .frame(minHeight: 36)
+                }
+                .buttonStyle(.target)
+                .accessibilityValue(open ? "Expanded" : "Collapsed")
+                .accessibilityHint("Shows its brief")
+                Button {
+                    asked.insert(suggestion.id)
+                    onStart(suggestion.id)
+                } label: {
+                    HStack(spacing: 5) {
+                        if starting {
+                            ProgressView().controlSize(.mini).tint(palette.accentInk)
+                        } else {
+                            Image(systemName: "play.fill").font(.caption2)
+                        }
+                        Text(starting ? "Starting" : "Start")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(palette.accentInk)
+                    .padding(.horizontal, 14)
+                    .frame(height: 34)
+                    .background(palette.accent, in: Capsule())
+                }
+                .buttonStyle(.target)
+                .disabled(starting)
+                .accessibilityLabel(starting ? "Starting \(suggestion.title)" : "Start \(suggestion.title)")
+            }
+            if let error = suggestion.error, !starting {
+                Text(error).font(.footnote).foregroundStyle(palette.danger).fixedSize(horizontal: false, vertical: true)
+            }
+            if open {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let brief = suggestion.brief {
+                        briefLine("Your words", brief.intent)
+                        briefLine("Done when", brief.doneWhen)
+                        briefLine("Delivers", brief.delivers)
+                    }
+                    Disclosure(label: "Full prompt", symbol: "text.alignleft", open: $promptOpen) {
+                        Text(suggestion.prompt).font(.footnote).foregroundStyle(palette.inkDim).textSelection(.enabled)
+                    }
+                }
+                .transition(.opacity)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(palette.raised.opacity(0.6), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func briefLine(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label).font(.caption.weight(.semibold)).foregroundStyle(palette.muted)
+            Text(value).font(.subheadline).foregroundStyle(palette.inkDim).fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The open thread waiting out a usage limit: when it goes, and the one step the desktop offers for it.
+/// A session limit resumes on its own, which the user may call off; a weekly one waits for Resume.
+struct LimitRow: View {
+    var pause: MobileLimitPause
+    var refused: String?
+    var onResume: () -> Void
+    var onCancel: () -> Void
+    @Environment(\.palette) private var palette
+    @State private var acting = false
+    @State private var released: String?
+
+    init(pause: MobileLimitPause, refused: String?, onResume: @escaping () -> Void, onCancel: @escaping () -> Void) {
+        self.pause = pause
+        self.refused = refused
+        self.onResume = onResume
+        self.onCancel = onCancel
+        _released = State(initialValue: refused)
+    }
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: "hourglass")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(palette.accent)
+                    .frame(width: 30, height: 30)
+                    .background(palette.accentChip, in: Circle())
+                Text(Format.limitLabel(pause, now: context.date))
+                    .font(.footnote)
+                    .foregroundStyle(palette.inkDim)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 4)
+                Button {
+                    acting = true
+                    if pause.resumesOnItsOwn { onCancel() } else { onResume() }
+                } label: {
+                    HStack(spacing: 5) {
+                        if acting { ProgressView().controlSize(.mini).tint(pause.resumesOnItsOwn ? palette.ink : palette.accentInk) }
+                        Text(pause.resumesOnItsOwn ? "Cancel Auto-Resume" : "Resume")
+                    }
+                    .lineLimit(1)
+                    .fixedSize()
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(pause.resumesOnItsOwn ? palette.ink : palette.accentInk)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 34)
+                    .background(pause.resumesOnItsOwn ? palette.raised : palette.accent, in: Capsule())
+                }
+                .buttonStyle(.target)
+                .disabled(acting)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(palette.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .accessibilityElement(children: .contain)
+        .onChange(of: refused) { _, next in
+            if let next, next != released {
+                released = next
+                acting = false
+            }
+        }
+    }
+}

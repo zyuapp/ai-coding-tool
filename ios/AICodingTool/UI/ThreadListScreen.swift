@@ -69,6 +69,9 @@ struct ThreadListScreen: View {
                     }
                 }
             }
+            if !searching, let archived = model.view.archived, archived > 0 {
+                ArchivedLink(count: archived) { model.path.append(.archived) }
+            }
         }
         .listStyle(.plain)
         .hardTopEdge()
@@ -100,7 +103,7 @@ struct ThreadListScreen: View {
         .sheet(item: $renaming) { thread in
             RenameSheet(title: thread.title) { title in model.send(.rename(thread.id, title: title)) }
         }
-        .archiveConfirmation($archiving) { asked in model.archive(asked.id, leaving: false) }
+        .archiveConfirmation($archiving, restorable: model.view.archived != nil) { asked in model.archive(asked.id, leaving: false) }
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
@@ -202,6 +205,31 @@ private struct SectionHeading: View {
     }
 }
 
+/// The way to the archive, below every section, as Mail keeps Recently Deleted below its mailboxes.
+private struct ArchivedLink: View {
+    var count: Int
+    var onOpen: () -> Void
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        Button(action: onOpen) {
+            HStack(spacing: 10) {
+                Image(systemName: "archivebox").font(.body).foregroundStyle(palette.muted).frame(width: 22)
+                Text("Archived").font(.body).foregroundStyle(palette.ink)
+                Spacer(minLength: 8)
+                Text("\(count)").font(.subheadline.monospacedDigit()).foregroundStyle(palette.muted)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(palette.quiet)
+            }
+            .padding(.vertical, 12)
+        }
+        .buttonStyle(RowPress())
+        .listRowInsets(EdgeInsets(top: 22, leading: 16, bottom: 8, trailing: 16))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .accessibilityValue(count == 1 ? "1 thread" : "\(count) threads")
+    }
+}
+
 /// What the list shows before the computer has any threads.
 private struct EmptyList: View {
     var onStart: () -> Void
@@ -286,7 +314,8 @@ struct ThreadRow: View {
 
     /// The project, then what the thread is doing; a thread that needs the user says so in the accent.
     private var meta: some View {
-        let state = needsYou ? "Needs you" : snoozed ? "Snoozed" : Format.stateLabel(thread)
+        let until = thread.snoozedUntil.map { "Snoozed until \(Format.liftTime($0, now: now))" } ?? "Snoozed"
+        let state = needsYou ? "Needs you" : snoozed ? until : Format.stateLabel(thread)
         return (Text(thread.projectName ?? "No project").foregroundStyle(palette.muted)
             + Text(state.map { " · \($0)" } ?? "").foregroundStyle(needsYou ? palette.accent : palette.muted))
             .font(.footnote)
@@ -322,6 +351,17 @@ struct ThreadRow: View {
             Section {
                 Button { model.dismiss(thread.id) } label: { Label("Dismiss", systemImage: "checkmark.circle") }
             }
+        }
+        if thread.snoozable == true {
+            Menu {
+                ForEach(SnoozeOption.allCases) { option in
+                    Button(option.label) { model.send(.snooze(thread.id, hours: option.hours)) }
+                }
+            } label: {
+                Label("Snooze", systemImage: "moon.zzz")
+            }
+        } else if thread.snoozedUntil != nil {
+            Button { model.send(.unsnooze(thread.id)) } label: { Label("Unsnooze", systemImage: "sun.max") }
         }
         Section {
             Button(action: onRename) { Label("Rename…", systemImage: "pencil") }

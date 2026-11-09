@@ -152,4 +152,34 @@ final class DomainTests: XCTestCase {
         XCTAssertNil(Format.usageReset(nil, now: now, calendar: calendar))
         XCTAssertNil(Format.usageReset("soon", now: now, calendar: calendar))
     }
+
+    func testLimitSaysWhenItLiftsAndWhereTheThreadStands() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let now = ISO8601DateFormatter().date(from: "2027-01-15T10:00:00Z")!
+        let soon = now.timeIntervalSince1970 * 1000 + 3_600_000
+        let first = Format.limitLabel(MobileLimitPause(resetsAt: soon, window: "session", position: 1), now: now, calendar: calendar)
+        XCTAssertTrue(first.hasPrefix("Usage limit reached. Resumes at "), first)
+        XCTAssertFalse(first.contains("after"))
+        XCTAssertTrue(Format.limitLabel(MobileLimitPause(resetsAt: soon, window: "session", position: 3), now: now, calendar: calendar).hasSuffix(" after 2 other threads."))
+        XCTAssertEqual(Format.limitLabel(MobileLimitPause(resetsAt: soon - 7_200_000, window: "session", position: 2), now: now, calendar: calendar), "Usage limit reset. Resuming after 1 other thread.")
+        let weekly = Format.limitLabel(MobileLimitPause(resetsAt: soon + 3 * 86_400_000, window: "weekly", position: nil), now: now, calendar: calendar)
+        XCTAssertTrue(weekly.hasPrefix("Weekly usage limit reached. Resets Mon "), weekly)
+        XCTAssertEqual(Format.limitLabel(MobileLimitPause(resetsAt: soon - 7_200_000, window: "weekly", position: nil), now: now, calendar: calendar), "Weekly usage limit reset.")
+    }
+
+    func testArchiveSaysWhenItDeletesAndWhereItIsRestored() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        let at = now.timeIntervalSince1970 * 1000
+        XCTAssertEqual(Format.deletesIn(at + 4.2 * 86_400_000, now: now), "Deletes in 5 days")
+        XCTAssertEqual(Format.deletesIn(at + 3_600_000, now: now), "Deletes in 1 day")
+        XCTAssertEqual(Format.deletesIn(at - 1, now: now), "Deletes on next launch")
+        XCTAssertTrue(Format.archiveConsequence(running: false, restorable: true).hasSuffix("Restore it from Archived within 5 days."))
+        XCTAssertTrue(Format.archiveConsequence(running: true, restorable: false).contains("on your computer"))
+    }
+
+    func testSnoozeOffersTheDesktopsPresets() {
+        XCTAssertEqual(SnoozeOption.allCases.map(\.hours), [1, 4, 24, 72, 168])
+        XCTAssertEqual(SnoozeOption.allCases.map(\.label), ["1 hour", "4 hours", "1 day", "3 days", "1 week"])
+    }
 }

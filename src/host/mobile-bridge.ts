@@ -1,4 +1,4 @@
-import { applyMobilePatch, diffMobileView, mobileThreadRead, projectMobileView } from "../application/mobile-projection.js";
+import { applyMobilePatch, diffMobileView, mobileArchivedThreads, mobileThreadRead, projectMobileView } from "../application/mobile-projection.js";
 import { NEW_THREAD_DRAFT, promptKey, type WorkspaceState } from "../application/workspace-state.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
 import type { WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
@@ -39,9 +39,11 @@ export type MobileBridgeHost = {
  * to read. Whitespace-only changes are left out, as the desktop's review leaves them out by default. A
  * folder query lists folders by path prefix, as the desktop's own add-project field does. A thread
  * query reads one of this computer's threads without opening it, as a coordinator's tab does. An
- * image query reads only an image the named reply links, as the desktop's previews of it do.
+ * image query reads only an image the named reply links, as the desktop's previews of it do. An
+ * archived query lists what the Archive settings page lists.
  */
 async function answerQuery(host: MobileBridgeHost, query: MobileQuery): Promise<unknown> {
+  if (query.kind === "archived") return mobileArchivedThreads(host.state());
   if (query.kind === "thread") {
     if (!host.state().threads.some((thread) => thread.id === query.taskId)) throw new Error(`No thread has the ID ${query.taskId}.`);
     await host.hydrate?.(query.taskId);
@@ -76,13 +78,13 @@ async function linkedImage(host: MobileBridgeHost, reader: MobileBridgeReader, q
 }
 
 /**
- * The threads a phone's command may name: those on this computer, and, for answering an approval,
- * those on a paired computer working under a coordinator here, whose approvals that coordinator's
- * screen shows. Nothing else of another computer is ever on the phone's.
+ * The threads a phone's command may name: those on this computer, and, for answering an approval or
+ * a decision, those on a paired computer working under a coordinator here, whose Needs-you card
+ * shows them. Nothing else of another computer is ever on the phone's.
  */
 function phoneReaches(state: WorkspaceState, command: AppCommand, taskId: string): boolean {
   if (state.threads.some((thread) => thread.id === taskId)) return true;
-  return command.type === "run.decide" && state.threads.some((lead) => isCoordinator(lead)
+  return (command.type === "run.decide" || command.type === "decision.answer") && state.threads.some((lead) => isCoordinator(lead)
     && coordinationMembers(state, lead.id).some((member) => member.computer && member.thread.id === taskId));
 }
 

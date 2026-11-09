@@ -291,6 +291,57 @@ test("a phone answers the approval of a coordinator's thread on a paired compute
   assert.equal(driver.inputs.length, 1);
 });
 
+test("a phone answers the decision of a coordinator's thread on a paired computer, and no stranger's there", async () => {
+  const decision = { id: "d1", question: "Which?", options: [{ label: "A" }], raisedAt: NOW };
+  const holder = workspace({ threads: [task("member", { title: "Dark mode", remoteLead: { threadId: "lead", title: "Lead", computer: "Mac" }, decisions: [decision] }), task("stranger", { decisions: [decision] })] });
+  const base = workspace({ threads: [task("lead", { role: "coordinator", title: "Lead" })], currentId: "lead" });
+  const paired = { id: "linux", name: "Linux", host: "linux.ts.net", status: "connected" as const, error: null, pairedAt: 1, capabilities: COMPUTER_CAPABILITIES, state: holder };
+  const driver = host({ ...base, computers: { ...base.computers, name: "Mac", paired: [paired] } });
+  const send = (command: object) => answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "r1", sessionId: "s1", op: "command", command: command as never }));
+
+  const shown = required(projectMobileView(driver.current(), NOW).thread?.decisions?.[0]);
+  assert.deepEqual([shown.taskId, shown.from], ["member", "Dark mode"]);
+  assert.equal((await send({ type: "decision.answer", taskId: shown.taskId, decisionId: shown.id, answer: "A" })).ok, true);
+  assert.equal(driver.inputs.length, 1);
+  assert.deepEqual(await send({ type: "decision.answer", taskId: "stranger", decisionId: "d1", answer: "A" }), { type: "mobile.response", requestId: "r1", ok: false, message: "No thread has the ID stranger." });
+  assert.equal(driver.inputs.length, 1);
+});
+
+test("a phone answers a decision, starts a suggestion, settles a usage pause, snoozes, and restores, each as the desktop does", async () => {
+  const finding = { id: "f1", headline: "Found a bug", at: NOW };
+  const driver = host(workspace({
+    threads: [
+      task("lead", { role: "coordinator", decisions: [{ id: "d1", question: "Which?", options: [{ label: "A", recommended: true }], raisedAt: NOW }], proposals: [{ id: "p1", title: "Tests", named: true, prompt: "Write tests", brief: { intent: "Tests", doneWhen: "Green", delivers: "commit" }, place: {}, proposedAt: NOW }] }),
+      task("paused", { limitPause: { resetsAt: NOW + 3_600_000, window: "session", pausedAt: NOW } }),
+      task("noisy", { findings: [finding] }),
+      task("gone", { archivedAt: NOW }),
+    ],
+    currentId: "lead",
+  }));
+  const send = (command: object) => answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "r1", sessionId: "s1", op: "command", command: command as never }));
+  const thread = (id: string) => required(driver.current().threads.find((item) => item.id === id));
+
+  assert.equal((await send({ type: "decision.answer", taskId: "lead", decisionId: "d1", answer: "A" })).ok, true);
+  assert.equal(thread("lead").decisions?.[0]?.answer, "A");
+  const started = await send({ type: "proposal.start", taskId: "lead", proposalId: "p1" });
+  assert.equal(started.ok, true);
+  const suggestion = projectMobileView(driver.current(), NOW).thread?.suggestions?.find((item) => item.id === "p1");
+  assert.equal(suggestion === undefined || suggestion.starting === true, true, "the suggestion is on its way");
+  assert.equal((await send({ type: "limit.cancel", taskId: "paused" })).ok, true);
+  assert.equal(thread("paused").limitPause, undefined);
+  assert.equal((await send({ type: "task.snooze", taskId: "noisy", hours: 4 })).ok, true);
+  assert.equal(thread("noisy").snoozedUntil !== undefined, true);
+  assert.equal(projectMobileView(driver.current(), NOW).activity.snoozed.some((entry) => entry.id === "noisy"), true);
+  assert.equal((await send({ type: "task.unsnooze", taskId: "noisy" })).ok, true);
+  assert.equal(thread("noisy").snoozedUntil, undefined);
+
+  const listed = await answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "q1", sessionId: "s1", op: "query", query: { kind: "archived" } }));
+  assert.deepEqual(listed.ok && (listed.result as Array<{ id: string }>).map((row) => row.id), ["gone"]);
+  assert.equal((await send({ type: "task.restore", taskId: "gone" })).ok, true);
+  assert.equal(thread("gone").archivedAt, undefined);
+  assert.equal(projectMobileView(driver.current(), NOW).archived, 0);
+});
+
 test("a command the reducer refuses answers with what the window said about it", async () => {
   const driver = host(workspace({ threads: [task("thread-1")], currentId: "thread-1", projects: [{ id: "project-app", root: "/code/app" }] }));
 

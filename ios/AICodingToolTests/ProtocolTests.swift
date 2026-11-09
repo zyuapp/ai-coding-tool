@@ -219,6 +219,51 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(EngineCatalog(vocabulary: nil, engines: [:]).roles.map(\.id), ["coordinator", "implementer", "reviewer", "researcher"])
     }
 
+    func testDecisionsSuggestionsAndLimitTravelAndClear() throws {
+        let view = try snapshotView()
+        XCTAssertNil(view.thread?.decisions, "a computer too old to take answers from a phone sends none")
+        XCTAssertNil(view.thread?.suggestions)
+        XCTAssertNil(view.thread?.limit)
+        let json = #"{"thread":{"kind":"changed","id":"t1","delta":{"decisions":[{"taskId":"m1","from":"Storage","id":"d1","question":"Which store?","context":"Both work.","options":[{"label":"SQLite","description":"Local","recommended":true},{"label":"Postgres"}]}],"suggestions":[{"id":"p1","title":"Tests","brief":{"intent":"Cover it","doneWhen":"Green","delivers":"Commits"},"prompt":"Write tests","starting":true}],"limit":{"resetsAt":1800000000000,"window":"session","position":2}}}}"#
+        let next = try XCTUnwrap(view.applying(JSONDecoder().decode(MobilePatch.self, from: Data(json.utf8))))
+        let decision = try XCTUnwrap(next.thread?.decisions?.first)
+        XCTAssertEqual(decision.options.map(\.label), ["SQLite", "Postgres"])
+        XCTAssertEqual(decision.options.first?.recommended, true)
+        XCTAssertEqual(next.thread?.suggestions?.first?.brief?.delivers, "Commits")
+        XCTAssertEqual(next.thread?.suggestions?.first?.starting, true)
+        XCTAssertEqual(next.thread?.limit, MobileLimitPause(resetsAt: 1_800_000_000_000, window: "session", position: 2))
+        let untouched = try JSONDecoder().decode(MobilePatch.self, from: Data(#"{"thread":{"kind":"changed","id":"t1","delta":{"title":"Renamed"}}}"#.utf8))
+        XCTAssertEqual(next.applying(untouched)?.thread?.decisions, next.thread?.decisions)
+        let cleared = try XCTUnwrap(next.applying(JSONDecoder().decode(MobilePatch.self, from: Data(#"{"thread":{"kind":"changed","id":"t1","delta":{"decisions":[],"suggestions":[],"limit":null}}}"#.utf8))))
+        XCTAssertEqual(cleared.thread?.decisions, [])
+        XCTAssertEqual(cleared.thread?.suggestions, [])
+        XCTAssertNil(cleared.thread?.limit)
+
+        XCTAssertEqual(PhoneCommand.answerDecision(decision, answer: "SQLite").json, .object(["type": .string("decision.answer"), "taskId": .string("m1"), "decisionId": .string("d1"), "answer": .string("SQLite")]))
+        XCTAssertEqual(PhoneCommand.startSuggestion("lead", proposalId: "p1").json, .object(["type": .string("proposal.start"), "taskId": .string("lead"), "proposalId": .string("p1")]))
+        XCTAssertEqual(PhoneCommand.resumeLimit("t1").json, .object(["type": .string("limit.resume"), "taskId": .string("t1")]))
+        XCTAssertEqual(PhoneCommand.cancelLimit("t1").json, .object(["type": .string("limit.cancel"), "taskId": .string("t1")]))
+    }
+
+    func testSnoozeAndArchiveTravel() throws {
+        let view = try snapshotView()
+        XCTAssertNil(view.archived, "a computer too old to list its archive never says so")
+        let json = #"{"archived":3,"activity":{"priority":[{"id":"a","title":"A","projectId":null,"projectName":null,"status":"idle","lastActivityAt":1,"unread":false,"attention":true,"snoozable":true}],"running":[],"threads":[],"snoozed":[{"id":"b","title":"B","projectId":null,"projectName":null,"status":"idle","lastActivityAt":1,"unread":false,"attention":false,"snoozedUntil":1800000000000}]}}"#
+        let next = try XCTUnwrap(view.applying(JSONDecoder().decode(MobilePatch.self, from: Data(json.utf8))))
+        XCTAssertEqual(next.archived, 3)
+        XCTAssertEqual(next.activity.priority.first?.snoozable, true)
+        XCTAssertEqual(next.activity.snoozed.first?.snoozedUntil, 1_800_000_000_000)
+        XCTAssertEqual(next.applying(try JSONDecoder().decode(MobilePatch.self, from: Data(#"{"groups":[]}"#.utf8)))?.archived, 3)
+
+        let snooze = MobileClientMessage.command(requestId: "r", command: .snooze("a", hours: SnoozeOption.day.hours)).text
+        XCTAssertTrue(snooze.contains(#""hours":24"#), snooze)
+        XCTAssertEqual(PhoneCommand.unsnooze("b").json, .object(["type": .string("task.unsnooze"), "taskId": .string("b")]))
+        XCTAssertEqual(PhoneCommand.restore("c").json, .object(["type": .string("task.restore"), "taskId": .string("c")]))
+        XCTAssertEqual(MobileQuery.archived.json, .object(["kind": .string("archived")]))
+        let rows = try JSONDecoder().decode([MobileArchivedThread].self, from: Data(#"[{"id":"c","title":"C","projectName":null,"archivedAt":1,"deletesAt":432000001}]"#.utf8))
+        XCTAssertEqual(rows.first?.deletesAt, 432_000_001)
+    }
+
     func testSnapshotNamesTheComputer() {
         let frame = snapshotFrame().replacingOccurrences(of: #""instance":"one""#, with: #""instance":"one","computer":"Studio""#)
         guard case .snapshot(_, _, _, _, _, let computer, _)? = parseServerFrame(frame).message else { return XCTFail("snapshot did not parse") }

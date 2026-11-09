@@ -4,6 +4,7 @@ import { test } from "vitest";
 import { isMobileClientMessage, isMobileRequest, isMobileResponse, MOBILE_PROTOCOL_VERSION, OLDEST_PHONE_PROTOCOL_VERSION, type MobileCommand } from "../../src/contracts/mobile.ts";
 import { MAX_PHONE_IMAGE_LENGTH } from "../../src/contracts/phone-commands.ts";
 import { isPhoneCommand } from "../../src/contracts/workspace-view-input.ts";
+import { SNOOZE_OPTIONS } from "../../src/domain/thread-snooze.ts";
 import {
   addressOrigin,
   createPairingCode,
@@ -240,6 +241,30 @@ test("a query names a thread and a comparison, and travels to the window like a 
   assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "directories" } }), false);
   assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "thread", taskId: "task-2" } }), true);
   assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "thread" } }), false);
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "archived" } }), true);
+});
+
+test("a phone answers decisions, starts one suggestion where it was suggested, settles a usage pause, and snoozes", () => {
+  const allowed: unknown[] = [
+    { type: "decision.answer", taskId: "t1", decisionId: "d1", answer: "SQLite" },
+    { type: "proposal.start", taskId: "lead", proposalId: "p1" },
+    { type: "limit.resume", taskId: "t1" },
+    { type: "limit.cancel", taskId: "t1" },
+    { type: "task.snooze", taskId: "t1", hours: 24 },
+    { type: "task.unsnooze", taskId: "t1" },
+  ];
+  for (const command of allowed) assert.equal(isPhoneCommand(command), true, JSON.stringify(command));
+  const refused: unknown[] = [
+    { type: "decision.answer", taskId: "t1", decisionId: "d1", answer: "" },
+    { type: "decision.answer", taskId: "t1", decisionId: "d1", answer: "x".repeat(4_001) },
+    { type: "proposal.start", taskId: "lead" },
+    { type: "proposal.start", taskId: "lead", proposalIds: ["p1", "p2"] },
+    { type: "proposal.start", taskId: "lead", proposalId: "p1", place: { project: "project-app", worktree: true } },
+    { type: "limit.resume" },
+    { type: "task.snooze", taskId: "t1", hours: 2 },
+    { type: "task.unsnooze" },
+  ];
+  for (const command of refused) assert.equal(isPhoneCommand(command), false, JSON.stringify(command));
 });
 
 test("a phone sends pictures it holds, never a file on this computer", () => {
@@ -299,8 +324,9 @@ test("a phone may send exactly the commands that declare a phone rule", () => {
     "view.set-prompt": true, "task.set-role": true, "project.add": true, "attachments.send": true,
     "app.update": true, "app.cancel-update": true, "app.check-for-updates": true, "engine.read": true, "engine.update": true,
     "usage.read": true, "usage.dismiss-warning": true,
+    "decision.answer": true, "proposal.start": true, "limit.resume": true, "limit.cancel": true, "task.snooze": true, "task.unsnooze": true,
   };
-  assert.equal(Object.keys(types).length, 39);
+  assert.equal(Object.keys(types).length, 45);
   for (const type of ["terminal.input", "worktree.delete", "project.remove", "browser.open", "task.set-coordinator", "run.compact"]) {
     assert.equal(isPhoneCommand({ type, taskId: "task-1" }), false, type);
   }
@@ -311,6 +337,9 @@ test("the iOS app speaks the protocol version the computer serves", () => {
   assert.equal(Number(/let mobileProtocolVersion = (\d+)/.exec(swift)?.[1]), MOBILE_PROTOCOL_VERSION);
   assert.ok(Number(/let oldestComputerProtocolVersion = (\d+)/.exec(swift)?.[1]) <= MOBILE_PROTOCOL_VERSION, "the app reads the computer it ships beside");
   assert.ok(OLDEST_PHONE_PROTOCOL_VERSION <= MOBILE_PROTOCOL_VERSION);
+  const format = readFileSync(new URL("../../ios/AICodingTool/Domain/Format.swift", import.meta.url), "utf8");
+  const presets = /enum SnoozeOption: Int[^{]*\{\s*case ([^\n]+)/.exec(format)?.[1]?.split(",").map((item) => Number(item.split("=")[1]));
+  assert.deepEqual(presets, SNOOZE_OPTIONS.map((option) => option.hours), "the phone snoozes for the desktop's own presets");
   const composer = readFileSync(new URL("../../ios/AICodingTool/UI/ComposerView.swift", import.meta.url), "utf8");
   assert.equal(Number(/static let maxSourceLength = (\d+) \* 1024 \* 1024/.exec(composer)?.[1]) * 1024 * 1024, MAX_PHONE_IMAGE_LENGTH, "the phone shrinks pictures to what the computer takes");
 });

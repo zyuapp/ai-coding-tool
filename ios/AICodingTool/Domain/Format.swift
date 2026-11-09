@@ -160,9 +160,56 @@ enum Format {
         "Archive “\(title.isEmpty ? "Untitled thread" : title)”?"
     }
 
-    /// What archiving does, as the computer says it to a phone.
-    static func archiveConsequence(running: Bool) -> String {
-        "\(running ? "Its run stops and it" : "It") leaves the list. Restore it from Settings › Archived threads on your computer within 5 days."
+    /// What archiving does, and where it is undone: here, from a computer that lists its archive to the phone.
+    static func archiveConsequence(running: Bool, restorable: Bool) -> String {
+        let back = restorable ? "Restore it from Archived within 5 days." : "Restore it from Settings › Archived threads on your computer within 5 days."
+        return "\(running ? "Its run stops and it" : "It") leaves the list. \(back)"
+    }
+
+    /// A moment as a time today, or a weekday and time further out, as the desktop says when a limit lifts.
+    static func liftTime(_ at: Double, now: Date, calendar: Calendar = .current) -> String {
+        let date = Date(timeIntervalSince1970: at / 1000)
+        var time = Date.FormatStyle(date: .omitted, time: .shortened)
+        time.timeZone = calendar.timeZone
+        if calendar.isDate(date, inSameDayAs: now) { return date.formatted(time) }
+        var day = Date.FormatStyle().weekday(.abbreviated)
+        day.timeZone = calendar.timeZone
+        return "\(date.formatted(day)) \(date.formatted(time))"
+    }
+
+    /// What a paused thread says about its usage limit, as the desktop's limit row says it.
+    static func limitLabel(_ pause: MobileLimitPause, now: Date, calendar: Calendar = .current) -> String {
+        let waiting = now.timeIntervalSince1970 * 1000 < pause.resetsAt
+        let lift = liftTime(pause.resetsAt, now: now, calendar: calendar)
+        guard pause.resumesOnItsOwn else { return waiting ? "Weekly usage limit reached. Resets \(lift)." : "Weekly usage limit reset." }
+        let ahead = (pause.position ?? 1) - 1
+        let behind = ahead > 0 ? " after \(ahead) other \(ahead == 1 ? "thread" : "threads")" : ""
+        return waiting ? "Usage limit reached. Resumes at \(lift)\(behind)." : "Usage limit reset. Resuming\(behind)."
+    }
+
+    /// How long an archived thread has before the computer deletes it, as the desktop's Archive page says it.
+    static func deletesIn(_ deletesAt: Double, now: Date) -> String {
+        let days = Int(((deletesAt - now.timeIntervalSince1970 * 1000) / 86_400_000).rounded(.up))
+        if days <= 0 { return "Deletes on next launch" }
+        return days == 1 ? "Deletes in 1 day" : "Deletes in \(days) days"
+    }
+}
+
+/// How long Snooze puts a thread away for, as the desktop's thread menu offers it.
+enum SnoozeOption: Int, CaseIterable, Identifiable {
+    case hour = 1, fourHours = 4, day = 24, threeDays = 72, week = 168
+
+    var id: Int { rawValue }
+    var hours: Int { rawValue }
+
+    var label: String {
+        switch self {
+        case .hour: "1 hour"
+        case .fourHours: "4 hours"
+        case .day: "1 day"
+        case .threeDays: "3 days"
+        case .week: "1 week"
+        }
     }
 }
 

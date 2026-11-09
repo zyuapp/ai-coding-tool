@@ -5,6 +5,8 @@
 import { isAgentEffort, isAgentEngine, isModelId } from "../domain/agent-engine.js";
 import { isExecutionPolicy } from "../domain/run.js";
 import { isThreadRole } from "../domain/thread-role.js";
+import { isSnoozeHours } from "../domain/thread-snooze.js";
+import { MAX_ANSWER } from "../domain/coordination.js";
 import type { Annotation, AnnotationAnchor, PastedText } from "../domain/conversation.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
 import { sendStaysInReach } from "./task-send.js";
@@ -115,6 +117,15 @@ export const namesQueued: PhoneRule = (command) => named(command) && isString(co
 export const cancels: PhoneRule = named;
 
 export const decides: PhoneRule = (command) => isString(command.taskId) && isString(command.runId) && isString(command.approvalId) && typeof command.allow === "boolean";
+
+/** An answer to a decision a thread raised, in the user's own words or an option's label. */
+export const answersDecision: PhoneRule = (command) => isString(command.taskId) && isString(command.decisionId) && isString(command.answer, MAX_ANSWER);
+
+/** One suggestion started where its coordinator suggested it, never several at once or in a place the phone picked. */
+export const startsProposal: PhoneRule = (command) => isString(command.taskId) && isString(command.proposalId)
+  && command.proposalIds === undefined && command.place === undefined;
+
+export const snoozes: PhoneRule = (command) => isString(command.taskId) && isSnoozeHours(command.hours);
 
 export const stopsProcess: PhoneRule = (command) => named(command) && isString(command.processId);
 

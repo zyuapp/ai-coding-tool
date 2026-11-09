@@ -39,6 +39,7 @@ struct RootView: View {
                         switch route {
                         case .thread: ThreadScreen(model: model)
                         case .changes: ChangesScreen(model: model)
+                        case .archived: ArchivedScreen(model: model)
                         }
                     }
             }

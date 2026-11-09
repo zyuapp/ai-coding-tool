@@ -272,11 +272,11 @@ struct ArchiveAsk: Identifiable, Equatable {
 
 extension View {
     /// The question asked before the user archives a thread, as the desktop asks it.
-    func archiveConfirmation(_ ask: Binding<ArchiveAsk?>, onArchive: @escaping (ArchiveAsk) -> Void) -> some View {
+    func archiveConfirmation(_ ask: Binding<ArchiveAsk?>, restorable: Bool, onArchive: @escaping (ArchiveAsk) -> Void) -> some View {
         confirmationDialog(ask.wrappedValue.map { Format.archiveQuestion($0.title) } ?? "", isPresented: Binding(get: { ask.wrappedValue != nil }, set: { if !$0 { ask.wrappedValue = nil } }), titleVisibility: .visible, presenting: ask.wrappedValue) { asked in
             Button("Archive", role: .destructive) { onArchive(asked) }
         } message: { asked in
-            Text(Format.archiveConsequence(running: asked.running))
+            Text(Format.archiveConsequence(running: asked.running, restorable: restorable))
         }
     }
 }

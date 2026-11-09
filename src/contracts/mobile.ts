@@ -66,6 +66,10 @@ export type MobileThreadEntry = {
   waiting?: true;
   /** Whether Dismiss files anything away from the row, by the desktop's own rule. */
   attention: boolean;
+  /** Set on a Priority row, which Snooze takes out of the list for a while. Absent from older desktops. */
+  snoozable?: true;
+  /** When a snoozed thread comes back, which Unsnooze brings forward. Absent from older desktops. */
+  snoozedUntil?: number;
 };
 
 /** The list ranked by what wants the user, as the desktop's activity sidebar ranks it. */
@@ -135,6 +139,47 @@ export type MobileApproval = {
   toolName: string;
   detail: string;
 };
+
+/**
+ * A choice a thread raised for the user, which `decision.answer` settles with an option's label or
+ * the user's own words. A coordinator's view carries those of the threads under it, naming the
+ * thread that asks in `from`.
+ */
+export type MobileDecision = {
+  taskId: string;
+  from?: string;
+  id: string;
+  question: string;
+  context?: string;
+  options: Array<{ label: string; description?: string; recommended?: true }>;
+};
+
+/** What a coordinator handed a suggested thread, as its brief reads it. `delivers` is already a label. */
+export type MobileBrief = { intent: string; doneWhen: string; delivers: string };
+
+/**
+ * A thread the open coordinator suggested here, which `proposal.start` starts with its id. Its prompt
+ * is cut to length, since the phone shows it only on request. `starting` is set while its start is on its way.
+ */
+export type MobileSuggestion = {
+  id: string;
+  title: string;
+  brief?: MobileBrief;
+  prompt: string;
+  starting?: true;
+  /** Why the user's last start of it failed. */
+  error?: string;
+};
+
+/**
+ * The open thread waiting out its account's usage limit. A session limit resumes on its own once it
+ * lifts, which `limit.cancel` stops; a weekly one waits for `limit.resume`. `position` is its place in
+ * its engine's line, counting from one.
+ */
+export type MobileLimitPause = { resetsAt: number; window: "session" | "weekly"; position: number | null };
+
+/** An archived thread as the phone's Archived list reads it, which `task.restore` puts back. */
+export type MobileArchivedThread = { id: string; title: string; projectName: string | null; archivedAt: number; deletesAt: number };
 
 export type MobileQueuedMessage = {
   id: string;
@@ -228,6 +273,12 @@ export type MobileThreadView = {
   background?: MobileBackgroundItem[];
   /** The branch comparison the desktop has this thread's review on. */
   branchRange: Extract<DiffRange, { kind: "branches" }>;
+  /** Decisions waiting on the user from it and, for a coordinator, the threads under it, oldest first. Absent from older desktops. */
+  decisions?: MobileDecision[];
+  /** The threads a coordinator suggested here and the user has yet to start. Absent from older desktops. */
+  suggestions?: MobileSuggestion[];
+  /** Null unless it waits out a usage limit. Absent from older desktops. */
+  limit?: MobileLimitPause | null;
 };
 
 /**
@@ -295,6 +346,8 @@ export type MobileView = {
   dictation: boolean;
   /** The plan limits of this computer's accounts. */
   usage: MobileUsage;
+  /** How many threads are archived, which an "archived" query lists. Absent from older desktops. */
+  archived?: number;
   /** The thread the phone has open, which is the thread the desktop has open. */
   thread: MobileThreadView | null;
   /** Where the desktop stands with no thread open. Null whenever `thread` is not. */
@@ -335,6 +388,7 @@ export type MobilePatch = {
   upkeep?: MobileUpkeepItem[];
   dictation?: boolean;
   usage?: MobileUsage;
+  archived?: number;
   thread?:
     | { kind: "closed" }
     | { kind: "opened"; thread: MobileThreadView }
@@ -378,7 +432,9 @@ export type MobileQuery =
    * An image a reply links, named by the link's destination as written. Answers {@link MobileImageRead}:
    * the desktop's preview when `preview` is set, else the original.
    */
-  | { kind: "image"; taskId: string; messageId: string; href: string; preview?: boolean };
+  | { kind: "image"; taskId: string; messageId: string; href: string; preview?: boolean }
+  /** The archived threads, newest first, as {@link MobileArchivedThread} rows. */
+  | { kind: "archived" };
 
 export type MobileImageRead = { data: string; contentType: string };
 
@@ -388,6 +444,7 @@ export type MobileThreadRead = { title: string; status: MobileRunStatus; message
 export function isMobileQuery(value: unknown): value is MobileQuery {
   if (isRecord(value) && value.kind === "directories") return typeof value.prefix === "string" && value.prefix.length <= MAX_PATH_LENGTH && !value.prefix.includes("\0");
   if (isRecord(value) && value.kind === "thread") return isString(value.taskId);
+  if (isRecord(value) && value.kind === "archived") return true;
   if (isRecord(value) && value.kind === "transcribe") return isDictationAudio(value.audio);
   if (isRecord(value) && value.kind === "image") return isString(value.taskId) && isString(value.messageId) && isString(value.href, MAX_PATH_LENGTH)
     && (value.preview === undefined || typeof value.preview === "boolean");

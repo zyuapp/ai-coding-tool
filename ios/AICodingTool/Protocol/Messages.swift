@@ -64,12 +64,15 @@ struct MobileThreadDelta: Decodable, Equatable, Sendable {
     var members: PatchField<[MobileMember]?> = .absent
     var role: PatchField<String?> = .absent
     var background: PatchField<[MobileBackgroundItem]?> = .absent
+    var decisions: PatchField<[MobileDecision]?> = .absent
+    var suggestions: PatchField<[MobileSuggestion]?> = .absent
+    var limit: PatchField<MobileLimitPause?> = .absent
     var spliced: Spliced?
     var messages: [MobileMessage]?
     var tail: Tail?
 
     private enum CodingKeys: String, CodingKey {
-        case loading, title, projectId, projectName, worktreeId, omitted, streamingTail, status, approval, question, queued, settings, location, worktrees, canMove, changes, reviewable, branchRange, members, role, background, spliced, messages, tail
+        case loading, title, projectId, projectName, worktreeId, omitted, streamingTail, status, approval, question, queued, settings, location, worktrees, canMove, changes, reviewable, branchRange, members, role, background, decisions, suggestions, limit, spliced, messages, tail
     }
 
     init() {}
@@ -97,6 +100,9 @@ struct MobileThreadDelta: Decodable, Equatable, Sendable {
         members = try container.patchField([MobileMember].self, forKey: .members)
         role = try container.patchField(String.self, forKey: .role)
         background = try container.patchField([MobileBackgroundItem].self, forKey: .background)
+        decisions = try container.patchField([MobileDecision].self, forKey: .decisions)
+        suggestions = try container.patchField([MobileSuggestion].self, forKey: .suggestions)
+        limit = try container.patchField(MobileLimitPause.self, forKey: .limit)
         spliced = try container.decodeIfPresent(Spliced.self, forKey: .spliced)
         messages = try container.decodeIfPresent([MobileMessage].self, forKey: .messages)
         tail = try container.decodeIfPresent(Tail.self, forKey: .tail)
@@ -130,11 +136,12 @@ struct MobilePatch: Decodable, Equatable, Sendable {
     var upkeep: [MobileUpkeepItem]?
     var dictation: Bool?
     var usage: MobileUsage?
+    var archived: Int?
     var thread: MobileThreadPatch?
     var draft: PatchField<MobileDraftView?> = .absent
     var error: PatchField<String?> = .absent
 
-    private enum CodingKeys: String, CodingKey { case groups, activity, theme, engines, upkeep, dictation, usage, thread, draft, error }
+    private enum CodingKeys: String, CodingKey { case groups, activity, theme, engines, upkeep, dictation, usage, archived, thread, draft, error }
 
     init() {}
 
@@ -147,6 +154,7 @@ struct MobilePatch: Decodable, Equatable, Sendable {
         upkeep = try container.decodeIfPresent([MobileUpkeepItem].self, forKey: .upkeep)
         dictation = try container.decodeIfPresent(Bool.self, forKey: .dictation)
         usage = try container.decodeIfPresent(MobileUsage.self, forKey: .usage)
+        archived = try container.decodeIfPresent(Int.self, forKey: .archived)
         thread = try container.decodeIfPresent(MobileThreadPatch.self, forKey: .thread)
         draft = try container.patchField(MobileDraftView.self, forKey: .draft)
         error = try container.patchField(String.self, forKey: .error)
@@ -165,6 +173,7 @@ extension MobileView {
         if let upkeep = patch.upkeep { next.upkeep = upkeep }
         if let dictation = patch.dictation { next.dictation = dictation }
         if let usage = patch.usage { next.usage = usage }
+        if let archived = patch.archived { next.archived = archived }
         next.draft = patch.draft.applied(to: draft)
         next.error = patch.error.applied(to: error)
         switch patch.thread {
@@ -209,6 +218,9 @@ extension MobileThreadView {
         next.members = delta.members.applied(to: members)
         next.role = delta.role.applied(to: role)
         next.background = delta.background.applied(to: background)
+        next.decisions = delta.decisions.applied(to: decisions)
+        next.suggestions = delta.suggestions.applied(to: suggestions)
+        next.limit = delta.limit.applied(to: limit)
         if let tail = delta.tail {
             // The server counts the tail in UTF-16 code units, as JavaScript strings do.
             guard streamingTail?.utf16.count == tail.from else { return nil }

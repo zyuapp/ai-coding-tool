@@ -60,6 +60,15 @@ extension PhoneCommand {
     static func answer(_ taskId: String, question: PendingQuestion, text answer: String) -> PhoneCommand {
         PhoneCommand("question.answer", ["taskId": .string(taskId), "runId": .string(question.runId), "requestId": .string(question.requestId), "questionId": .string(question.questionId), "text": .string(answer)])
     }
+    static func answerDecision(_ decision: MobileDecision, answer: String) -> PhoneCommand {
+        PhoneCommand("decision.answer", ["taskId": .string(decision.taskId), "decisionId": .string(decision.id), "answer": .string(answer)])
+    }
+    static func startSuggestion(_ coordinatorId: String, proposalId: String) -> PhoneCommand { PhoneCommand("proposal.start", ["taskId": .string(coordinatorId), "proposalId": .string(proposalId)]) }
+    static func resumeLimit(_ taskId: String) -> PhoneCommand { PhoneCommand("limit.resume", ["taskId": .string(taskId)]) }
+    static func cancelLimit(_ taskId: String) -> PhoneCommand { PhoneCommand("limit.cancel", ["taskId": .string(taskId)]) }
+    static func snooze(_ taskId: String, hours: Int) -> PhoneCommand { PhoneCommand("task.snooze", ["taskId": .string(taskId), "hours": .number(Double(hours))]) }
+    static func unsnooze(_ taskId: String) -> PhoneCommand { PhoneCommand("task.unsnooze", ["taskId": .string(taskId)]) }
+    static func restore(_ taskId: String) -> PhoneCommand { PhoneCommand("task.restore", ["taskId": .string(taskId)]) }
     /// Has the computer look for a newer app without a dialog, and read its engines' versions again.
     static let checkForUpdates = PhoneCommand("app.check-for-updates", ["quiet": .bool(true)])
     static let readUsage = PhoneCommand("usage.read")
@@ -104,6 +113,8 @@ enum MobileQuery: Sendable {
     case diffPatch(taskId: String, range: DiffRange, path: String, previousPath: String?)
     case directories(prefix: String)
     case thread(taskId: String)
+    /// The archived threads, newest first, answered as `[MobileArchivedThread]`.
+    case archived
     /// A held recording, base64 16 kHz mono WAV, which the computer answers with `{ text }`.
     case transcribe(audio: String)
     /// An image a reply links, by the link's destination, answered with `{ data, contentType }`: the computer's preview, or the original.
@@ -125,6 +136,8 @@ enum MobileQuery: Sendable {
             .object(["kind": .string("directories"), "prefix": .string(prefix)])
         case .thread(let taskId):
             .object(["kind": .string("thread"), "taskId": .string(taskId)])
+        case .archived:
+            .object(["kind": .string("archived")])
         case .transcribe(let audio):
             .object(["kind": .string("transcribe"), "audio": .string(audio)])
         case .image(let taskId, let messageId, let href, let preview):

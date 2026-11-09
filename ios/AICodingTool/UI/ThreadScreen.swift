@@ -63,7 +63,7 @@ struct ThreadScreen: View {
                 }
             }
             .sheet(item: $sheet) { which in sheetView(which) }
-            .archiveConfirmation($archiving) { asked in
+            .archiveConfirmation($archiving, restorable: model.view.archived != nil) { asked in
                 if model.view.thread?.id == asked.id { model.archive(asked.id, leaving: true) }
             }
             .onAppear { model.readUsage(within: 15 * 60) }
@@ -162,6 +162,25 @@ struct ThreadScreen: View {
                                 .id(approval.approvalId)
                                 .fitsShortScreens()
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
+                            } else if let decisions = thread.decisions, let decision = decisions.first {
+                                DecisionCard(decision: decision, count: decisions.count, refused: refused("decision.answer")) { answer in
+                                    model.send(.answerDecision(decision, answer: answer))
+                                }
+                                .id("\(decision.taskId):\(decision.id)")
+                                .fitsShortScreens()
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            } else if let suggestions = thread.suggestions, !suggestions.isEmpty {
+                                SuggestionsCard(suggestions: suggestions, refused: refused("proposal.start")) { proposalId in
+                                    model.send(.startSuggestion(thread.id, proposalId: proposalId))
+                                }
+                                .id(thread.id)
+                                .fitsShortScreens()
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
+                            if let limit = thread.limit {
+                                LimitRow(pause: limit, refused: refused("limit.resume") ?? refused("limit.cancel"), onResume: { model.send(.resumeLimit(thread.id)) }, onCancel: { model.send(.cancelLimit(thread.id)) })
+                                    .id("\(thread.id):\(limit.window):\(limit.resetsAt)")
+                                    .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
                             ComposerView(model: model, draftKey: thread.id, running: thread.status == "running" || thread.status == "awaiting-approval", settings: thread.settings, question: thread.question, returned: returned(for: thread.id), onSend: { model.send(.message(thread.id, text: $0, sources: $1)) }, onSteer: { model.send(.message(thread.id, text: $0, sources: $1, steer: true)) }, onStop: { model.send(.cancel(thread.id)) }, onAnswer: { question, text in model.send(.answer(thread.id, question: question, text: text)) }, quick: QuickSettings(locked: true, onPolicy: { model.send(.setPolicy(thread.id, policy: $0)) }, onModel: { model.send(.setModel(thread.id, engine: $0, model: $1)) }, onEffort: { model.send(.setEffort(thread.id, engine: $0, effort: $1)) }, onFastMode: { model.send(.setFastMode(thread.id, fastMode: $0)) }, onUsage: { sheet = .usage }))
                                 .id(thread.id)
@@ -169,6 +188,9 @@ struct ThreadScreen: View {
                     }
             }
             .animation(.snappy, value: thread.approval?.approvalId)
+            .animation(.snappy, value: thread.decisions?.first?.id)
+            .animation(.snappy, value: thread.suggestions?.isEmpty == false)
+            .animation(.snappy, value: thread.limit == nil)
             .animation(.snappy, value: thread.background?.contains(where: \.live) == true)
         } else if let draft {
             VStack(spacing: 0) {
@@ -207,6 +229,11 @@ struct ThreadScreen: View {
     }
 
     private var projects: [MobileProjectGroup] { model.view.groups.filter { $0.projectId != nil } }
+
+    /// The request the computer last turned down, when it was a command of this type.
+    private func refused(_ type: String) -> String? {
+        model.state.returned?.command.type == type ? model.state.returned?.requestId : nil
+    }
 
     /// What the computer turned down here: a message's words, or the question it answered.
     private func returned(for taskId: String) -> ComposerReturned? {

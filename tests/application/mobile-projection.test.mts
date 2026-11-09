@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { rankedThread } from "../../src/domain/thread-storage.ts";
 import { test } from "vitest";
-import { applyMobilePatch, diffMobileView, emptyMobileView, mobileEngineView, MOBILE_BACKGROUND_DETAIL_LIMIT, MOBILE_MESSAGE_TEXT_LIMIT, MOBILE_TRANSCRIPT_MESSAGES,
+import { applyMobilePatch, diffMobileView, emptyMobileView, mobileArchivedThreads, mobileEngineView, MOBILE_BACKGROUND_DETAIL_LIMIT, MOBILE_MESSAGE_TEXT_LIMIT, MOBILE_SUGGESTION_PROMPT_LIMIT, MOBILE_TRANSCRIPT_MESSAGES,
   projectMobileView } from "../../src/application/mobile-projection.ts";
 import { BUILT_IN_MODELS, efforts, effortsFor, modelLabel, modelsFor, type EngineStatus } from "../../src/domain/agent-engine.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
@@ -684,4 +684,76 @@ test("usage travels only when it moves, and a patch puts it back", () => {
   assert.deepEqual(Object.keys(patch ?? {}), ["usage"]);
   assert.deepEqual(applyMobilePatch(previous, patch!), next);
   assert.equal(diffMobileView(next, projectMobileView(after, NOW)), null);
+});
+
+test("an open coordinator carries the decisions its threads raised, naming each thread but its own", () => {
+  const own = { id: "d0", question: "Ship it?", options: [], raisedAt: NOW - 2 };
+  const theirs = { id: "d1", question: "Which store?", context: "Both work.", options: [{ label: "SQLite", description: "Local", recommended: true as const }, { label: "Postgres" }], raisedAt: NOW - 1 };
+  const answered = { id: "d2", question: "Old?", options: [], raisedAt: NOW - 3, answer: "Yes", answeredAt: NOW };
+  const state = workspace([
+    task("lead", { role: "coordinator", projectId: "project-app", decisions: [own] }),
+    task("member", { parentId: "lead", projectId: "project-app", title: "Storage", decisions: [theirs, answered] }),
+  ], { currentId: "lead" });
+  assert.deepEqual(projectMobileView(state, NOW).thread?.decisions, [
+    { taskId: "lead", id: "d0", question: "Ship it?", options: [] },
+    { taskId: "member", from: "Storage", id: "d1", question: "Which store?", context: "Both work.", options: [{ label: "SQLite", description: "Local", recommended: true }, { label: "Postgres" }] },
+  ]);
+  assert.deepEqual(projectMobileView({ ...state, currentId: "member" }, NOW).thread?.decisions, [], "a thread under a coordinator is answered through it");
+});
+
+test("an open coordinator carries the suggestions to start here, their prompts cut to length, and none asked for elsewhere", () => {
+  const long = "x".repeat(MOBILE_SUGGESTION_PROMPT_LIMIT + 50);
+  const lead = task("lead", { role: "coordinator", projectId: "project-app", proposals: [
+    { id: "p1", title: "Tests", prompt: long, brief: { intent: "Cover it", doneWhen: "Green", delivers: "commit" }, place: {}, proposedAt: NOW },
+    { id: "p2", title: "Docs", prompt: "Write docs", place: {}, proposedAt: NOW, error: "No folder." },
+    { id: "p3", title: "GPU", prompt: "Run them", place: { computer: { id: "studio", name: "Studio" } }, proposedAt: NOW },
+  ] });
+  const state = workspace([lead], { currentId: "lead" });
+  const suggestions = projectMobileView(state, NOW).thread?.suggestions;
+  assert.deepEqual(suggestions?.map((item) => [item.id, item.brief?.delivers ?? null, item.error ?? null]), [["p1", "Commits", null], ["p2", null, "No folder."]]);
+  assert.ok(suggestions![0]!.prompt.length <= MOBILE_SUGGESTION_PROMPT_LIMIT + 1);
+  const starting = projectMobileView({ ...state, startingProposals: ["p2"] }, NOW).thread?.suggestions?.[1];
+  assert.deepEqual([starting?.starting, starting?.error], [true, undefined], "one starting says so, and its last failure is past");
+});
+
+test("a thread waiting out a usage limit says when it goes and where it stands in line", () => {
+  const pause = (pausedAt: number, window: "session" | "weekly" = "session") => ({ resetsAt: NOW + 3_600_000, window, pausedAt });
+  const state = workspace([task("first", { limitPause: pause(NOW - 2) }), task("second", { limitPause: pause(NOW - 1) }), task("weekly", { limitPause: pause(NOW, "weekly") }), task("plain")], { currentId: "second" });
+  assert.deepEqual(projectMobileView(state, NOW).thread?.limit, { resetsAt: NOW + 3_600_000, window: "session", position: 2 });
+  assert.deepEqual(projectMobileView({ ...state, currentId: "weekly" }, NOW).thread?.limit, { resetsAt: NOW + 3_600_000, window: "weekly", position: null });
+  assert.equal(projectMobileView({ ...state, currentId: "plain" }, NOW).thread?.limit, null);
+});
+
+test("a Priority row may be snoozed, and a snoozed one says when it comes back", () => {
+  const finding = { id: "f1", headline: "Found a bug", at: NOW };
+  const state = workspace([task("waiting", { findings: [finding] }), task("later", { findings: [finding], snoozedUntil: NOW + 3_600_000 }), task("quiet")]);
+  const { activity } = projectMobileView(state, NOW);
+  assert.deepEqual(activity.priority.map((entry) => [entry.id, entry.snoozable]), [["waiting", true]]);
+  assert.deepEqual(activity.snoozed.map((entry) => [entry.id, entry.snoozedUntil, entry.snoozable]), [["later", NOW + 3_600_000, undefined]]);
+  assert.equal(activity.threads.find((entry) => entry.id === "quiet")?.snoozable, undefined);
+});
+
+test("the view counts the archive, and a query lists it newest first with when each goes for good", () => {
+  const state = workspace([task("old", { archivedAt: NOW - 2, projectId: "project-app" }), task("new", { archivedAt: NOW - 1, title: "" }), task("live")]);
+  const view = projectMobileView(state, NOW);
+  assert.equal(view.archived, 2);
+  assert.deepEqual(mobileArchivedThreads(state), [
+    { id: "new", title: "Untitled thread", projectName: null, archivedAt: NOW - 1, deletesAt: NOW - 1 + 5 * 86_400_000 },
+    { id: "old", title: "old", projectName: "App", archivedAt: NOW - 2, deletesAt: NOW - 2 + 5 * 86_400_000 },
+  ]);
+  const restored = projectMobileView(workspace([task("old", { archivedAt: NOW - 2 }), task("new"), task("live")]), NOW);
+  const patch = diffMobileView(view, restored);
+  assert.equal(patch?.archived, 1);
+  assert.equal(applyMobilePatch(view, patch!)?.archived, 1);
+});
+
+test("decisions, suggestions and a limit travel in the open thread's delta only when they move", () => {
+  const decision = { id: "d1", question: "Which?", options: [], raisedAt: NOW };
+  const before = projectMobileView(workspace([task("lead", { role: "coordinator" })], { currentId: "lead" }), NOW);
+  const after = projectMobileView(workspace([task("lead", { role: "coordinator", decisions: [decision] })], { currentId: "lead" }), NOW);
+  const patch = diffMobileView(before, after);
+  assert.equal(patch?.thread?.kind, "changed");
+  const delta = patch?.thread?.kind === "changed" ? patch.thread.delta : {};
+  assert.deepEqual(Object.keys(delta).filter((key) => ["decisions", "suggestions", "limit"].includes(key)), ["decisions"]);
+  assert.deepEqual(applyMobilePatch(before, patch!)?.thread?.decisions, after.thread?.decisions);
 });

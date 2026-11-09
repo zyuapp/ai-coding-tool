@@ -5,6 +5,7 @@ import Observation
 enum Route: Hashable {
     case thread
     case changes
+    case archived
 }
 
 /// A thread the phone has asked the computer to open: what to show meanwhile, what it waits for, and the commands that asked.
@@ -105,7 +106,7 @@ final class PhoneModel {
     private func request(_ ask: Opening) {
         missed = nil
         opening = ask
-        if path.isEmpty { path = [.thread] } else if path.last == .changes { path = [.thread] }
+        if path != [.thread] { path = [.thread] }
         for command in ask.commands { send(command) }
         reconsiderOpening()
     }
