@@ -23,8 +23,7 @@ struct ComposerView<Above: View>: View {
     var onSteer: ((String, [String]) -> Void)?
     var onStop: (() -> Void)?
     var onAnswer: ((PendingQuestion, String) -> Void)?
-    var onSettings: () -> Void
-    var quick: QuickSettings? = nil
+    var quick: QuickSettings
     @ViewBuilder var above: Above
 
     @Environment(\.palette) private var palette
@@ -92,7 +91,7 @@ struct ComposerView<Above: View>: View {
                 .padding(.bottom, 2)
             }
             if let warning = usage?.warning {
-                UsageWarningRow(warning: warning, onOpen: quick?.onUsage) { model.send(.dismissUsageWarning(warning.key)) }
+                UsageWarningRow(warning: warning, onOpen: quick.onUsage) { model.send(.dismissUsageWarning(warning.key)) }
             }
             if let question, let onAnswer {
                 QuestionPromptView(question: question, refused: returned?.answer != nil ? returned?.id : nil, onSubmit: { onAnswer(question, $0) })
@@ -172,17 +171,10 @@ struct ComposerView<Above: View>: View {
                         .accessibilityLabel("Add pictures")
                     }
                     if !talk.active {
-                    Group {
-                        if let quick {
-                            Menu {
-                                QuickSettingsItems(settings: settings, catalog: model.catalog, quick: quick, usage: usage, onMore: onSettings)
-                            } label: {
-                                settingsChip(summary)
-                            }
-                        } else {
-                            Button(action: onSettings) { settingsChip(summary) }
-                                .buttonStyle(.plain)
-                        }
+                    Menu {
+                        QuickSettingsItems(settings: settings, catalog: model.catalog, quick: quick, usage: usage)
+                    } label: {
+                        settingsChip(summary)
                     }
                     .accessibilityLabel("Thread settings: \([summary.mode, summary.model, summary.effort, usage.map { "plan \($0.share)% used" }].compactMap { $0 }.joined(separator: ", "))")
                     Spacer(minLength: 4)
@@ -557,12 +549,12 @@ struct ComposerView<Above: View>: View {
 }
 
 extension ComposerView where Above == EmptyView {
-    init(model: PhoneModel, draftKey: String, running: Bool, settings: MobileThreadSettings, question: PendingQuestion?, returned: ComposerReturned?, onSend: @escaping (String, [String]) -> Void, onSteer: ((String, [String]) -> Void)?, onStop: (() -> Void)?, onAnswer: ((PendingQuestion, String) -> Void)?, onSettings: @escaping () -> Void, quick: QuickSettings? = nil) {
-        self.init(model: model, draftKey: draftKey, running: running, settings: settings, question: question, returned: returned, onSend: onSend, onSteer: onSteer, onStop: onStop, onAnswer: onAnswer, onSettings: onSettings, quick: quick) { EmptyView() }
+    init(model: PhoneModel, draftKey: String, running: Bool, settings: MobileThreadSettings, question: PendingQuestion?, returned: ComposerReturned?, onSend: @escaping (String, [String]) -> Void, onSteer: ((String, [String]) -> Void)?, onStop: (() -> Void)?, onAnswer: ((PendingQuestion, String) -> Void)?, quick: QuickSettings) {
+        self.init(model: model, draftKey: draftKey, running: running, settings: settings, question: question, returned: returned, onSend: onSend, onSteer: onSteer, onStop: onStop, onAnswer: onAnswer, quick: quick) { EmptyView() }
     }
 }
 
-/// What the settings chip changes in place, without opening the sheet.
+/// What the settings chip changes in place.
 struct QuickSettings {
     /// A thread keeps its engine; a draft may pick any.
     var locked: Bool
@@ -580,7 +572,6 @@ struct QuickSettingsItems: View {
     var catalog: EngineCatalog
     var quick: QuickSettings
     var usage: MobileComposerUsage?
-    var onMore: () -> Void
 
     var body: some View {
         let known = catalog.knows(settings.engine)
@@ -600,7 +591,7 @@ struct QuickSettingsItems: View {
             Section("Mode") {
                 Picker("Mode", selection: Binding(get: { settings.policy }, set: quick.onPolicy)) {
                     ForEach(catalog.policies(settings.engine), id: \.id) { policy in
-                        Label(policy.label, systemImage: ThreadSettingsSheet.policySymbol(policy.id)).tag(policy.id)
+                        Label(policy.label, systemImage: Self.policySymbol(policy.id)).tag(policy.id)
                     }
                 }
                 .pickerStyle(.inline)
@@ -640,8 +631,15 @@ struct QuickSettingsItems: View {
                 }
             }
         }
-        Section {
-            Button(action: onMore) { Label("All Settings…", systemImage: "slider.horizontal.3") }
+    }
+
+    static func policySymbol(_ policy: String) -> String {
+        switch policy {
+        case "confirm": "hand.raised"
+        case "allow-edits": "pencil.line"
+        case "autonomous": "wand.and.sparkles"
+        case "bypass": "bolt"
+        default: "circle.dashed"
         }
     }
 }

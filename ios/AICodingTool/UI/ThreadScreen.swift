@@ -8,7 +8,7 @@ struct ThreadScreen: View {
     @State private var archiving: ArchiveAsk?
 
     enum ThreadSheet: String, Identifiable {
-        case settings, location, rename, project, startIn, members, background, addProject, usage
+        case location, rename, project, startIn, members, background, addProject, usage
         var id: String { rawValue }
     }
 
@@ -156,7 +156,7 @@ struct ThreadScreen: View {
                                 .fitsShortScreens()
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
-                            ComposerView(model: model, draftKey: thread.id, running: thread.status == "running", settings: thread.settings, question: thread.question, returned: returned(for: thread.id), onSend: { model.send(.message(thread.id, text: $0, sources: $1)) }, onSteer: { model.send(.message(thread.id, text: $0, sources: $1, steer: true)) }, onStop: { model.send(.cancel(thread.id)) }, onAnswer: { question, text in model.send(.answer(thread.id, question: question, text: text)) }, onSettings: { sheet = .settings }, quick: QuickSettings(locked: true, onPolicy: { model.send(.setPolicy(thread.id, policy: $0)) }, onModel: { model.send(.setModel(thread.id, engine: $0, model: $1)) }, onEffort: { model.send(.setEffort(thread.id, engine: $0, effort: $1)) }, onFastMode: { model.send(.setFastMode(thread.id, fastMode: $0)) }, onUsage: { sheet = .usage }))
+                            ComposerView(model: model, draftKey: thread.id, running: thread.status == "running", settings: thread.settings, question: thread.question, returned: returned(for: thread.id), onSend: { model.send(.message(thread.id, text: $0, sources: $1)) }, onSteer: { model.send(.message(thread.id, text: $0, sources: $1, steer: true)) }, onStop: { model.send(.cancel(thread.id)) }, onAnswer: { question, text in model.send(.answer(thread.id, question: question, text: text)) }, quick: QuickSettings(locked: true, onPolicy: { model.send(.setPolicy(thread.id, policy: $0)) }, onModel: { model.send(.setModel(thread.id, engine: $0, model: $1)) }, onEffort: { model.send(.setEffort(thread.id, engine: $0, effort: $1)) }, onFastMode: { model.send(.setFastMode(thread.id, fastMode: $0)) }, onUsage: { sheet = .usage }))
                                 .id(thread.id)
                         }
                     }
@@ -174,7 +174,7 @@ struct ThreadScreen: View {
                     } else {
                         model.send(.sendImages(nil, text: text, sources: sources))
                     }
-                }, onSteer: nil, onStop: nil, onAnswer: nil, onSettings: { sheet = .settings }, quick: QuickSettings(locked: false, onPolicy: { model.send(.setPolicy(nil, policy: $0)) }, onModel: { model.send(.setModel(nil, engine: $0, model: $1)) }, onEffort: { model.send(.setEffort(nil, engine: $0, effort: $1)) }, onFastMode: { model.send(.setFastMode(nil, fastMode: $0)) }, onUsage: { sheet = .usage })) {
+                }, onSteer: nil, onStop: nil, onAnswer: nil, quick: QuickSettings(locked: false, onPolicy: { model.send(.setPolicy(nil, policy: $0)) }, onModel: { model.send(.setModel(nil, engine: $0, model: $1)) }, onEffort: { model.send(.setEffort(nil, engine: $0, effort: $1)) }, onFastMode: { model.send(.setFastMode(nil, fastMode: $0)) }, onUsage: { sheet = .usage })) {
                     StartOptions(draft: draft, onPickProject: { sheet = .project }, onPickPlace: { sheet = .startIn }, onCoordinate: { model.send(.setCoordinator(nil, $0)) })
                 }
             }
@@ -212,7 +212,6 @@ struct ThreadScreen: View {
     /// Whether what a sheet acts on is still open: a thread's own sheets need the thread, a draft's the draft.
     private func fits(_ sheet: ThreadSheet) -> Bool {
         switch sheet {
-        case .settings: model.view.thread != nil || model.view.draft != nil
         case .location, .rename, .members, .background: model.view.thread != nil
         case .project, .startIn: model.view.draft != nil
         case .addProject, .usage: true
@@ -220,16 +219,7 @@ struct ThreadScreen: View {
     }
 
     @ViewBuilder private func sheetView(_ which: ThreadSheet) -> some View {
-        let catalog = model.catalog
         switch which {
-        case .settings:
-            if let thread = model.view.thread {
-                ThreadSettingsSheet(settings: thread.settings, catalog: catalog, live: model.live, locked: true, onNewWith: { engine in
-                    model.newThread(projectId: thread.projectId, project: thread.projectName, worktreeId: thread.worktreeId, then: [.setModel(nil, engine: engine, model: nil)])
-                }, onPolicy: { model.send(.setPolicy(thread.id, policy: $0)) }, onModel: { model.send(.setModel(thread.id, engine: $0, model: $1)) }, onFastMode: { model.send(.setFastMode(thread.id, fastMode: $0)) }, onEffort: { model.send(.setEffort(thread.id, engine: $0, effort: $1)) })
-            } else if let draft = model.view.draft {
-                ThreadSettingsSheet(settings: draft.settings, catalog: catalog, live: model.live, locked: false, onNewWith: nil, onPolicy: { model.send(.setPolicy(nil, policy: $0)) }, onModel: { model.send(.setModel(nil, engine: $0, model: $1)) }, onFastMode: { model.send(.setFastMode(nil, fastMode: $0)) }, onEffort: { model.send(.setEffort(nil, engine: $0, effort: $1)) })
-            }
         case .location:
             if let thread = model.view.thread {
                 LocationSheet(thread: thread) { model.send(.moveWorktree(thread.id, destination: $0)) }
