@@ -198,7 +198,7 @@ struct CodeBlockView: View {
                         .frame(height: 32)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.target)
                 .accessibilityLabel(copied ? "Copied" : "Copy code")
             }
             .padding(.horizontal, 14)
@@ -242,9 +242,9 @@ struct WrapLinesButton: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(wrap ? palette.accent : palette.muted)
                 .frame(width: 28, height: 32)
-                .contentShape(Rectangle())
+                .minimumTapTarget()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.target)
         .accessibilityLabel("Wrap lines")
         .accessibilityValue(wrap ? "On" : "Off")
     }

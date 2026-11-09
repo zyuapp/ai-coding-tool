@@ -221,7 +221,7 @@ struct MermaidBlockView: View {
             switch current {
             case .drawn(let diagram):
                 Button { opened = diagram } label: { picture(diagram) }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.target)
                     .accessibilityLabel("Diagram")
                     .accessibilityHint("Opens the diagram to zoom")
             case .failed(let message):
@@ -301,7 +301,7 @@ struct MermaidViewer: View {
                     .closeSurface(palette)
                     .contentShape(Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.target)
             .accessibilityLabel("Close diagram")
             .padding(.trailing, 16)
             .padding(.top, 8)

@@ -56,7 +56,7 @@ struct TalkStrip: View {
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.target)
                 .accessibilityLabel("Cancel dictation")
                 .transition(.opacity)
             }

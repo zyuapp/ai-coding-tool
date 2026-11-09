@@ -27,7 +27,7 @@ struct BackgroundStrip: View {
             .background(palette.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.target)
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
         .accessibilityHint("Shows its subagents and processes")
@@ -99,7 +99,7 @@ struct BackgroundSheet: View {
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.target)
             .accessibilityLabel("Stop \(item.title)")
         } else {
             switch item.status {

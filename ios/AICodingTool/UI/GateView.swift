@@ -68,7 +68,7 @@ struct GateView: View {
                                 .background(palette.accent, in: Capsule())
                                 .contentShape(Capsule())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.target)
                     }
 
                     HStack(spacing: 8) {
@@ -105,7 +105,7 @@ struct GateView: View {
                                 .background(typedLink == nil ? palette.raised : palette.accent, in: Capsule())
                                 .contentShape(Capsule())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.target)
                         .disabled(typedLink == nil)
                     }
                 }

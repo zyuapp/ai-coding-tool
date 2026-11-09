@@ -357,7 +357,7 @@ struct StartOptions: View {
             .background(chosen ? palette.accentChip : palette.surface, in: Capsule())
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.target)
     }
 }
 
@@ -414,7 +414,7 @@ struct ApprovalCard: View {
                         .frame(height: 34)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.target)
                     .accessibilityValue(detailOpen ? "Expanded" : "Collapsed")
                     if detailOpen {
                         ScrollView {
@@ -472,7 +472,7 @@ struct ApprovalCard: View {
             .background(allow ? palette.accent : palette.raised, in: Capsule())
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.target)
         .disabled(decided != nil)
         .opacity(decided != nil && !chosen ? 0.45 : 1)
     }
@@ -511,7 +511,7 @@ private struct CoordinatorStrip: View {
             .background(palette.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.target)
         .padding(.horizontal, 12)
         .padding(.top, 4)
         .padding(.bottom, 4)

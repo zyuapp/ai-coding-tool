@@ -205,7 +205,7 @@ private struct PictureTile: View {
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(palette.line))
                     .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.target)
                 .accessibilityLabel("Enlarge \(picture.label)")
             }
         }

@@ -195,7 +195,7 @@ private struct SectionHeading: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.target)
             .accessibilityAddTraits(.isHeader)
             .accessibilityValue(open ? "Expanded" : "Collapsed")
             Spacer(minLength: 8)
@@ -203,7 +203,7 @@ private struct SectionHeading: View {
                 Button("Dismiss All", action: onDismissAll)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(quiet ? palette.inkDim : palette.accent)
-                    .buttonStyle(.plain)
+                    .buttonStyle(.target)
             }
         }
     }
@@ -371,6 +371,7 @@ struct RunningMark: View {
 struct RowPress: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .contentShape(Rectangle())
             .opacity(configuration.isPressed ? 0.55 : 1)
             .animation(.easeOut(duration: configuration.isPressed ? 0.05 : 0.2), value: configuration.isPressed)
     }

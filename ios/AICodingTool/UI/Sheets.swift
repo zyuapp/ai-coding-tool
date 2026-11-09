@@ -151,7 +151,7 @@ struct OptionRow: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.target)
         .disabled(disabled && !selected)
         .opacity(disabled && !selected ? 0.5 : 1)
         .sheetRow()
@@ -487,7 +487,7 @@ struct MemberTranscript: View {
                     .background(palette.accent, in: Capsule())
                     .contentShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.target)
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
             .accessibilityHint("Opens this thread to talk to it")
@@ -562,7 +562,7 @@ struct AddProjectSheet: View {
                                 }
                                 .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.target)
                             .sheetRow()
                         }
                     } header: {

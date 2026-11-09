@@ -109,18 +109,15 @@ struct NoticeBanner: View {
                     .lineLimit(open ? nil : 3)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.target)
             .accessibilityHint(open ? "Shows less" : "Shows the whole notice")
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(palette.muted)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+                    .minimumTapTarget()
             }
-            .buttonStyle(.plain)
-            .padding(.vertical, -12)
-            .padding(.trailing, -14)
+            .buttonStyle(.target)
             .accessibilityLabel("Dismiss")
         }
         .padding(.horizontal, 14)
@@ -328,7 +325,7 @@ private struct PairedComputers: View {
                                     .background(palette.surface, in: Capsule())
                                     .overlay(Capsule().strokeBorder(palette.line))
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.target)
                             .foregroundStyle(palette.inkDim)
                         }
                     }

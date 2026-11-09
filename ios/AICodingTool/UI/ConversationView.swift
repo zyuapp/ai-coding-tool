@@ -151,7 +151,7 @@ struct MessageView: View {
                                 .frame(width: 44, height: 44)
                                 .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.target)
                         .accessibilityLabel(copied ? "Copied" : "Copy reply")
                     }
                 }
@@ -185,7 +185,7 @@ struct ToolRunView: View {
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.target)
                 .accessibilityValue(open ? "Expanded" : "Collapsed")
                 if open {
                     VStack(alignment: .leading, spacing: 10) {
@@ -239,7 +239,7 @@ private struct ToolCallRow: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.target)
         .accessibilityElement(children: .combine)
     }
 }
@@ -272,7 +272,7 @@ private struct QueuedRow: View {
                             .frame(height: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.target)
                     .accessibilityHint("Sends it into the running turn")
                     Button(action: onDrop) {
                         Image(systemName: "xmark")
@@ -281,7 +281,7 @@ private struct QueuedRow: View {
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.target)
                     .accessibilityLabel("Remove queued message")
                 }
             }

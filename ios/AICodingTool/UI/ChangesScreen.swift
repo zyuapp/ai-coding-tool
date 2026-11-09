@@ -286,7 +286,7 @@ private struct FileSection: View {
                 .padding(.vertical, 11)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.target)
             .accessibilityLabel("\(file.path), \(statusName)")
             .accessibilityValue(open ? "Expanded" : "Collapsed")
             if open { patchView(for: patch) }

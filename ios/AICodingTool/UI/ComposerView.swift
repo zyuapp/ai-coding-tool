@@ -89,9 +89,9 @@ struct ComposerView<Above: View>: View {
                         Image(systemName: "xmark")
                             .font(.caption.weight(.bold))
                             .frame(width: 44, height: 32)
-                            .contentShape(Rectangle())
+                            .minimumTapTarget()
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.target)
                     .accessibilityLabel("Dismiss")
                 }
                 .font(.footnote)
@@ -214,10 +214,9 @@ struct ComposerView<Above: View>: View {
                                             .symbolRenderingMode(.palette)
                                             .foregroundStyle(palette.ink, palette.raised)
                                             .font(.body)
+                                            .frame(width: 44, height: 44, alignment: .topTrailing)
                                     }
-                                    .frame(width: 44, height: 44, alignment: .topTrailing)
-                                    .contentShape(Rectangle())
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(.target)
                                     .offset(x: 6, y: -6)
                                     .accessibilityLabel("Remove picture")
                                 }
@@ -264,7 +263,7 @@ struct ComposerView<Above: View>: View {
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.target)
                     .disabled(images.count >= PickedImage.limit)
                     .accessibilityLabel("Add pictures")
                 }
@@ -275,7 +274,7 @@ struct ComposerView<Above: View>: View {
                 } label: {
                     settingsChip(summary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.target)
                 .accessibilityLabel("Thread settings: \([summary.mode, summary.model, summary.effort, usage.map { "plan \($0.share)% used" }].compactMap { $0 }.joined(separator: ", "))")
                 Spacer(minLength: 4)
                 }
@@ -292,7 +291,7 @@ struct ComposerView<Above: View>: View {
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.target)
                     .accessibilityLabel("Send")
                     .accessibilityHint("Adds what you said and sends the message")
                 } else if talk.active {
@@ -319,7 +318,7 @@ struct ComposerView<Above: View>: View {
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.target)
                     .disabled(!typed)
                     .accessibilityLabel("Send")
                     .keyboardShortcut(.return, modifiers: .command)
@@ -392,7 +391,7 @@ struct ComposerView<Above: View>: View {
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.target)
     }
 
     private func stopButton(_ action: @escaping () -> Void, aside: Bool) -> some View {
@@ -405,7 +404,7 @@ struct ComposerView<Above: View>: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.target)
         .accessibilityLabel("Stop this run")
     }
 
@@ -718,7 +717,7 @@ struct AttachTray: View {
             .padding(.horizontal, 14)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.target)
     }
 }
 
@@ -811,7 +810,7 @@ struct SettingsTray: View {
                     .frame(minHeight: 50)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.target)
             }
         }
     }
@@ -843,7 +842,7 @@ struct SettingsTray: View {
             .frame(minHeight: 50)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.target)
         .accessibilityLabel("\(title), \(value)")
     }
 
@@ -862,7 +861,7 @@ struct SettingsTray: View {
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.target)
                     .accessibilityLabel("Back")
                     Spacer()
                 }
@@ -898,7 +897,7 @@ struct SettingsTray: View {
             .frame(minHeight: 50)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.target)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
@@ -986,7 +985,7 @@ struct QuestionPromptView: View {
                             .background(chosen == option.label ? palette.accentChip : Color.clear)
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.target)
                         .disabled(unavailable)
                         .accessibilityAddTraits(chosen == option.label ? [.isSelected] : [])
                     }
@@ -1021,7 +1020,7 @@ struct QuestionPromptView: View {
                 .background(empty && !unavailable ? palette.raised : palette.accent, in: Capsule())
                 .contentShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.target)
             .disabled(unavailable || empty)
         }
         .padding(16)
