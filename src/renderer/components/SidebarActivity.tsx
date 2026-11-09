@@ -129,8 +129,8 @@ export function SidebarActivity({ activityThreads, sections, blockedThreadIds, t
       {(projectFilter.projects.length > 1 || projectFilter.project !== null) && <ProjectFilter {...projectFilter} />}
       {ACTIVITY_SECTIONS.map(({ key, label }) => {
         const threads = activityThreads[key];
-        /** Snoozed only shows while something is in it, so a user who never snoozes never meets it. */
-        if (key === "snoozed" && threads.length === 0) return null;
+        /** Running and Snoozed only show while something is in them, so neither is ever a heading over nothing. */
+        if ((key === "running" || key === "snoozed") && threads.length === 0) return null;
         const dottedCount = key === "priority" ? dismissableRows(threads, threadsByCoordinator, blockedThreadIds).length : 0;
         return (
           <section className="activity-group" key={key}>

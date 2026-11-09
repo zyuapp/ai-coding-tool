@@ -14,6 +14,7 @@ import { RightDock } from "./components/RightDock";
 import { Sidebar } from "./components/Sidebar";
 import { ThreadJump } from "./components/ThreadJump";
 import { WorkspaceComposer } from "./components/WorkspaceComposer";
+import { DraftRecents } from "./components/DraftRecents";
 import { WorkspaceConversation } from "./components/WorkspaceConversation";
 import { WorkspaceSession } from "./components/WorkspaceSession";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
@@ -187,7 +188,7 @@ export function App() {
       {sidebarOpen && <button className="sidebar-backdrop" type="button" tabIndex={-1} aria-label="Close sidebar" onClick={() => void workspace.actions.setSidebarOpen(false)} />}
 
       <section
-        className={`workspace ${sessionPanelVisible ? "summary-open" : ""} ${rightDockOpen ? "dock-open" : ""} ${rightDockExpanded ? "dock-full" : ""} ${workspaceDrop.over ? "dropping" : ""}`}
+        className={`workspace ${workspace.currentThread ? "" : "drafting"} ${sessionPanelVisible ? "summary-open" : ""} ${rightDockOpen ? "dock-open" : ""} ${rightDockExpanded ? "dock-full" : ""} ${workspaceDrop.over ? "dropping" : ""}`}
         inert={settingsVisible}
         {...workspaceDrop.props}
       >
@@ -256,6 +257,7 @@ export function App() {
         <PartBoundary name="composer" className="composer-wrap main" resetKey={shownKey}>
           <WorkspaceComposer workspace={workspace} actions={composerActions} />
         </PartBoundary>
+        {!workspace.currentThread && <DraftRecents threads={workspace.orderedThreads} project={workspace.currentProject} onSelect={workspace.actions.selectThread} />}
         {workspaceDrop.over && <p className="drop-hint" role="status">Drop to attach</p>}
       </section>
       <WorkspaceDialogs workspace={workspace} />

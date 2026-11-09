@@ -136,20 +136,7 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 .elsewhere-worktree input { margin: 0; accent-color: var(--accent); }
 .elsewhere-card .coordination-brief { margin: 0 14px 10px; border: 1px solid var(--line-soft); border-radius: 9px; }
 .elsewhere-card .suggestion-error { margin: 0 14px 10px; color: var(--danger-soft); font-size: var(--text-meta); }
-.decision-command, .decision-tool pre {
-  margin: 6px 14px 10px;
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: var(--canvas);
-  color: var(--code-ink);
-  font: var(--text-meta)/1.5 var(--mono);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.decision-tool { margin: 0 14px 10px; color: var(--muted); }
-.decision-tool summary { cursor: pointer; }
-.decision-tool pre { margin: 6px 0 0; }
+.decision-body > :is(.approval-command, .approval-change, .approval-raw) { margin: 6px 14px 10px; border-color: var(--line-soft); }
 
 /* A coordinator's threads in the session panel, each opening as a tab in its dock. */
 .coordination-heading { display: flex; align-items: center; height: 26px; }

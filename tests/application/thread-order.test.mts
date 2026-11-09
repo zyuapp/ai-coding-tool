@@ -1,7 +1,7 @@
 import { task } from "./workspace-reducer-fixtures.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { activitySections, backfillSortIndex, moveThread, nextSortIndex, orderThreads, threadMoveBlock } from "../../src/application/thread-order.ts";
+import { activitySections, backfillSortIndex, moveThread, nextSortIndex, orderThreads, recentIn, threadMoveBlock } from "../../src/application/thread-order.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 
 function ids(threads: Thread[]) {
@@ -192,4 +192,18 @@ test("activity sections keep input order when activity ties", () => {
   assert.deepEqual(sections.priority.map((item) => item.id), ["priority-first", "priority-second"]);
   assert.deepEqual(sections.running.map((item) => item.id), ["running"]);
   assert.deepEqual(sections.threads.map((item) => item.id), ["thread-first", "thread-second"]);
+});
+
+test("a new thread's recents are its own project's, newest first, without threads under a coordinator", () => {
+  const threads = [
+    task("old", { projectId: "p", updatedAt: 1 }),
+    task("new", { projectId: "p", updatedAt: 9 }),
+    task("lead", { projectId: "p", role: "coordinator", updatedAt: 5 }),
+    task("member", { projectId: "p", parentId: "lead", updatedAt: 8 }),
+    task("other", { projectId: "q", updatedAt: 7 }),
+    task("chat", { updatedAt: 6 }),
+    task("gone", { projectId: "p", updatedAt: 10, archivedAt: 11 }),
+  ];
+  assert.deepEqual(recentIn(threads, "p", 2).map((item) => item.id), ["new", "lead"]);
+  assert.deepEqual(recentIn(threads, undefined, 4).map((item) => item.id), ["chat"]);
 });

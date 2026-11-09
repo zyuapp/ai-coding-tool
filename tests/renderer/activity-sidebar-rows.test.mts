@@ -308,45 +308,6 @@ test("a run settling on the thread on screen ranks it without marking it, even b
   await workspace.view.unmount();
 });
 
-test("a row's rail reserves slots only for the marks of threads the sidebar draws", async () => {
-  const marked = thread("marked", { role: "reviewer", worktreeId: "wt-1", projectId: "project-1" });
-  const plain = thread("plain", { projectId: "project-1" });
-  const props = {
-    projects: [{ id: "project-1", root: "/work/project" }],
-    worktreeThreadIds: new Set(["marked"]),
-    activityThreads: { priority: [plain], running: [], threads: [marked], snoozed: [] },
-  };
-  const slots = (view: { container: HTMLElement }) => query<HTMLElement>(view.container, ".sidebar").style.getPropertyValue("--row-slots");
-  const sections = { priority: true, running: true, threads: true, snoozed: true };
-
-  const view = await mount(renderProjectSidebar({ ...props, sections }));
-  assert.equal(slots(view), "3", "the role, the checkout, and the engine");
-  await view.render(renderProjectSidebar({ ...props, sections: { ...sections, threads: false } }));
-  assert.equal(slots(view), "1", "a folded list's threads draw no row to make room for");
-  await view.unmount();
-});
-
-test("a rail counts the away mark and leaves out an engine mark the row does not draw", async () => {
-  const sections = { priority: true, running: true, threads: true, snoozed: true };
-  const slots = (view: { container: HTMLElement }) => query<HTMLElement>(view.container, ".sidebar").style.getPropertyValue("--row-slots");
-  const away = thread("away", { role: "reviewer" });
-  const unknown = thread("unknown", { role: "reviewer", worktreeId: "wt-1", engine: "gemini" as Thread["engine"] });
-  const props = {
-    sections,
-    worktreeThreadIds: new Set(["unknown"]),
-    threadHosts: new Map([["away", { id: "studio", name: "Studio", offline: true }]]),
-  };
-
-  const view = await mount(renderProjectSidebar({ ...props, activityThreads: { priority: [], running: [], threads: [away], snoozed: [] } }));
-  assert.equal(slots(view), "3", "the away mark, the role, and the engine");
-  assert.equal(view.container.querySelectorAll(".row-marks > .row-mark").length, 3);
-
-  await view.render(renderProjectSidebar({ ...props, activityThreads: { priority: [], running: [], threads: [unknown], snoozed: [] } }));
-  assert.equal(slots(view), "2", "the role and the checkout, with no engine mark drawn");
-  assert.equal(view.container.querySelectorAll(".row-marks > .row-mark").length, 2);
-  await view.unmount();
-});
-
 test("a background run's tool call redraws only its own row", async (t) => {
   const quietTimes = new Set([200_000, 300_000, 400_000]);
   seedProjectTasks([

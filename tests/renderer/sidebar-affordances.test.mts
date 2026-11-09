@@ -270,7 +270,6 @@ test("a rail shows every mark a row carries, with status and engine at the right
     const tips = (row: HTMLElement) => [...row.querySelectorAll<HTMLElement>(".row-mark")].map((mark) => mark.dataset.tip);
     assert.deepEqual(tips(first!), ["Coordinator", "Works in a worktree", "Runs on a schedule", "Working", "Claude thread"]);
     assert.deepEqual(tips(second!), ["Claude thread"]);
-    assert.equal(query<HTMLElement>(view.container, ".sidebar").style.getPropertyValue("--row-slots"), "5", "every rail makes room for the busiest row");
   } finally { await view.unmount(); }
 });
 

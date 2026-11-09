@@ -2,7 +2,6 @@ import { useMemo, useRef, type ReactNode } from "react";
 import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { CoordinationBar, type ThreadCardsView } from "./Coordination";
-import { projectName } from "../../domain/project";
 import { isCoordinator } from "../../domain/coordination";
 import { usePullRequestReads } from "../task-workspace/pull-request-reads";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
@@ -62,6 +61,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
           retrying={workspace.retrying}
           limitPause={workspace.limitPause}
           waitingOn={workspace.waitingOn}
+          blocked={workspace.approval !== null}
           streamingTail={workspace.streamingTail}
           readingPoint={workspace.readingPoint}
           onReadingPointMove={(point) => {
@@ -69,7 +69,6 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
           }}
           scrollContainerRef={transcriptRef}
           restored={workspace.restored}
-          {...(workspace.currentProject ? { place: projectName(workspace.currentProject) } : {})}
           annotations={workspace.annotations}
           annotationReveal={workspace.annotationReveal}
           onAnnotateAdd={({ quote, note, anchor }) => void workspace.dispatch({ type: "annotation.add", quote, note, anchor })}

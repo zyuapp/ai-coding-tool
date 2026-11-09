@@ -216,6 +216,12 @@
   /* Motion. Every panel that slides in from a window edge shares this duration and curve. */
   --panel-slide-time: 300ms;
   --panel-slide-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* Layout on the move: the composer changing place, a list folding. */
+  --glide-time: 360ms;
+  --glide-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* A control answering the pointer, and a surface arriving under it. */
+  --touch-time: 140ms;
+  --touch-ease: cubic-bezier(0.2, 0, 0, 1);
 
   /* Type and metrics */
   --text-meta: 12px;
@@ -230,7 +236,6 @@
   --terminal-text: 12px;
   --row-slot: 22px;
   --hit-target: 24px;
-  --row-slots: 3;
   --row-inset: 8px;
   /**
    * The height every pane's top strip takes, so the line each one draws under it lands on the same
@@ -428,7 +433,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   font: inherit;
   font-size: var(--text-control);
   font-weight: 500;
-  transition: background 0.15s ease;
+  transition: background var(--touch-time) var(--touch-ease), transform var(--touch-time) var(--touch-ease);
 }
 .new-task-button:hover { background: var(--control-hover); }
 .new-task-label { position: relative; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -594,6 +599,9 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   font-size: var(--text-menu);
   outline: none;
 }
+/** A floating surface fades in where it stands; a menu measures itself to find its place, so it never moves or grows on the way. */
+@keyframes surface-in { from { opacity: 0; } }
+.menu-popover, .picker-popover { animation: surface-in var(--touch-time) var(--touch-ease); }
 .menu-popover button {
   display: flex;
   align-items: center;
@@ -654,18 +662,24 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .anchored-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; }
 /**
  * A row's trailing rail: one set of slots with two layers over them, the marks a row carries and the
- * actions it offers. Both fill from the right edge and every rail is the same width, as wide as the
- * row with the most marks, so the slots line up down the list and the title never moves. An action shows while the row
- * is hovered, focused from the keyboard or has its menu open, and covers only the marks in its own
+ * actions it offers. Both fill from the right edge, so the slots line up down the list. A rail is as
+ * wide as its own marks, or its actions when there are more of them, so a title gives up only the
+ * room its own row needs and never moves under the pointer. An action shows while the row is
+ * hovered, focused from the keyboard or has its menu open, and covers only the marks in its own
  * slots: the menu sits on the engine, and in Priority dismiss takes the engine's slot and the menu
  * the one beside it.
  */
 .row-rail {
   flex: none;
   display: grid;
-  width: calc(max(var(--row-slots), var(--rail-actions, 1)) * var(--row-slot));
+  width: calc(max(var(--rail-marks, 1), var(--rail-actions, 1)) * var(--row-slot));
   height: var(--row-slot);
 }
+.row-rail:has(.row-marks > :nth-child(2)) { --rail-marks: 2; }
+.row-rail:has(.row-marks > :nth-child(3)) { --rail-marks: 3; }
+.row-rail:has(.row-marks > :nth-child(4)) { --rail-marks: 4; }
+.row-rail:has(.row-marks > :nth-child(5)) { --rail-marks: 5; }
+.row-rail:has(.row-marks > :nth-child(6)) { --rail-marks: 6; }
 .priority-list { --rail-actions: 2; }
 .row-layer { grid-area: 1 / 1; display: flex; align-items: center; justify-content: flex-end; }
 .row-actions { position: relative; z-index: 1; pointer-events: none; }
@@ -753,6 +767,8 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .task-row-text > span, .task-row-text > small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-row-text > span { font-size: var(--text-control); line-height: 1.3; }
 .task-row-text > small { margin-top: 3px; color: var(--quiet); font-size: var(--text-meta); }
+/** A row carrying news for the user is set a weight above the rows already read, so the list is scanned by its type before its marks. */
+.task-row:has(.task-attention) .task-row-text > span { color: var(--ink); font-weight: 560; }
 .task-row:hover:not(.offline) .task-row-text > small { color: var(--quiet-strong); }
 .task-row.active .task-row-text > small, .task-row.active .host-mark { color: var(--muted-strong); }
 
@@ -853,7 +869,13 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   flex: 1;
   --dock-width: min(var(--right-dock-width, clamp(380px, 40vw, 620px)), calc(100vw - 320px));
   display: grid;
-  grid-template-rows: var(--chrome-head) minmax(0, 1fr) auto;
+  /**
+   * The last track is the room under a new thread's composer. A thread with a transcript gives it
+   * none, so the composer rests on the window's foot; the two states share a track list, which is
+   * what lets the composer glide between them.
+   */
+  grid-template-rows: var(--chrome-head) minmax(0, 1fr) auto minmax(0, 0fr);
+  transition: grid-template-rows var(--glide-time) var(--glide-ease);
   /**
    * The dock's track takes its width the moment the dock is asked for, and gives it back the moment
    * it is dismissed — never over the half second the dock takes to slide. Everything in the column
@@ -1017,9 +1039,11 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 }
 .heading-choose-folder > svg { flex: none; color: var(--muted); }
 .heading-choose-folder:hover { background: var(--control-hover); color: var(--ink); }
+.workspace.drafting { grid-template-rows: var(--chrome-head) minmax(0, 1fr) auto minmax(0, 1.5fr); }
+@media (prefers-reduced-motion: reduce) { .workspace { transition: none; } }
 .work-area { position: relative; min-height: 0; display: flex; grid-column: 1; grid-row: 2; }
 .workspace.dock-open { grid-template-columns: minmax(0, 1fr) var(--dock-width); }
-.workspace.summary-open .composer-wrap { margin-right: 282px; }
+.workspace.summary-open :is(.composer-wrap, .draft-recents) { margin-right: 282px; }
 .workspace.summary-open .conversation { padding-right: calc(clamp(20px, 4vw, 64px) + 282px); }
 /** The dock stands over its own track rather than in it, so sliding it moves nothing but itself. */
 .right-dock {
@@ -1424,8 +1448,10 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .conversation > .empty-state .empty-glyph svg { width: 24px; height: 24px; }
 .conversation > .empty-state h2 { margin: 20px 0 7px; color: var(--ink); font-size: var(--text-hero); letter-spacing: -0.03em; }
 .conversation > .empty-state p { max-width: 372px; color: var(--muted-soft); font-size: var(--text-control); line-height: 1.6; }
-/** A new thread names only where it works, and quietly: the composer under it asks the rest. */
-.conversation > .empty-state.empty-place h2 { margin: 16px 0 0; color: var(--ink-soft); font-size: var(--text-display); font-weight: 580; letter-spacing: -0.02em; }
+/** A new thread asks its one question from the foot of the transcript, directly over the composer that answers it. */
+.conversation:has(> .empty-place) { padding-block: 0; overflow: hidden; }
+.conversation > .empty-state.empty-place { place-content: end center; padding-bottom: 10px; }
+.conversation > .empty-state.empty-place h2 { margin: 0; color: var(--ink); font-size: var(--text-hero); font-weight: 600; line-height: 1.2; letter-spacing: -0.025em; text-wrap: balance; }
 /* Held back a moment, so a quick restore never flashes it. */
 .empty-state > .empty-loading { font-size: var(--text-control); animation: empty-loading-in 200ms ease-out 400ms both; }
 @keyframes empty-loading-in { from { opacity: 0; } }
@@ -1811,10 +1837,11 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 .markdown-body code { border-radius: 5px; padding: 2px 5px; background: color-mix(in srgb, var(--code-surface) 70%, var(--canvas)); color: var(--code-ink); font: 0.85em/1.5 var(--mono); }
 .markdown-body pre { margin: 17px 0; border-color: transparent; border-radius: 10px; padding: 13px 16px; background: var(--surface); color: var(--code-ink); line-height: 1.65; white-space: pre; }
 .markdown-body pre code { padding: 0; background: transparent; color: inherit; font-size: inherit; }
-.markdown-body table { display: block; width: max-content; max-width: 100%; margin: 17px 0; overflow-x: auto; border-spacing: 0; border-collapse: collapse; }
-.markdown-body th, .markdown-body td { border: 1px solid var(--line); padding: 8px 11px; text-align: left; }
-.markdown-body th { background: var(--surface-raised); color: var(--ink-soft); font-weight: 620; }
-.markdown-body tr:nth-child(even) td { background: var(--sunken); }
+/** A table is one rounded sheet ruled between its rows only, under a quiet header, so the cells read before the grid does. */
+.markdown-body table { display: block; width: max-content; max-width: 100%; margin: 17px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; border-spacing: 0; border-collapse: separate; }
+.markdown-body th, .markdown-body td { border-bottom: 1px solid var(--line-soft); padding: 8px 14px; text-align: left; }
+.markdown-body th { border-bottom-color: var(--line); background: var(--surface); color: var(--muted-strong); font-size: 0.87em; font-weight: 600; }
+.markdown-body tbody tr:last-child td { border-bottom: 0; }
 /* A block that can be copied out on its own. The wrapper carries the block's margin so the button,
    pinned to the wrapper, stays put while the block scrolls under it. */
 .copyable { position: relative; margin: 17px 0; }
@@ -2036,6 +2063,7 @@ pre {
 .thinking-row i:nth-child(2) { animation-delay: 0.15s; }
 .thinking-row i:nth-child(3) { animation-delay: 0.3s; }
 .thinking-label { margin-left: 5px; font-size: var(--text-meta); line-height: 1; }
+.thinking-label:first-child { margin-left: 0; color: var(--muted); }
 .thinking-elapsed { margin-left: 5px; color: var(--quiet-strong); font-size: var(--text-meta); font-variant-numeric: tabular-nums; line-height: 1; }
 .compacting-row,
 .retrying-row,
@@ -2118,10 +2146,22 @@ pre {
 .approval-icon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: var(--accent-chip); color: var(--accent-soft); font-weight: 750; }
 .approval-card strong { font-size: var(--text-control); }
 .approval-card p { margin: 6px 0 11px; color: var(--muted); font-size: var(--text-control); line-height: 1.45; }
-.approval-card details { margin-top: 8px; border: 1px solid var(--accent-line-soft); border-radius: 8px; overflow: hidden; }
-.approval-card summary { padding: 8px 10px; color: var(--muted-strong); font: var(--text-meta)/1.3 var(--mono); cursor: pointer; }
-.approval-card pre { margin: 0; border: 0; border-top: 1px solid var(--accent-line-soft); border-radius: 0; }
-.approval-card pre.approval-command { max-height: 168px; margin-top: 8px; border: 1px solid var(--accent-line-soft); border-radius: 8px; color: var(--ink-dim); white-space: pre-wrap; overflow-wrap: anywhere; }
+/** The action an approval asks about, drawn the same on the thread's own card and on a coordinator's. */
+.approval-command, .approval-change, .approval-raw { margin: 8px 0 0; border: 1px solid var(--accent-line-soft); border-radius: 8px; overflow: hidden; background: var(--canvas); }
+.approval-command, .approval-change > pre, .approval-raw > pre { color: var(--code-ink); font: var(--text-meta)/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.approval-command { max-height: 168px; padding: 8px 10px; overflow: auto; }
+.approval-change > p { margin: 0; border-bottom: 1px solid var(--line-soft); padding: 7px 10px; color: var(--muted-strong); font: var(--text-meta)/1.4 var(--mono); overflow-wrap: anywhere; }
+.approval-change > pre { max-height: 200px; margin: 0; border: 0; border-radius: 0; padding: 8px 10px; overflow: auto; background: none; }
+/** An edit's lines run edge to edge, each behind the mark that says which way it goes. */
+.approval-change > pre:has(> span) { padding-inline: 0; }
+.approval-change :is(.removed, .added) { position: relative; display: block; min-height: 1.55em; padding: 0 10px 0 26px; }
+.approval-change :is(.removed, .added)::before { position: absolute; left: 10px; }
+.approval-change .removed { background: var(--diff-del-surface); }
+.approval-change .removed::before { content: "\2212"; color: var(--danger); }
+.approval-change .added { background: var(--diff-add-surface); }
+.approval-change .added::before { content: "+"; color: var(--success); }
+.approval-raw > summary { padding: 8px 10px; color: var(--muted-strong); font: var(--text-meta)/1.3 var(--mono); cursor: pointer; }
+.approval-raw > pre { max-height: 200px; margin: 0; border: 0; border-top: 1px solid var(--line-soft); border-radius: 0; padding: 8px 10px; overflow: auto; background: none; }
 .approval-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .approval-actions button { margin-top: 11px; }
 .approval-actions .secondary { border: 1px solid var(--line-strong); background: transparent; color: var(--ink-dim); }
@@ -2670,6 +2710,31 @@ pre {
   grid-column: 1;
   grid-row: 3;
 }
+/** The threads last active where a new thread starts, in the composer's own column under it. */
+.draft-recents { grid-column: 1; grid-row: 4; min-height: 0; overflow: hidden; padding: 0 clamp(20px, 4vw, 64px); }
+.draft-recents > div { max-width: 860px; margin: 0 auto; padding: 6px 4px 0; display: grid; animation: draft-recents-in var(--glide-time) var(--glide-ease) both; }
+.draft-recents h3 { margin: 0; padding: 0 12px 6px; color: var(--quiet-strong); font-size: var(--text-meta); font-weight: 560; }
+.draft-recents button {
+  min-width: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 0;
+  border-radius: 9px;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: var(--text-control);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--touch-time) var(--touch-ease), color var(--touch-time) var(--touch-ease);
+}
+.draft-recents button:hover { background: var(--wash); color: var(--ink); }
+.draft-recents button > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-recents button > time { flex: none; color: var(--quiet); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
+@keyframes draft-recents-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .draft-recents > div { animation: none; } }
 /** Where a thread this build can only read would take a message, one line says why, beside Stop while it runs. */
 .composer.unopenable { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 18px; }
 .composer-unopenable { flex: 1; margin: 0; color: var(--muted); font-size: var(--text-control); }
@@ -2913,7 +2978,7 @@ pre {
   border-left: 1px solid var(--line);
   background: var(--sunken);
   grid-column: 2;
-  grid-row: 1 / 4;
+  grid-row: 1 / -1;
   animation: inspector-in 160ms ease-out;
 }
 .side-chat {
@@ -3210,7 +3275,9 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
 .worktree-mark.hue-3 { color: var(--worktree-3); }
 .worktree-mark.hue-4 { color: var(--worktree-4); }
 .worktree-mark.hue-5 { color: var(--worktree-5); }
-.task-engine { flex: none; color: var(--muted); }
+/** Every row carries its engine, so the mark rests a rung under the marks that are news. */
+.task-engine { flex: none; color: var(--quiet-soft); transition: color 120ms ease; }
+.task-row:is(:hover, .active) .task-engine { color: var(--muted); }
 /**
  * A role colours its row: the mark in the rail, and a short bar on its leading edge so the eye groups
  * threads by role before it reads a title.
@@ -4610,7 +4677,11 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   cursor: pointer;
   font-size: 17px;
   line-height: 1;
+  transition: background var(--touch-time) var(--touch-ease), color var(--touch-time) var(--touch-ease), transform var(--touch-time) var(--touch-ease);
 }
+/** A filled action gives a little under the pointer, so a press is felt before its result arrives. */
+:is(.send-button, .new-task-button, button.primary, .approval-actions button, .decision-foot button, .question-answer button):active:not(:disabled, [aria-disabled="true"]) { transform: scale(0.97); }
+.send-button:active:not(:disabled, [aria-disabled="true"]) { transform: scale(0.92); }
 .send-button:is(:disabled, [aria-disabled="true"]) { background: var(--surface-inverse-off); color: var(--muted); cursor: default; }
 .send-button.busy:disabled { background: var(--surface-inverse); box-shadow: none; color: var(--ink-inverse); }
 .send-spinner { width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.9s steps(18) infinite; }

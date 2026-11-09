@@ -2,6 +2,7 @@ import { CommandButton } from "./CommandControl";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { LuActivity as Activity, LuAlarmClock as AlarmClock, LuAlarmClockOff as AlarmClockOff, LuCheck as Check, LuClockAlert as ClockAlert, LuEllipsis as Ellipsis, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass, LuMonitorOff as MonitorOff } from "react-icons/lu";
 import { pauseSummary } from "../../domain/usage-limit";
+import { recencyLabel } from "../../domain/recency";
 import { projectName, type Project } from "../../domain/project";
 import type { Thread } from "../../domain/thread";
 import { hasUnreadAttention, MEMBER_BLOCKED_LABEL, MEMBER_UNREAD_LABEL, newestUnreadFinding } from "../../domain/attention";
@@ -39,10 +40,6 @@ const SIDE_CHAT_LABEL = "A side chat is waiting";
 const TIME_FORMAT = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 
 const DAY_FORMAT = new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
-
-function formatTime(value: number) {
-  return TIME_FORMAT.format(value);
-}
 
 /** When a snoozed thread comes back: the time alone today, else the day too. */
 function snoozeLabel(until: number) {
@@ -107,7 +104,7 @@ function activityMeta(thread: Thread, host: ThreadHost | undefined, projectLabel
   if (headline) return headline;
   if (pauseLabel !== null) return hostMeta(host, pauseLabel);
   if (thread.snoozedUntil !== undefined) return hostMeta(host, ...[projectLabel, snoozeLabel(thread.snoozedUntil)].filter((part): part is string => Boolean(part)));
-  return hostMeta(host, ...[projectLabel, formatTime(thread.rankedAt)].filter((part): part is string => Boolean(part)));
+  return hostMeta(host, ...[projectLabel, recencyLabel(thread.rankedAt, Date.now())].filter((part): part is string => Boolean(part)));
 }
 
 /** A row's meta line: the computer it lives on, marked as one, ahead of whatever else the line says. */

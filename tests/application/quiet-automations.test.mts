@@ -732,11 +732,10 @@ test("a priority row says what was found rather than where it lives and when it 
 test("priority says when it holds nothing, speaks its changes, and running does neither", async () => {
   const view = await mount(sidebar({}));
 
-  const [priority, running] = [...view.container.querySelectorAll(".activity-group")];
-  assert.equal(query(item(priority), ".sidebar-empty").textContent, "Nothing waiting");
-  assert.ok(running);
-  assert.equal(running.querySelector(".sidebar-empty"), null, "only priority has anything to say when empty");
+  assert.equal(query(view.container, ".activity-group .sidebar-empty").textContent, "Nothing waiting");
+  assert.equal(view.container.querySelector('[aria-label="Running"]'), null, "with nothing running there is no heading over nothing");
   assert.equal(query(view.container, '[aria-label="Priority"]').getAttribute("aria-live"), "polite");
+  await view.render(sidebar({ activityThreads: { priority: [], running: [task("task-a")], threads: [], snoozed: [] } }));
   assert.equal(query(view.container, '[aria-label="Running"]').getAttribute("aria-live"), null, "a spinner appearing is not news");
   await view.unmount();
 });

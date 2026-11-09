@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { shortcutAction } from "../../domain/shortcuts";
+import { approvalPreview } from "../../domain/approval-preview";
 import { toolLabel } from "../../domain/tool-call";
 import { shortcutTip } from "./TooltipLayer";
 
@@ -31,17 +32,41 @@ export function DecideButton({ label, binding, secondary = false, onDecide }: { 
   );
 }
 
-const SUBJECT_KEYS = ["command", "file_path", "path", "url"] as const;
-
-/** What a tool call acts on, read in full: the shell command it would run, or the file or URL it touches. */
-export function approvalSubject(input: Record<string, unknown>): string | null {
-  const key = SUBJECT_KEYS.find((item) => typeof input[item] === "string");
-  return key ? input[key] as string : null;
+/**
+ * The action an approval is asked for, drawn as what it is. `id` names the part that reads in full,
+ * for the card to be described by; a call left to its raw input has none.
+ */
+export function ApprovalAction({ input, toolName, id }: { input: Record<string, unknown>; toolName: string; id?: string }) {
+  const preview = approvalPreview(input);
+  switch (preview.kind) {
+    case "command": return <pre className="approval-command" id={id}>{preview.command}</pre>;
+    case "subject": return <pre className="approval-command" id={id}>{preview.text}</pre>;
+    case "file": return (
+      <div className="approval-change" id={id}>
+        <p>{preview.path}</p>
+        <pre>{preview.content}</pre>
+      </div>
+    );
+    case "edit": return (
+      <div className="approval-change" id={id}>
+        <p>{preview.path}</p>
+        <pre>
+          {preview.removed.map((line, index) => <span key={`-${index}`} className="removed">{line}{"\n"}</span>)}
+          {preview.added.map((line, index) => <span key={`+${index}`} className="added">{line}{"\n"}</span>)}
+        </pre>
+      </div>
+    );
+    case "raw": return (
+      <details className="approval-raw">
+        <summary>{toolLabel(toolName)}</summary>
+        <pre>{JSON.stringify(input, null, 2)}</pre>
+      </details>
+    );
+  }
 }
 
 export function ApprovalCard({ approval, onDecide, bindings = DEFAULT_BINDINGS }: ApprovalCardProps) {
   const id = useId();
-  const subject = approvalSubject(approval.input);
   return (
     <section className="approval-card" aria-labelledby={`${id}-title`} {...(approval.description ? { "aria-describedby": `${id}-description` } : {})}>
       <div className="approval-icon" aria-hidden="true">!</div>
@@ -50,12 +75,7 @@ export function ApprovalCard({ approval, onDecide, bindings = DEFAULT_BINDINGS }
           <strong id={`${id}-title`}>{approval.title}</strong>
           {approval.description && <p id={`${id}-description`}>{approval.description}</p>}
         </div>
-        {subject
-          ? <pre className="approval-command">{subject}</pre>
-          : <details>
-              <summary>{toolLabel(approval.toolName)}</summary>
-              <pre>{JSON.stringify(approval.input, null, 2)}</pre>
-            </details>}
+        <ApprovalAction input={approval.input} toolName={approval.toolName} />
         <div className="approval-actions">
           <DecideButton label="Deny" binding={bindings.deny} secondary onDecide={() => onDecide(approval, false)} />
           <DecideButton label="Allow once" binding={bindings.allow} onDecide={() => onDecide(approval, true)} />

@@ -91,8 +91,8 @@ test("joining a scheduled run ranks a quiet one where its turn starts and leaves
 });
 
 test("a row says when its thread was ranked, not when it last spoke", async () => {
-  const ranked = Date.UTC(2026, 0, 1, 9, 5);
-  const working = task("task-a", { projectId: "project-1", rankedAt: ranked, messages: [{ id: "m", kind: "assistant", text: "Still reading.", at: Date.UTC(2026, 0, 1, 14, 40) }] });
+  const ranked = new Date().setHours(9, 5, 0, 0);
+  const working = task("task-a", { projectId: "project-1", rankedAt: ranked, messages: [{ id: "m", kind: "assistant", text: "Still reading.", at: new Date().setHours(14, 40, 0, 0) }] });
   const view = await mount(renderProjectSidebar({
     projects: [{ id: "project-1", root: "/work/api" }],
     activityThreads: { priority: [], running: [], threads: [working], snoozed: [] },

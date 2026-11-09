@@ -40,14 +40,10 @@ test("the approval card shows the command it would run and decides it either way
   assert.equal(query(other.container, ".approval-card").hasAttribute("aria-describedby"), false);
   await other.unmount();
 
-  const file = await mount(React.createElement(ApprovalCard, { approval: approval({ file_path: "src/a.ts" }), onDecide() {} }));
-  assert.equal(query(file.container, ".approval-command").textContent, "src/a.ts", "the file a call touches is read in full");
-  assert.equal(file.container.querySelector("details"), null, "nothing else is left to open");
-  await file.unmount();
-
-  const edit = await mount(React.createElement(ApprovalCard, { approval: approval({ file_path: "src/a.ts", old_string: "a", new_string: "b" }), onDecide() {} }));
-  assert.equal(query(edit.container, ".approval-command").textContent, "src/a.ts");
-  assert.equal(edit.container.querySelector("details"), null, "the path stands for the call without its raw input");
+  const edit = await mount(React.createElement(ApprovalCard, { approval: approval({ file_path: "src/a.ts", old_string: "a", new_string: "b\nc" }), onDecide() {} }));
+  assert.equal(query(edit.container, ".approval-change > p").textContent, "src/a.ts");
+  assert.deepEqual([...edit.container.querySelectorAll(".approval-change span")].map((line) => [line.className, line.textContent]), [["removed", "a\n"], ["added", "b\n"], ["added", "c\n"]], "an edit reads as the lines it swaps");
+  assert.equal(edit.container.querySelector("details"), null);
   await edit.unmount();
 });
 

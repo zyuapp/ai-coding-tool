@@ -20,6 +20,15 @@ export function recentFirst(threads: readonly Thread[]): Thread[] {
 }
 
 /**
+ * The threads last active where a new thread is about to start: one project's, or the chats that
+ * have none. A thread working under a coordinator is reached through it, so it is left out.
+ */
+export function recentIn(threads: readonly Thread[], projectId: string | undefined, limit: number): Thread[] {
+  const members = coordinatedThreadIds(threads);
+  return recentFirst(threads.filter((thread) => thread.projectId === projectId && thread.archivedAt === undefined && !members.has(thread.id))).slice(0, limit);
+}
+
+/**
  * Ranks threads by what wants the user rather than by where they live. A thread leads when it is
  * blocked on the user, or when it is idle and its last run left a verdict or a run found something;
  * a thread still working belongs among the runs however it ended last time. Reviewers stay in Threads

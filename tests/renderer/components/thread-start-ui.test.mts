@@ -138,17 +138,13 @@ test("no project makes a chat, which is left only with whether it coordinates", 
   await view.unmount();
 });
 
-test("a new thread's empty transcript names its project, or that it is a chat", async () => {
+test("a new thread's empty transcript asks for work only once the threads are read", async () => {
   const { TimelineEmptyState } = await import("../../../src/renderer/components/TimelineEmptyState.tsx");
   const provide = (props: React.ComponentProps<typeof TimelineEmptyState>) => React.createElement(TimelineEmptyState, props);
-  const view = await mount(provide({ restored: true, place: "ai-coding-tool" }));
-  assert.equal(query(view.container, ".empty-state h2").textContent, "ai-coding-tool");
-  assert.equal(view.container.querySelector(".empty-state p"), null, "there is nothing to explain");
-  assert.equal(view.container.querySelector(".empty-state button"), null);
-  await view.render(provide({ restored: true }));
-  assert.equal(query(view.container, ".empty-state h2").textContent, "New chat", "without a project it is a chat");
-  await view.render(provide({ restored: false, place: "ai-coding-tool" }));
-  assert.equal(view.container.querySelector(".empty-state h2"), null, "nothing is named before the threads are read");
+  const view = await mount(provide({ restored: true, engineLabel: "Claude" }));
+  assert.equal(query(view.container, ".empty-state h2").textContent, "What should Claude work on?");
+  await view.render(provide({ restored: false, engineLabel: "Claude" }));
+  assert.equal(view.container.querySelector(".empty-state h2"), null, "nothing is asked before the threads are read");
   assert.equal(query(view.container, '.empty-state[role="status"]').textContent, "Loading threads…");
   await view.unmount();
 });

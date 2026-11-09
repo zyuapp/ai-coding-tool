@@ -33,7 +33,7 @@ test("the Needs-you card pages through approvals and decisions and answers each"
   }));
   const card = query(view.container, '[aria-label="Approval waiting on you"]');
   assert.match(card.textContent, /Login flake1 of 2/);
-  assert.equal(query(card, ".decision-command").textContent, "yarn test:e2e -u");
+  assert.equal(query(card, ".approval-command").textContent, "yarn test:e2e -u");
   const button = (label: string) => required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => labelOf(item) === label));
   await act(async () => { button("Allow once").click(); });
   await act(async () => { button("Deny").click(); });

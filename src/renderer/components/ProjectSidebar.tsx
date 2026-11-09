@@ -1,8 +1,6 @@
-import { memo, useLayoutEffect, useMemo, useRef } from "react";
+import { memo, useLayoutEffect, useRef } from "react";
 import { LuPlus as Plus, LuSearch as Search, LuSquarePen as SquarePen } from "react-icons/lu";
 import type { Project, ThreadDropTarget } from "../../domain/project";
-import { hasUnreadAttention } from "../../domain/attention";
-import { isAgentEngine } from "../../domain/agent-engine";
 import type { Thread } from "../../domain/thread";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
 import type { ActivitySections } from "../../application/thread-order";
@@ -19,7 +17,6 @@ import type { AppUpdate } from "../../domain/app-update";
 import { SidebarFooter } from "./SidebarFooter";
 import { shortcutTip } from "./TooltipLayer";
 import { CommandButton } from "./CommandControl";
-import { roleIcon } from "./ThreadRoleMark";
 
 const NEW_THREAD_TIP = shortcutTip("New thread", "Mod+N");
 const SEARCH_TIP = shortcutTip("Search", "Mod+K");
@@ -84,33 +81,6 @@ export type ProjectSidebarProps = {
   onDownloadUpdate: () => void;
   onInstallUpdate: () => void;
 };
-
-/**
- * How wide every rail is at rest: the most marks any one drawn thread carries, counted as the row
- * draws them. Reserving a slot no row on screen fills, for a thread in a folded list, only pushes
- * the marks away from the titles. A rail keeps at least one slot for its actions to land on.
- */
-function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "blockedThreadIds" | "runningThreadIds" | "monitoringThreadIds" | "sideChatAttention" | "worktreeThreadIds" | "schedules" | "threadHosts">, { threadsByCoordinator, waitingLines }: SidebarCoordination) {
-  return threads.reduce((widest, thread) => {
-    const members = threadsByCoordinator.get(thread.id) ?? [];
-    const coordinationStatus = waitingLines.has(thread.id) || members.some((member) => marks.blockedThreadIds.has(member.id) || marks.runningThreadIds.has(member.id) || hasUnreadAttention(member));
-    const status = marks.blockedThreadIds.has(thread.id) || marks.runningThreadIds.has(thread.id) || marks.monitoringThreadIds.has(thread.id) || Boolean(thread.limitPause) || hasUnreadAttention(thread) || marks.sideChatAttention.has(thread.id) || coordinationStatus;
-    const drawn = [
-      marks.threadHosts.get(thread.id)?.offline === true,
-      Boolean(thread.role && roleIcon(thread.role)),
-      marks.worktreeThreadIds.has(thread.id),
-      marks.schedules.has(thread.id),
-      status,
-      isAgentEngine(thread.engine),
-    ];
-    return Math.max(widest, drawn.filter(Boolean).length);
-  }, 1);
-}
-
-/** The threads the sidebar draws a row for: those in the lists left open. */
-function drawnThreads(sections: SidebarSections, activityThreads: ActivitySections): Thread[] {
-  return (["priority", "running", "threads", "snoozed"] as const).flatMap((key) => sections[key] ? activityThreads[key] : []);
-}
 
 function NewThreadBar({ onNewThread }: { onNewThread: () => void }) {
   return (
@@ -196,11 +166,6 @@ export const ProjectSidebar = memo(function ProjectSidebar({
     sidebarCoordination,
   });
 
-  const railSlots = useMemo(
-    () => railSlotsFor(drawnThreads(sections, activityThreads), { blockedThreadIds, runningThreadIds, monitoringThreadIds, sideChatAttention, worktreeThreadIds, schedules, threadHosts }, sidebarCoordination),
-    [sections, activityThreads, blockedThreadIds, runningThreadIds, monitoringThreadIds, sideChatAttention, worktreeThreadIds, schedules, threadHosts, sidebarCoordination],
-  );
-
   /** Stepping through threads from the keyboard is blind unless the list follows the one now open. */
   useLayoutEffect(() => {
     list.current?.querySelector<HTMLElement>(".task-row.active")?.scrollIntoView({ block: "nearest" });
@@ -211,7 +176,6 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       ref={list}
       className={`sidebar ${open ? "compact-open" : "hidden"}`}
       inert={inactive || !open}
-      style={{ "--row-slots": railSlots } as React.CSSProperties}
     >
       <SidebarHeader canGoBack={canGoBack} canGoForward={canGoForward} onGoBack={onGoBack} onGoForward={onGoForward} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
       <NewThreadBar onNewThread={onNewThread} />

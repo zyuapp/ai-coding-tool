@@ -48,6 +48,8 @@ export type ConversationTimelineProps = {
   limitPause?: (LimitPause & { position: number | null }) | null;
   /** What the thread is waiting on before a run of its own can start, which can take minutes. */
   waitingOn?: ThreadWait | null;
+  /** Whether the run is held on an approval only the user can give. */
+  blocked?: boolean;
   streamingTail?: StreamingTail | null;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   /** Where this thread was left reading, as the workspace holds it. Opening the thread puts it back. */
@@ -57,8 +59,6 @@ export type ConversationTimelineProps = {
   empty?: { icon: IconType; title: string; description: string };
   /** False while the stored threads are still on their way, when an empty transcript means nothing. */
   restored?: boolean;
-  /** What an empty transcript names: the project a new thread works in. Without one it is a chat. */
-  place?: string;
   /** The find bar, when it is this transcript being searched, and the match it is showing. */
   find?: FindView | null;
   /** This composer's drafted annotations, whose anchors are highlighted and numbered here. */
@@ -94,9 +94,13 @@ function retryLabel(retry: RetryNotice) {
   return `${retry.message} Retrying${count}…`;
 }
 
-/** `since` is when the live turn's first step began; until it has one, the row counts from when it appeared. */
-function ThinkingRow({ since }: { since: number | undefined }) {
+/**
+ * `since` is when the live turn's first step began; until it has one, the row counts from when it appeared.
+ * A run held on an approval is not working, so it says whom it waits for and counts nothing.
+ */
+function ThinkingRow({ since, blocked }: { since: number | undefined; blocked: boolean }) {
   const [shownAt] = useState(Date.now);
+  if (blocked) return <div className="thinking-row" role="status"><span className="thinking-label">Waiting for your approval</span></div>;
   return (
     <div className="thinking-row" role="status">
       <i aria-hidden="true" /><i aria-hidden="true" /><i aria-hidden="true" />
@@ -148,7 +152,7 @@ function newestPrompt(messages: Thread["messages"]) {
   return undefined;
 }
 
-export function ConversationTimeline({ currentThread, engine, engineLabel, folder, workspaceId, status, compacting, retrying = null, limitPause = null, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, place, find, annotations = EMPTY_ANNOTATIONS, annotationReveal = null, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide, threadCards = null, starts = NO_STARTS }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentThread, engine, engineLabel, folder, workspaceId, status, compacting, retrying = null, limitPause = null, waitingOn = null, blocked = false, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, find, annotations = EMPTY_ANNOTATIONS, annotationReveal = null, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide, threadCards = null, starts = NO_STARTS }: ConversationTimelineProps) {
   const messages = currentThread?.messages ?? [];
   const artifactScope = useMemo(() => ({ root: folder, taskId: currentThread?.id, workspaceId }), [folder, currentThread?.id, workspaceId]);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -224,7 +228,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   if (currentThread?.historySummary) return <div className="empty-state" role="status"><span className="text-sweep">Loading conversation…<SweepBand>Loading conversation…</SweepBand></span></div>;
 
   if (!drawn) {
-    return <TimelineEmptyState restored={restored} {...(empty ? { empty } : {})} {...(place ? { place } : {})} />;
+    return <TimelineEmptyState restored={restored} engineLabel={engineLabel} {...(empty ? { empty } : {})} />;
   }
 
   return (
@@ -265,7 +269,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
         </div>
       )}
       {status === "running" && !compacting && !retrying && (
-        <ThinkingRow since={liveSince} />
+        <ThinkingRow since={liveSince} blocked={blocked} />
       )}
       {!atBottom && (
         <div className="scroll-to-end-dock">

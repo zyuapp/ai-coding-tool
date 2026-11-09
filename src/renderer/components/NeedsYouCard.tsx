@@ -3,13 +3,13 @@ import { LuArrowUpRight as ArrowUpRight, LuChevronLeft as ChevronLeft, LuChevron
 import type { AppCommand } from "../../contracts/commands";
 import type { ThreadModelChoice } from "../../domain/coordination";
 import { modelLabel } from "../../domain/agent-engine";
-import { toolLabel } from "../../domain/tool-call";
+import { approvalPreview } from "../../domain/approval-preview";
 import { useModelCatalog } from "../model-catalog";
 import { projectName } from "../../domain/project";
 import type { Thread } from "../../domain/thread";
 import type { CoordinationApprovalView, CoordinationDecisionView, ElsewhereView, ProposalView } from "../../application/coordination-view";
 import type { ApprovalView } from "../../application/thread-run-state";
-import { approvalSubject, DecideButton, type DecideBindings } from "./ApprovalCard";
+import { ApprovalAction, DecideButton, type DecideBindings } from "./ApprovalCard";
 import { CommandButton, useCommandControls } from "./CommandControl";
 import { BriefDetails } from "./Coordination";
 import { HostMark } from "./HostMark";
@@ -335,17 +335,15 @@ function ApprovalForm({ view, bindings, position, onStep, onDecide, onSelect }: 
   onSelect: (threadId: string) => void;
 }) {
   const { thread, approval } = view;
-  const subject = approvalSubject(approval.input);
+  const read = approvalPreview(approval.input).kind !== "raw";
   const ids = pageIds(useId());
   return (
-    <section className="decision-card" aria-label="Approval waiting on you" aria-describedby={describedBy(ids.from, ids.question, approval.description && ids.context, subject && ids.command)} tabIndex={-1}>
+    <section className="decision-card" aria-label="Approval waiting on you" aria-describedby={describedBy(ids.from, ids.question, approval.description && ids.context, read && ids.command)} tabIndex={-1}>
       <NeedsYouHead id={ids.from} thread={thread} position={position} onStep={onStep} onSelect={onSelect} />
       <div className="decision-body">
         <p className="decision-question" id={ids.question}>{approval.title}</p>
         {approval.description && <p className="decision-context" id={ids.context}>{approval.description}</p>}
-        {subject
-          ? <pre className="decision-command" id={ids.command}>{subject}</pre>
-          : <details className="decision-tool"><summary>{toolLabel(approval.toolName)}</summary><pre>{JSON.stringify(approval.input, null, 2)}</pre></details>}
+        <ApprovalAction input={approval.input} toolName={approval.toolName} id={ids.command} />
       </div>
       <div className="decision-foot">
         {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
