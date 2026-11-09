@@ -37,6 +37,8 @@ final class PhoneModel {
     @ObservationIgnored private var drafts: [String: String] = [:]
     /// Words handed back to the composer on screen, such as a queued message taken out of the queue.
     private(set) var handedBack: (id: UUID, text: String)?
+    /// The draft spoken words last landed in, so a composer showing it reads it again.
+    private(set) var spokenInto: (id: UUID, key: String)?
 
     @ObservationIgnored private let storage: PhoneStorage
     @ObservationIgnored private var openingTimer: Task<Void, Never>?
@@ -199,6 +201,13 @@ final class PhoneModel {
 
     func keepDraft(_ text: String, for key: String) {
         drafts[key] = text.isEmpty ? nil : text
+    }
+
+    /// Spoken words follow whatever that draft holds, whether or not its thread is still on screen.
+    func addSpokenWords(_ words: String, to key: String) {
+        let typed = draft(for: key).trimmingCharacters(in: .whitespacesAndNewlines)
+        keepDraft(typed.isEmpty ? words : "\(typed) \(words)", for: key)
+        spokenInto = (UUID(), key)
     }
 
     /// Puts a message's words back in the composer on screen, after anything already typed there.

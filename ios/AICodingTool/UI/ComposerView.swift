@@ -256,6 +256,10 @@ struct ComposerView<Above: View>: View {
             .ignoresSafeArea()
         }
         .onAppear { draft = model.draft(for: draftKey) }
+        .onChange(of: model.spokenInto?.id) { _, id in
+            guard id != nil, model.spokenInto?.key == draftKey else { return }
+            draft = model.draft(for: draftKey)
+        }
         .onChange(of: draft) { old, text in
             if focused { dictation.record(from: old, to: text) }
             model.keepDraft(text, for: draftKey)
@@ -451,10 +455,7 @@ struct ComposerView<Above: View>: View {
                     talkNote = "Didn't catch anything."
                     return
                 }
-                let typedSoFar = model.draft(for: key).trimmingCharacters(in: .whitespacesAndNewlines)
-                let joined = typedSoFar.isEmpty ? words : "\(typedSoFar) \(words)"
-                model.keepDraft(joined, for: key)
-                draft = joined
+                model.addSpokenWords(words, to: key)
             } catch {
                 talkNote = error.localizedDescription
             }
