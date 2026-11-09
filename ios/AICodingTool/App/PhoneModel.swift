@@ -242,8 +242,8 @@ final class PhoneModel {
     /// Reads the scope's list again at most once a minute, keeping the last one meanwhile, so skills
     /// installed since show up without typing waiting on the computer.
     func readCommands(for scope: CommandScope) {
-        let key = commandsKey(scope)
         guard live else { return }
+        let key = commandsKey(scope)
         if let read = commandsRead[key], Date().timeIntervalSince(read) < 60 { return }
         commandsRead[key] = Date()
         Task {

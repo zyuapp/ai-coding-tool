@@ -5,6 +5,8 @@ import type { MobileCommand, MobileQuery, MobileRequest, MobileResponse, MobileV
 export const MOBILE_REQUEST_TIMEOUT = 8_000;
 /** A recording may take its computer two minutes to write down, and loading the speech model first. */
 export const MOBILE_TRANSCRIBE_TIMEOUT = 130_000;
+/** Codex starts a server to list its skills, which may take the whole twenty seconds it is given. */
+export const MOBILE_COMMANDS_TIMEOUT = 22_000;
 
 type Pending = {
   settle: (response: MobileResponse) => void;
@@ -31,7 +33,7 @@ function isView(value: unknown): value is MobileView {
 export class MobileRelay {
   private readonly pending = new Map<string, Pending>();
 
-  constructor(private readonly host: MobileRelayHost, private readonly patience = MOBILE_REQUEST_TIMEOUT, private readonly transcribePatience = MOBILE_TRANSCRIBE_TIMEOUT) {}
+  constructor(private readonly host: MobileRelayHost, private readonly patience = MOBILE_REQUEST_TIMEOUT, private readonly transcribePatience = MOBILE_TRANSCRIBE_TIMEOUT, private readonly commandsPatience = MOBILE_COMMANDS_TIMEOUT) {}
 
   async snapshot(sessionId: string): Promise<MobileView> {
     const response = await this.ask({ type: "mobile.request", requestId: randomUUID(), sessionId, op: "snapshot" });
@@ -47,7 +49,7 @@ export class MobileRelay {
 
   /** The window's own answer, passed through as it came: what a read returns is the phone's to draw. */
   async query(sessionId: string, query: MobileQuery): Promise<unknown> {
-    const response = await this.ask({ type: "mobile.request", requestId: randomUUID(), sessionId, op: "query", query }, query.kind === "transcribe" ? this.transcribePatience : this.patience);
+    const response = await this.ask({ type: "mobile.request", requestId: randomUUID(), sessionId, op: "query", query }, query.kind === "transcribe" ? this.transcribePatience : query.kind === "commands" ? this.commandsPatience : this.patience);
     if (!response.ok) throw new Error(response.message);
     return response.result;
   }

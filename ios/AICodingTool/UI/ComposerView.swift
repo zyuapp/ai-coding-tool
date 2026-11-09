@@ -148,7 +148,7 @@ struct ComposerView<Above: View>: View {
         .sensoryFeedback(.selection, trigger: talkCancelling)
         .sensoryFeedback(.selection, trigger: commandsPicked)
         .animation(.snappy(duration: 0.2), value: commandQuery == nil)
-        .onChange(of: commandQuery == nil ? nil : commandScope) { _, scope in
+        .onChange(of: commandQuery == nil || !model.live ? nil : commandScope) { _, scope in
             if let scope { model.readCommands(for: scope) }
         }
         .onChange(of: scenePhase) { _, phase in

@@ -405,6 +405,11 @@ test("a phone's request is answered by the window, or by the wait running out", 
   transcribing.answer({ type: "mobile.response", requestId: slow[0].requestId, ok: true, result: { text: "words" } });
   assert.deepEqual(await heard, { text: "words" }, "a recording waits longer than any other request");
   await assert.rejects(transcribing.query("session-1", { kind: "directories", prefix: "/" }), /did not answer/);
+  const discovering = new MobileRelay({ send: (request) => { slow.push(request); return true; } }, 40, 40, 400);
+  const listed = discovering.query("session-1", { kind: "commands", taskId: "t1" });
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  discovering.answer({ type: "mobile.response", requestId: slow.at(-1)!.requestId, ok: true, result: { status: "available", commands: [] } });
+  assert.deepEqual(await listed, { status: "available", commands: [] }, "a command list waits out an engine starting to list its skills");
 
   const abandoned = new MobileRelay({ send: () => true });
   const waiting = abandoned.snapshot("session-1");
