@@ -317,6 +317,50 @@ struct MobileTheme: Codable, Equatable, Sendable {
     static let standard = MobileTheme(dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "auto")
 }
 
+/// One plan window as the computer rounded it.
+struct MobileUsageWindow: Codable, Equatable, Sendable, Identifiable {
+    var id: String
+    var label: String
+    var share: Int?
+    var resetsAt: String?
+}
+
+/// An engine's plan: its windows, or why the computer could not read them.
+struct MobileEngineUsage: Codable, Equatable, Sendable, Identifiable {
+    var engine: String
+    var label: String
+    var plan: String?
+    var windows: [MobileUsageWindow]
+    var message: String?
+
+    var id: String { engine }
+}
+
+/// The windows the composer's model spends, and the warning over the composer once one runs low.
+struct MobileComposerUsage: Codable, Equatable, Sendable {
+    struct Warning: Codable, Equatable, Sendable {
+        var key: String
+        var share: Int
+        var window: String
+        var resetsAt: String?
+    }
+
+    struct Part: Codable, Equatable, Sendable {
+        var span: String
+        var share: Int
+    }
+
+    var share: Int
+    var meter: [Part]
+    var spends: [String]
+    var warning: Warning?
+}
+
+struct MobileUsage: Codable, Equatable, Sendable {
+    var engines: [MobileEngineUsage]
+    var composer: MobileComposerUsage?
+}
+
 struct MobileView: Codable, Equatable, Sendable {
     var groups: [MobileProjectGroup]
     var activity: MobileActivity
@@ -326,6 +370,8 @@ struct MobileView: Codable, Equatable, Sendable {
     var upkeep: [MobileUpkeepItem]?
     /// Whether the computer can turn a held recording into words now. Nil from a computer without dictation.
     var dictation: Bool? = nil
+    /// The plan limits of the computer's accounts. Nil from a computer too old to send them.
+    var usage: MobileUsage? = nil
     var thread: MobileThreadView?
     var draft: MobileDraftView?
     var error: String?

@@ -55,6 +55,19 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(on.applying(off)?.dictation, false)
     }
 
+    func testUsageArrivesWithThePatchAndStaysUntilItMoves() throws {
+        let view = try snapshotView()
+        XCTAssertNil(view.usage, "a computer too old to send limits never says so")
+        let json = #"{"usage":{"engines":[{"engine":"claude","label":"Claude","plan":"Max plan","windows":[{"id":"five_hour","label":"Current session","share":42,"resetsAt":"2027-01-15T16:10:00Z"}]}],"composer":{"share":42,"meter":[{"span":"5h","share":42}],"spends":["five_hour"],"warning":null}}}"#
+        let next = try XCTUnwrap(view.applying(JSONDecoder().decode(MobilePatch.self, from: Data(json.utf8))))
+        XCTAssertEqual(next.usage?.engines.first?.windows.first?.share, 42)
+        XCTAssertEqual(next.usage?.composer?.spends, ["five_hour"])
+        let untouched = try JSONDecoder().decode(MobilePatch.self, from: Data(#"{"groups":[]}"#.utf8))
+        XCTAssertEqual(next.applying(untouched)?.usage, next.usage)
+        XCTAssertEqual(PhoneCommand.readUsage.json, .object(["type": .string("usage.read")]))
+        XCTAssertEqual(PhoneCommand.dismissUsageWarning("claude:five_hour::near").json, .object(["type": .string("usage.dismiss-warning"), "warning": .string("claude:five_hour::near")]))
+    }
+
     func testTranscribeQueryCarriesTheRecording() {
         XCTAssertEqual(MobileQuery.transcribe(audio: "UklGRg==").json, .object(["kind": .string("transcribe"), "audio": .string("UklGRg==")]))
         XCTAssertGreaterThan(MobileQuery.transcribe(audio: "").timeout, .seconds(120), "the computer may take its whole two minutes")

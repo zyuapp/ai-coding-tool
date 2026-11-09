@@ -16,7 +16,8 @@ import { threadActivity, type ThreadActivity } from "./thread-activity.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
 import { diffFor } from "./workspace-diff.js";
 import { workspaceViewCollections } from "./workspace-view-collections.js";
-import { AGENT_EFFORTS, AGENT_ENGINES, BUILT_IN_MODELS, byEngine, capabilitiesFor, efforts, engineCatalog, engineLabel, offeredPolicies, type AgentEngine, type EngineReadiness, type EngineStatus, type ModelCatalog } from "../domain/agent-engine.js";
+import { barShare, NEAR_LIMIT_SHARE, planLabel, sessionAndWeek, tightestWindow, usageWarningKey, windowsFor, windowSpan, type UsageWindow } from "../domain/plan-usage.js";
+import { AGENT_EFFORTS, AGENT_ENGINES, BUILT_IN_MODELS, byEngine, capabilitiesFor, efforts, engineCatalog, engineLabel, modelLabel, offeredPolicies, type AgentEngine, type EngineReadiness, type EngineStatus, type ModelCatalog } from "../domain/agent-engine.js";
 import { orderSubagents, POLICIES, processLabel, subagentLine, type BackgroundProcess, type Subagent } from "../domain/run.js";
 import { workflowLabel, type Workflow } from "../domain/workflow.js";
 import { THREAD_ROLES } from "../domain/thread-role.js";
@@ -26,7 +27,9 @@ import type {
   MobileActivity,
   MobileBackgroundItem,
   MobileChanges,
+  MobileComposerUsage,
   MobileDraftView,
+  MobileEngineUsage,
   MobileEngine,
   MobileEngines,
   MobileLocation,
@@ -42,6 +45,8 @@ import type {
   MobileThreadEntry,
   MobileThreadView,
   MobileUpkeepItem,
+  MobileUsage,
+  MobileUsageWindow,
   MobileView,
   MobileVocabulary,
   MobileWorktreeChoice,
@@ -76,6 +81,7 @@ export function emptyMobileView(): MobileView {
     engines: NO_ENGINES,
     upkeep: [],
     dictation: false,
+    usage: NO_USAGE,
     thread: null,
     draft: null,
     error: null,
@@ -83,6 +89,8 @@ export function emptyMobileView(): MobileView {
 }
 
 const NO_ENGINES: MobileEngines = {};
+
+const NO_USAGE: MobileUsage = { engines: [], composer: null };
 
 const projectedEngines = new WeakMap<EngineStatus, MobileEngines>();
 
@@ -196,10 +204,45 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
     engines: projectMobileEngines(state.engineStatus),
     upkeep: projectMobileUpkeep(state),
     dictation: state.dictation.model === "ready",
+    usage: projectMobileUsage(state, view),
     thread,
     draft: thread ? null : projectMobileDraft(state, view),
     error: state.actionError,
   };
+}
+
+const share = (utilization: number | null) => utilization === null ? null : Math.round(barShare(utilization));
+
+/**
+ * Every engine's plan for the Usage sheet, and the windows the composer's model spends, as the
+ * desktop composer's meter and warning read them.
+ */
+function projectMobileUsage(state: WorkspaceState, view: ReturnType<typeof deriveView>): MobileUsage {
+  const { reports, dismissed } = state.planUsage;
+  const drawn = (item: UsageWindow): MobileUsageWindow => ({ id: item.id, label: item.label, share: share(item.utilization), resetsAt: item.resetsAt });
+  const engines = AGENT_ENGINES.flatMap((engine): MobileEngineUsage[] => {
+    const usage = reports[engine];
+    if (usage?.status === "available") return [{ engine, label: engineLabel(engine), plan: planLabel(usage.subscription), windows: usage.windows.map(drawn) }];
+    if (usage?.status === "unavailable") return [{ engine, label: engineLabel(engine), plan: null, windows: [], message: usage.message }];
+    return [];
+  });
+  if (!engines.length) return NO_USAGE;
+  const spent = view.model === undefined ? [] : windowsFor(reports[view.engine], modelLabel(engineCatalog(state.engineStatus), view.engine, view.model));
+  const tightest = tightestWindow(spent);
+  let composer: MobileComposerUsage | null = null;
+  if (tightest) {
+    const { session, week } = sessionAndWeek(spent);
+    const rows = session || week ? [session, week].filter((row) => row !== null) : [tightest];
+    const key = usageWarningKey(view.engine, tightest);
+    const warned = !view.limitPause && tightest.utilization >= NEAR_LIMIT_SHARE && !dismissed.includes(key);
+    composer = {
+      share: share(tightest.utilization)!,
+      meter: rows.map((row) => ({ span: windowSpan(row) ?? row.label, share: share(row.utilization)! })),
+      spends: spent.map((item) => item.id),
+      warning: warned ? { key, share: share(tightest.utilization)!, window: `${engineLabel(view.engine)} · ${tightest.label}`, resetsAt: tightest.resetsAt } : null,
+    };
+  }
+  return { engines, composer };
 }
 
 /** This computer's update rows as the Computers page draws a paired one's, each with a command a phone may send. */
@@ -413,6 +456,7 @@ export function diffMobileView(previous: MobileView, next: MobileView): MobilePa
   if (previous.engines !== next.engines && !same(previous.engines, next.engines)) patch.engines = next.engines;
   if (!same(previous.upkeep, next.upkeep)) patch.upkeep = next.upkeep;
   if (previous.dictation !== next.dictation) patch.dictation = next.dictation;
+  if (!same(previous.usage, next.usage)) patch.usage = next.usage;
   const thread = diffMobileThread(previous.thread, next.thread);
   if (thread) patch.thread = thread;
   if (!same(previous.draft, next.draft)) patch.draft = next.draft;
@@ -510,6 +554,7 @@ export function applyMobilePatch(view: MobileView, patch: MobilePatch): MobileVi
     engines: patch.engines ?? view.engines,
     upkeep: patch.upkeep ?? view.upkeep,
     dictation: patch.dictation ?? view.dictation,
+    usage: patch.usage ?? view.usage,
     draft: "draft" in patch ? patch.draft ?? null : view.draft,
     error: "error" in patch ? patch.error ?? null : view.error,
   };

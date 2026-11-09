@@ -168,6 +168,7 @@ struct ComputerMenu: View {
     var model: PhoneModel
     @Environment(\.palette) private var palette
     @State private var pairing = false
+    @State private var showingUsage = false
     @State private var forgetting: PairedComputer?
 
     private var current: PairedComputer? { model.connection.computers.first { $0.origin == model.connection.origin } }
@@ -183,6 +184,14 @@ struct ComputerMenu: View {
             }
             if model.live, let upkeep = model.view.upkeep {
                 Section("Updates") { UpkeepRows(model: model, items: model.view.pendingUpkeep, all: upkeep) }
+            }
+            if model.live, let usage = model.view.usage {
+                Section {
+                    Button { showingUsage = true } label: {
+                        Label("Usage", systemImage: "gauge.with.dots.needle.33percent")
+                        if let summary = usage.summary { Text(summary) }
+                    }
+                }
             }
             Section {
                 Button { pairing = true } label: { Label("Pair a Computer…", systemImage: "plus") }
@@ -218,9 +227,18 @@ struct ComputerMenu: View {
             }
         }
         .accessibilityLabel("Computer: \(model.state.computerName ?? current?.title ?? "none"), \(model.restarting ? "Restarting" : model.state.connection.label)\(model.view.updateOffered ? ", update available" : "")")
-        .simultaneousGesture(TapGesture().onEnded { model.checkForUpdates() })
-        .onChange(of: model.live, initial: true) { _, live in if live { model.checkForUpdates() } }
+        .simultaneousGesture(TapGesture().onEnded {
+            model.checkForUpdates()
+            model.readUsage(within: 15 * 60)
+        })
+        .onChange(of: model.live, initial: true) { _, live in
+            if live {
+                model.checkForUpdates()
+                model.readUsage(within: 15 * 60)
+            }
+        }
         .sheet(isPresented: $pairing) { PairAnotherSheet(model: model) }
+        .sheet(isPresented: $showingUsage) { UsageSheet(model: model) }
         .confirmationDialog(forgetting.map { "Forget \($0.title)?" } ?? "", isPresented: Binding(get: { forgetting != nil }, set: { if !$0 { forgetting = nil } }), titleVisibility: .visible) {
             Button("Forget", role: .destructive) {
                 if let forgetting { model.connection.forget(forgetting) }

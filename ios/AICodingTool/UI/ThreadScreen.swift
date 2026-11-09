@@ -8,7 +8,7 @@ struct ThreadScreen: View {
     @State private var archiving: ArchiveAsk?
 
     enum ThreadSheet: String, Identifiable {
-        case settings, location, rename, project, startIn, members, background, addProject
+        case settings, location, rename, project, startIn, members, background, addProject, usage
         var id: String { rawValue }
     }
 
@@ -63,6 +63,10 @@ struct ThreadScreen: View {
             .sheet(item: $sheet) { which in sheetView(which) }
             .archiveConfirmation($archiving) { asked in
                 if model.view.thread?.id == asked.id { model.archive(asked.id, leaving: true) }
+            }
+            .onAppear { model.readUsage(within: 15 * 60) }
+            .onChange(of: model.view.thread?.status) { was, now in
+                if was == "running", now != "running" { model.readUsage(within: 30) }
             }
             .onChange(of: model.current) { _, _ in
                 if let sheet, !fits(sheet) { self.sheet = nil }
@@ -152,7 +156,7 @@ struct ThreadScreen: View {
                                 .fitsShortScreens()
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
-                            ComposerView(model: model, draftKey: thread.id, running: thread.status == "running", settings: thread.settings, question: thread.question, returned: returned(for: thread.id), onSend: { model.send(.message(thread.id, text: $0, sources: $1)) }, onSteer: { model.send(.message(thread.id, text: $0, sources: $1, steer: true)) }, onStop: { model.send(.cancel(thread.id)) }, onAnswer: { question, text in model.send(.answer(thread.id, question: question, text: text)) }, onSettings: { sheet = .settings }, quick: QuickSettings(locked: true, onPolicy: { model.send(.setPolicy(thread.id, policy: $0)) }, onModel: { model.send(.setModel(thread.id, engine: $0, model: $1)) }, onEffort: { model.send(.setEffort(thread.id, engine: $0, effort: $1)) }, onFastMode: { model.send(.setFastMode(thread.id, fastMode: $0)) }))
+                            ComposerView(model: model, draftKey: thread.id, running: thread.status == "running", settings: thread.settings, question: thread.question, returned: returned(for: thread.id), onSend: { model.send(.message(thread.id, text: $0, sources: $1)) }, onSteer: { model.send(.message(thread.id, text: $0, sources: $1, steer: true)) }, onStop: { model.send(.cancel(thread.id)) }, onAnswer: { question, text in model.send(.answer(thread.id, question: question, text: text)) }, onSettings: { sheet = .settings }, quick: QuickSettings(locked: true, onPolicy: { model.send(.setPolicy(thread.id, policy: $0)) }, onModel: { model.send(.setModel(thread.id, engine: $0, model: $1)) }, onEffort: { model.send(.setEffort(thread.id, engine: $0, effort: $1)) }, onFastMode: { model.send(.setFastMode(thread.id, fastMode: $0)) }, onUsage: { sheet = .usage }))
                                 .id(thread.id)
                         }
                     }
@@ -170,7 +174,7 @@ struct ThreadScreen: View {
                     } else {
                         model.send(.sendImages(nil, text: text, sources: sources))
                     }
-                }, onSteer: nil, onStop: nil, onAnswer: nil, onSettings: { sheet = .settings }, quick: QuickSettings(locked: false, onPolicy: { model.send(.setPolicy(nil, policy: $0)) }, onModel: { model.send(.setModel(nil, engine: $0, model: $1)) }, onEffort: { model.send(.setEffort(nil, engine: $0, effort: $1)) }, onFastMode: { model.send(.setFastMode(nil, fastMode: $0)) })) {
+                }, onSteer: nil, onStop: nil, onAnswer: nil, onSettings: { sheet = .settings }, quick: QuickSettings(locked: false, onPolicy: { model.send(.setPolicy(nil, policy: $0)) }, onModel: { model.send(.setModel(nil, engine: $0, model: $1)) }, onEffort: { model.send(.setEffort(nil, engine: $0, effort: $1)) }, onFastMode: { model.send(.setFastMode(nil, fastMode: $0)) }, onUsage: { sheet = .usage })) {
                     StartOptions(draft: draft, onPickProject: { sheet = .project }, onPickPlace: { sheet = .startIn }, onCoordinate: { model.send(.setCoordinator(nil, $0)) })
                 }
             }
@@ -211,7 +215,7 @@ struct ThreadScreen: View {
         case .settings: model.view.thread != nil || model.view.draft != nil
         case .location, .rename, .members, .background: model.view.thread != nil
         case .project, .startIn: model.view.draft != nil
-        case .addProject: true
+        case .addProject, .usage: true
         }
     }
 
@@ -242,6 +246,8 @@ struct ThreadScreen: View {
             }
         case .addProject:
             AddProjectSheet(model: model)
+        case .usage:
+            UsageSheet(model: model, spends: Set(model.view.usage?.composer?.spends ?? []))
         case .members:
             if let thread = model.view.thread {
                 MembersSheet(model: model, members: thread.members ?? [], project: thread.projectName)

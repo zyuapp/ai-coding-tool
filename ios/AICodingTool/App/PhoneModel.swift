@@ -43,6 +43,7 @@ final class PhoneModel {
     @ObservationIgnored private let storage: PhoneStorage
     @ObservationIgnored private var openingTimer: Task<Void, Never>?
     @ObservationIgnored private var updatesChecked: (origin: URL?, at: Date)?
+    @ObservationIgnored private var usageRead: (origin: URL?, at: Date)?
 
     init(connection: PhoneConnection, storage: PhoneStorage = PhoneStorage()) {
         self.connection = connection
@@ -164,6 +165,16 @@ final class PhoneModel {
         updatesChecked = (origin, Date())
         send(.checkForUpdates)
         send(.rereadEngines)
+    }
+
+    /// Has the computer read its plan limits again, unless this phone asked it within `gap` seconds.
+    /// Each read starts a session with every provider, so only a pull asks with no gap.
+    func readUsage(within gap: TimeInterval) {
+        guard live, view.usage != nil else { return }
+        let origin = connection.origin
+        if let read = usageRead, read.origin == origin, Date().timeIntervalSince(read.at) < gap { return }
+        usageRead = (origin, Date())
+        send(.readUsage)
     }
 
     // MARK: Actions

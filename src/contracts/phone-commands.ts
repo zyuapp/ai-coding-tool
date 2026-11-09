@@ -176,4 +176,9 @@ export const updatesEngineHere: PhoneRule = (command) => isAgentEngine(command.e
 /** A phone looks for a newer build without a dialog, since nobody may be at the computer to close one. */
 export const checksQuietly: PhoneRule = (command) => command.quiet === true;
 
+/** This computer's own limits, never a paired computer's. */
+export const readsUsageHere: PhoneRule = (command) => command.everywhere === undefined;
+
+export const dismissesUsageWarning: PhoneRule = (command) => isString(command.warning);
+
 export const rereadsEngines: PhoneRule = (command) => command.refresh === true;

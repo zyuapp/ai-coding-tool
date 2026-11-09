@@ -280,6 +280,13 @@ test("a phone updates this computer's app and engines only, and looks for update
   assert.equal(isPhoneCommand({ type: "engine.read" }), false);
 });
 
+test("a phone reads this computer's plan limits and puts away their warning", () => {
+  assert.equal(isPhoneCommand({ type: "usage.read" }), true);
+  assert.equal(isPhoneCommand({ type: "usage.read", everywhere: true }), false, "never a linked computer's");
+  assert.equal(isPhoneCommand({ type: "usage.dismiss-warning", warning: "claude:five_hour:2027-01-15T16:10:00Z:near" }), true);
+  assert.equal(isPhoneCommand({ type: "usage.dismiss-warning" }), false);
+});
+
 test("a phone may send exactly the commands that declare a phone rule", () => {
   const types: Record<MobileCommand["type"], true> = {
     "task.new": true, "task.select": true, "task.send": true, "task.archive": true, "task.restore": true, "task.rename": true,
@@ -291,8 +298,9 @@ test("a phone may send exactly the commands that declare a phone rule", () => {
     "paste.add": true, "paste.remove": true, "paste.recall": true,
     "view.set-prompt": true, "task.set-role": true, "project.add": true, "attachments.send": true,
     "app.update": true, "app.cancel-update": true, "app.check-for-updates": true, "engine.read": true, "engine.update": true,
+    "usage.read": true, "usage.dismiss-warning": true,
   };
-  assert.equal(Object.keys(types).length, 37);
+  assert.equal(Object.keys(types).length, 39);
   for (const type of ["terminal.input", "worktree.delete", "project.remove", "browser.open", "task.set-coordinator", "run.compact"]) {
     assert.equal(isPhoneCommand({ type, taskId: "task-1" }), false, type);
   }

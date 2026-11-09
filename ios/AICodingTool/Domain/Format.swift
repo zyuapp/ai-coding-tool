@@ -117,6 +117,26 @@ enum Format {
         Date(timeIntervalSince1970: at / 1000).formatted(date: .omitted, time: .shortened)
     }
 
+    /// When a plan window resets: a time today, or the day and time further out.
+    static func usageReset(_ resetsAt: String?, now: Date, calendar: Calendar = .current) -> String? {
+        guard let resetsAt, let at = instant(resetsAt) else { return nil }
+        var style = Date.FormatStyle(date: .omitted, time: .shortened)
+        style.timeZone = calendar.timeZone
+        let time = at.formatted(style)
+        if calendar.isDate(at, inSameDayAs: now) { return "Resets \(time)" }
+        var day = Date.FormatStyle().month(.abbreviated).day()
+        day.timeZone = calendar.timeZone
+        return "Resets \(at.formatted(day)) at \(time)"
+    }
+
+    private static func instant(_ text: String) -> Date? {
+        let plain = ISO8601DateFormatter()
+        if let date = plain.date(from: text) { return date }
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fractional.date(from: text)
+    }
+
     /// How long ago, in as few characters as a row can spare.
     /// A name cut in its middle to `limit` characters, which keeps the start and end that tell two long names apart.
     static func middleTruncated(_ text: String, limit: Int) -> String {

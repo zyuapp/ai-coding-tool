@@ -59,6 +59,7 @@ struct ComposerView<Above: View>: View {
     /// With words typed during a run, the right-most button queues them, so a thumb on its usual spot never stops the run.
     private var queueing: Bool { running && typed }
     private var canTalk: Bool { model.canDictate && !blocked }
+    private var usage: MobileComposerUsage? { model.view.usage?.composer }
 
     var body: some View {
         let summary = model.catalog.summary(settings)
@@ -89,6 +90,9 @@ struct ComposerView<Above: View>: View {
                 .foregroundStyle(palette.muted)
                 .padding(.leading, 16)
                 .padding(.bottom, 2)
+            }
+            if let warning = usage?.warning {
+                UsageWarningRow(warning: warning, onOpen: quick?.onUsage) { model.send(.dismissUsageWarning(warning.key)) }
             }
             if let question, let onAnswer {
                 QuestionPromptView(question: question, refused: returned?.answer != nil ? returned?.id : nil, onSubmit: { onAnswer(question, $0) })
@@ -171,7 +175,7 @@ struct ComposerView<Above: View>: View {
                     Group {
                         if let quick {
                             Menu {
-                                QuickSettingsItems(settings: settings, catalog: model.catalog, quick: quick, onMore: onSettings)
+                                QuickSettingsItems(settings: settings, catalog: model.catalog, quick: quick, usage: usage, onMore: onSettings)
                             } label: {
                                 settingsChip(summary)
                             }
@@ -180,7 +184,7 @@ struct ComposerView<Above: View>: View {
                                 .buttonStyle(.plain)
                         }
                     }
-                    .accessibilityLabel("Thread settings: \([summary.mode, summary.model, summary.effort].compactMap { $0 }.joined(separator: ", "))")
+                    .accessibilityLabel("Thread settings: \([summary.mode, summary.model, summary.effort, usage.map { "plan \($0.share)% used" }].compactMap { $0 }.joined(separator: ", "))")
                     Spacer(minLength: 4)
                     }
                     if canTalk || talk.active {
@@ -303,25 +307,33 @@ struct ComposerView<Above: View>: View {
             settingsSummary([summary.model, summary.effort, summary.mode].compactMap { $0 })
             settingsSummary([summary.model, summary.effort].compactMap { $0 })
             settingsSummary([summary.model])
-            Image(systemName: "slider.horizontal.3")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(palette.inkDim)
-                .frame(width: 34, height: 34)
-                .background(palette.raised, in: Circle())
+            Group {
+                if let usage {
+                    UsageRing(share: usage.share, size: 16)
+                } else {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(palette.inkDim)
+                }
+            }
+            .frame(width: 34, height: 34)
+            .background(palette.raised, in: Circle())
         }
         .frame(minHeight: 44)
         .contentShape(Rectangle())
     }
 
-    /// The thread's model, effort and mode as one chip, dropping from the end when room runs out.
+    /// The thread's model, effort and mode as one chip, dropping from the end when room runs out, behind the plan's ring.
     private func settingsSummary(_ values: [String]) -> some View {
         HStack(spacing: 5) {
+            if let usage { UsageRing(share: usage.share).padding(.trailing, 1) }
             Text(values.joined(separator: " · ")).font(.footnote.weight(.semibold)).foregroundStyle(palette.inkDim)
             Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(palette.muted)
         }
         .lineLimit(1)
         .fixedSize()
-        .padding(.horizontal, 12)
+        .padding(.leading, usage == nil ? 12 : 10)
+        .padding(.trailing, 12)
         .frame(height: 34)
         .background(palette.raised, in: Capsule())
     }
@@ -558,6 +570,8 @@ struct QuickSettings {
     var onModel: (String, String) -> Void
     var onEffort: (String, String) -> Void
     var onFastMode: (Bool) -> Void
+    /// Opens the plan's limits.
+    var onUsage: (() -> Void)? = nil
 }
 
 /// The settings chip's menu: the mode inline, since it changes most, then the model and effort a level down.
@@ -565,6 +579,7 @@ struct QuickSettingsItems: View {
     var settings: MobileThreadSettings
     var catalog: EngineCatalog
     var quick: QuickSettings
+    var usage: MobileComposerUsage?
     var onMore: () -> Void
 
     var body: some View {
@@ -573,6 +588,14 @@ struct QuickSettingsItems: View {
         let headings = catalog.library(engine: settings.engine, locked: quick.locked).filter { !$0.locked && !$0.models.isEmpty }
         let efforts = known && settings.model != nil ? catalog.efforts(settings.engine, model: settings.model!, coordinating: coordinating) : []
         let chosenEffort = settings.model.map { catalog.effortForModel(settings.engine, model: $0, effort: settings.effort, coordinating: coordinating) }
+        if let usage, let onUsage = quick.onUsage {
+            Section {
+                Button(action: onUsage) {
+                    Label("Usage", systemImage: usage.symbol)
+                    Text(usage.summary)
+                }
+            }
+        }
         if known {
             Section("Mode") {
                 Picker("Mode", selection: Binding(get: { settings.policy }, set: quick.onPolicy)) {

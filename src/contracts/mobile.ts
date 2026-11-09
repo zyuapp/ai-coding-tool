@@ -257,6 +257,26 @@ export type MobileTheme = {
   mode: ThemeMode;
 };
 
+/** One plan window as a phone draws it, its share already rounded. */
+export type MobileUsageWindow = { id: string; label: string; share: number | null; resetsAt: string | null };
+
+/** An engine's plan as the Usage sheet lists it: its windows, or why the computer could not read them. */
+export type MobileEngineUsage = { engine: AgentEngine; label: string; plan: string | null; windows: MobileUsageWindow[]; message?: string };
+
+/** The windows the composer's model spends, and the warning over the composer once one runs low. */
+export type MobileComposerUsage = {
+  /** The fullest window's share. */
+  share: number;
+  /** What the desktop composer's meter reads: the session and fullest week, or the fullest window alone. */
+  meter: { span: string; share: number }[];
+  /** The windows the model spends, by id. */
+  spends: string[];
+  /** Null once dismissed, below the warning line, or while the thread waits out a limit. */
+  warning: { key: string; share: number; window: string; resetsAt: string | null } | null;
+};
+
+export type MobileUsage = { engines: MobileEngineUsage[]; composer: MobileComposerUsage | null };
+
 /**
  * What a phone sees: the thread list grouped by project, and the one conversation it has open. It is
  * the desktop's own derivation narrowed to a small screen, so the two can never disagree.
@@ -271,6 +291,8 @@ export type MobileView = {
   upkeep: MobileUpkeepItem[];
   /** Whether this computer can turn a held recording into words now. */
   dictation: boolean;
+  /** The plan limits of this computer's accounts. */
+  usage: MobileUsage;
   /** The thread the phone has open, which is the thread the desktop has open. */
   thread: MobileThreadView | null;
   /** Where the desktop stands with no thread open. Null whenever `thread` is not. */
@@ -310,6 +332,7 @@ export type MobilePatch = {
   engines?: MobileEngines;
   upkeep?: MobileUpkeepItem[];
   dictation?: boolean;
+  usage?: MobileUsage;
   thread?:
     | { kind: "closed" }
     | { kind: "opened"; thread: MobileThreadView }

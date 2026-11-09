@@ -136,4 +136,18 @@ final class DomainTests: XCTestCase {
         XCTAssertEqual(Format.middleTruncated("qa-rel", limit: 26), "qa-rel")
         XCTAssertEqual(Format.middleTruncated("abcdef", limit: 6), "abcdef")
     }
+
+    func testUsageResetNamesTheDayOnlyPastToday() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let now = ISO8601DateFormatter().date(from: "2027-01-15T10:00:00Z")!
+        let today = Format.usageReset("2027-01-15T16:10:00.123456+00:00", now: now, calendar: calendar)
+        XCTAssertNotNil(today)
+        XCTAssertTrue(today!.hasPrefix("Resets "))
+        XCTAssertFalse(today!.contains("Jan"))
+        let later = Format.usageReset("2027-01-20T09:00:00Z", now: now, calendar: calendar)
+        XCTAssertTrue(later?.contains("Jan 20 at") == true, later ?? "nil")
+        XCTAssertNil(Format.usageReset(nil, now: now, calendar: calendar))
+        XCTAssertNil(Format.usageReset("soon", now: now, calendar: calendar))
+    }
 }

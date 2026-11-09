@@ -634,3 +634,51 @@ test("background items are kept while their lists are, and a long line is cut", 
   assert.equal(projectMobileView({ ...state, streamingTails: {} }, NOW).thread?.background, first, "a thread with no shells or workflows reuses its items");
   assert.equal(first?.[0]?.detail.length, MOBILE_BACKGROUND_DETAIL_LIMIT + 1);
 });
+
+const claudePlan = {
+  status: "available" as const,
+  subscription: "max",
+  windows: [
+    { id: "five_hour", label: "Current session", utilization: 42.4, resetsAt: "2027-01-15T16:10:00Z", period: "session" as const, minutes: 300 },
+    { id: "seven_day", label: "Current week (all models)", utilization: 61, resetsAt: "2027-01-20T09:00:00Z", period: "week" as const, minutes: 10_080 },
+    { id: "seven_day_opus", label: "Current week (Opus)", utilization: 90, resetsAt: "2027-01-20T09:00:00Z", model: "Opus", period: "week" as const, minutes: 10_080 },
+  ],
+};
+
+test("the composer's usage counts only the windows its model spends, as the desktop meter does", () => {
+  const state = workspace([task("t", { model: "sonnet" })], {
+    currentId: "t",
+    planUsage: { read: 1, reading: [], dismissed: [], reports: { claude: claudePlan, codex: { status: "not-applicable" } } },
+  });
+  const { usage } = projectMobileView(state, NOW);
+  assert.deepEqual(usage.engines.map((engine) => [engine.engine, engine.plan, engine.windows.map((window) => window.share)]), [["claude", "Max plan", [42, 61, 90]]]);
+  assert.deepEqual(usage.composer, { share: 61, meter: [{ span: "5h", share: 42 }, { span: "Weekly", share: 61 }], spends: ["five_hour", "seven_day"], warning: null });
+});
+
+test("a window running low warns until it is dismissed or the thread waits out a limit", () => {
+  const planUsage = { read: 1, reading: [], dismissed: [] as string[], reports: { claude: claudePlan } };
+  const state = workspace([task("t", { model: "opus" })], { currentId: "t", planUsage });
+  const warning = projectMobileView(state, NOW).usage.composer?.warning;
+  assert.deepEqual(warning, { key: "claude:seven_day_opus:2027-01-20T09:00:00Z:near", share: 90, window: "Claude · Current week (Opus)", resetsAt: "2027-01-20T09:00:00Z" });
+
+  assert.equal(projectMobileView({ ...state, planUsage: { ...planUsage, dismissed: [warning!.key] } }, NOW).usage.composer?.warning, null);
+  const paused = workspace([task("t", { model: "opus", limitPause: { pausedAt: NOW } as Thread["limitPause"] })], { currentId: "t", planUsage });
+  assert.equal(projectMobileView(paused, NOW).usage.composer?.warning, null);
+});
+
+test("an engine that could not be read says why, and nothing read means no usage", () => {
+  assert.deepEqual(projectMobileView(workspace([]), NOW).usage, { engines: [], composer: null });
+  const state = workspace([], { planUsage: { read: 1, reading: [], dismissed: [], reports: { codex: { status: "unavailable", message: "Sign in again" } } } });
+  assert.deepEqual(projectMobileView(state, NOW).usage, { engines: [{ engine: "codex", label: "Codex", plan: null, windows: [], message: "Sign in again" }], composer: null });
+});
+
+test("usage travels only when it moves, and a patch puts it back", () => {
+  const before = workspace([task("t", { model: "sonnet" })], { currentId: "t" });
+  const after = { ...before, planUsage: { read: 1, reading: [], dismissed: [], reports: { claude: claudePlan } } };
+  const previous = projectMobileView(before, NOW);
+  const next = projectMobileView(after, NOW);
+  const patch = diffMobileView(previous, next);
+  assert.deepEqual(Object.keys(patch ?? {}), ["usage"]);
+  assert.deepEqual(applyMobilePatch(previous, patch!), next);
+  assert.equal(diffMobileView(next, projectMobileView(after, NOW)), null);
+});
