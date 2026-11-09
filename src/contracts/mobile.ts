@@ -437,6 +437,8 @@ export type MobileQuery =
   | { kind: "directories"; prefix: string }
   /** A thread's transcript without opening it, for one working under the open coordinator. */
   | { kind: "thread"; taskId: string }
+  /** The page of a thread's messages just before index `before`, answered as {@link MobileThreadHistory}. */
+  | { kind: "history"; taskId: string; before: number }
   /** A held recording, base64 WAV, turned into words by this computer's speech model. Answers `{ text }`. */
   | { kind: "transcribe"; audio: string }
   /**
@@ -458,7 +460,11 @@ export type MobileImageRead = { data: string; contentType: string };
 /** What a {@link MobileQuery} of kind "thread" answers: the thread as its own screen would read it. */
 export type MobileThreadRead = { title: string; status: MobileRunStatus; messages: MobileMessage[]; omitted: number; streamingTail: string | null };
 
+/** What a {@link MobileQuery} of kind "history" answers: the messages from index `start` on, oldest first. */
+export type MobileThreadHistory = { start: number; messages: MobileMessage[] };
+
 export function isMobileQuery(value: unknown): value is MobileQuery {
+  if (isRecord(value) && value.kind === "history") return isString(value.taskId) && Number.isSafeInteger(value.before) && (value.before as number) >= 0;
   if (isRecord(value) && value.kind === "directories") return typeof value.prefix === "string" && value.prefix.length <= MAX_PATH_LENGTH && !value.prefix.includes("\0");
   if (isRecord(value) && value.kind === "thread") return isString(value.taskId);
   if (isRecord(value) && value.kind === "archived") return true;

@@ -66,6 +66,14 @@ struct MobileThreadRead: Codable, Equatable, Sendable {
     var streamingTail: String?
 }
 
+/// A page of a thread's older messages, from index `start` on.
+struct MobileThreadHistory: Codable, Equatable, Sendable {
+    var start: Int
+    var messages: [MobileMessage]
+
+    var end: Int { start + messages.count }
+}
+
 /// A thread working under the open coordinator. `computer` names another computer holding it, which the phone cannot open.
 struct MobileMember: Codable, Equatable, Identifiable, Sendable {
     var id: String

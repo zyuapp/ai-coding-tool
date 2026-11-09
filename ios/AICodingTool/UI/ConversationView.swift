@@ -8,13 +8,16 @@ struct ConversationView: View {
     @Environment(\.palette) private var palette
     @State private var pinned = true
     @State private var atEnd = true
+    /// The block at the top when older messages were asked for, held in place once they land above it.
+    @State private var heldTop: (key: String, omitted: Int)?
 
     private var anchor: String {
         "\(thread.id):\(thread.messages.count):\(thread.messages.last?.at ?? 0):\(thread.streamingTail?.utf16.count ?? -1):\(thread.queued.count):\(thread.status)"
     }
 
     var body: some View {
-        let blocks = Format.transcriptBlocks(thread.messages, omitted: thread.omitted)
+        let transcript = model.transcript(thread)
+        let blocks = Format.transcriptBlocks(transcript.messages, omitted: transcript.omitted)
         let latest = Format.latestAnswer(blocks)
         ScrollViewReader { reader in
             ScrollView {
@@ -27,11 +30,12 @@ struct ConversationView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, Space.xl)
                     }
-                    if thread.omitted > 0 {
-                        Text("\(thread.omitted) earlier \(thread.omitted == 1 ? "message" : "messages") on your computer")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(palette.muted)
-                            .frame(maxWidth: .infinity)
+                    if transcript.omitted > 0 {
+                        EarlierButton(count: transcript.omitted, reading: model.readingEarlier == thread.id,
+                                      failure: model.earlierFailed?.taskId == thread.id ? model.earlierFailed?.message : nil) {
+                            heldTop = blocks.first.map { ($0.id, transcript.omitted) }
+                            model.readEarlier(thread)
+                        }
                     }
                     ForEach(blocks) { block in
                         switch block {
@@ -72,6 +76,8 @@ struct ConversationView: View {
                         .onScrollVisibilityChange(threshold: 0.2) { atEnd = $0 }
                         .allowsHitTesting(false)
                 }
+                // Older messages land above the reader without moving or animating what they were reading.
+                .transaction(value: model.state.earlier?.start) { $0.animation = nil }
                 .animation(.glide, value: blocks.count)
                 .animation(.glide, value: thread.queued.count)
                 .animation(.glide, value: thread.status)
@@ -93,6 +99,11 @@ struct ConversationView: View {
             }
             .onChange(of: anchor) { _, _ in
                 if pinned { reader.scrollTo("end", anchor: .bottom) }
+            }
+            .onChange(of: transcript.omitted) { _, omitted in
+                guard let heldTop, omitted < heldTop.omitted else { return }
+                self.heldTop = nil
+                reader.scrollTo(heldTop.key, anchor: .top)
             }
             .onChange(of: thread.id) { _, _ in
                 pinned = true
@@ -122,6 +133,43 @@ struct ConversationView: View {
             }
             .animation(.touch, value: atEnd)
         }
+    }
+}
+
+/// How many messages sit above the transcript on the computer; a tap reads the next page of them.
+private struct EarlierButton: View {
+    var count: Int
+    var reading: Bool
+    var failure: String?
+    var action: () -> Void
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        VStack(spacing: Space.xs) {
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    if reading {
+                        Spinner(size: 11, color: palette.muted)
+                    } else {
+                        Image(systemName: "arrow.up").font(.caption2.weight(.bold))
+                    }
+                    Text("\(count) earlier \(count == 1 ? "message" : "messages")")
+                }
+                .font(.caption.weight(.medium))
+                .foregroundStyle(palette.inkDim)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(palette.raised, in: Capsule())
+            }
+            .buttonStyle(.target)
+            .disabled(reading)
+            .accessibilityLabel("Show earlier messages")
+            .accessibilityValue("\(count) on your computer")
+            if let failure {
+                Text(failure).font(.caption).foregroundStyle(palette.danger).multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 

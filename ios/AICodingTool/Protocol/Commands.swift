@@ -117,6 +117,8 @@ enum MobileQuery: Sendable {
     case diffPatch(taskId: String, range: DiffRange, path: String, previousPath: String?)
     case directories(prefix: String)
     case thread(taskId: String)
+    /// The page of a thread's messages just before index `before`, answered as `MobileThreadHistory`.
+    case history(taskId: String, before: Int)
     /// The archived threads, newest first, answered as `[MobileArchivedThread]`.
     case archived
     /// A held recording, base64 16 kHz mono WAV, which the computer answers with `{ text }`.
@@ -144,6 +146,8 @@ enum MobileQuery: Sendable {
             .object(["kind": .string("directories"), "prefix": .string(prefix)])
         case .thread(let taskId):
             .object(["kind": .string("thread"), "taskId": .string(taskId)])
+        case .history(let taskId, let before):
+            .object(["kind": .string("history"), "taskId": .string(taskId), "before": .number(Double(before))])
         case .archived:
             .object(["kind": .string("archived")])
         case .commands(let taskId):

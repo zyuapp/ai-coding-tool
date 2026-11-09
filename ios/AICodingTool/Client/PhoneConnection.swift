@@ -132,6 +132,11 @@ final class PhoneConnection {
         dispatch(.dismissNotice)
     }
 
+    /// Older messages of a thread, kept above its live window while they still meet it.
+    func keepEarlier(_ taskId: String, _ page: MobileThreadHistory) {
+        dispatch(.earlierRead(taskId: taskId, page))
+    }
+
     /// One read, answered by the computer or refused. A read is never held for a line that is down.
     func query(_ query: MobileQuery) async throws -> JSONValue {
         guard state.connection == .live, let socket else { throw QueryError(message: Self.offline) }

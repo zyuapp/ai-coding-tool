@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { rankedThread } from "../../src/domain/thread-storage.ts";
 import { test } from "vitest";
-import { applyMobilePatch, diffMobileView, emptyMobileView, mobileArchivedThreads, mobileEngineView, MOBILE_BACKGROUND_DETAIL_LIMIT, MOBILE_MESSAGE_TEXT_LIMIT, MOBILE_SUGGESTION_PROMPT_LIMIT, MOBILE_TRANSCRIPT_MESSAGES,
+import { applyMobilePatch, diffMobileView, emptyMobileView, mobileArchivedThreads, mobileEngineView, mobileThreadHistory, MOBILE_BACKGROUND_DETAIL_LIMIT, MOBILE_HISTORY_PAGE, MOBILE_MESSAGE_TEXT_LIMIT, MOBILE_SUGGESTION_PROMPT_LIMIT, MOBILE_TRANSCRIPT_MESSAGES,
   projectMobileView } from "../../src/application/mobile-projection.ts";
 import { BUILT_IN_MODELS, efforts, effortsFor, modelLabel, modelsFor, type EngineStatus } from "../../src/domain/agent-engine.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
@@ -255,6 +255,22 @@ test("the transcript is bounded in both directions", () => {
   assert.equal(thread.messages.at(-2)!.text.length, 10_000, "a long reply travels whole");
   assert.equal(thread.messages.at(-1)!.text.length, MOBILE_MESSAGE_TEXT_LIMIT + 1, "a message past the limit is cut short");
   assert.match(thread.messages.at(-1)!.text, /…$/);
+});
+
+test("older pages reach back from the live window to the first message, each tool call read beside its own message", () => {
+  const messages = Array.from({ length: MOBILE_TRANSCRIPT_MESSAGES + MOBILE_HISTORY_PAGE + 3 }, (_, index) => message(`m${index}`, NOW + index));
+  messages[1] = { id: "c1", kind: "tool", text: "Bash", detail: JSON.stringify({ command: "npm test" }), at: NOW + 1 };
+  const state = workspace([task("t1", { messages })], { currentId: "t1" });
+  const live = projectMobileView(state, NOW).thread!;
+
+  const first = mobileThreadHistory(state, "t1", live.omitted)!;
+  assert.equal(first.start, 3);
+  assert.equal(first.messages.length, MOBILE_HISTORY_PAGE);
+  assert.equal(first.messages.at(-1)!.text, messages[live.omitted - 1]!.text, "a page ends where the live window starts");
+  const last = mobileThreadHistory(state, "t1", first.start)!;
+  assert.equal(last.start, 0);
+  assert.deepEqual(last.messages.map((entry) => entry.text), ["m0", "Bash", "m2"]);
+  assert.equal(last.messages[1]!.call?.argument, "npm test");
 });
 
 test("a view that has not moved is no patch at all", () => {

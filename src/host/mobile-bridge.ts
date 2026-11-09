@@ -1,4 +1,4 @@
-import { applyMobilePatch, diffMobileView, mobileArchivedThreads, mobileThreadRead, phoneEditsQueued, phoneReachesThread, projectMobileView, remoteMemberHolder, saysQueuedGone } from "../application/mobile-projection.js";
+import { applyMobilePatch, diffMobileView, mobileArchivedThreads, mobileThreadHistory, mobileThreadRead, phoneEditsQueued, phoneReachesThread, projectMobileView, remoteMemberHolder, saysQueuedGone } from "../application/mobile-projection.js";
 import { NEW_THREAD_DRAFT, promptKey, type WorkspaceState } from "../application/workspace-state.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
 import type { WorkspaceCommandResult, WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
@@ -44,18 +44,20 @@ export type MobileBridgeHost = {
  * to read. Whitespace-only changes are left out, as the desktop's review leaves them out by default. A
  * folder query lists folders by path prefix, as the desktop's own add-project field does. A thread
  * query reads a thread the phone may name without opening it, as a coordinator's tab does, one on a
- * paired computer from what that computer last published here. An
+ * paired computer from what that computer last published here. A history query reads older messages
+ * of a thread from the same place. An
  * image query reads only an image the named reply links, as the desktop's previews of it do. An
  * archived query lists what the Archive settings page lists.
  */
 async function answerQuery(host: MobileBridgeHost, query: MobileQuery): Promise<unknown> {
   if (query.kind === "archived") return mobileArchivedThreads(host.state());
-  if (query.kind === "thread") {
+  if (query.kind === "thread" || query.kind === "history") {
+    const read = (state: WorkspaceState) => query.kind === "thread" ? mobileThreadRead(state, query.taskId) : mobileThreadHistory(state, query.taskId, query.before);
     const remote = remoteMemberHolder(host.state(), query.taskId)?.state;
-    if (remote) return mobileThreadRead(remote, query.taskId) ?? Promise.reject(new Error(`No thread has the ID ${query.taskId}.`));
+    if (remote) return read(remote) ?? Promise.reject(new Error(`No thread has the ID ${query.taskId}.`));
     if (!host.state().threads.some((thread) => thread.id === query.taskId)) throw new Error(`No thread has the ID ${query.taskId}.`);
     await host.hydrate?.(query.taskId);
-    return mobileThreadRead(host.state(), query.taskId) ?? Promise.reject(new Error(`No thread has the ID ${query.taskId}.`));
+    return read(host.state()) ?? Promise.reject(new Error(`No thread has the ID ${query.taskId}.`));
   }
   const reader = host.read;
   if (!reader) throw new Error("This computer cannot answer that.");

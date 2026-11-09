@@ -35,6 +35,27 @@ final class ClientReducerTests: XCTestCase {
         return run(start, [.opened(at: 0), .received(snapshot(1))]).0
     }
 
+    func testEarlierMessagesFollowTheLiveWindow() {
+        func said(_ text: String) -> MobileMessage { MobileMessage(kind: "user", text: text, at: 0) }
+        func window(_ omitted: Int, _ texts: [String]) -> MobileThreadView {
+            var view = thread("Thread", messages: texts.map(said))
+            view.omitted = omitted
+            return view
+        }
+        var state = paired()
+        state.view.thread = window(3, ["m3", "m4"])
+        state = run(state, [.earlierRead(taskId: "t1", MobileThreadHistory(start: 1, messages: [said("m1"), said("m2")]))]).0
+        XCTAssertEqual(state.earlier?.start, 1)
+        XCTAssertEqual(run(state, [.earlierRead(taskId: "t1", MobileThreadHistory(start: 0, messages: [said("m0"), said("m1")]))]).0.earlier, state.earlier, "a page that does not meet what is held is ignored")
+
+        let slid = MobileClient.carried(state.earlier, from: state.view.thread, to: window(4, ["m4", "m5"]))
+        XCTAssertEqual(slid?.messages.map(\.text), ["m1", "m2", "m3"], "the message the window slid past joins them")
+        XCTAssertNil(MobileClient.carried(state.earlier, from: state.view.thread, to: window(1, ["m1", "m2'", "m3"])), "a rewritten window lets them go")
+        var other = window(3, ["m3", "m4"])
+        other.id = "t2"
+        XCTAssertNil(MobileClient.carried(state.earlier, from: state.view.thread, to: other))
+    }
+
     func testCodeIsTradedForAToken() {
         let start = MobileClientState(credential: nil, code: code, deviceName: "iPhone")
         XCTAssertEqual(start.entry, .pairing)

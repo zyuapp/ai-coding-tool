@@ -240,6 +240,9 @@ test("a query names a thread and a comparison, and travels to the window like a 
   assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "directories" } }), false);
   assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "thread", taskId: "task-2" } }), true);
   assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "thread" } }), false);
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "history", taskId: "task-2", before: 40 } }), true);
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "history", taskId: "task-2", before: -1 } }), false);
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "history", taskId: "task-2", before: 1.5 } }), false);
   assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "archived" } }), true);
 });
 

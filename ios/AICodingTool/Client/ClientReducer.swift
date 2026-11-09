@@ -71,6 +71,8 @@ struct MobileClientState: Equatable, Sendable {
     var push: PhonePush?
     /// Whether the computer on the line said it takes the push token.
     var takesPush = false
+    /// Older messages of the open thread read on request, ending where its live window starts.
+    var earlier: EarlierMessages?
 
     init(credential: MobileCredential?, code: String?, deviceName: String, outbox: [OutboxEntry] = [], vocabulary: MobileVocabulary? = nil) {
         let entry: MobileEntry = credential != nil ? .ready : code != nil ? .pairing : .blocked
@@ -95,6 +97,16 @@ enum MobileClientEvent: Sendable {
     case wake(stale: Bool)
     case dismissNotice
     case pushChanged(PhonePush?)
+    case earlierRead(taskId: String, MobileThreadHistory)
+}
+
+/// Messages from index `start` of thread `taskId`, held above the live window the computer sends.
+struct EarlierMessages: Equatable, Sendable {
+    var taskId: String
+    var start: Int
+    var messages: [MobileMessage]
+
+    var end: Int { start + messages.count }
 }
 
 enum MobileClientEffect: Equatable, Sendable {
@@ -149,7 +161,22 @@ enum MobileClient {
     static func reduce(_ state: MobileClientState, _ event: MobileClientEvent) -> (MobileClientState, [MobileClientEffect]) {
         var (next, effects) = reduceEvent(state, event)
         if next.outbox != state.outbox { effects.append(.keep(next.outbox)) }
+        if next.earlier != nil, next.view.thread != state.view.thread {
+            next.earlier = carried(next.earlier, from: state.view.thread, to: next.view.thread)
+        }
         return (next, effects)
+    }
+
+    /// Earlier messages still sit directly above the live window: the messages the window slid past
+    /// join them, and a window that moved any other way, or another thread, lets them go.
+    static func carried(_ earlier: EarlierMessages?, from previous: MobileThreadView?, to thread: MobileThreadView?) -> EarlierMessages? {
+        guard var earlier, let thread, thread.id == earlier.taskId, thread.loading != true else { return nil }
+        if let previous, previous.id == thread.id, earlier.end == previous.omitted, thread.omitted > previous.omitted {
+            let slid = thread.omitted - previous.omitted
+            guard slid <= previous.messages.count else { return nil }
+            earlier.messages += previous.messages.prefix(slid)
+        }
+        return earlier.end == thread.omitted ? earlier : nil
     }
 
     private static func reduceEvent(_ state: MobileClientState, _ event: MobileClientEvent) -> (MobileClientState, [MobileClientEffect]) {
@@ -191,6 +218,11 @@ enum MobileClient {
             var next = state
             next.notice = nil
             next.dismissedError = state.view.error
+            return (next, [])
+        case .earlierRead(let taskId, let page):
+            guard let thread = state.view.thread, thread.id == taskId, page.end == (state.earlier?.start ?? thread.omitted) else { return (state, []) }
+            var next = state
+            next.earlier = EarlierMessages(taskId: taskId, start: page.start, messages: page.messages + (state.earlier?.messages ?? []))
             return (next, [])
         case .pushChanged(let push):
             guard push != state.push else { return (state, []) }

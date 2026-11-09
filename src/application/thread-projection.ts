@@ -187,10 +187,12 @@ export function clipText(text: string, limit: number): string {
   return `${text.slice(0, end)}…`;
 }
 
-export function threadTranscript(state: WorkspaceState, threadId: string, limit = DEFAULT_TRANSCRIPT_MESSAGES, textLimit = MESSAGE_TEXT_LIMIT): ThreadTranscript | null {
+/** Up to `limit` messages ending before index `end`, the newest by default. */
+export function threadTranscript(state: WorkspaceState, threadId: string, limit = DEFAULT_TRANSCRIPT_MESSAGES, textLimit = MESSAGE_TEXT_LIMIT, end?: number): ThreadTranscript | null {
   const thread = findThread(state, threadId);
   if (!thread) return null;
-  const kept = limit >= thread.messages.length ? thread.messages : thread.messages.slice(thread.messages.length - Math.max(0, limit));
+  const stop = Math.min(end ?? thread.messages.length, thread.messages.length);
+  const kept = thread.messages.slice(Math.max(0, stop - Math.max(0, limit)), stop);
   return {
     thread: threadSummary(state, thread),
     messages: kept.map((message) => ({
@@ -199,7 +201,7 @@ export function threadTranscript(state: WorkspaceState, threadId: string, limit 
       ...(message.kind === "user" ? labelOf(message) : {}),
       at: message.at,
     })),
-    omitted: thread.messages.length - kept.length,
+    omitted: stop - kept.length,
   };
 }
 

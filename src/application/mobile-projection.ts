@@ -46,6 +46,7 @@ import type {
   MobileMember,
   MobileMessage,
   MobileRunStatus,
+  MobileThreadHistory,
   MobileThreadRead,
   MobileToolCall,
   MobilePatch,
@@ -73,6 +74,9 @@ export const MOBILE_THREAD_LIMIT = 100;
 
 /** How many messages of the open thread travel. Each one is cut to length by the transcript itself. */
 export const MOBILE_TRANSCRIPT_MESSAGES = 40;
+
+/** How many older messages one "history" query answers with. */
+export const MOBILE_HISTORY_PAGE = 100;
 
 /** How much of one message travels: a long reply whole, a pasted log not without end. */
 export const MOBILE_MESSAGE_TEXT_LIMIT = 40_000;
@@ -393,7 +397,7 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
     projectId: project?.id ?? null,
     projectName: view.currentProject ? projectName(view.currentProject) : null,
     worktreeId: thread.worktreeId ?? null,
-    messages: withDetails(thread, transcript.messages),
+    messages: withDetails(thread, transcript.messages, transcript.omitted),
     omitted: transcript.omitted,
     streamingTail: view.streamingTail?.text ?? null,
     status: blocked.has(thread.id) ? "awaiting-approval" : view.status,
@@ -532,12 +536,11 @@ function linksImages(message: ConversationMessage): boolean {
 /**
  * The transcript with what a phone reads beside each message's words: what each tool call did, and
  * how many images a message carried, and the ID of a reply that may link images. The transcript is
- * the thread's newest messages, in order.
+ * the thread's messages from index `start`, in order.
  */
-function withDetails(thread: Thread, messages: MobileMessage[]): MobileMessage[] {
-  const offset = thread.messages.length - messages.length;
+function withDetails(thread: Thread, messages: MobileMessage[], start: number): MobileMessage[] {
   return messages.map((message, index) => {
-    const stored = thread.messages[offset + index];
+    const stored = thread.messages[start + index];
     if (message.kind === "tool" && stored?.kind === "tool") return { ...message, call: toolCallOf(thread.engine, stored) };
     if (stored?.kind === "assistant" && linksImages(stored)) return { ...message, id: stored.id };
     return stored?.attachments?.length ? { ...message, images: stored.attachments.length } : message;
@@ -553,7 +556,15 @@ export function mobileThreadRead(state: WorkspaceState, taskId: string): MobileT
   const status: MobileRunStatus = blocked.has(thread.id) ? "awaiting-approval" : working.has(thread.id) ? "running" : "idle";
   /** A conversation not loaded yet counts as left out, as on a paired computer that has yet to open it. */
   const omitted = thread.historySummary ? Math.max(transcript.omitted, thread.historySummary.messageCount - transcript.messages.length) : transcript.omitted;
-  return { title: thread.title || "Untitled thread", status, messages: withDetails(thread, transcript.messages), omitted, streamingTail: state.streamingTails[thread.id]?.text ?? null };
+  return { title: thread.title || "Untitled thread", status, messages: withDetails(thread, transcript.messages, transcript.omitted), omitted, streamingTail: state.streamingTails[thread.id]?.text ?? null };
+}
+
+/** The page of a thread's messages before index `before`, which the phone shows above its live window. */
+export function mobileThreadHistory(state: WorkspaceState, taskId: string, before: number): MobileThreadHistory | null {
+  const thread = state.threads.find((item) => item.id === taskId);
+  const transcript = thread && threadTranscript(state, thread.id, MOBILE_HISTORY_PAGE, MOBILE_MESSAGE_TEXT_LIMIT, before);
+  if (!thread || !transcript) return null;
+  return { start: transcript.omitted, messages: withDetails(thread, transcript.messages, transcript.omitted) };
 }
 
 /** The threads working under a coordinator, here and on paired computers, as its desktop roster lists them. */

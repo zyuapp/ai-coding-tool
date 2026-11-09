@@ -259,6 +259,35 @@ final class PhoneModel {
         }
     }
 
+    /// The thread whose older messages are being read, so a second tap waits for the first.
+    private(set) var readingEarlier: String?
+    /// Why the last read of a thread's older messages failed, shown until the next try.
+    private(set) var earlierFailed: (taskId: String, message: String)?
+
+    /// The open thread's messages with any older ones read above them, and how many are still on the computer.
+    func transcript(_ thread: MobileThreadView) -> (messages: [MobileMessage], omitted: Int) {
+        guard let earlier = state.earlier, earlier.taskId == thread.id, earlier.end == thread.omitted else { return (thread.messages, thread.omitted) }
+        return (earlier.messages + thread.messages, earlier.start)
+    }
+
+    /// Reads the page of messages just above what the thread shows.
+    func readEarlier(_ thread: MobileThreadView) {
+        guard readingEarlier == nil else { return }
+        let before = transcript(thread).omitted
+        guard before > 0 else { return }
+        readingEarlier = thread.id
+        earlierFailed = nil
+        Task {
+            do {
+                let page = try await connection.query(.history(taskId: thread.id, before: before)).decode(MobileThreadHistory.self)
+                connection.keepEarlier(thread.id, page)
+            } catch {
+                earlierFailed = (thread.id, error.localizedDescription)
+            }
+            readingEarlier = nil
+        }
+    }
+
     /// Spoken words follow whatever that draft holds, whether or not its thread is still on screen.
     func addSpokenWords(_ words: String, to key: String) {
         let typed = draft(for: key).trimmingCharacters(in: .whitespacesAndNewlines)
