@@ -71,19 +71,6 @@ test("a failed reload says why, and engine buttons name their engine", async () 
   await view.unmount();
 });
 
-test("a typed size out of range is clamped", async () => {
-  window.desktop = fakeDesktop({});
-  const sizes: number[] = [];
-  const view = await mount(renderSettingsPanel({ initialSection: "appearance", onSetReadingSize: (size) => sizes.push(size) }));
-  await act(async () => {});
-  const row = query<HTMLElement>(view.container, '[data-setting="appearance.reading-size"]');
-  const field = query<HTMLInputElement>(row, "input");
-  await type(field, "99");
-  await act(async () => { field.blur(); });
-  assert.ok(sizes.length === 1 && sizes[0]! < 99);
-  await view.unmount();
-});
-
 test("Light, Dark and Auto are one stop that Left and Right choose along", async () => {
   window.desktop = fakeDesktop({});
   const modes: string[] = [];

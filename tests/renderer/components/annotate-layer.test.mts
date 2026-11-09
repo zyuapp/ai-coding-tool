@@ -1,10 +1,10 @@
-import { dom, mount, query } from "../../support/renderer-dom.mts";
+import { dom, mount } from "../../support/renderer-dom.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
 import type { Selected } from "../../../src/renderer/timeline/use-annotations.ts";
 
-const { AnnotatePopover, NoteEditor } = await import("../../../src/renderer/components/AnnotateLayer.tsx");
+const { AnnotatePopover } = await import("../../../src/renderer/components/AnnotateLayer.tsx");
 
 const selection: Selected = { quote: "the passage", anchor: { kind: "message", messageId: "m1", start: 0, end: 11 }, x: 10, y: 10 };
 
@@ -54,19 +54,4 @@ test("Enter on a field or a button keeps its own meaning, and Mod+Enter does not
   await view.unmount();
 
   assert.equal(await press(document.body, "Enter"), false, "the popover stops listening once it is gone");
-});
-
-test("removing an annotation is set apart from saving it", async () => {
-  const view = await mount(React.createElement(NoteEditor, {
-    noting: { annotationId: "a", quote: "q", anchor: selection.anchor, note: "n", x: 0, y: 0 },
-    editorRef: { current: null },
-    onChange() {},
-    onCommit() {},
-    onClose() {},
-    onRemove() {},
-  }));
-  assert.ok(query(document.body, ".annotate-editor-save"));
-  assert.equal(query<HTMLInputElement>(document.body, ".annotate-editor input").placeholder, "Add a note");
-  assert.equal(query(document.body, ".annotate-editor-remove").getAttribute("aria-label"), "Remove annotation");
-  await view.unmount();
 });

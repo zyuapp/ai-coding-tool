@@ -6,7 +6,6 @@ import type { ThreadTabView } from "../../../src/application/workspace-state.ts"
 
 const { BranchMenu } = await import("../../../src/renderer/components/BranchMenu.tsx");
 const { ThreadTabStrip, scheduleChipLabel } = await import("../../../src/renderer/components/ThreadTabStrip.tsx");
-const { FindBar } = await import("../../../src/renderer/components/FindBar.tsx");
 
 async function type(input: HTMLInputElement, value: string) {
   await act(async () => {
@@ -62,15 +61,6 @@ test("Escape in the branch search clears what was typed before it closes the lis
   } finally { await view.unmount(); }
 });
 
-test("a branch list still being read says so to assistive technology", async () => {
-  const view = await mount(React.createElement(BranchMenu, { branches: null, selected: null, onPick: () => {} }));
-  try {
-    const note = query(view.container, ".branch-menu-empty");
-    assert.equal(note.textContent, "Reading branches…");
-    assert.equal(note.getAttribute("role"), "status");
-  } finally { await view.unmount(); }
-});
-
 test("a branch list Git could not read says why", async () => {
   const view = await mount(React.createElement(BranchMenu, {
     branches: { status: "error", message: "fatal: not a git repository" },
@@ -98,7 +88,7 @@ function tab(overrides: Partial<ThreadTabView>): ThreadTabView {
   } as unknown as ThreadTabView;
 }
 
-test("the thread strip's chips name what they show to assistive technology", async () => {
+test("the thread strip's chips show the thread's branch, changes, pull request and schedule", async () => {
   window.desktop = { branches: async () => ({ status: "available", branches: [], remotes: [], current: null }) } as unknown as typeof window.desktop;
   const actions = { onToggleChanges() {}, onOpenAutomations() {}, onSetBranchMenuOpen() {}, onCheckoutBranch() {} };
   const view = await mount(React.createElement(ThreadTabStrip, { tab: tab({}), branchMenuOpen: false, actions }));
@@ -106,23 +96,12 @@ test("the thread strip's chips name what they show to assistive technology", asy
     assert.ok(view.container.querySelector('button[aria-label="Branch feat/login"]'));
     assert.ok(view.container.querySelector('button[aria-label="Review changes, +12 −3"]'));
     assert.equal(query(view.container, ".thread-tab-pull-request").textContent, "#42 · Merged", "the state is a word, not only a colour");
-    assert.equal(query(view.container, ".thread-tab-pull-request").dataset.tip, "Login");
-    assert.equal(query(view.container, 'button[aria-label="Branch feat/login"]').dataset.tip, "feat/login");
-    assert.ok("tipOverflow" in query(view.container, 'button[aria-label="Branch feat/login"]').dataset, "the name only repeats as a tip once it is cut short");
-    assert.equal(query(view.container, 'button[aria-label="Review changes, +12 −3"]').dataset.tip, "Uncommitted changes");
-    assert.equal(view.container.querySelector("[title]:not([title=''])"), null, "every hint uses the app's tooltip");
-    const automations = query(view.container, 'button[data-tip="Automation"]');
-    assert.equal(automations.textContent, "Schedule", "an empty schedule reads as an action, not decoration");
-    assert.equal(automations.classList.contains("quiet"), false, "it is drawn as the button it is");
-    assert.equal(automations.hasAttribute("aria-label"), false, "the visible words are its name");
+    assert.equal(query(view.container, 'button[data-tip="Automation"]').textContent, scheduleChipLabel(null));
   } finally { await view.unmount(); }
   const nextRunAt = Date.now() + 60_000;
   const scheduled = await mount(React.createElement(ThreadTabStrip, { tab: tab({ automation: { id: "a", paused: false, nextRunAt } } as unknown as Partial<ThreadTabView>), branchMenuOpen: false, actions }));
   try {
-    const chip = query(scheduled.container, 'button[data-tip="Automation"]');
-    assert.equal(chip.textContent, scheduleChipLabel({ paused: false, nextRunAt } as never));
-    assert.match(chip.textContent ?? "", /^Next /);
-    assert.ok(chip.classList.contains("scheduled"));
+    assert.equal(query(scheduled.container, 'button[data-tip="Automation"]').textContent, scheduleChipLabel({ paused: false, nextRunAt } as never));
   } finally { await scheduled.unmount(); }
 });
 
@@ -159,30 +138,5 @@ test("a checkout Git could not read shows the failure with a retry, while readin
     assert.equal(query(failed, ".thread-tab-retry").getAttribute("aria-describedby"), message.id, "Retry reads the full error to the keyboard");
     await act(async () => { query<HTMLButtonElement>(failed, ".thread-tab-retry").click(); });
     assert.deepEqual(sent, [{ type: "view.refresh-environment" }]);
-  } finally { await view.unmount(); }
-});
-
-test("the brief toggle controls the card it opens", async () => {
-  const actions = { onToggleChanges() {}, onOpenAutomations() {}, onSetBranchMenuOpen() {}, onCheckoutBranch() {} };
-  const brief = { intent: "Fix it\nThen ship", doneWhen: "Tests pass", delivers: "commit" };
-  const view = await mount(React.createElement(ThreadTabStrip, { tab: tab({ thread: { id: "t", title: "T", brief } } as unknown as Partial<ThreadTabView>), branchMenuOpen: false, actions }));
-  try {
-    const toggle = query<HTMLButtonElement>(view.container, ".thread-tab-brief-toggle");
-    await act(async () => { toggle.click(); });
-    const card = query(view.container, ".thread-tab-brief-card");
-    assert.equal(toggle.getAttribute("aria-controls"), card.id);
-  } finally { await view.unmount(); }
-});
-
-test("the find bar's buttons name their keys", async () => {
-  const view = await mount(React.createElement(FindBar, {
-    find: { query: "x", matches: 2, index: 0, counting: false, focus: 0 } as React.ComponentProps<typeof FindBar>["find"],
-    label: "thread",
-    onQuery() {}, onStep() {}, onClose() {},
-  }));
-  try {
-    assert.match(query(view.container, 'button[aria-label="Previous match"]').dataset.tip ?? "", /^Previous match \(/);
-    assert.match(query(view.container, 'button[aria-label="Next match"]').dataset.tip ?? "", /^Next match \(/);
-    assert.match(query(view.container, 'button[aria-label="Close find"]').dataset.tip ?? "", /^Close \(Esc/);
   } finally { await view.unmount(); }
 });

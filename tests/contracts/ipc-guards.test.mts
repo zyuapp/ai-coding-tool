@@ -497,3 +497,10 @@ test("an archive command names the thread, the engine session it mirrors into, a
   assert.equal(isRunCommand({ ...command, channel: "background" }), false);
   assert.equal(isRunCommand({ ...command, continuation: { provider: "codex" } }), false);
 });
+
+test("a run that reports a usage limit is checked at the boundary", () => {
+  const event = { type: "run.status", taskId: "a", runId: "r", sequence: 1, status: "failed", limit: { resetsAt: 1_800_007_200_000, window: "session" } };
+  assert.equal(isRunEvent(event), true);
+  assert.equal(isRunEvent({ ...event, status: "succeeded" }), false);
+  assert.equal(isRunEvent({ ...event, limit: { resetsAt: "soon", window: "session" } }), false);
+});

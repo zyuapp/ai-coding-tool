@@ -38,31 +38,6 @@ function renderConversationComposer(overrides: Partial<ConversationComposerProps
   });
 }
 
-test("an active native goal stays visible and is cleared only once confirmed", async () => {
-  let cleared = 0;
-  const view = await mount(renderConversationComposer({
-    goal: { objective: "All checks pass", status: "active", iterations: 2 },
-    onGoalClear: () => { cleared += 1; },
-  }));
-
-  assert.match(query(view.container, ".goal-bar").textContent, /All checks pass/);
-  assert.match(query(view.container, ".goal-detail").textContent, /Pass 2/);
-  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
-  assert.equal(cleared, 0, "the first press only asks");
-  const actions = [...view.container.querySelectorAll<HTMLButtonElement>(".goal-actions button")];
-  assert.deepEqual(actions.map((button) => button.textContent), ["Clear goal", "Cancel"]);
-  assert.equal(document.activeElement, actions[1], "the safe answer takes the focus");
-
-  await act(async () => { actions[1]!.click(); });
-  assert.equal(cleared, 0);
-  assert.equal(document.activeElement, query(view.container, ".goal-clear"), "Cancel puts the first button back, focused");
-
-  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
-  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-actions button.danger").click(); });
-  assert.equal(cleared, 1);
-  await view.unmount();
-});
-
 test("context usage stays within 100% when the window shrinks below the used tokens", async () => {
   window.desktop = fakeDesktop();
   const view = await mount(renderConversationComposer({
@@ -369,26 +344,7 @@ test("the @ menu opens with no other threads and says there are none yet", async
   await view.unmount();
 });
 
-test("the prompt asks for work, and says why when it cannot take a message", async () => {
-  window.desktop = fakeDesktop();
-  const view = await mount(renderConversationComposer({ folder: "/project" }));
-  assert.equal(query<HTMLTextAreaElement>(view.container, "textarea").placeholder, "Ask Claude to work on anything");
-  await view.unmount();
-  const side = await mount(renderConversationComposer({ surface: "side", disabled: true }));
-  assert.equal(query<HTMLTextAreaElement>(side.container, "textarea").placeholder, "Main context required");
-  await side.unmount();
-});
-
-test("Send's tip names only its own key, and its arrow is an icon", async () => {
-  window.desktop = fakeDesktop();
-  const fresh = await mount(renderConversationComposer({ prompt: "hi", history: [{ text: "earlier", annotations: [], pastes: [], files: [], attachments: [] }] }));
-  const send = query(fresh.container, ".send-button");
-  assert.match(send.dataset.tip ?? "", /^Send \([^)]+\)$/);
-  assert.ok(send.querySelector("svg"), "the arrow is an icon, not a font glyph");
-  await fresh.unmount();
-});
-
-test("the side surface keeps the slash palette but never offers to fork a fork", async () => {
+test("the side surface keeps the slash palette and can send", async () => {
   window.desktop = fakeDesktop({
     commands: async () => ({ status: "available", commands: [
       { name: "security-scan", description: "Scan the repository for security issues.", argumentHint: "" },

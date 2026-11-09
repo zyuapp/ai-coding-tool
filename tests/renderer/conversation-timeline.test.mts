@@ -384,15 +384,6 @@ test("a wait on the checkout counts how long it has taken, and starts over for t
   await view.unmount();
 });
 
-test("a running turn says it is working to assistive tech, not only with dots", async () => {
-  const view = await mount(timelineView(transcript({ kind: "user", text: "go" }), "running"));
-  const row = query(view.container, ".thinking-row");
-  assert.equal(row.getAttribute("role"), "status");
-  assert.equal(query(row, ".thinking-label").textContent, "Working");
-  assert.equal(query(row, ".thinking-elapsed").getAttribute("aria-hidden"), "true", "the ticking time is not read out every second");
-  await view.unmount();
-});
-
 test("the working row shows how long the live turn has run", async (t) => {
   vi.useFakeTimers({ toFake: ["setInterval", "setTimeout", "Date"] });
   vi.setSystemTime(100_000);

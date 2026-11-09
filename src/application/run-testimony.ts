@@ -2,7 +2,6 @@
  * What a run said for itself, and whether it reaches the user. A function belongs here when it needs
  * the run behind the thread: where the run came from, whether it answered, and what it reported.
  */
-import type { RunEvent } from "../contracts/ipc.js";
 import type { FindingReport } from "../contracts/threads.js";
 import { isNews, withFinding } from "../domain/attention.js";
 import type { RunStatus } from "../domain/run.js";
@@ -69,14 +68,6 @@ function whatRunSaid(active: Pick<ActiveRun, "origin" | "quiet" | "acknowledged"
   if (!active.quiet) return "loud";
   if (!active.acknowledged) return "no-answer";
   return active.notified ? "reported" : null;
-}
-
-/**
- * Why this run reaches the user, or null when it settles with nothing to say. Silence is earned by
- * a scheduled quiet run that succeeded and answered for itself without raising anything new.
- */
-export function whyRunSurfaces(active: ActiveRun, event: RunEvent): RunSurfacing | null {
-  return whyTurnSurfaces(active, event.type === "run.status" ? event.status : undefined);
 }
 
 /** Why a turn ending with this status reaches the user. One that ends with no run behind it was the user's own. */

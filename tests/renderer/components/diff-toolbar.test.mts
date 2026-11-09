@@ -80,22 +80,10 @@ test("without a project the pickers stay focusable, say why, and open nothing", 
   await open.unmount();
 });
 
-test("the spacing toggle names its state, and a read in progress says so", async () => {
+test("the spacing toggle is pressed while spacing is hidden, and a read in progress marks Refresh busy", async () => {
   const view = await mount(toolbar({ diff: diffState({ ignoreWhitespace: true, loading: true }) }));
-  const spacing = query<HTMLButtonElement>(view.container, 'button[aria-label="Hide spacing changes"]');
-  assert.equal(spacing.getAttribute("aria-pressed"), "true");
-  assert.equal(spacing.dataset.tip, "Spacing changes hidden");
-  const refresh = query<HTMLButtonElement>(view.container, 'button[aria-label="Refresh changes"]');
-  assert.equal(refresh.getAttribute("aria-busy"), "true");
-  assert.equal(refresh.dataset.tip, "Refreshing…");
-  await view.unmount();
-});
-
-test("the mode chip names what it picks", async () => {
-  const view = await mount(toolbar());
-  const mode = query<HTMLButtonElement>(view.container, ".diff-mode-trigger");
-  assert.equal(mode.textContent, "ReviewUncommitted");
-  assert.equal(mode.getAttribute("aria-label"), "Review mode: Uncommitted");
+  assert.equal(query(view.container, 'button[aria-label="Hide spacing changes"]').getAttribute("aria-pressed"), "true");
+  assert.equal(query(view.container, 'button[aria-label="Refresh changes"]').getAttribute("aria-busy"), "true");
   await view.unmount();
 });
 

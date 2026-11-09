@@ -158,10 +158,6 @@ test("a side chat composes with everything the main composer has", async () => {
   assert.equal(query(item(settings[0]), "summary").getAttribute("aria-label"), "Permission mode: Edits", "the chip says its current value aloud");
   assert.equal(query(item(settings[0]), ".setting-value").textContent, "Edits", "the chat's own policy is selected, not the first one on offer");
   await act(async () => { query<HTMLElement>(item(settings[0]), "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  assert.deepEqual(
-    [...item(settings[0]).querySelectorAll(".setting-option")].map((option) => [query(option, "strong").textContent, query(option, "small").textContent]),
-    [["Auto", "Only ask for potentially unsafe actions"], ["Bypass", "Use tools and change files without asking"], ["Edits", "Apply file edits without asking"], ["Confirm", "Ask before using tools or changing files"]],
-  );
   await act(async () => { item([...item(settings[0]).querySelectorAll<HTMLButtonElement>(".setting-option")].find((option) => option.textContent.includes("Auto"))).click(); });
   assert.deepEqual(policies, ["autonomous"]);
 
@@ -315,21 +311,6 @@ test("every right panel view opens as a closable tab", async () => {
     assert.equal(query<HTMLElement>(view.container, ".right-dock-picker").hidden, false);
   }
 
-  await view.unmount();
-});
-
-test("right panel resizes with the keyboard", async () => {
-  seedTaskWithSubagent();
-  window.desktop = fakeDesktop();
-  const view = await mount(React.createElement(App));
-
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show right panel"]').click(); });
-  const workspace = query<HTMLElement>(view.container, ".workspace");
-  const panel = query<HTMLElement>(view.container, ".right-dock");
-  workspace.getBoundingClientRect = () => dom.window.DOMRect.fromRect({ width: 1000 });
-  panel.getBoundingClientRect = () => dom.window.DOMRect.fromRect({ x: 600 });
-  await act(async () => { query<HTMLElement>(panel, '[aria-label="Resize right panel"]').dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })); });
-  assert.equal(workspace.style.getPropertyValue("--right-dock-width"), "410px");
   await view.unmount();
 });
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { endsQuietly, settledEvent, settledTurn, settleTurn, withSettledTurn, type TurnEnd } from "../../src/application/run-settlement.ts";
+import { settledEvent, settledTurn, settleTurn, withSettledTurn, type TurnEnd } from "../../src/application/run-settlement.ts";
 import type { RunEvent } from "../../src/contracts/ipc.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import type { UsageLimit } from "../../src/domain/usage-limit.ts";
@@ -41,18 +41,9 @@ test("what Stop all stopped ends quietly once it has stopped, and answers the st
   assert.deepEqual(stopped.heard, { quiet: true });
   assert.equal(stopped.answersStopAll, true);
   assert.deepEqual(settleTurn({ status: "succeeded", run: attended, stop: "stop-all" }).heard, { quiet: false }, "one that finished first is news");
+  assert.deepEqual(settleTurn({ status: "failed", run: attended, stop: "stop-all" }).heard, { quiet: false }, "one that failed first is news");
   assert.deepEqual(settleTurn({ status: "cancelled", run: attended, stop: "user" }).heard, { quiet: false }, "the user's own stop is heard as ever");
   assert.deepEqual(settleTurn({ status: "failed", run: { ...attended, answersStop: true } }).heard, { quiet: true }, "the agent's answer to the stop is quiet however it ends");
-});
-
-test("the quiet rule", () => {
-  assert.equal(endsQuietly({ status: "succeeded" }), false);
-  assert.equal(endsQuietly({ status: "failed", answersStop: true }), true);
-  assert.equal(endsQuietly({ status: "cancelled", stop: "quit" }), true);
-  assert.equal(endsQuietly({ status: "cancelled", stop: "stop-all" }), true);
-  assert.equal(endsQuietly({ status: "failed", stop: "stop-all" }), false);
-  assert.equal(endsQuietly({ status: "succeeded", usersOwn: true }), true);
-  assert.equal(endsQuietly({ status: "failed", usersOwn: true }), false);
 });
 
 test("a turn that waits out a session limit carries on, so it leaves no verdict and is no news", () => {

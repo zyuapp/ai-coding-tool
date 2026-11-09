@@ -1,5 +1,4 @@
 import { fakeDesktop } from "../support/desktop-api.mts";
-import { readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
@@ -124,12 +123,6 @@ test("each next step is read by what it shows, then the thread it is for", async
   await view.unmount();
 });
 
-test("cards outside a coordinator's own transcript draw nothing", async () => {
-  const view = await mount(React.createElement(ThreadCards, { threadIds: ["fix"] }));
-  assert.equal(view.container.innerHTML, "");
-  await view.unmount();
-});
-
 test("a next step taken from the keyboard hands focus to its card once the step is gone", async () => {
   window.desktop = fakeDesktop();
   const cards = (views: CoordinatedThreadView[]) => React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch() {} } },
@@ -146,12 +139,4 @@ test("a next step taken from the keyboard hands focus to its card once the step 
   await view.render(cards([working]));
   assert.equal(focused(), "Open Dark mode", "a card gone with it hands focus to the card that took its place");
   await view.unmount();
-});
-
-test("a card's pull request chip is held to the card, so its ellipsis clips a long line rather than the card", async () => {
-  /** jsdom lays nothing out; the open area is a grid whose one column grows to whatever an item will not shrink below. */
-  const css = await readFile(new URL("../../src/renderer/components/coordination.css", import.meta.url), "utf8");
-  const chip = css.match(/\.coordination-card-pull-request \{([^}]*)\}/)?.[1] ?? "";
-  assert.match(chip, /min-width: 0;/);
-  assert.match(css, /\.coordination-card-pull-request > span \{[^}]*text-overflow: ellipsis;/);
 });

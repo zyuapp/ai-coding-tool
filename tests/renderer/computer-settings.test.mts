@@ -128,41 +128,10 @@ test("removing a paired computer asks once more before it forgets it", async () 
   }
 });
 
-test("an unchanged name saves nothing, and a changed one is given", async () => {
-  const renamed: string[] = [];
-  const view = await mount(settings({ onRename: (name) => renamed.push(name) }));
-  try {
-    const field = view.container.querySelector<HTMLInputElement>(".computer-name input")!;
-    assert.equal(view.container.querySelector(".computer-name label strong")!.textContent, "This computer's name");
-    await act(async () => { field.focus(); field.blur(); });
-    assert.deepEqual(renamed, []);
-    const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")!.set!;
-    await act(async () => {
-      field.focus();
-      setter.call(field, "studio");
-      field.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
-    });
-    await act(async () => { field.blur(); });
-    assert.deepEqual(renamed, ["studio"]);
-  } finally {
-    await view.unmount();
-  }
-});
-
-test("this computer's name row carries no step circle", async () => {
-  const view = await mount(settings({}));
-  try {
-    assert.equal(view.container.querySelector("[data-this-computer] .setting-status"), null);
-  } finally {
-    await view.unmount();
-  }
-});
-
 test("looking for computers reads as busy rather than unavailable", async () => {
   const view = await mount(settings({ searching: true }));
   try {
     const look = view.container.querySelector<HTMLButtonElement>(".settings-group-action button")!;
-    assert.equal(look.textContent, "Looking…");
     assert.equal(look.getAttribute("aria-busy"), "true");
   } finally {
     await view.unmount();

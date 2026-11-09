@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { runOf, runsInWorkspace, runStatus, startingThreads, startsOf, threadBusy, threadToBegin, usersTurn } from "../../src/application/run-record.ts";
+import { runsInWorkspace, startingThreads, startsOf, threadBusy, threadToBegin, usersTurn } from "../../src/application/run-record.ts";
 import type { PendingRun } from "../../src/application/workspace-state.ts";
 import { activeRun, PROJECT, task, workspace } from "./workspace-reducer-fixtures.mts";
 
@@ -17,8 +17,6 @@ test("a thread is busy with a run going or a start still resolving, and idle wit
   assert.equal(threadBusy(state, "one"), true);
   assert.equal(threadBusy(state, "two"), true, "a send on its way counts before its run begins");
   assert.equal(threadBusy(state, "three"), false);
-  assert.equal(runOf(state, "one")?.runId, "run-1");
-  assert.equal(runOf(state, "two"), undefined);
 });
 
 test("a thread's starts are grouped once per set of starts, oldest first, and a new thread's starts belong to none", () => {
@@ -39,17 +37,6 @@ test("the user's turn is a run or start of their own, not a scheduled one", () =
   assert.equal(usersTurn(state, "tick"), false);
   assert.equal(usersTurn(state, "ticking"), false);
   assert.equal(usersTurn(state, "idle"), false);
-});
-
-test("a thread shows running while its run is going, else how its last run ended", () => {
-  const state = workspace({
-    activeRuns: { one: activeRun("one", "run-1") },
-    runStatuses: { two: "stopped" },
-  });
-  assert.equal(runStatus(state, "one"), "running");
-  assert.equal(runStatus(state, "two"), "stopped");
-  assert.equal(runStatus(state, "three"), "idle");
-  assert.equal(runStatus(state, null), "idle", "the draft has no run");
 });
 
 test("a resolved start begins only on a thread still there, not filed away, and with no run going", () => {

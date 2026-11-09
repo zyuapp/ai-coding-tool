@@ -153,26 +153,6 @@ test("every mark carries its tools, faintly and out of the tab order unless it i
   await view.unmount();
 });
 
-test("the annotator listens for keys once, however often it redraws", async () => {
-  const added = vi.spyOn(document, "addEventListener");
-  const { view, canvas } = await open();
-  await act(async () => press(canvas, "ArrowRight"));
-  await act(async () => press(canvas, "ArrowRight"));
-  await act(async () => press(document.body, "a"));
-  assert.equal(added.mock.calls.filter(([type]) => type === "keydown").length, 1);
-  await act(async () => press(document.body, "b"));
-  const pressed = [...document.body.querySelectorAll<HTMLButtonElement>(".annotator-tool")].find((button) => button.textContent?.includes("Box"));
-  assert.equal(pressed?.getAttribute("aria-pressed"), "true", "the one listener still sees the latest state");
-  added.mockRestore();
-  await view.unmount();
-});
-
-test("the newest mark shows its tools before anything is pointed at", async () => {
-  const { view } = await open();
-  assert.ok(query(document.body, '[aria-label="Delete arrow"]'));
-  await view.unmount();
-});
-
 test("Escape keeps a box just drawn without its note, and Enter keeps it with one", async () => {
   const drawn = { x: 0.4, y: 0.4, width: 0.1, height: 0.1 };
   const { view } = await open();

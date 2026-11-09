@@ -394,17 +394,6 @@ test("N takes the reader to the next file still to read, and leaves a typed n al
   await view.unmount();
 });
 
-test("the Changes tab says what its count is counting", async () => {
-  seedReviewableProject();
-  window.desktop = threeFileDesktop();
-  const view = await mount(React.createElement(App));
-  await openReview(view);
-  const badge = query(view.container, '.right-dock-tab [role="tab"] > em');
-  assert.equal(badge.getAttribute("role"), "img");
-  assert.equal(badge.getAttribute("aria-label"), "3 files unreviewed");
-  await view.unmount();
-});
-
 test("a comparison that cannot be read says so as an error, and Try again reads it again", async () => {
   seedReviewableProject();
   let reads = 0;

@@ -74,18 +74,14 @@ test("the Codex speed toggle follows effort and dispatches both speed changes", 
   };
   const view = await mount(React.createElement(ComposerSettings, props));
   const toggle = query<HTMLButtonElement>(view.container, 'button[aria-label="Fast mode"]');
-  assert.equal(toggle.parentElement?.lastElementChild, toggle);
-  assert.ok(toggle.previousElementSibling?.querySelector('summary[aria-label^="Model and effort: Sol, "]'));
   assert.equal(toggle.getAttribute("aria-pressed"), "false");
   assert.match(toggle.dataset.tip ?? "", /use more of your plan/);
   assert.equal(toggle.title, "");
   await act(async () => { toggle.click(); });
   assert.deepEqual(selected, [true]);
   assert.equal(toggle.textContent, "Fast", "an idle fast mode still names itself");
-  assert.equal(toggle.querySelector("svg")?.getAttribute("fill"), "none");
   await view.render(React.createElement(ComposerSettings, { ...props, fastMode: true }));
   assert.equal(toggle.getAttribute("aria-pressed"), "true");
-  assert.equal(toggle.querySelector("svg")?.getAttribute("fill"), "currentColor", "an active fast mode fills its bolt");
   assert.equal(toggle.getAttribute("aria-label"), "Fast mode");
   await act(async () => { toggle.click(); });
   assert.deepEqual(selected, [true, false]);

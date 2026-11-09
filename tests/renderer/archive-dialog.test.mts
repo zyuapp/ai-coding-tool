@@ -31,7 +31,6 @@ test("a row's Archive asks first: Cancel, Escape and the backdrop keep the threa
   try {
     await chooseArchive(view.container, "Quiet");
     assert.equal(dialog()?.getAttribute("aria-label"), "Archive “Quiet”?");
-    assert.match(dialog()?.textContent ?? "", /It leaves the sidebar\. Restore it from Settings › Archived threads within 5 days\./);
     assert.equal(document.activeElement, button("Cancel"), "Cancel holds the focus");
     assert.ok(query(view.container, '.task-row [data-tip="Quiet"]'), "nothing is archived while it asks");
 

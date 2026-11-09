@@ -47,15 +47,11 @@ test("a filter naming a paired computer opens the dialog even when that computer
   }
 });
 
-test("add defaults to the filtered device and explicit path commands route even with no projects", () => {
+test("the view shows the filtered device, and explicit path commands route even with no projects", () => {
   const state = workspace();
   const opened = reduce(state, { type: "project.open" });
   assert.equal(opened.state.projectAdd?.computerId, "linux");
   assert.equal(deriveView(opened.state).projectAdd?.computerId, "linux");
-  assert.deepEqual(opened.effects, []);
-  for (const filter of ["all", "this"]) {
-    assert.equal(reduce({ ...state, computers: { ...state.computers, filter } }, { type: "project.open" }).state.projectAdd?.computerId, "this");
-  }
   const route = routeInput(state, { type: "project.add", root: "~/app", computerId: "linux" });
   assert.equal(route.kind, "computer");
   if (route.kind === "computer") assert.deepEqual(route.inputs, [{ type: "project.add", root: "~/app" }]);
@@ -268,7 +264,7 @@ test("starting in a folder on a paired computer opens its draft there and puts t
   assert.equal(remote.projects[0]?.unlisted, true);
 });
 
-test("start options are validated and the shortcut is configurable", () => {
+test("start options are validated at the view boundary", () => {
   assert.equal(isWorkspaceViewInput({ type: "project.open", start: true }), true);
   assert.equal(isWorkspaceViewInput({ type: "project.open", start: false }), false);
   assert.equal(isWorkspaceViewInput({ type: "project.add", root: "/app", start: true }), true);

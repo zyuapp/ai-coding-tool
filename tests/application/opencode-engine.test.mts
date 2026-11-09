@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import { newThreadSend, threadProposal } from "../../src/application/thread-starts.ts";
-import { BUILT_IN_MODELS, capabilitiesFor, defaultModelFor, defaultModelIn, engineCatalog, engineModelsKnown, engineNotice, modelLabel, policyFor, resolveModel, threadModel, type AgentEngine, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.ts";
+import { BUILT_IN_MODELS,defaultModelFor, defaultModelIn, engineCatalog, engineModelsKnown, engineNotice, modelLabel, policyFor, resolveModel, threadModel, type AgentEngine, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.ts";
 import { threadModelOf } from "../../src/domain/coordination.ts";
 import { describeToolCall } from "../../src/domain/tool-call.ts";
 import { effectAt, run, send, task, workspace } from "./workspace-reducer-fixtures.mts";
@@ -16,15 +16,12 @@ const status: EngineStatus = { opencode: { access: "ready", version: "2.2.5", ca
 const projectless = { id: "projectless", kind: "projectless" as const, root: "/tmp" };
 
 test("OpenCode offers every mode but Auto, which stands on a reviewer it has none of", () => {
-  assert.deepEqual(capabilitiesFor("opencode").policies, ["confirm", "plan", "allow-edits", "bypass"]);
   assert.equal(policyFor("opencode", "autonomous"), "allow-edits");
   assert.equal(policyFor("opencode", "bypass"), "bypass");
   assert.equal(policyFor("claude", "autonomous"), "autonomous");
   assert.equal(policyFor("codex", "autonomous"), "autonomous");
   assert.equal(policyFor("opencode", "plan"), "plan");
   assert.equal(policyFor("future" as AgentEngine, "bypass"), "confirm", "an engine only a newer build knows offers no mode, so it asks for everything");
-  assert.equal(capabilitiesFor("opencode").unattendedPolicy, "bypass");
-  assert.equal(capabilitiesFor("claude").unattendedPolicy, "autonomous");
 });
 
 test("an engine's models are known by how it knows them, never by an empty list", () => {

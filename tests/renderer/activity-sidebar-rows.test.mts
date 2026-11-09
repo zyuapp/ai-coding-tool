@@ -50,7 +50,8 @@ test("the sidebar ranks threads into priority, running, and the rest, and only p
   assert.deepEqual(listed("Priority"), ["asked", "unread", "seen"]);
   assert.deepEqual(listed("Running"), ["busy", "watching"]);
   assert.equal(view.container.querySelectorAll('nav[aria-label="Running"] .task-spinner').length, 1, "only the thread with a run spins");
-  assert.equal(query(view.container, 'nav[aria-label="Running"] [aria-label="Monitoring"]').getAttribute("class"), "task-monitoring", "a thread its background work will wake says so in place of its unread verdict");
+  assert.ok(query(view.container, 'nav[aria-label="Running"] [aria-label="Monitoring"]'), "a thread its background work will wake says so in place of its unread verdict");
+  assert.equal(view.container.querySelector('nav[aria-label="Running"] .task-attention.finished'), null);
   assert.deepEqual(listed("Threads"), ["quiet"]);
 
   assert.match(

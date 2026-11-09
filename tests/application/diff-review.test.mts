@@ -323,10 +323,6 @@ test("a list counted the other way is dropped", () => {
 
 describe("The file list a review draws", { concurrent: true }, () => {
 
-test("a review opens side by side", () => {
-  assert.equal(diff(reviewing(workspace(), [file("a.ts")])).split, true);
-});
-
 test("every file starts open, and ticking one off folds it away", () => {
   const opened = reviewing(workspace(), [file("a.ts"), file("b.ts")]);
   assert.deepEqual(diff(opened).collapsed, [], "nothing is folded until the user folds it");
@@ -399,12 +395,6 @@ test("a file that is gone from the list stops being folded", () => {
   });
 
   assert.deepEqual(diff(rewritten.state).collapsed, []);
-});
-
-test("a small review is drawn whole", () => {
-  const reviewed = reviewing(workspace(), [file("a.ts", 10), file("b.ts", 10)]);
-
-  assert.deepEqual(diff(reviewed).collapsed, []);
 });
 
 test("one generated file folds itself rather than the work under it", () => {

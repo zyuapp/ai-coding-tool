@@ -5,8 +5,6 @@ import { deriveView, type WorkspaceState } from "../../src/application/workspace
 import { threadSummary } from "../../src/application/thread-projection.ts";
 import { isWorking } from "../../src/application/thread-activity.ts";
 import { whyTickCannotRun } from "../../src/application/findings.ts";
-import { isRunEvent } from "../../src/contracts/ipc.ts";
-import { isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
 import { parseThreadStore, serializeThreadStore } from "../../src/domain/thread-storage.ts";
 import { pauseSummary, type UsageLimit } from "../../src/domain/usage-limit.ts";
 import { activeRun, correlatedRunEvent, effectOf, PROJECT, required, task, workspace } from "./workspace-reducer-fixtures.mts";
@@ -173,9 +171,7 @@ test("a weekly limit keeps its verdict and waits for the user to resume", () => 
   assert.match(pauseSummary(thread(paused.state, "a").limitPause!, null, at), /^Weekly limit · resets /);
   assert.equal(pauseSummary(thread(paused.state, "a").limitPause!, null, weekly.resetsAt), "Weekly limit reset");
 
-  const input = { type: "limit.resume", taskId: "a" } as const;
-  assert.equal(isWorkspaceViewInput(input), true);
-  const resumed = resolveAll(reduce(paused.state, input));
+  const resumed = resolveAll(reduce(paused.state, { type: "limit.resume", taskId: "a" }));
   assert.ok(resumed.state.activeRuns.a);
   assert.equal(thread(resumed.state, "a").limitPause, undefined);
 });
@@ -198,9 +194,7 @@ test("not resuming hands what was written back to the composer", () => {
   let state = limited(runningThreads("a"), "a", session).state;
   state = reduce(state, { type: "view.set-prompt", prompt: "later" }).state;
   state = reduce(state, { type: "task.send", attachments: [] }).state;
-  const input = { type: "limit.cancel", taskId: "a" } as const;
-  assert.equal(isWorkspaceViewInput(input), true);
-  const cancelled = reduce(state, input);
+  const cancelled = reduce(state, { type: "limit.cancel", taskId: "a" });
   assert.equal(thread(cancelled.state, "a").limitPause, undefined);
   assert.equal(cancelled.state.queuedMessages.a, undefined);
   assert.equal(cancelled.state.prompts.a, "later");
@@ -218,7 +212,7 @@ test("not resuming hands what was written back to the composer", () => {
   assert.equal(thread(archived.state, "a").outcome, undefined, "a thread filed away is left no verdict");
 
   const weeklyPause = limited(runningThreads("a"), "a", weekly).state;
-  const lifted = reduce(weeklyPause, input).state;
+  const lifted = reduce(weeklyPause, { type: "limit.cancel", taskId: "a" }).state;
   assert.equal(thread(lifted, "a").runEndedAs, "failed", "a weekly limit already ended the turn");
   assert.equal(thread(lifted, "a").runEndedAt, thread(weeklyPause, "a").runEndedAt);
 });
@@ -271,16 +265,12 @@ test("a cut-short workflow is resumed rather than restarted, and goes after the 
   assert.match(prompt, /^check the results\n\n.*resumeFromRunId/s, "a message written while it waited keeps the workflow's instruction");
 });
 
-test("a pause survives a restart, and a run that reports a limit is checked", () => {
+test("a pause survives a restart", () => {
   const paused = limited(runningThreads("a"), "a", session).state;
   const parsed = parseThreadStore(serializeThreadStore({ version: 2, projects: [PROJECT], worktrees: [], lastFolder: null, tasks: paused.threads }));
   assert.ok(parsed.ok);
   const restored = parsed.data;
   assert.deepEqual(restored.tasks[0]?.limitPause, thread(paused, "a").limitPause);
-  const event = { type: "run.status", taskId: "a", runId: "r", sequence: 1, status: "failed", limit: session };
-  assert.equal(isRunEvent(event), true);
-  assert.equal(isRunEvent({ ...event, status: "succeeded" }), false);
-  assert.equal(isRunEvent({ ...event, limit: { resetsAt: "soon", window: "session" } }), false);
   const loaded = reduce(workspace({ threads: [] }), { type: "store.loaded", data: restored });
   assert.deepEqual(effectOf(loaded, "schedule-limit-reset"), { type: "schedule-limit-reset", at: session.resetsAt });
 });

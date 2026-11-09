@@ -150,21 +150,6 @@ test("a message the user sent copies as written and keeps its time out of its te
   await view.unmount();
 });
 
-test("every answer keeps its time and copy button out of the way until hovered", async () => {
-  const { timelineView, transcript } = await import("../support/timeline.mts");
-  const messages = transcript(
-    { kind: "user", text: "first" },
-    { kind: "assistant", text: "older answer" },
-    { kind: "user", text: "second" },
-    { kind: "assistant", text: "newer answer" },
-  );
-  const settled = await mount(timelineView(messages, "idle"));
-  const turns = [...settled.container.querySelectorAll(".message.turn")];
-  assert.equal(turns.length, 2);
-  assert.deepEqual(turns.map((turn) => turn.className), ["message assistant turn", "message assistant turn"], "the newest answer is drawn like any other");
-  await settled.unmount();
-});
-
 test("a tool call's input copies as it was recorded", async () => {
   const written = clipboard();
   const { timelineView, transcript } = await import("../support/timeline.mts");

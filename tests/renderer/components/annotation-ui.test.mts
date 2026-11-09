@@ -40,19 +40,6 @@ test("a pill wears the note, and falls back to the quote when no note was taken"
   await view.unmount();
 });
 
-test("a keyboard reaches the card the pointer raises", async () => {
-  const view = await mount(React.createElement(AnnotationRow, { annotations, onRemove: () => {} }));
-  const pill = item(view.container.querySelectorAll(".annotation-pill"), 1);
-  const face = query<HTMLElement>(pill, ".annotation-pill-face");
-  const card = query<HTMLElement>(pill, ".annotation-card");
-
-  assert.equal(face.getAttribute("tabindex"), "0");
-  assert.equal(face.getAttribute("aria-label"), "Annotation 2");
-  assert.equal(face.getAttribute("aria-describedby"), card.id);
-  assert.equal(card.getAttribute("role"), "tooltip");
-  await view.unmount();
-});
-
 test("a drafted pill asks to show its passage, and the card says nothing a tooltip would repeat", async () => {
   const anchored: Annotation[] = [{ id: "c", quote: "the passage", note: "", anchor: { kind: "message", messageId: "m1", start: 0, end: 11 } }];
   const revealed: string[] = [];

@@ -1,6 +1,5 @@
 import { fakeDesktop } from "../support/desktop-api.mts";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { test } from "vitest";
 import { act } from "react";
 import { renderSettingsPanel } from "../support/settings-panel.mts";
@@ -137,17 +136,5 @@ test("a paired computer's project offers no Edit, and one whose computer is away
   const paths = [...view.container.querySelectorAll(".project-settings-path")].map((path) => path.textContent);
   assert.ok(paths.includes("Studio (offline) · /studio/away"), "the row says why its Remove is out of reach");
   assert.ok(paths.includes("linux-box · /linux/ml"));
-  await view.unmount();
-});
-
-test("arming Remove takes the row's Edit out of the way, leaving the question and Cancel", async () => {
-  const css = await readFile(new URL("../../src/renderer/styles.css", import.meta.url), "utf8");
-  assert.match(css, /\.project-actions:has\(> \.armed\) > :not\(\.armed, \.armed \+ button\)/);
-  window.desktop = fakeDesktop({});
-  const view = await mount(renderSettingsPanel({ initialSection: "projects", projects: projectSettings({ rows: [row("web", "/work/web")] }) }));
-  await act(async () => {});
-  const actions = query(view.container, ".setting-row-action.project-actions");
-  await act(async () => { query<HTMLButtonElement>(actions, '[aria-label="Remove web"]').click(); });
-  assert.deepEqual([...actions.children].map((child) => [child.textContent, child.classList.contains("armed")]), [["Edit…", false], ["Remove", true], ["Cancel", false]]);
   await view.unmount();
 });

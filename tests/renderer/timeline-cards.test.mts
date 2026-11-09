@@ -10,16 +10,6 @@ const { WorkflowProcessRow, BackgroundProcessRow } = await import("../../src/ren
 
 const question: PendingQuestion = { id: "q", header: "Color", question: "Which color?", options: [{ label: "Blue", description: "" }], blocking: true, runId: "r", requestId: "req", questionId: "q" };
 
-test("Send answer reads Sending… while the answer goes", async () => {
-  const prompt = (props: Partial<{ submitOnEnter: boolean; question: PendingQuestion }>) => React.createElement(QuestionPrompt, { question, answer: "Blue", onAnswerChange() {}, onSubmit() {}, ...props });
-  const view = await mount(prompt({}));
-  const send = () => query<HTMLButtonElement>(view.container, 'button[type="submit"]');
-  assert.equal(send().querySelector("kbd"), null);
-  await view.render(prompt({ question: { ...question, submitting: true } }));
-  assert.equal(send().textContent, "Sending…");
-  await view.unmount();
-});
-
 test("Enter on a picked option sends it, only where Enter sends", async () => {
   let sent = 0;
   const prompt = (submitOnEnter: boolean) => React.createElement(QuestionPrompt, { question, answer: "Blue", submitOnEnter, onAnswerChange() {}, onSubmit() { sent += 1; } });

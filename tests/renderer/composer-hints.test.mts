@@ -25,7 +25,6 @@ test("removing a queued message just removes it", async () => {
   const queuedMessages = [{ id: "q-1", text: "next", prompt: "next", attachments: [] }];
   const view = await mount(composer({ runActive: true, queuedMessages, onDropQueued: (id) => { dropped.push(id); } }));
   await act(async () => { query<HTMLButtonElement>(view.container, ".queued-drop").click(); });
-  assert.deepEqual(dropped, ["q-1"]);
-  assert.equal(view.container.querySelector(".queued-actions .armed"), null);
+  assert.deepEqual(dropped, ["q-1"], "one press drops it");
   await view.unmount();
 });

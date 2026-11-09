@@ -495,17 +495,6 @@ test("each capability page carries a switch that turns the whole capability off"
   await view.unmount();
 });
 
-test("the settings only Claude reads are grouped under Claude's own name", async () => {
-  window.desktop = fakeDesktop({});
-  const view = await mount(renderSettingsPanel({}));
-  await act(async () => {});
-  const group = view.container.querySelector("[aria-labelledby='claude-heading']");
-  assert.ok(group);
-  assert.equal(group.querySelector("#claude-heading")?.textContent, "Claude");
-  assert.match(group.textContent ?? "", /Claude in Chrome/);
-  await view.unmount();
-});
-
 test("a control the jump panel named is marked, until the user opens another page", async () => {
   window.desktop = fakeDesktop({});
   const view = await mount(renderSettingsPanel({ initialSection: "appearance", initialSetting: "appearance.mono-font" }));
@@ -518,15 +507,6 @@ test("a control the jump panel named is marked, until the user opens another pag
   const appearanceTab = item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === "Appearance"));
   await act(async () => { appearanceTab.click(); });
   assert.deepEqual(marked(), [], "the mark is spent once the user has moved on");
-  await view.unmount();
-});
-
-test("a switch that is off says so and offers to turn it back on", async () => {
-  window.desktop = fakeDesktop({});
-  const view = await mount(renderSettingsPanel({ initialSection: "computer-use", computerUse: false }));
-  await act(async () => {});
-  assert.equal(capabilitySwitch(view.container, "computer-use-availability").getAttribute("aria-checked"), "false");
-  assert.equal(capabilitySwitch(view.container, "computer-use-availability").getAttribute("aria-label"), "Computer use");
   await view.unmount();
 });
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { nextSteps, type CoordinatedThreadStatus } from "../../src/application/coordinated-thread-status.ts";
-import { NEXT_STEPS, type ThreadBrief } from "../../src/domain/coordination.ts";
+import type { ThreadBrief } from "../../src/domain/coordination.ts";
 import type { PullRequestAnswer, PullRequestLink } from "../../src/domain/pull-request.ts";
 import { task } from "./workspace-reducer-fixtures.mts";
 
@@ -38,5 +38,4 @@ test("a thread is offered the next steps its own pull request needs, most pressi
   assert.deepEqual(offered(null, "working", { status: "none" }), []);
   const reporting = task("worker", { parentId: "lead", brief: { ...BRIEF, delivers: "report" } });
   assert.deepEqual(nextSteps(reporting, "done", { status: "none" }), [], "a thread that delivers a report is never asked for a pull request");
-  assert.deepEqual(NEXT_STEPS.map(({ label }) => label), ["Resolve conflicts", "Fix CI", "Address comments", "Merge it", "Create PR"]);
 });

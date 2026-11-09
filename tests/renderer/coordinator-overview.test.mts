@@ -12,7 +12,7 @@ import { emptyWorkspaceState, deriveView, OVERVIEW_PANEL } from "../../src/appli
 import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { workspaceActions } from "../../src/renderer/task-workspace/workspace-actions.ts";
 
-const { CoordinationBar, CoordinatorOverview } = await import("../../src/renderer/components/Coordination.tsx");
+const { CoordinatorOverview } = await import("../../src/renderer/components/Coordination.tsx");
 const { ModelMenu } = await import("../../src/renderer/components/ComposerSettings.tsx");
 const { EVERY_ENGINE_READY } = await import("../../src/domain/model-library.ts");
 const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
@@ -522,13 +522,6 @@ test("only the Needs you group speaks, and the Overview is a region its name is 
   }));
   assert.deepEqual([...view.container.querySelectorAll("[aria-live]")].map((list) => list.closest("section")?.getAttribute("aria-label")), ["Needs you"]);
   assert.equal(query(view.container, ".coordination-overview").getAttribute("role"), "region");
-  await view.unmount();
-});
-
-test("a thread under a coordinator says what of its own waits on the user in the sidebar's words", async () => {
-  const lead = { ...member("lead", "Plan"), parentId: undefined };
-  const view = await mount(React.createElement(CoordinationBar, { lead, remoteLead: null, brief: null, asking: "2 decisions are waiting on you", onSelect() {} }));
-  assert.equal(query(view.container, ".coordination-bar-asking").textContent, "2 decisions are waiting on you");
   await view.unmount();
 });
 

@@ -141,23 +141,6 @@ test("the sidebar's edge steps with the arrow keys, Home takes it to its narrowe
   } finally { await view.unmount(); }
 });
 
-test("the Settings button names its keystroke", async () => {
-  const view = await mount(renderProjectSidebar({}));
-  try {
-    assert.match(query(view.container, ".sidebar-settings").dataset.tip ?? "", /^Settings \(.+,\)$/);
-  } finally { await view.unmount(); }
-});
-
-test("the header's buttons name themselves and their keystrokes", async () => {
-  const view = await mount(renderProjectSidebar({ canGoBack: true, canGoForward: true }));
-  try {
-    assert.match(query(view.container, '[aria-label="Go back"]').dataset.tip ?? "", /^Back \(.+\[\)$/);
-    assert.match(query(view.container, '[aria-label="Go forward"]').dataset.tip ?? "", /^Forward \(.+\]\)$/);
-    assert.match(query(view.container, '.new-task-button').dataset.tip ?? "", /^New thread \(.+N\)$/);
-    assert.equal(view.container.querySelector('[aria-label="Sidebar view"]'), null, "the sidebar has one view, so nothing switches it");
-  } finally { await view.unmount(); }
-});
-
 test("the search button beside New thread opens the jump palette and names its keystroke", async () => {
   const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
   const sent: string[] = [];

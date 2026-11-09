@@ -26,8 +26,5 @@ test("a comparison holding a mounted node fails naming each node in a line, neve
 
   save.focus();
   assert.equal(dom.window.document.activeElement, save, "the same node still passes");
-  assert.notEqual(save, close);
-  assert.deepEqual([save, close], [save, close]);
-  assert.equal(1 + 1, 2, "a comparison of plain values is node:assert's own");
   await view.unmount();
 });

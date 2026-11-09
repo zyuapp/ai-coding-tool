@@ -85,6 +85,20 @@ test("lists leave out side chats and filed threads, and count a side chat's mark
   assert.equal(lists.unreadCount, 1);
 });
 
+test("the icon counts one for every thread carrying an unseen verdict or finding", () => {
+  const finding = { id: "finding-1", headline: "5xx on checkout", at: 2 };
+  const state = workspace({
+    threads: [
+      task("open"),
+      task("failed", { outcome: "failed", outcomeUnread: true }),
+      task("found", { findings: [finding] }),
+      task("read", { outcome: "finished" }),
+      task("filed", { findings: [{ ...finding, read: true }] }),
+    ],
+  });
+  assert.equal(threadLists(state).unreadCount, 2);
+});
+
 test("the icon counts a coordinator and the threads under it as its one row", () => {
   const state = workspace({
     threads: [

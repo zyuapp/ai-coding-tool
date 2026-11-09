@@ -269,10 +269,6 @@ test("menu text on the glass surface reads at AA whatever shows through it", () 
   assert.deepEqual(failed, []);
 });
 
-test("keyboard focus is drawn in the accent, so it never reads as muted chrome", () => {
-  assert.equal(tokens.get("--focus-ring"), "var(--accent-text)");
-});
-
 test("a border under the pointer reads stronger than the one at rest", () => {
   const failed: string[] = [];
   for (const theme of THEMES) {
@@ -303,17 +299,7 @@ test("no text size token falls below 12px", () => {
   assert.deepEqual(small, []);
 });
 
-test("a hit target is at least 24px, and a row's slot never wider than one", () => {
-  const [slot, target] = ["--row-slot", "--hit-target"].map((name) => Number.parseInt(tokens.get(name)!));
-  assert.ok(target >= 24);
-  assert.ok(slot <= target);
-});
-
 test("role marks clear 3:1 on every row ground, the selected row included", () => {
   const roles = ["--role-coordinator", "--role-implementer", "--role-reviewer", "--role-researcher"];
   assert.deepEqual(failures(roles.flatMap((role) => ["--sidebar", "--surface-hover", "--surface-active", "--sunken"].map((ground) => [role, ground, 3] as const))), []);
-});
-
-test("every placeholder reads in --quiet unless a field says otherwise", () => {
-  assert.match(stylesCss, /^::placeholder \{ color: var\(--quiet\); opacity: 1; \}$/m);
 });

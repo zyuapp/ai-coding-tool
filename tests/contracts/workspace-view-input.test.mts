@@ -184,3 +184,8 @@ test("toast holds, automation edits, and shell restarts are checked at the view 
   assert.equal(isWorkspaceViewInput({ type: "terminal.restart", terminalId: "shell" }), true);
   assert.equal(isWorkspaceViewInput({ type: "terminal.restart" }), false);
 });
+
+test("resuming or cancelling a usage-limit pause is a view command", () => {
+  assert.equal(isWorkspaceViewInput({ type: "limit.resume", taskId: "a" }), true);
+  assert.equal(isWorkspaceViewInput({ type: "limit.cancel", taskId: "a" }), true);
+});

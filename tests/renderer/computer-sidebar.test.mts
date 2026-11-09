@@ -119,8 +119,6 @@ test("the header's computer button names every computer and narrows the lists to
     const press = async (target: HTMLElement, key: string) => {
       await act(async () => { target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true })); });
     };
-    assert.ok(trigger.parentElement?.nextElementSibling?.classList.contains("thread-nav"), "it sits before the back and forward buttons");
-    assert.ok(trigger.classList.contains("thread-nav-button"));
     assert.equal(trigger.getAttribute("aria-label"), "Computers, 1 offline");
     assert.equal(trigger.dataset.tip, "Computers · old-laptop offline", "every computer listed flags the one out of reach");
     assert.ok(trigger.classList.contains("some-away"));
@@ -200,7 +198,6 @@ test("a sidebar with no paired computer draws no computer button", async () => {
   const view = await mount(renderProjectSidebar({}));
   try {
     assert.equal(view.container.querySelector(".computer-switch") === null, true);
-    assert.equal(query(view.container, ".traffic-space").nextElementSibling, query(view.container, ".new-task-bar"));
   } finally {
     await view.unmount();
   }

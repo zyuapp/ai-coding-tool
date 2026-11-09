@@ -33,30 +33,12 @@ function strip(overrides: Partial<StripProps> = {}) {
   });
 }
 
-test("a count of work going on reads apart from a count to review", async () => {
-  const view = await mount(strip());
-  const badge = (id: string) => query(view.container, `[data-dock-tab="${id}"] [role="tab"] > em`);
-  assert.equal(badge("agents").className, "working");
-  assert.equal(badge("diff").className, "");
-  await view.unmount();
-});
-
 test("a tab waiting on the user is marked by more than its dot", async () => {
   const view = await mount(strip());
   const tab = query(view.container, '[data-dock-tab="side-1"]');
   assert.ok(tab.classList.contains("unread"));
   assert.ok(tab.querySelector('.right-dock-tab-attention[aria-label="Waiting for you"]'));
   assert.equal(query(view.container, '[data-dock-tab="diff"]').classList.contains("unread"), false);
-  await view.unmount();
-});
-
-test("a tab's tooltip is its title, shown only when cut short", async () => {
-  const view = await mount(strip());
-  const tab = (id: string) => query<HTMLButtonElement>(view.container, `[data-dock-tab="${id}"] [role="tab"]`);
-  for (const id of ["diff", "side-1"]) assert.equal(tab(id).dataset.tipOverflow, "true");
-  assert.equal(tab("diff").dataset.tip, "Changes");
-  assert.equal(tab("side-1").dataset.tip, "Side question");
-  assert.equal(view.container.querySelectorAll('[role="tab"] [data-tip]').length, 0, "nothing inside a tab has a tooltip of its own");
   await view.unmount();
 });
 

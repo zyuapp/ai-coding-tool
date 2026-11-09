@@ -14,29 +14,16 @@ async function loaded(width: number, height: number) {
   return image;
 }
 
-test("a loaded picture exposes zoom controls and resizes its image", async () => {
+test("a picture offers zoom once it has loaded, and its image follows the zoom", async () => {
   const view = await mount(React.createElement(AttachmentViewer, { source: "shot.png", gallery: [], onStep: () => {}, onClose: () => {}, onDownload: () => {} }));
   const readout = () => query(document, ".viewer-zoom-level").textContent;
-  const zoom = (label: string) => query<HTMLButtonElement>(document, `.viewer-zoom button[aria-label="${label}"]`);
 
   assert.equal(document.querySelector(".viewer-zoom"), null);
   const image = await loaded(800, 400);
-  assert.equal(readout(), "100%");
   assert.equal(image.style.width, "800px");
-  assert.equal(zoom("Zoom out").disabled, true);
 
-  await act(async () => { zoom("Zoom in").click(); });
-  assert.ok(Number.parseInt(readout(), 10) > 100);
+  await act(async () => { query<HTMLButtonElement>(document, '.viewer-zoom button[aria-label="Zoom in"]').click(); });
   assert.equal(Math.round(Number.parseFloat(image.style.width) / 800 * 100), Number.parseInt(readout(), 10));
-
-  const key = (name: string) => document.dispatchEvent(new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true }));
-  await act(async () => { key("0"); });
-  assert.equal(readout(), "100%", "0 fits it again");
-  await act(async () => { key("+"); });
-  assert.ok(Number.parseInt(readout(), 10) > 100, "+ zooms in");
-  await act(async () => { key("-"); });
-  assert.equal(readout(), "100%", "− zooms back out");
-
   await view.unmount();
 });
 

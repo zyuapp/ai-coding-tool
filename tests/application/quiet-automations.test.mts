@@ -6,7 +6,6 @@ import { test } from "vitest";
 import React, { act } from "react";
 
 import { whyTickCannotRun } from "../../src/application/findings.ts";
-import { whyRunSurfaces } from "../../src/application/run-testimony.ts";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
 import { stateFromData } from "../../src/application/workspace-load.ts";
@@ -103,19 +102,8 @@ test("a scheduled run is the scheduler's, unattended, and never quiet unless the
   const started = fire();
 
   assert.equal(effectAt(started.effects, 0, "start-run").command.unattended, true, "nobody is watching a tick, so it may answer its own approvals");
-  assert.deepEqual(started.state.activeRuns["task-a"], {
-    taskId: "task-a",
-    runId: "run-1",
-    sequence: 0,
-    status: "running",
-    origin: "automation",
-    quiet: false,
-    notified: false,
-    acknowledged: false,
-    reportedIssues: [],
-    messagesBefore: 1,
-    before: { updatedAt: 1, rankedAt: 1 },
-  });
+  const { origin, quiet } = started.state.activeRuns["task-a"]!;
+  assert.deepEqual({ origin, quiet }, { origin: "automation", quiet: false });
   assert.equal(fire({ quiet: true }).state.activeRuns["task-a"].quiet, true);
 });
 
@@ -229,19 +217,6 @@ test("only a quiet scheduled run that succeeded saying it found nothing settles 
       }
     }
   }
-});
-
-test("a run that surfaces says which one thing broke its silence", () => {
-  const tick = activeRun({ acknowledged: true });
-  const ending = (status: RunStatusEvent["status"]): RunStatusEvent => ({ type: "run.status", taskId: "task-a", runId: "run-1", sequence: 5, status });
-
-  assert.equal(whyRunSurfaces(tick, ending("succeeded")), null, "it looked, it answered, and it found nothing");
-  assert.equal(whyRunSurfaces(tick, ending("failed")), "failed");
-  assert.equal(whyRunSurfaces(tick, ending("cancelled")), "cancelled");
-  assert.equal(whyRunSurfaces({ ...tick, origin: "composer" }, ending("succeeded")), "attended");
-  assert.equal(whyRunSurfaces({ ...tick, quiet: false }, ending("succeeded")), "loud");
-  assert.equal(whyRunSurfaces({ ...tick, acknowledged: false }, ending("succeeded")), "no-answer");
-  assert.equal(whyRunSurfaces({ ...tick, notified: true }, ending("succeeded")), "reported");
 });
 
 test("a tick that surfaced nothing leaves the thread exactly where it stood", () => {
@@ -600,9 +575,7 @@ test("a quiet tick carries what it surfaces for, and the two tools that answer i
   const quiet = automationRunPrompt("Poll Datadog", 7, "an error was caused by the user's own code.");
   assert.match(quiet, /automated run #7/);
   assert.match(quiet, /Surface it when: an error was caused by the user's own code\./);
-  assert.match(quiet, /notify tool with a headline/);
   assert.match(quiet, /nothing_to_report/);
-  assert.match(quiet, /Call neither and the run surfaces/);
 });
 
 test("a tick the scheduler said is quiet withdraws its own label from the start", () => {
@@ -823,6 +796,5 @@ test("the panel keeps the sentence a schedule surfaces for, rather than trading 
   assert.equal(field().value, "an error was caused by the user's own code.", "the sentence the schedule carries is the one shown");
   assert.equal(save().disabled, true, "showing it is not changing it");
 
-  await act(async () => { field().click(); });
   await view.unmount();
 });
