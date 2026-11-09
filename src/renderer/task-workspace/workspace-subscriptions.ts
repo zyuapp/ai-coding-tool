@@ -18,7 +18,7 @@ export type SubscriptionHost = {
 export function useWorkspaceSubscriptions(host: SubscriptionHost) {
   useEffect(installFocusAppearance, []);
   useEffect(installWindowActivity, []);
-  /** Main hears the hold to talk keystroke but leaves it to the page, so its character is never typed. */
+  /** Main hears the dictation keystroke but leaves it to the page, so its character is never typed. */
   useEffect(() => {
     function swallow(event: KeyboardEvent) {
       const stroke = keystrokeOf({ key: event.key, code: event.code, meta: event.metaKey, control: event.ctrlKey, alt: event.altKey, shift: event.shiftKey }, MAC);

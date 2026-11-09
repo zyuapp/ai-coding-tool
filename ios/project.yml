@@ -35,7 +35,7 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         NSCameraUsageDescription: Scan the pairing QR code your computer shows, and take photos to send to a thread.
-        NSMicrophoneUsageDescription: Hold the microphone and talk; your computer writes down what you say.
+        NSMicrophoneUsageDescription: Talk to the microphone, and your computer writes down what you say.
         ITSAppUsesNonExemptEncryption: false
         CFBundleURLTypes:
           - CFBundleURLName: com.zyuapp.aicodingtool.phone

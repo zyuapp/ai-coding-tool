@@ -22,7 +22,7 @@ final class VoiceRecorder {
         case denied, unavailable
         var errorDescription: String? {
             switch self {
-            case .denied: "Allow the microphone for AI Coding Tool in Settings to hold and talk."
+            case .denied: "Allow the microphone for AI Coding Tool in Settings to dictate."
             case .unavailable: "The microphone could not start."
             }
         }
