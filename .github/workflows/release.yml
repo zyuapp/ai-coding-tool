@@ -92,6 +92,13 @@ jobs:
         with:
           path: node_modules
           key: ${{ steps.modules.outputs.cache-primary-key }}
+      - name: Restore the dictation helper build
+        id: dictation
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: native/dictation/.build
+          key: dictation-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('native/dictation/Package.resolved', 'native/dictation/Package.swift', 'native/dictation/Sources/**') }}
+          restore-keys: dictation-${{ runner.os }}-${{ runner.arch }}-
       - name: Restore signing credentials
         shell: bash
         env:
@@ -118,6 +125,12 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
         run: npm run package:mac -- --config.forceCodeSigning=true
+      - name: Save the dictation helper build
+        if: steps.dictation.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: native/dictation/.build
+          key: ${{ steps.dictation.outputs.cache-primary-key }}
       - name: Remove signing credentials
         if: always()
         shell: bash
