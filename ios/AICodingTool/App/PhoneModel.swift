@@ -270,21 +270,24 @@ final class PhoneModel {
         return (earlier.messages + thread.messages, earlier.start)
     }
 
-    /// Reads the page of messages just above what the thread shows.
-    func readEarlier(_ thread: MobileThreadView) {
+    /// Reads the page of messages just above what the thread shows. A page the live window slid past
+    /// while it was read no longer meets it, and is asked for again from where the window now starts.
+    func readEarlier(_ taskId: String) {
         guard readingEarlier == nil else { return }
-        let before = transcript(thread).omitted
-        guard before > 0 else { return }
-        readingEarlier = thread.id
+        readingEarlier = taskId
         earlierFailed = nil
         Task {
+            defer { readingEarlier = nil }
             do {
-                let page = try await connection.query(.history(taskId: thread.id, before: before)).decode(MobileThreadHistory.self)
-                connection.keepEarlier(thread.id, page)
+                for _ in 0..<3 {
+                    guard let thread = view.thread, thread.id == taskId, transcript(thread).omitted > 0 else { return }
+                    let page = try await connection.query(.history(taskId: taskId, before: transcript(thread).omitted)).decode(MobileThreadHistory.self)
+                    guard let now = view.thread, now.id == taskId else { return }
+                    if page.end == transcript(now).omitted { return connection.keepEarlier(taskId, page) }
+                }
             } catch {
-                earlierFailed = (thread.id, error.localizedDescription)
+                earlierFailed = (taskId, error.localizedDescription)
             }
-            readingEarlier = nil
         }
     }
 

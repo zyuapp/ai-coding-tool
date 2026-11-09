@@ -8,7 +8,8 @@ struct ConversationView: View {
     @Environment(\.palette) private var palette
     @State private var pinned = true
     @State private var atEnd = true
-    /// The block at the top when older messages were asked for, held in place once they land above it.
+    /// The top message when older messages were asked for, held in place once they land above it. A
+    /// tool run is never held: older calls landing above it join it under another key.
     @State private var heldTop: (key: String, omitted: Int)?
 
     private var anchor: String {
@@ -33,8 +34,8 @@ struct ConversationView: View {
                     if transcript.omitted > 0 {
                         EarlierButton(count: transcript.omitted, reading: model.readingEarlier == thread.id,
                                       failure: model.earlierFailed?.taskId == thread.id ? model.earlierFailed?.message : nil) {
-                            heldTop = blocks.first.map { ($0.id, transcript.omitted) }
-                            model.readEarlier(thread)
+                            heldTop = blocks.first(where: \.isMessage).map { ($0.id, transcript.omitted) }
+                            model.readEarlier(thread.id)
                         }
                     }
                     ForEach(blocks) { block in

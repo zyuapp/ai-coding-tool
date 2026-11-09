@@ -11,6 +11,11 @@ enum TranscriptBlock: Equatable, Identifiable {
         case .message(let key, _, _), .tools(let key, _): key
         }
     }
+
+    var isMessage: Bool {
+        if case .message = self { return true }
+        return false
+    }
 }
 
 enum Format {
