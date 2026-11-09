@@ -443,7 +443,7 @@ struct MemberTranscript: View {
                         if read.omitted > 0 {
                             Text("\(read.omitted) earlier \(read.omitted == 1 ? "message is" : "messages are") only on the computer.").font(.footnote).foregroundStyle(palette.muted)
                         }
-                        let blocks = Format.transcriptBlocks(read.messages)
+                        let blocks = Format.transcriptBlocks(read.messages, omitted: read.omitted)
                         let latest = Format.latestAnswer(blocks)
                         ForEach(blocks) { block in
                             switch block {

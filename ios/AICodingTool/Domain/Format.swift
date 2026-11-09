@@ -15,7 +15,8 @@ enum TranscriptBlock: Equatable, Identifiable {
 
 enum Format {
     /// A run of tool calls is one block; `answer` marks the assistant text that closes a turn.
-    static func transcriptBlocks(_ messages: [MobileMessage]) -> [TranscriptBlock] {
+    /// `omitted` counts the messages before these, so a block keeps its key as the window slides.
+    static func transcriptBlocks(_ messages: [MobileMessage], omitted: Int = 0) -> [TranscriptBlock] {
         var blocks: [TranscriptBlock] = []
         var nextNonTool: [Int: MobileMessage?] = [:]
         var following: MobileMessage?
@@ -24,7 +25,7 @@ enum Format {
             if messages[index].kind != "tool" { following = messages[index] }
         }
         for (index, message) in messages.enumerated() {
-            let key = "\(index)-\(Int64(message.at))"
+            let key = "\(omitted + index)-\(Int64(message.at))"
             if message.kind != "tool" {
                 let next = nextNonTool[index] ?? nil
                 blocks.append(.message(key: key, message: message, answer: message.kind == "assistant" && next?.kind != "assistant"))

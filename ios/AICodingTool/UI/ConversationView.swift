@@ -29,7 +29,7 @@ struct ConversationView: View {
                             .background(palette.sunken, in: Capsule())
                             .frame(maxWidth: .infinity)
                     }
-                    let blocks = Format.transcriptBlocks(thread.messages)
+                    let blocks = Format.transcriptBlocks(thread.messages, omitted: thread.omitted)
                     let latest = Format.latestAnswer(blocks)
                     ForEach(blocks) { block in
                         switch block {

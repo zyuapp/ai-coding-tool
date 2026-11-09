@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { rankedThread } from "../../src/domain/thread-storage.ts";
 import { test } from "vitest";
-import { applyMobilePatch, diffMobileView, emptyMobileView, mobileEngineView, MOBILE_BACKGROUND_DETAIL_LIMIT, MOBILE_TRANSCRIPT_MESSAGES, projectMobileView } from "../../src/application/mobile-projection.ts";
+import { applyMobilePatch, diffMobileView, emptyMobileView, mobileEngineView, MOBILE_BACKGROUND_DETAIL_LIMIT, MOBILE_MESSAGE_TEXT_LIMIT, MOBILE_TRANSCRIPT_MESSAGES,
+  projectMobileView } from "../../src/application/mobile-projection.ts";
 import { BUILT_IN_MODELS, efforts, effortsFor, modelLabel, modelsFor, type EngineStatus } from "../../src/domain/agent-engine.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { workspaceViewCollections } from "../../src/application/workspace-view-collections.ts";
@@ -243,14 +244,16 @@ test("starting and finishing a draft both travel, and a patch puts them back", (
 
 test("the transcript is bounded in both directions", () => {
   const messages = Array.from({ length: MOBILE_TRANSCRIPT_MESSAGES + 5 }, (_, index) => message(`m${index}`, NOW - index));
-  messages.push(message("x".repeat(10_000), NOW));
+  messages.push(message("x".repeat(10_000), NOW - 1));
+  messages.push(message("y".repeat(MOBILE_MESSAGE_TEXT_LIMIT + 10), NOW));
   const state = workspace([task("in-app", { projectId: "project-app", messages })], { currentId: "in-app" });
 
   const thread = projectMobileView(state, NOW).thread;
   assert.ok(thread);
   assert.equal(thread.messages.length, MOBILE_TRANSCRIPT_MESSAGES);
-  assert.equal(thread.omitted, 6);
-  assert.ok(thread.messages.at(-1)!.text.length < 10_000, "a long message is cut short");
+  assert.equal(thread.omitted, 7);
+  assert.equal(thread.messages.at(-2)!.text.length, 10_000, "a long reply travels whole");
+  assert.equal(thread.messages.at(-1)!.text.length, MOBILE_MESSAGE_TEXT_LIMIT + 1, "a message past the limit is cut short");
   assert.match(thread.messages.at(-1)!.text, /…$/);
 });
 

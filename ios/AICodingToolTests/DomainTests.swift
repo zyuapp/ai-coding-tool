@@ -23,6 +23,8 @@ final class DomainTests: XCTestCase {
         let blocks = Format.transcriptBlocks([message("user", "go"), message("assistant", "one", at: 1), message("user", "more", at: 2), message("assistant", "two", at: 3), message("tool", "Bash", at: 4)])
         XCTAssertEqual(Format.latestAnswer(blocks), blocks[3].id)
         XCTAssertNil(Format.latestAnswer(Format.transcriptBlocks([message("user", "go")])))
+        let window = [message("user", "go", at: 1), message("assistant", "one", at: 2), message("assistant", "two", at: 3)]
+        XCTAssertEqual(Format.transcriptBlocks(Array(window.dropFirst()), omitted: 1).map(\.id), Array(Format.transcriptBlocks(window).map(\.id).dropFirst()), "a block keeps its key as the window slides")
     }
 
     func testToolSummaryCountsCommonestFirst() {

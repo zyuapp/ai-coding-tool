@@ -96,6 +96,27 @@ final class ClientReducerTests: XCTestCase {
         XCTAssertEqual(refused.notice, "No.")
     }
 
+    func testStaleDecisionReleasesItsCard() {
+        var state = run(paired(), [.closed]).0
+        let approval = MobileApproval(taskId: "t1", from: nil, approvalId: "a1", runId: "run", title: "", description: "", toolName: "Bash", detail: "")
+        state = run(state, [.dispatch(requestId: "allow", command: .decide(approval, allow: true), at: 0)]).0
+        let (live, _) = run(state, [.opened(at: 31_000), .received(snapshot(1))])
+        XCTAssertEqual(live.returned?.requestId, "allow")
+    }
+
+    func testDraftSendRefusalKeepsTheWordsBeforeIt() {
+        var state = run(paired(), [.dispatch(requestId: "words", command: .setPrompt("hello"), at: 1), .dispatch(requestId: "go", command: .send(nil, text: nil), at: 1)]).0
+        state = run(state, [.received(.ack(sequence: 2, requestId: "words", ok: false, message: "Busy.")), .received(.ack(sequence: 3, requestId: "go", ok: false, message: "Busy."))]).0
+        XCTAssertEqual(state.returned?.requestId, "words")
+        XCTAssertEqual(state.notice, "Busy.")
+    }
+
+    func testRestartHandsBackWhatItDropped() {
+        let state = run(paired(), [.dispatch(requestId: "r1", command: .send("t1", text: "one"), at: 1)]).0
+        let (restarted, _) = run(state, [.closed, .opened(at: 2), .received(snapshot(1, session: "s2", instance: "two"))])
+        XCTAssertEqual(restarted.returned?.command.text, "one")
+    }
+
     func testGapInNumberingStartsOver() {
         let (state, effects) = run(paired(), [.received(.ping(sequence: 3, at: 0))])
         XCTAssertNil(state.sessionId)

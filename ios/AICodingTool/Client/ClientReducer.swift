@@ -246,7 +246,10 @@ enum MobileClient {
             written.instance = item.instance ?? state.instance
             return written
         }
-        if !spentIds.isEmpty { next.notice = "Your computer did not answer. Try again." }
+        if !spentIds.isEmpty {
+            next.notice = "Your computer did not answer. Try again."
+            next = givenBack(next, state.outbox.filter { spentIds.contains($0.requestId) }, message: next.notice ?? "")
+        }
         return (next, effects)
     }
 
@@ -262,6 +265,7 @@ enum MobileClient {
             let lateIds = Set(late.map(\.requestId))
             next.outbox.removeAll { lateIds.contains($0.requestId) }
             next.notice = "Some taps were not sent: the line was down too long."
+            next = givenBack(next, late, message: next.notice ?? "")
         }
         return flush(next, owed: next.outbox)
     }
@@ -303,7 +307,7 @@ enum MobileClient {
             let asked = seen.outbox.first { $0.requestId == requestId }
             seen.outbox.removeAll { $0.requestId == requestId }
             if ok { return settled(seen) }
-            if let asked { seen.returned = ReturnedCommand(requestId: asked.requestId, command: asked.command, message: text) }
+            if let asked { seen = givenBack(seen, [asked], message: text) }
             seen.notice = text
             return settled(seen)
         case .answer:
@@ -317,12 +321,23 @@ enum MobileClient {
         }
     }
 
+    /// Hands the last of `dropped` back to the screen that sent it, so a card waiting on it lets go and
+    /// words come back. A draft's send carries no words of its own, so it never hides the refusal of
+    /// the words that went just before it.
+    private static func givenBack(_ state: MobileClientState, _ dropped: [OutboxEntry], message: String) -> MobileClientState {
+        guard let last = dropped.last(where: { !($0.command.type == "task.send" && $0.command.taskId == nil && $0.command.text == nil) }) else { return state }
+        var next = state
+        next.returned = ReturnedCommand(requestId: last.requestId, command: last.command, message: message)
+        return next
+    }
+
     /// Only a command written to this very server is sent again after a restart; the rest are let
     /// go of, since a server that forgot them could run them twice.
     private static func restarted(_ state: MobileClientState, instance: String?) -> MobileClientState {
         var next = state
-        next.outbox = state.outbox.filter { $0.writes == 0 || (instance != nil && $0.instance == instance) }
-        return next
+        let kept = { (entry: OutboxEntry) in entry.writes == 0 || (instance != nil && entry.instance == instance) }
+        next.outbox = state.outbox.filter(kept)
+        return givenBack(next, state.outbox.filter { !kept($0) }, message: MobileClient.restarted)
     }
 
     private static func shown(_ state: MobileClientState, _ view: MobileView) -> MobileClientState {

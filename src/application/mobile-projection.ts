@@ -64,6 +64,9 @@ export const MOBILE_THREAD_LIMIT = 100;
 /** How many messages of the open thread travel. Each one is cut to length by the transcript itself. */
 export const MOBILE_TRANSCRIPT_MESSAGES = 40;
 
+/** How much of one message travels: a long reply whole, a pasted log not without end. */
+export const MOBILE_MESSAGE_TEXT_LIMIT = 40_000;
+
 /** How many of the open thread's workflows, processes and subagents travel, live ones first. */
 export const MOBILE_BACKGROUND_LIMIT = 100;
 
@@ -316,7 +319,7 @@ function changesOf(view: ReturnType<typeof deriveView>): MobileChanges | null {
 function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deriveView>): MobileThreadView | null {
   const thread = view.currentThread;
   if (!thread) return null;
-  const transcript = threadTranscript(state, thread.id, MOBILE_TRANSCRIPT_MESSAGES);
+  const transcript = threadTranscript(state, thread.id, MOBILE_TRANSCRIPT_MESSAGES, MOBILE_MESSAGE_TEXT_LIMIT);
   if (!transcript) return null;
   /** A coordinator answers for the threads under it, as its Needs-you card does, its own first. */
   const member = view.approval ? undefined : view.coordination.approvals[0];
@@ -421,7 +424,7 @@ function withDetails(thread: Thread, messages: MobileMessage[]): MobileMessage[]
 /** A thread on this computer as its own screen reads it, without opening it. Null for one this computer does not hold. */
 export function mobileThreadRead(state: WorkspaceState, taskId: string): MobileThreadRead | null {
   const thread = state.threads.find((item) => item.id === taskId);
-  const transcript = thread && threadTranscript(state, thread.id, MOBILE_TRANSCRIPT_MESSAGES);
+  const transcript = thread && threadTranscript(state, thread.id, MOBILE_TRANSCRIPT_MESSAGES, MOBILE_MESSAGE_TEXT_LIMIT);
   if (!thread || !transcript) return null;
   const { working, blocked } = threadActivity(state);
   const status: MobileRunStatus = blocked.has(thread.id) ? "awaiting-approval" : working.has(thread.id) ? "running" : "idle";

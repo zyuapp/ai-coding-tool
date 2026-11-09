@@ -35,6 +35,8 @@ struct ComposerView<Above: View>: View {
     @State private var shooting = false
     @State private var picked: [PhotosPickerItem] = []
     @State private var sent = 0
+    /// The words last sent, which a late edit from the system, such as dictation finishing, must not put back.
+    @State private var lastSent: (text: String, at: Date)?
     @State private var finishing = false
     @State private var dictation = DictationTrace()
     @State private var recorder = VoiceRecorder()
@@ -154,9 +156,9 @@ struct ComposerView<Above: View>: View {
                     }
                     if !blocked && !talk.active {
                         Menu {
-                            Button { picking = true } label: { Label("Photo Library", systemImage: "photo.on.rectangle") }
+                            Button { present($picking) } label: { Label("Photo Library", systemImage: "photo.on.rectangle") }
                             if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                                Button { shooting = true } label: { Label("Take Photo", systemImage: "camera") }
+                                Button { present($shooting) } label: { Label("Take Photo", systemImage: "camera") }
                             }
                         } label: {
                             Image(systemName: "plus")
@@ -274,20 +276,31 @@ struct ComposerView<Above: View>: View {
         .onAppear { draft = model.draft(for: draftKey) }
         .onChange(of: model.spokenInto?.id) { _, id in
             guard id != nil, model.spokenInto?.key == draftKey else { return }
+            lastSent = nil
             draft = model.draft(for: draftKey)
         }
+        .onDisappear {
+            if talk == .starting || talk == .listening { cancelTalk() }
+        }
         .onChange(of: draft) { old, text in
+            if let lastSent, Date().timeIntervalSince(lastSent.at) < 3, text.trimmingCharacters(in: .whitespacesAndNewlines) == lastSent.text {
+                self.lastSent = nil
+                draft = ""
+                return
+            }
             if focused { dictation.record(from: old, to: text) }
             model.keepDraft(text, for: draftKey)
         }
         .onChange(of: returned) { _, next in
             guard let next, let text = next.text, next.id != given else { return }
             given = next.id
+            lastSent = nil
             if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { draft = text }
         }
         .onChange(of: model.handedBack?.id) { _, id in
             guard let id, id != seenHandBack, let text = model.handedBack?.text else { return }
             seenHandBack = id
+            lastSent = nil
             focused = true
             draft = draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? text : "\(draft.trimmingCharacters(in: .whitespacesAndNewlines))\n\n\(text)"
         }
@@ -536,11 +549,24 @@ struct ComposerView<Above: View>: View {
         }
     }
 
+    /// Shows a picker once the menu that asked for it has gone and the keyboard is down, since one
+    /// asked for while either is still leaving may never appear.
+    private func present(_ flag: Binding<Bool>) {
+        flag.wrappedValue = false
+        focused = false
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(150))
+            flag.wrappedValue = true
+        }
+    }
+
     private func commit(_ how: (String, [String]) -> Void) {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         let sources = images.map(\.source)
         guard !text.isEmpty || !sources.isEmpty else { return }
         draft = ""
+        model.keepDraft("", for: draftKey)
+        lastSent = text.isEmpty ? nil : (text, Date())
         images = []
         dictation.reset()
         sent += 1

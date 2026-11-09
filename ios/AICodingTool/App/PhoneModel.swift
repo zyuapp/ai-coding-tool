@@ -41,6 +41,8 @@ final class PhoneModel {
     private(set) var spokenInto: (id: UUID, key: String)?
 
     @ObservationIgnored private let storage: PhoneStorage
+    /// The thread whose changes the changes screen shows.
+    @ObservationIgnored private var changesOf: String?
     @ObservationIgnored private var openingTimer: Task<Void, Never>?
     @ObservationIgnored private var updatesChecked: (origin: URL?, at: Date)?
     @ObservationIgnored private var usageRead: (origin: URL?, at: Date)?
@@ -144,12 +146,13 @@ final class PhoneModel {
     }
 
     func enterChanges() {
+        changesOf = view.thread?.id
         if path.last != .changes { path.append(.changes) }
     }
 
     /// The changes screen belongs to one thread; when the computer moves on, so does the phone.
     func threadMoved() {
-        if path.last == .changes, view.thread == nil { path.removeLast() }
+        if path.last == .changes, view.thread?.id != changesOf { path.removeLast() }
     }
 
     // MARK: Updates

@@ -12,22 +12,26 @@ struct ThreadScreen: View {
         var id: String { rawValue }
     }
 
-    private var thread: MobileThreadView? { model.pending ? nil : model.view.thread }
-    private var draft: MobileDraftView? { model.pending || model.view.thread != nil ? nil : model.view.draft }
+    /// Whether what the computer has open is what the phone asked for: never while it is still on its
+    /// way, nor once it failed to arrive, when the computer still shows what it had before.
+    private var settled: Bool { !model.pending && model.missed == nil }
+    private var thread: MobileThreadView? { settled ? model.view.thread : nil }
+    private var draft: MobileDraftView? { settled && model.view.thread == nil ? model.view.draft : nil }
 
     private var title: String {
         if model.pending, let opening = model.opening { return opening.title }
+        if let missed = model.missed { return missed.title }
         if let thread = model.view.thread { return thread.title.isEmpty ? "Untitled thread" : thread.title }
         if model.view.draft != nil { return "New thread" }
-        return model.missed?.title ?? "Opening"
+        return "Opening"
     }
 
     /// The bar's second line. The outer optional is whether there is a line at all; the inner is the project.
     private var project: String?? {
         if model.pending, let opening = model.opening { return .some(opening.project) }
+        if let missed = model.missed { return .some(missed.project) }
         if let thread = model.view.thread { return .some(thread.projectName) }
         if let draft = model.view.draft { return .some(draft.projectName) }
-        if let missed = model.missed { return .some(missed.project) }
         return nil
     }
 
@@ -68,8 +72,8 @@ struct ThreadScreen: View {
             .onChange(of: model.view.thread?.status) { was, now in
                 if was == "running", now != "running" { model.readUsage(within: 30) }
             }
-            .onChange(of: model.current) { _, _ in
-                if let sheet, !fits(sheet) { self.sheet = nil }
+            .onChange(of: model.current) { was, _ in
+                if let sheet, !fits(sheet, was: was) { self.sheet = nil }
                 if let archiving, archiving.id != model.view.thread?.id { self.archiving = nil }
             }
     }
@@ -156,7 +160,7 @@ struct ThreadScreen: View {
                                 .fitsShortScreens()
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
-                            ComposerView(model: model, draftKey: thread.id, running: thread.status == "running", settings: thread.settings, question: thread.question, returned: returned(for: thread.id), onSend: { model.send(.message(thread.id, text: $0, sources: $1)) }, onSteer: { model.send(.message(thread.id, text: $0, sources: $1, steer: true)) }, onStop: { model.send(.cancel(thread.id)) }, onAnswer: { question, text in model.send(.answer(thread.id, question: question, text: text)) }, quick: QuickSettings(locked: true, onPolicy: { model.send(.setPolicy(thread.id, policy: $0)) }, onModel: { model.send(.setModel(thread.id, engine: $0, model: $1)) }, onEffort: { model.send(.setEffort(thread.id, engine: $0, effort: $1)) }, onFastMode: { model.send(.setFastMode(thread.id, fastMode: $0)) }, onUsage: { sheet = .usage }))
+                            ComposerView(model: model, draftKey: thread.id, running: thread.status == "running" || thread.status == "awaiting-approval", settings: thread.settings, question: thread.question, returned: returned(for: thread.id), onSend: { model.send(.message(thread.id, text: $0, sources: $1)) }, onSteer: { model.send(.message(thread.id, text: $0, sources: $1, steer: true)) }, onStop: { model.send(.cancel(thread.id)) }, onAnswer: { question, text in model.send(.answer(thread.id, question: question, text: text)) }, quick: QuickSettings(locked: true, onPolicy: { model.send(.setPolicy(thread.id, policy: $0)) }, onModel: { model.send(.setModel(thread.id, engine: $0, model: $1)) }, onEffort: { model.send(.setEffort(thread.id, engine: $0, effort: $1)) }, onFastMode: { model.send(.setFastMode(thread.id, fastMode: $0)) }, onUsage: { sheet = .usage }))
                                 .id(thread.id)
                         }
                     }
@@ -167,7 +171,7 @@ struct ThreadScreen: View {
             VStack(spacing: 0) {
                 DraftWelcome(engine: model.catalog.engineLabel(draft.settings.engine), computer: model.state.computerName) { model.handBack($0) }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                ComposerView(model: model, draftKey: "draft", running: false, settings: draft.settings, question: nil, returned: nil, onSend: { text, sources in
+                ComposerView(model: model, draftKey: "draft", running: false, settings: draft.settings, question: nil, returned: draftReturned, onSend: { text, sources in
                     if sources.isEmpty {
                         model.send(.setPrompt(text))
                         model.send(.send(nil, text: nil))
@@ -209,11 +213,18 @@ struct ThreadScreen: View {
         return nil
     }
 
-    /// Whether what a sheet acts on is still open: a thread's own sheets need the thread, a draft's the draft.
-    private func fits(_ sheet: ThreadSheet) -> Bool {
+    /// A new thread's words the computer turned down, such as while the last send from it was still starting.
+    private var draftReturned: ComposerReturned? {
+        guard let returned = model.state.returned, returned.command.taskId == nil else { return nil }
+        let text = returned.command.type == "view.set-prompt" ? returned.command.json["prompt"]?.stringValue : returned.command.type == "attachments.send" ? returned.command.text : nil
+        return text.map { .init(id: returned.requestId, text: $0, answer: nil) }
+    }
+
+    /// Whether what a sheet acts on is still open: a thread's own sheets need the very thread they opened on, a draft's a draft.
+    private func fits(_ sheet: ThreadSheet, was: String) -> Bool {
         switch sheet {
-        case .location, .rename, .members, .background: model.view.thread != nil
-        case .project, .startIn: model.view.draft != nil
+        case .location, .rename, .members, .background: model.view.thread?.id == was
+        case .project, .startIn: model.view.draft != nil && model.view.thread == nil
         case .addProject, .usage: true
         }
     }
