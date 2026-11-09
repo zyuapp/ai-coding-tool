@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { rankedThread } from "../../src/domain/thread-storage.ts";
-import { test, vi } from "vitest";
+import { test } from "vitest";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
 import { deriveView, emptyWorkspaceState, NEW_THREAD_DRAFT, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import { answerMobileRequest, MOBILE_DRAFT_BUSY, MOBILE_EDIT_WAIT_MS, MOBILE_NO_CHECKOUT, MOBILE_QUEUED_NOT_WORDS, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/host/mobile-bridge.ts";
+import { answerMobileRequest, MOBILE_DRAFT_BUSY, MOBILE_NO_CHECKOUT, MOBILE_QUEUED_NOT_WORDS, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/host/mobile-bridge.ts";
 import { QUEUED_NOT_YOURS, QUEUED_SENT } from "../../src/application/computers.ts";
 import { emptyMobileServerState, type MobileServerState, type MobileSessionView } from "../../src/domain/mobile.ts";
 import type { MobileRequest, MobileView } from "../../src/contracts/mobile.ts";
@@ -326,7 +326,7 @@ test("a phone opens a coordinator's thread on a paired computer and acts on it t
   assert.equal(driver.inputs.length, inputs);
 });
 
-test("a phone's edit of a paired computer's queue waits for that computer, but never past the relay's deadline, and is never asked of one too old to say the message had gone", async () => {
+test("a phone's edit is never asked of a paired computer too old to say the message had gone", async () => {
   const queued = { id: "q1", text: "Then the docs", prompt: "Then the docs", attachments: [], usersOwn: true as const };
   const holder = workspace({ threads: [task("member", { remoteLead: { threadId: "lead", title: "Lead", computer: "Mac" } })], currentId: "member", activeRuns: { member: activeRun("member", "run-1") }, queuedMessages: { member: [queued] } });
   const base = workspace({ threads: [task("lead", { role: "coordinator", title: "Lead" })], currentId: "lead" });
@@ -338,17 +338,6 @@ test("a phone's edit of a paired computer's queue waits for that computer, but n
     assert.equal(projectMobileView(old.current(), NOW).thread?.queued[0]?.editable, undefined, "no Edit is offered");
     assert.deepEqual(await edit(old), { type: "mobile.response", requestId: "r1", ok: false, message: REMOTE_UNSUPPORTED });
     assert.deepEqual(old.inputs, []);
-  }
-
-  vi.useFakeTimers();
-  try {
-    const slow = host({ ...base, computers: { ...base.computers, name: "Mac", paired: [linked(COMPUTER_CAPABILITIES)] } }, () => new Promise(() => {}));
-    const answered = edit(slow);
-    await vi.advanceTimersByTimeAsync(MOBILE_EDIT_WAIT_MS);
-    assert.equal((await answered).ok, true, "taken at its word rather than told no while the holder may have taken it out");
-    assert.deepEqual(slow.inputs.at(-1), { type: "task.drop-queued", taskId: "member", messageId: "q1", ifWaiting: true });
-  } finally {
-    vi.useRealTimers();
   }
 });
 

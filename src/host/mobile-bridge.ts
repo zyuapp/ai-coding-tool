@@ -1,7 +1,7 @@
 import { applyMobilePatch, diffMobileView, mobileArchivedThreads, mobileThreadRead, phoneEditsQueued, phoneReachesThread, projectMobileView, remoteMemberHolder, saysQueuedGone } from "../application/mobile-projection.js";
 import { NEW_THREAD_DRAFT, promptKey, type WorkspaceState } from "../application/workspace-state.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
-import type { WorkspaceCommandResult, WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
+import type { WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
 import type { AppCommand } from "../contracts/commands.js";
 import { isMobileQuery, isMobileRequest, type MobileQuery, type MobileRequest, type MobileResponse, type MobileView, type MobileViewUpdate } from "../contracts/mobile.js";
 import { isPhoneCommand, isWorkspaceViewInput } from "../contracts/workspace-view-input.js";
@@ -119,26 +119,6 @@ function draftSending(state: WorkspaceState): boolean {
   return attachmentSendFor(state.attachmentSends).busy || Object.values(state.pendingRuns).some((pending) => pending.draftKey === NEW_THREAD_DRAFT);
 }
 
-/** How long a phone's edit waits to hear the computer holding the queue took the message out, under the relay's own deadline. */
-export const MOBILE_EDIT_WAIT_MS = 5_000;
-
-/**
- * An edit is answered once the computer holding the queue has taken the message out, so words that
- * already ran never come back. A holder slower than the relay allows is taken at its word, since a
- * phone told no would lose words the holder did take out; a later refusal still reaches the view.
- */
-async function editSettled(execution: WorkspaceExecution): Promise<WorkspaceCommandResult> {
-  const accepted = execution.accepted instanceof Promise ? await execution.accepted : execution.accepted;
-  if (!accepted.ok) return accepted;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const late = new Promise<WorkspaceCommandResult>((resolve) => { timer = setTimeout(() => resolve({ ok: true }), MOBILE_EDIT_WAIT_MS); });
-  try {
-    return await Promise.race([execution.completed, late]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 /**
  * A phone's images leave its composer at once, so a send to a thread carries its words, even none.
  * One from the new thread's draft goes as the composer's own draft send does: its words become the
@@ -181,7 +161,8 @@ export async function answerMobileRequest(host: MobileBridgeHost, request: Mobil
     if ("refusal" in commands) return failed(commands.refusal);
     for (const command of commands) {
       const execution = host.execute(command);
-      const settled = request.command.type === "task.edit-queued" ? await editSettled(execution)
+      /** An edit is answered once the computer holding the queue has taken the message out, so words that already ran never come back. */
+      const settled = request.command.type === "task.edit-queued" ? await execution.completed
         : execution.accepted instanceof Promise ? await execution.accepted : execution.accepted;
       if (!settled.ok) return failed(settled.message);
     }
