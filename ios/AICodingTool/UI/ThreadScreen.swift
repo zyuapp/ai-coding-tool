@@ -59,9 +59,7 @@ struct ThreadScreen: View {
                     LegacyBarTitle(title: title, subtitle: subtitle)
                 }
                 if let thread {
-                    if thread.reviewable {
-                        ToolbarItem(placement: .topBarTrailing) { changesButton(thread).badge(thread.changes?.files ?? 0) }
-                    }
+                    ToolbarItem(placement: .topBarTrailing) { newThreadButton(thread) }
                 }
             }
             .sheet(item: $sheet) { which in sheetView(which) }
@@ -78,10 +76,15 @@ struct ThreadScreen: View {
             }
     }
 
-    private func changesButton(_ thread: MobileThreadView) -> some View {
-        Button("Changes") { model.enterChanges() }
-            .tint(palette.ink)
-        .accessibilityValue(Format.changesLabel(thread.changes) ?? "")
+    /// A new thread where this one works: its project and its worktree.
+    private func newThreadButton(_ thread: MobileThreadView) -> some View {
+        Button {
+            model.newThread(projectId: thread.projectId, project: thread.projectName, worktreeId: thread.worktreeId)
+        } label: {
+            Label("New Thread", systemImage: "square.and.pencil")
+        }
+        .tint(palette.ink)
+        .disabled(thread.location == .creating || thread.location == .releasing)
     }
 
     /// The thread as a document: what changes it as a whole, behind its title, as Apple's document menus hold them.
@@ -90,20 +93,20 @@ struct ThreadScreen: View {
         let moving = thread.location == .creating || thread.location == .releasing
         let roles = model.catalog.roles
         let role = thread.role ?? (thread.settings.coordinating == true ? "coordinator" : nil)
+        if thread.reviewable {
+            Section {
+                Button { model.enterChanges() } label: {
+                    Label("Changes", systemImage: "plusminus")
+                    Text(Format.changesLabel(thread.changes) ?? "No changes")
+                }
+            }
+        }
         Section {
             Button { sheet = .rename } label: { Label("Rename…", systemImage: "pencil") }
             if inProject {
                 Button { sheet = .location } label: {
                     Label("Move…", systemImage: "folder")
                     Text(Format.locationLabel(thread.location))
-                }
-                .disabled(moving)
-            }
-            if inProject {
-                Button {
-                    model.newThread(projectId: thread.projectId, project: thread.projectName, worktreeId: thread.worktreeId)
-                } label: {
-                    Label("New Thread", systemImage: "square.and.pencil")
                 }
                 .disabled(moving)
             }
