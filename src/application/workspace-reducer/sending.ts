@@ -1,11 +1,11 @@
 /** A send: the prompt the composer hands over, and the queue behind a run already going. */
 import { ARCHIVED_SEND_ERROR, CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { clearedDraft, editableQueued, fileThread, forkableContinuation, handedBack, queuedFor, resolveWorkspaceEffect, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued, withUndelivered } from "./run-queue.js";
+import { clearedDraft, drainingQueued, editableQueued, fileThread, forkableContinuation, handedBack, queuedFor, resolveWorkspaceEffect, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued, withUndelivered } from "./run-queue.js";
 import { settled, targetId, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { annotationsFor, filesFor, focusComposer, focusedTab, pastesFor } from "../composer-drafts.js";
 import { tabHolderOf } from "../workspace-dock.js";
-import { queueHolder } from "../computers.js";
+import { QUEUED_SENT, queueHolder } from "../computers.js";
 import { threadHandleOptions } from "../thread-projection.js";
 import { leavingThreadIds, namedPlace, worktreeFor } from "../thread-location.js";
 import { promptKey, type PendingRun, type QueuedMessage, type WorkspaceState } from "../workspace-state.js";
@@ -195,12 +195,15 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
       );
     }
 
-    /** A steered message is already on its way to the agent, so only an unsteered one can be dropped. */
+    /**
+     * A steered message, or one a starting run is taking, is already on its way to the agent, so only
+     * one still waiting can be dropped; the caller hears when it was not, without an error shown here.
+     */
     case "task.drop-queued": {
       const taskId = targetId(state, input.taskId);
       const queued = taskId ? queuedFor(state, taskId) : [];
       const message = queued.find((item) => item.id === input.messageId);
-      if (!taskId || !message || message.steering) return settled(state);
+      if (!taskId || !message || message.steering || drainingQueued(state, taskId, message.id)) return settled(state, [], { ok: false, message: QUEUED_SENT });
       return settled(withUndelivered(withQueued(state, taskId, queued.filter((item) => item.id !== message.id)), taskId, [message]));
     }
 

@@ -11,6 +11,7 @@ import { worktreeChoices } from "./worktree-choices.js";
 import { coordinationMembers, coordinatorRoster, memberActivity, ownCoordinationSections, rowHeadline, waitingLine } from "./coordination.js";
 import { computerOfThread, selectedComputer, type PairedComputer } from "./computers.js";
 import { isUsersOwn } from "../domain/message-origin.js";
+import { drainingQueued } from "./workspace-reducer/run-queue.js";
 import { describeToolCall } from "../domain/tool-call.js";
 import { deliveryLabel, isCoordinator } from "../domain/coordination.js";
 import type { CoordinationDecisionView, ProposalView } from "./coordination-view.js";
@@ -402,7 +403,7 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
         detail: approvalDetail(approval.input),
       }
       : null,
-    queued: view.queuedMessages.map((message) => ({ id: message.id, text: message.text, ...labelOf(message), ...(message.steering ? { steering: true } : {}), ...(phoneEditsQueued(message) ? { editable: true as const } : {}) })),
+    queued: view.queuedMessages.map((message) => ({ id: message.id, text: message.text, ...labelOf(message), ...(message.steering ? { steering: true } : {}), ...(phoneEditsQueued(message) && !drainingQueued(shown, thread.id, message.id) ? { editable: true as const } : {}) })),
     settings: { engine: view.engine, model: view.model, effort: view.effort, fastMode: view.fastMode, policy: view.policy, ...(view.coordinating ? { coordinating: true as const } : {}) },
     location,
     worktrees: project && !elsewhere ? worktreeChoices(state, project.id, thread.worktreeId) : [],
@@ -543,7 +544,9 @@ export function mobileThreadRead(state: WorkspaceState, taskId: string): MobileT
   if (!thread || !transcript) return null;
   const { working, blocked } = threadActivity(state);
   const status: MobileRunStatus = blocked.has(thread.id) ? "awaiting-approval" : working.has(thread.id) ? "running" : "idle";
-  return { title: thread.title || "Untitled thread", status, messages: withDetails(thread, transcript.messages), omitted: transcript.omitted, streamingTail: state.streamingTails[thread.id]?.text ?? null };
+  /** A conversation not loaded yet counts as left out, as on a paired computer that has yet to open it. */
+  const omitted = thread.historySummary ? Math.max(transcript.omitted, thread.historySummary.messageCount - transcript.messages.length) : transcript.omitted;
+  return { title: thread.title || "Untitled thread", status, messages: withDetails(thread, transcript.messages), omitted, streamingTail: state.streamingTails[thread.id]?.text ?? null };
 }
 
 /** The threads working under a coordinator, here and on paired computers, as its desktop roster lists them. */

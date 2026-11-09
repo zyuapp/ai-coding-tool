@@ -61,7 +61,7 @@ struct ThreadScreen: View {
                 if #unavailable(iOS 26) {
                     LegacyBarTitle(title: title, subtitle: subtitle)
                 }
-                if let thread {
+                if let thread, thread.computer == nil {
                     ToolbarItem(placement: .topBarTrailing) { newThreadButton(thread) }
                 }
             }
@@ -76,7 +76,6 @@ struct ThreadScreen: View {
             } message: { _ in
                 Text("Every run, background task and usage-limit wait under it ends now.")
             }
-            .onChange(of: model.state.outbox.count) { _, _ in model.settleEdit() }
             .onAppear { model.readUsage(within: 15 * 60) }
             .onChange(of: model.view.thread?.status) { was, now in
                 if was == "running", now != "running" { model.readUsage(within: 30) }
@@ -115,15 +114,17 @@ struct ThreadScreen: View {
         }
         Section {
             Button { sheet = .rename } label: { Label("Rename…", systemImage: "pencil") }
-            if inProject {
+            if inProject, thread.computer == nil {
                 Button { sheet = .location } label: {
                     Label("Move…", systemImage: "folder")
                     Text(Format.locationLabel(thread.location))
                 }
                 .disabled(moving)
             }
-            Button { model.send(.fork(thread.id, worktree: false)) } label: { Label("Fork", systemImage: "arrow.triangle.branch") }
-            if inProject {
+            if thread.computer == nil {
+                Button { model.send(.fork(thread.id, worktree: false)) } label: { Label("Fork", systemImage: "arrow.triangle.branch") }
+            }
+            if inProject, thread.computer == nil {
                 Button { model.send(.fork(thread.id, worktree: true)) } label: { Label("Fork in New Worktree", systemImage: "folder.badge.plus") }
                     .disabled(moving)
             }

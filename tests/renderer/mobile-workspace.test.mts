@@ -49,7 +49,7 @@ function remoteState(overrides: Partial<MobileServerState> = {}): MobileServerSt
 }
 
 /** A host that drives the same reducer the window does, recording everything that reached it. */
-function host(initial: WorkspaceState) {
+function host(initial: WorkspaceState, perform: (effect: WorkspaceEffect) => Promise<void> = async () => {}) {
   let state = initial;
   const inputs: WorkspaceInput[] = [];
   const bridge: MobileBridgeHost = {
@@ -61,7 +61,7 @@ function host(initial: WorkspaceState) {
     execute: (input) => executeWorkspaceInput(input, {
       state: () => state,
       commit: (next) => { inputs.push(input); state = next; },
-      perform: async () => {},
+      perform,
     }),
   };
   return { bridge, inputs, current: () => state };
@@ -269,8 +269,10 @@ test("a command the phone is not allowed to send never reaches the reducer", asy
 test("a phone opens a coordinator's thread on a paired computer and acts on it there, and reaches no stranger there", async () => {
   const approval = { approvalId: "a1", taskId: "member", runId: "run-1", title: "Run a command", description: "rm", toolName: "Bash", input: { command: "rm" } };
   const queued = { id: "q1", text: "Then the docs", prompt: "Then the docs", attachments: [], usersOwn: true as const };
+  const reply = message("See ![shot](shots/dark.png)", NOW + 1, "assistant");
   const holder = workspace({
-    threads: [task("member", { title: "Dark mode", remoteLead: { threadId: "lead", title: "Lead", computer: "Mac" }, messages: [message("Make it dark", NOW)] }), task("stranger")],
+    threads: [task("member", { title: "Dark mode", remoteLead: { threadId: "lead", title: "Lead", computer: "Mac" }, projectId: "p-far", messages: [message("Make it dark", NOW), reply], historySummary: { messageCount: 40, attachmentCount: 0 } }), task("stranger")],
+    projects: [{ id: "p-far", root: "/far/app", workspaceId: "ws-far" }],
     currentId: "member",
     activeRuns: { member: activeRun("member", "run-1", { status: "awaiting-approval" }), stranger: activeRun("stranger", "run-2", { status: "awaiting-approval" }) },
     approvals: { "run-1": approval, "run-2": { ...approval, taskId: "stranger", runId: "run-2", approvalId: "a2" } },
@@ -278,18 +280,35 @@ test("a phone opens a coordinator's thread on a paired computer and acts on it t
   });
   const base = workspace({ threads: [task("lead", { role: "coordinator", title: "Lead" })], currentId: "lead" });
   const paired = { id: "linux", name: "Linux", host: "linux.ts.net", status: "connected" as const, error: null, pairedAt: 1, capabilities: COMPUTER_CAPABILITIES, state: holder };
-  const driver = host({ ...base, computers: { ...base.computers, name: "Mac", paired: [paired] } });
+  let holderSays = "";
+  const driver = host({ ...base, computers: { ...base.computers, name: "Mac", paired: [paired] } }, async (effect) => {
+    if (effect.type === "computer.forward" && holderSays) throw new Error(holderSays);
+  });
+  const reads: unknown[][] = [];
+  driver.bridge.read = {
+    diffSummary: async () => assert.fail("no review is read"),
+    diffPatch: async () => assert.fail("no patch is read"),
+    directories: async () => [],
+    transcribeAudio: async () => "",
+    readMessageImage: async (...args) => { reads.push(args); return { data: "iVBORw0KGgo=", contentType: "image/png" }; },
+  };
   const send = (command: object) => answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "r1", sessionId: "s1", op: "command", command: command as never }));
   const read = (taskId: string) => answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "q1", sessionId: "s1", op: "query", query: { kind: "thread", taskId } }));
 
   assert.deepEqual(projectMobileView(driver.current(), NOW).thread?.members?.[0], { id: "member", title: "Dark mode", status: "awaiting-approval", computer: "Linux", online: true });
   const transcript = await read("member");
-  assert.equal(transcript.ok && (transcript.result as { messages: unknown[] }).messages.length, 1, "its conversation is read from what that computer published");
+  assert.deepEqual(transcript.ok && (transcript.result as { messages: unknown[]; omitted: number }).omitted, 38, "what that computer has yet to load counts as left out");
+  const image = await answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "i1", sessionId: "s1", op: "query", query: { kind: "image", taskId: "member", messageId: reply.id, href: "shots/dark.png" } }));
+  assert.equal(image.ok, true);
+  assert.deepEqual(reads, [["shots/dark.png", "/far/app", reply.id, false, "member"]], "read from that computer's checkout");
 
   const opened = await send({ type: "task.select", taskId: "member" });
   assert.equal(opened.ok, true);
   const shown = required((opened as { result: MobileView }).result.thread);
   assert.deepEqual([shown.id, shown.computer, shown.reviewable, shown.approval?.approvalId, shown.queued[0]?.editable], ["member", "Linux", false, "a1", true]);
+  holderSays = QUEUED_SENT;
+  assert.deepEqual(await send({ type: "task.edit-queued", taskId: "member", messageId: "q1" }), { type: "mobile.response", requestId: "r1", ok: false, message: QUEUED_SENT }, "it started there before the drop arrived");
+  holderSays = "";
   for (const command of [
     { type: "run.decide", taskId: "member", runId: "run-1", approvalId: "a1", allow: true },
     { type: "task.send", taskId: "member", text: "Also the icons" },
@@ -327,19 +346,21 @@ test("a phone's edit takes back only its own words, leaves the computer's compos
     currentId: "thread-1",
     activeRuns: { "thread-1": activeRun("thread-1", "run-1") },
     prompts: { "thread-1": "typed on the desktop" },
-    queuedMessages: { "thread-1": [own("plain"), own("pictured", { attachments: ["/tmp/a.png"] }), own("steering", { steering: true }), { ...own("relayed"), usersOwn: undefined, origin: { kind: "coordination" } }] },
+    queuedMessages: { "thread-1": [own("plain"), own("pictured", { attachments: ["/tmp/a.png"] }), own("steering", { steering: true }), { ...own("relayed"), usersOwn: undefined, origin: { kind: "coordination" } }, own("starting")] },
+    pendingRuns: { p1: { id: "p1", runId: "run-2", origin: "composer", taskId: "thread-1", text: "starting", prompt: "starting", attachments: [], queuedIds: ["starting"] } },
   }));
   const edit = (messageId: string) => answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "r1", sessionId: "s1", op: "command", command: { type: "task.edit-queued", taskId: "thread-1", messageId } }));
 
-  assert.deepEqual(projectMobileView(driver.current(), NOW).thread?.queued.map((message) => message.editable ?? false), [true, false, false, false]);
+  assert.deepEqual(projectMobileView(driver.current(), NOW).thread?.queued.map((message) => message.editable ?? false), [true, false, false, false, false]);
   assert.equal((await edit("plain")).ok, true);
-  assert.deepEqual(driver.current().queuedMessages["thread-1"]?.map((message) => message.id), ["pictured", "steering", "relayed"]);
+  assert.deepEqual(driver.current().queuedMessages["thread-1"]?.map((message) => message.id), ["pictured", "steering", "relayed", "starting"]);
   assert.equal(driver.current().prompts["thread-1"], "typed on the desktop");
   assert.deepEqual(await edit("plain"), { type: "mobile.response", requestId: "r1", ok: false, message: QUEUED_SENT }, "it started running meanwhile");
   assert.deepEqual(await edit("steering"), { type: "mobile.response", requestId: "r1", ok: false, message: QUEUED_SENT });
   assert.deepEqual(await edit("pictured"), { type: "mobile.response", requestId: "r1", ok: false, message: MOBILE_QUEUED_NOT_WORDS });
   assert.deepEqual(await edit("relayed"), { type: "mobile.response", requestId: "r1", ok: false, message: QUEUED_NOT_YOURS });
-  assert.equal(driver.current().queuedMessages["thread-1"]?.length, 3);
+  assert.deepEqual(await edit("starting"), { type: "mobile.response", requestId: "r1", ok: false, message: QUEUED_SENT }, "a starting run is already taking it");
+  assert.equal(driver.current().queuedMessages["thread-1"]?.length, 4);
 });
 
 test("a phone answers the decision of a coordinator's thread on a paired computer, and no stranger's there", async () => {

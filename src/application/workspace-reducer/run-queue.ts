@@ -300,6 +300,11 @@ export function stoppingProcess(state: WorkspaceState, taskId: string, processId
  * The queued message the user may take back into the composer to rewrite, or why not: a steered one
  * is already on its way to the agent, and only the user's own messages are theirs to rewrite.
  */
+/** Whether a queued message is already on its way into a run that is starting, which takes it out of the queue once it does. */
+export function drainingQueued(state: Pick<WorkspaceState, "pendingRuns">, taskId: string, messageId: string): boolean {
+  return Object.values(state.pendingRuns).some((pending) => pending.taskId === taskId && pending.queuedIds?.includes(messageId));
+}
+
 export function editableQueued(queued: readonly QueuedMessage[], messageId: string): { message: QueuedMessage } | { refusal: string } {
   const message = queued.find((item) => item.id === messageId);
   if (!message || message.steering) return { refusal: QUEUED_SENT };

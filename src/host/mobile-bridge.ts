@@ -10,7 +10,7 @@ import type { MobileServerState } from "../domain/mobile.js";
 import { threadWorkspaceId, threadWorkspaceRoot } from "../application/thread-location.js";
 import { messageImagePath } from "../domain/message-artifacts.js";
 import { attachmentSendFor } from "../application/composer-attachments.js";
-import { editableQueued } from "../application/workspace-reducer/run-queue.js";
+import { drainingQueued, editableQueued } from "../application/workspace-reducer/run-queue.js";
 import { QUEUED_SENT } from "../application/computers.js";
 import { errorMessage } from "./errors.js";
 
@@ -71,10 +71,12 @@ async function answerQuery(host: MobileBridgeHost, query: MobileQuery): Promise<
 
 let images: Promise<typeof import("../application/message-images.js")> | undefined;
 
+/** An image in a reply of a thread on a paired computer is read there, from that computer's checkout. */
 async function linkedImage(host: MobileBridgeHost, reader: MobileBridgeReader, query: Extract<MobileQuery, { kind: "image" }>) {
-  if (!host.state().threads.some((thread) => thread.id === query.taskId)) throw new Error(`No thread has the ID ${query.taskId}.`);
-  await host.hydrate?.(query.taskId);
-  const state = host.state();
+  const remote = remoteMemberHolder(host.state(), query.taskId)?.state;
+  if (!remote && !host.state().threads.some((thread) => thread.id === query.taskId)) throw new Error(`No thread has the ID ${query.taskId}.`);
+  if (!remote) await host.hydrate?.(query.taskId);
+  const state = remote ?? host.state();
   const thread = state.threads.find((item) => item.id === query.taskId);
   const message = thread?.messages.find((item) => item.id === query.messageId);
   const file = messageImagePath(query.href);
@@ -94,6 +96,7 @@ function editedQueued(state: WorkspaceState, command: Extract<AppCommand, { type
   const holder = remoteMemberHolder(state, taskId)?.state ?? state;
   const edit = editableQueued(holder.queuedMessages[taskId] ?? [], command.messageId);
   if ("refusal" in edit) return edit;
+  if (drainingQueued(holder, taskId, edit.message.id)) return { refusal: QUEUED_SENT };
   if (!phoneEditsQueued(edit.message)) return { refusal: MOBILE_QUEUED_NOT_WORDS };
   return { type: "task.drop-queued", taskId, messageId: command.messageId };
 }
@@ -155,8 +158,10 @@ export async function answerMobileRequest(host: MobileBridgeHost, request: Mobil
     if ("refusal" in commands) return failed(commands.refusal);
     for (const command of commands) {
       const execution = host.execute(command);
-      const accepted = execution.accepted instanceof Promise ? await execution.accepted : execution.accepted;
-      if (!accepted.ok) return failed(accepted.message);
+      /** An edit is answered only once the computer holding the queue has taken the message out, so its words never come back twice. */
+      const settled = request.command.type === "task.edit-queued" ? await execution.completed
+        : execution.accepted instanceof Promise ? await execution.accepted : execution.accepted;
+      if (!settled.ok) return failed(settled.message);
     }
     return ok(projectMobileView(host.state(), Date.now()));
   } catch (error) {
