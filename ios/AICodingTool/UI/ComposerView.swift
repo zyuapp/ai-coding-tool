@@ -31,8 +31,9 @@ struct ComposerView<Above: View>: View {
     @State private var given: String?
     @State private var seenHandBack: UUID?
     @State private var images: [PickedImage] = []
-    @State private var tray: ComposerTray?
-    @State private var shooting = false
+    @State private var settingUp = false
+    @State private var picking = false
+    @State private var picked: [PhotosPickerItem] = []
     @State private var sent = 0
     /// The words last sent, which a late edit from the system, such as dictation finishing, must not put back.
     @State private var lastSent: (text: String, at: Date)?
@@ -100,165 +101,16 @@ struct ComposerView<Above: View>: View {
                     .fitsShortScreens()
             }
             above
-            if let tray {
-                Group {
-                    switch tray {
-                    case .pictures:
-                        AttachTray(room: PickedImage.limit - images.count, canShoot: UIImagePickerController.isSourceTypeAvailable(.camera), onAdd: { items in
-                            withAnimation(.snappy) { self.tray = nil }
-                            load(items)
-                        }, onShoot: {
-                            withAnimation(.snappy) { self.tray = nil }
-                            shooting = true
-                        }, onClose: {
-                            withAnimation(.snappy) { self.tray = nil }
-                        })
-                    case .settings:
-                        SettingsTray(settings: settings, catalog: model.catalog, quick: quick, usage: usage) {
-                            withAnimation(.snappy) { self.tray = nil }
-                        }
-                    }
+            if settingUp {
+                SettingsTray(settings: settings, catalog: model.catalog, quick: quick, usage: usage) {
+                    withAnimation(.snappy) { settingUp = false }
                 }
                 .composerSurface(palette, focused: true)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             } else {
-                VStack(spacing: 8) {
-                    if !images.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(images) { image in
-                                    Image(uiImage: image.thumbnail)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 56, height: 56)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                                        .overlay(alignment: .topTrailing) {
-                                            Button { images.removeAll { $0.id == image.id } } label: {
-                                                Image(systemName: "xmark.circle.fill")
-                                                    .symbolRenderingMode(.palette)
-                                                    .foregroundStyle(palette.ink, palette.raised)
-                                                    .font(.body)
-                                            }
-                                            .frame(width: 44, height: 44, alignment: .topTrailing)
-                                            .contentShape(Rectangle())
-                                            .buttonStyle(.plain)
-                                            .offset(x: 6, y: -6)
-                                            .accessibilityLabel("Remove picture")
-                                        }
-                                        .accessibilityLabel("Picture to send")
-                                }
-                            }
-                            .padding(.top, 6)
-                            .padding(.trailing, 6)
-                        }
-                    }
-                    if !blocked {
-                        TextField("Ask \(model.catalog.engineLabel(settings.engine)) to work on anything", text: $draft, axis: .vertical)
-                            .lineLimit(1...7)
-                            .focused($focused)
-                            .foregroundStyle(palette.ink)
-                            .textInputAutocapitalization(.sentences)
-                            .accessibilityLabel("Message")
-                            .onKeyPress(keys: [.return], phases: .down) { press in
-                                guard press.modifiers.contains(.command) else { return .ignored }
-                                send(onSend)
-                                return .handled
-                            }
-                    } else {
-                        Label("Answer the question above to continue", systemImage: "questionmark.circle")
-                            .font(.body)
-                            .foregroundStyle(palette.quiet)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .accessibilityLabel("Answer the question to continue")
-                    }
-                    HStack(spacing: 8) {
-                        if talk.active {
-                            TalkStrip(phase: talk, levels: recorder.levels, startedAt: recorder.startedAt, cancelling: talkCancelling, handsFree: talkHandsFree, onCancel: cancelTalk)
-                        }
-                        if !blocked && !talk.active {
-                            Button {
-                                focused = false
-                                withAnimation(.snappy) { tray = .pictures }
-                            } label: {
-                                Image(systemName: "plus")
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(palette.inkDim)
-                                    .frame(width: 34, height: 34)
-                                    .background(palette.raised, in: Circle())
-                                    .frame(width: 44, height: 44)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(images.count >= PickedImage.limit)
-                            .accessibilityLabel("Add pictures")
-                        }
-                        if !talk.active {
-                        Button {
-                            focused = false
-                            withAnimation(.snappy) { tray = .settings }
-                        } label: {
-                            settingsChip(summary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Thread settings: \([summary.mode, summary.model, summary.effort, usage.map { "plan \($0.share)% used" }].compactMap { $0 }.joined(separator: ", "))")
-                        Spacer(minLength: 4)
-                        }
-                        if canTalk || talk.active {
-                            talkButton
-                        }
-                        if talkHandsFree {
-                            Button { send(onSend) } label: {
-                                Image(systemName: "arrow.up")
-                                    .font(.body.weight(.bold))
-                                    .foregroundStyle(palette.contrastInk)
-                                    .frame(width: 34, height: 34)
-                                    .background(palette.contrast, in: Circle())
-                                    .frame(width: 44, height: 44)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Send")
-                            .accessibilityHint("Adds what you said and sends the message")
-                        } else if talk.active {
-                            EmptyView()
-                        } else if queueing {
-                            if let onStop { stopButton(onStop, aside: true) }
-                            if let onSteer {
-                                pill("Steer now", symbol: "bolt", primary: false) { send(onSteer) }
-                                    .accessibilityHint("Sends it into the running turn")
-                            }
-                            pill("Queue", symbol: "arrow.turn.down.right", primary: true) { send(onSend) }
-                                .accessibilityHint("Sends it when this run ends")
-                        } else if running, let onStop {
-                            stopButton(onStop, aside: false)
-                        } else if !blocked {
-                            Button { send(onSend) } label: {
-                                Image(systemName: "arrow.up")
-                                    .font(.body.weight(.bold))
-                                    .foregroundStyle(typed ? palette.accentInk : palette.muted)
-                                    .frame(width: 34, height: 34)
-                                    .background(typed ? palette.accent : palette.raised, in: Circle())
-                                    .animation(.snappy(duration: 0.2), value: typed)
-                                    .frame(width: 44, height: 44)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(!typed)
-                            .accessibilityLabel("Send")
-                            .keyboardShortcut(.return, modifiers: .command)
-                        }
-                    }
-                }
-                .padding(.top, 14)
-                .padding(.leading, 14)
-                .padding(.trailing, 9)
-                .padding(.bottom, 5)
-                .composerSurface(palette, focused: focused)
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
-                .transition(.opacity)
+                field(summary)
             }
         }
         .padding(.top, 6)
@@ -280,13 +132,11 @@ struct ComposerView<Above: View>: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $shooting) {
-            CameraPicker { data in
-                shooting = false
-                guard let data else { return }
-                Task { if images.count < PickedImage.limit, let image = await PickedImage.make(from: data) { images.append(image) } }
-            }
-            .ignoresSafeArea()
+        .photosPicker(isPresented: $picking, selection: $picked, maxSelectionCount: max(1, PickedImage.limit - images.count), matching: .images)
+        .onChange(of: picked) { _, items in
+            guard !items.isEmpty else { return }
+            picked = []
+            load(items)
         }
         .onAppear { draft = model.draft(for: draftKey) }
         .onChange(of: model.spokenInto?.id) { _, id in
@@ -319,6 +169,145 @@ struct ComposerView<Above: View>: View {
             focused = true
             draft = draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? text : "\(draft.trimmingCharacters(in: .whitespacesAndNewlines))\n\n\(text)"
         }
+    }
+
+    /// The words, the pictures going with them, and the row of controls beneath.
+    private func field(_ summary: (mode: String, model: String, effort: String?)) -> some View {
+        VStack(spacing: 8) {
+            if !images.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(images) { image in
+                            Image(uiImage: image.thumbnail)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 56, height: 56)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .overlay(alignment: .topTrailing) {
+                                    Button { images.removeAll { $0.id == image.id } } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .symbolRenderingMode(.palette)
+                                            .foregroundStyle(palette.ink, palette.raised)
+                                            .font(.body)
+                                    }
+                                    .frame(width: 44, height: 44, alignment: .topTrailing)
+                                    .contentShape(Rectangle())
+                                    .buttonStyle(.plain)
+                                    .offset(x: 6, y: -6)
+                                    .accessibilityLabel("Remove picture")
+                                }
+                                .accessibilityLabel("Picture to send")
+                        }
+                    }
+                    .padding(.top, 6)
+                    .padding(.trailing, 6)
+                }
+            }
+            if !blocked {
+                TextField("Ask \(model.catalog.engineLabel(settings.engine)) to work on anything", text: $draft, axis: .vertical)
+                    .lineLimit(1...7)
+                    .focused($focused)
+                    .foregroundStyle(palette.ink)
+                    .textInputAutocapitalization(.sentences)
+                    .accessibilityLabel("Message")
+                    .onKeyPress(keys: [.return], phases: .down) { press in
+                        guard press.modifiers.contains(.command) else { return .ignored }
+                        send(onSend)
+                        return .handled
+                    }
+            } else {
+                Label("Answer the question above to continue", systemImage: "questionmark.circle")
+                    .font(.body)
+                    .foregroundStyle(palette.quiet)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityLabel("Answer the question to continue")
+            }
+            HStack(spacing: 8) {
+                if talk.active {
+                    TalkStrip(phase: talk, levels: recorder.levels, startedAt: recorder.startedAt, cancelling: talkCancelling, handsFree: talkHandsFree, onCancel: cancelTalk)
+                }
+                if !blocked && !talk.active {
+                    Button {
+                        focused = false
+                        picking = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(palette.inkDim)
+                            .frame(width: 34, height: 34)
+                            .background(palette.raised, in: Circle())
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(images.count >= PickedImage.limit)
+                    .accessibilityLabel("Add pictures")
+                }
+                if !talk.active {
+                Button {
+                    focused = false
+                    withAnimation(.snappy) { settingUp = true }
+                } label: {
+                    settingsChip(summary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Thread settings: \([summary.mode, summary.model, summary.effort, usage.map { "plan \($0.share)% used" }].compactMap { $0 }.joined(separator: ", "))")
+                Spacer(minLength: 4)
+                }
+                if canTalk || talk.active {
+                    talkButton
+                }
+                if talkHandsFree {
+                    Button { send(onSend) } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.body.weight(.bold))
+                            .foregroundStyle(palette.contrastInk)
+                            .frame(width: 34, height: 34)
+                            .background(palette.contrast, in: Circle())
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Send")
+                    .accessibilityHint("Adds what you said and sends the message")
+                } else if talk.active {
+                    EmptyView()
+                } else if queueing {
+                    if let onStop { stopButton(onStop, aside: true) }
+                    if let onSteer {
+                        pill("Steer now", symbol: "bolt", primary: false) { send(onSteer) }
+                            .accessibilityHint("Sends it into the running turn")
+                    }
+                    pill("Queue", symbol: "arrow.turn.down.right", primary: true) { send(onSend) }
+                        .accessibilityHint("Sends it when this run ends")
+                } else if running, let onStop {
+                    stopButton(onStop, aside: false)
+                } else if !blocked {
+                    Button { send(onSend) } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.body.weight(.bold))
+                            .foregroundStyle(typed ? palette.accentInk : palette.muted)
+                            .frame(width: 34, height: 34)
+                            .background(typed ? palette.accent : palette.raised, in: Circle())
+                            .animation(.snappy(duration: 0.2), value: typed)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!typed)
+                    .accessibilityLabel("Send")
+                    .keyboardShortcut(.return, modifiers: .command)
+                }
+            }
+        }
+        .padding(.top, 14)
+        .padding(.leading, 14)
+        .padding(.trailing, 9)
+        .padding(.bottom, 5)
+        .composerSurface(palette, focused: focused)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+        .transition(.opacity)
     }
 
     /// The summary gives up its axis names, then its values, before the run's buttons give up any room.
@@ -605,11 +594,7 @@ struct QuickSettings {
     var onUsage: (() -> Void)? = nil
 }
 
-enum ComposerTray {
-    case pictures, settings
-}
-
-/// Stands in for the composer while the thread's settings change; each choice applies at once.
+/// Stands in for the composer while the thread's settings change; each pick applies at once.
 struct SettingsTray: View {
     var settings: MobileThreadSettings
     var catalog: EngineCatalog
@@ -617,6 +602,7 @@ struct SettingsTray: View {
     var usage: MobileComposerUsage?
     var onClose: () -> Void
     @Environment(\.palette) private var palette
+    @GestureState private var drag: CGFloat = 0
 
     var body: some View {
         let known = catalog.knows(settings.engine)
@@ -624,79 +610,111 @@ struct SettingsTray: View {
         let headings = catalog.library(engine: settings.engine, locked: quick.locked).filter { !$0.locked && !$0.models.isEmpty }
         let efforts = known && settings.model != nil ? catalog.efforts(settings.engine, model: settings.model!, coordinating: coordinating) : []
         let chosenEffort = settings.model.map { catalog.effortForModel(settings.engine, model: $0, effort: settings.effort, coordinating: coordinating) }
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                TrayClose(action: onClose)
-                Spacer(minLength: 4)
-                if let usage, let onUsage = quick.onUsage {
-                    Button(action: onUsage) {
-                        HStack(spacing: 6) {
-                            UsageRing(share: usage.share)
-                            Text(usage.summary).lineLimit(1)
-                            Image(systemName: "chevron.right").font(.caption2.weight(.bold)).foregroundStyle(palette.muted)
-                        }
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(palette.inkDim)
-                        .padding(.horizontal, 12)
-                        .frame(height: 34)
-                        .background(palette.raised, in: Capsule())
-                        .frame(height: 44)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Usage, \(usage.summary)")
-                }
-            }
-            .padding(.horizontal, 9)
-            VStack(alignment: .leading, spacing: 12) {
+        VStack(spacing: 0) {
+            Capsule()
+                .fill(palette.lineStrong)
+                .frame(width: 36, height: 5)
+                .frame(maxWidth: .infinity, minHeight: 22)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onClose)
+                .accessibilityLabel("Close")
+                .accessibilityAddTraits(.isButton)
+            VStack(spacing: 0) {
                 if !headings.isEmpty {
-                    ForEach(headings, id: \.key) { heading in
-                        group(headings.count > 1 ? heading.label : "Model") {
-                            ForEach(heading.models, id: \.id) { spec in
-                                TrayChip(label: spec.label, selected: heading.engine == settings.engine && spec.id == settings.model) {
-                                    quick.onModel(heading.engine, spec.id)
+                    row("Model", symbol: "cpu") {
+                        Picker("Model", selection: Binding(get: { "\(settings.engine)|\(settings.model ?? "")" }, set: { value in
+                            let parts = value.split(separator: "|", maxSplits: 1).map(String.init)
+                            if parts.count == 2 { quick.onModel(parts[0], parts[1]) }
+                        })) {
+                            ForEach(headings, id: \.key) { heading in
+                                Section(headings.count > 1 ? heading.label : "") {
+                                    ForEach(heading.models, id: \.id) { spec in
+                                        Text(spec.label).tag("\(heading.engine)|\(spec.id)")
+                                    }
                                 }
                             }
                         }
                     }
                 }
                 if !efforts.isEmpty, let chosenEffort {
-                    group("Effort") {
-                        ForEach(efforts, id: \.id) { effort in
-                            TrayChip(label: effort.label, selected: effort.id == chosenEffort) { quick.onEffort(settings.engine, effort.id) }
+                    divider
+                    row("Effort", symbol: "gauge.with.dots.needle.50percent") {
+                        Picker("Effort", selection: Binding(get: { chosenEffort }, set: { quick.onEffort(settings.engine, $0) })) {
+                            ForEach(efforts, id: \.id) { Text($0.label).tag($0.id) }
                         }
                     }
                 }
                 if known {
-                    group("Mode") {
-                        ForEach(catalog.policies(settings.engine), id: \.id) { policy in
-                            TrayChip(label: policy.label, symbol: Self.policySymbol(policy.id), selected: policy.id == settings.policy) { quick.onPolicy(policy.id) }
+                    divider
+                    row("Mode", symbol: Self.policySymbol(settings.policy)) {
+                        Picker("Mode", selection: Binding(get: { settings.policy }, set: quick.onPolicy)) {
+                            ForEach(catalog.policies(settings.engine), id: \.id) { policy in
+                                Label(policy.label, systemImage: Self.policySymbol(policy.id)).tag(policy.id)
+                            }
                         }
                     }
                 }
                 if catalog.fastMode(settings.engine) {
+                    divider
                     Toggle(isOn: Binding(get: { settings.fastMode == true }, set: quick.onFastMode)) {
-                        Label("Fast Mode", systemImage: "hare").font(.subheadline.weight(.semibold)).foregroundStyle(palette.ink)
+                        rowLabel("Fast Mode", symbol: "hare")
                     }
                     .padding(.horizontal, 14)
-                    .frame(minHeight: 44)
+                    .frame(minHeight: 50)
+                }
+                if let usage, let onUsage = quick.onUsage {
+                    divider
+                    Button(action: onUsage) {
+                        HStack(spacing: 8) {
+                            rowLabel("Usage", symbol: usage.symbol)
+                            Spacer(minLength: 8)
+                            Text(usage.summary).font(.subheadline).foregroundStyle(palette.muted).lineLimit(1)
+                            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(palette.quiet)
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 50)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
-            .padding(.bottom, 4)
-            .fitsShortScreens()
+            .padding(.bottom, 6)
         }
-        .padding(.top, 6)
-        .padding(.bottom, 9)
+        .offset(y: max(0, drag))
+        .gesture(
+            DragGesture(minimumDistance: 8)
+                .updating($drag) { value, state, _ in state = value.translation.height }
+                .onEnded { value in
+                    if value.translation.height > 60 || value.predictedEndTranslation.height > 160 { onClose() }
+                }
+        )
     }
 
-    private func group<Chips: View>(_ title: String, @ViewBuilder chips: () -> Chips) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            SectionLabel(title).padding(.leading, 14)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) { chips() }
-            }
-            .contentMargins(.horizontal, 9, for: .scrollContent)
+    private var divider: some View {
+        palette.line.frame(height: 0.5).padding(.leading, 48)
+    }
+
+    private func rowLabel(_ title: String, symbol: String) -> some View {
+        Label {
+            Text(title).font(.body).foregroundStyle(palette.ink)
+        } icon: {
+            Image(systemName: symbol).foregroundStyle(palette.inkDim).frame(width: 22)
         }
+    }
+
+    /// A setting's name, then its value as the system's menu picker.
+    private func row<Choices: View>(_ title: String, symbol: String, @ViewBuilder picker: () -> Choices) -> some View {
+        HStack(spacing: 8) {
+            rowLabel(title, symbol: symbol)
+            Spacer(minLength: 8)
+            picker()
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .tint(palette.muted)
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 4)
+        .frame(minHeight: 50)
     }
 
     static func policySymbol(_ policy: String) -> String {
@@ -710,116 +728,6 @@ struct SettingsTray: View {
     }
 }
 
-/// One choice in a tray, filled when chosen.
-private struct TrayChip: View {
-    var label: String
-    var symbol: String?
-    var selected: Bool
-    var action: () -> Void
-    @Environment(\.palette) private var palette
-
-    init(label: String, symbol: String? = nil, selected: Bool, action: @escaping () -> Void) {
-        self.label = label
-        self.symbol = symbol
-        self.selected = selected
-        self.action = action
-    }
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                if let symbol { Image(systemName: symbol) }
-                Text(label)
-            }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(selected ? palette.contrastInk : palette.ink)
-            .padding(.horizontal, 14)
-            .frame(height: 34)
-            .background(selected ? palette.contrast : palette.raised, in: Capsule())
-            .frame(height: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .animation(.snappy, value: selected)
-        .accessibilityAddTraits(selected ? [.isSelected] : [])
-    }
-}
-
-/// Puts the composer back.
-private struct TrayClose: View {
-    var action: () -> Void
-    @Environment(\.palette) private var palette
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "xmark")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(palette.inkDim)
-                .frame(width: 34, height: 34)
-                .background(palette.raised, in: Circle())
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Close")
-    }
-}
-
-/// Stands in for the composer while pictures are chosen: the library inline, the camera a tap away.
-struct AttachTray: View {
-    var room: Int
-    var canShoot: Bool
-    var onAdd: ([PhotosPickerItem]) -> Void
-    var onShoot: () -> Void
-    var onClose: () -> Void
-    @State private var selection: [PhotosPickerItem] = []
-    @Environment(\.palette) private var palette
-    @Environment(\.verticalSizeClass) private var sizeClass
-
-    var body: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) {
-                TrayClose(action: onClose)
-                if canShoot {
-                    Button(action: onShoot) {
-                        Label("Camera", systemImage: "camera")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(palette.ink)
-                            .padding(.horizontal, 14)
-                            .frame(height: 34)
-                            .background(palette.raised, in: Capsule())
-                            .frame(height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-                Spacer(minLength: 4)
-                Button { onAdd(selection) } label: {
-                    Text(selection.isEmpty ? "Add" : "Add \(selection.count)")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(selection.isEmpty ? palette.quiet : palette.contrastInk)
-                        .padding(.horizontal, 16)
-                        .frame(height: 34)
-                        .background(selection.isEmpty ? palette.raised : palette.contrast, in: Capsule())
-                        .frame(height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(selection.isEmpty)
-                .animation(.snappy, value: selection.isEmpty)
-            }
-            PhotosPicker("Photos", selection: $selection, maxSelectionCount: max(1, room), selectionBehavior: .continuousAndOrdered, matching: .images, photoLibrary: .shared())
-                .photosPickerStyle(.inline)
-                .photosPickerDisabledCapabilities(.selectionActions)
-                .photosPickerAccessoryVisibility(.hidden, edges: .all)
-                .frame(height: sizeClass == .compact ? 170 : 320)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
-        .padding(.top, 6)
-        .padding(.horizontal, 9)
-        .padding(.bottom, 9)
-    }
-}
 
 /// A question the agent asked: pick an option, or type an answer. Typing stays local until sent.
 struct QuestionPromptView: View {
@@ -975,38 +883,6 @@ struct PickedImage: Identifiable {
             }
             return nil
         }.value
-    }
-}
-
-/// The camera, handing back one photo or nothing.
-struct CameraPicker: UIViewControllerRepresentable {
-    var onDone: (Data?) -> Void
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.sourceType = .camera
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ controller: UIImagePickerController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator { Coordinator(onDone: onDone) }
-
-    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let onDone: (Data?) -> Void
-
-        init(onDone: @escaping (Data?) -> Void) {
-            self.onDone = onDone
-        }
-
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            onDone((info[.originalImage] as? UIImage)?.jpegData(compressionQuality: 0.9))
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            onDone(nil)
-        }
     }
 }
 
