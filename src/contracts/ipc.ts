@@ -376,6 +376,8 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   stopDictation(id: string): Promise<string>;
   cancelDictation(id: string): Promise<void>;
   downloadDictationModel(): Promise<void>;
+  /** Stops the download and removes the part of the model it fetched. */
+  cancelDictationDownload(): Promise<void>;
   /** Turns a phone's recording, base64 WAV, into words. */
   transcribeAudio(audio: string): Promise<string>;
   /** How loud the hold's microphone is, from 0 to 1, many times a second. Never becomes state. */
@@ -441,7 +443,8 @@ export type WindowDesktopAPI = Pick<DesktopAPI, WindowDesktopCall
 >;
 
 /** Where the speech model stands, and why when it cannot be used. */
-export type DictationModelStatus = { model: DictationModel; message?: string };
+/** `progress` is how much of the download has arrived, 0 to 1; a download without one is being prepared. */
+export type DictationModelStatus = { model: DictationModel; message?: string; progress?: number };
 
 /** What a keystroke asked for, and where it was pressed. */
 export type ShortcutInvocation = { action: string; surface: ShortcutSurface };

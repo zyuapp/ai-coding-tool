@@ -2,11 +2,16 @@ import { app, systemPreferences } from "electron";
 import path from "node:path";
 import { DictationHost } from "./dictation-host.js";
 
+/** A source build can point at another model folder, to try the download without touching the shared one. */
+const DEV_MODELS = "AIC_DICTATION_MODELS";
+
 let host: DictationHost | null = null;
 
 /** The window's dictation, which asks macOS for the microphone in the app's own name. */
 export function desktopDictation(): DictationHost {
+  const models = app.isPackaged ? undefined : process.env[DEV_MODELS];
   return host ??= new DictationHost({
+    ...(models ? { models } : {}),
     helper: app.isPackaged
       ? path.join(process.resourcesPath, "native", "aic-dictation")
       : path.join(app.getAppPath(), "dist", "native", "aic-dictation"),

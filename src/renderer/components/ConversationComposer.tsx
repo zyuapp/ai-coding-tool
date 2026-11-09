@@ -1,6 +1,6 @@
 import { LuArrowUp as ArrowUp, LuCircleAlert as CircleAlert, LuInfo as Info, LuMic as Mic, LuPaperclip as Paperclip, LuX as X } from "react-icons/lu";
 import { useRef, type ReactNode } from "react";
-import { DictationStrip, useComposerDictation, type ComposerDictation, type useHoldToTalk } from "./ComposerDictation";
+import { DictationStrip, TalkHalo, useComposerDictation, type ComposerDictation, type useHoldToTalk } from "./ComposerDictation";
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "./QuestionPrompt";
 import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
@@ -63,7 +63,7 @@ const TALK_TIP = "Hold to talk";
  * Sends what is written, or stops the run while one is going. `busy` is a send already on its way.
  * With dictation ready, holding it listens instead, and an empty composer shows it as a microphone.
  */
-function SendButton({ taskId, surface, runActive, command, disabled, busy, empty, talk, onSend, onCancel }: {
+function SendButton({ taskId, surface, runActive, command, disabled, busy, empty, talk, listening, onSend, onCancel }: {
   taskId: string | undefined;
   surface: ComposerSurface;
   runActive: boolean;
@@ -72,6 +72,8 @@ function SendButton({ taskId, surface, runActive, command, disabled, busy, empty
   busy: boolean;
   empty: boolean;
   talk: ReturnType<typeof useHoldToTalk> | null;
+  /** A hold is hearing, from this button or the keyboard. */
+  listening: boolean;
   onSend: () => void;
   onCancel: () => void;
 }) {
@@ -82,7 +84,7 @@ function SendButton({ taskId, surface, runActive, command, disabled, busy, empty
       </CommandButton>
     );
   }
-  const talking = talk?.pressed ?? false;
+  const talking = (talk?.pressed ?? false) || listening;
   const microphone = talk !== null && empty && !busy;
   return (
     <CommandButton command={command}
@@ -94,7 +96,11 @@ function SendButton({ taskId, surface, runActive, command, disabled, busy, empty
       aria-busy={busy || undefined}
       data-tip={talking ? undefined : microphone ? TALK_TIP : talk ? SEND_OR_TALK_TIP : SEND_TIP}
     >
-      {busy ? <span className="send-spinner" aria-hidden="true" /> : microphone || talking ? <Mic size={16} strokeWidth={2.25} aria-hidden="true" /> : <ArrowUp size={16} strokeWidth={2.5} aria-hidden="true" />}
+      {talking && <TalkHalo />}
+      {busy ? <span className="send-spinner" aria-hidden="true" />
+        : talking && talk?.away ? <X size={16} strokeWidth={2.5} aria-hidden="true" />
+          : microphone || talking ? <Mic size={16} strokeWidth={2.25} aria-hidden="true" />
+            : <ArrowUp size={16} strokeWidth={2.5} aria-hidden="true" />}
     </CommandButton>
   );
 }
@@ -402,13 +408,13 @@ export function ConversationComposer({
           rows={2}
         />
         <div className={`composer-bar${dictating ? " dictating" : ""}`}>
-          {dictating && <DictationStrip phase={dictating} away={talk.away} hotkey={!talk.pressed} />}
+          {dictating && <DictationStrip phase={dictating} away={talk.away} />}
           <AttachButton disabled={disabled} onFilesAdd={onFilesAdd} />
           <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} coordinating={coordinating} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
             {planUsage && model !== undefined && <PlanUsageMeter engine={engine} engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
-            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || (nothingToSend && !canTalk)} busy={!disabled && (attachments.sending || waiting || dictating === "transcribing")} empty={nothingToSend} talk={canTalk ? talk : null} onSend={() => void submit()} onCancel={onCancel} />
+            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || (nothingToSend && !canTalk)} busy={!disabled && (attachments.sending || waiting || dictating === "transcribing")} empty={nothingToSend} talk={canTalk ? talk : null} listening={dictating === "starting" || dictating === "recording"} onSend={() => void submit()} onCancel={onCancel} />
           </div>
         </div>
       </div>}

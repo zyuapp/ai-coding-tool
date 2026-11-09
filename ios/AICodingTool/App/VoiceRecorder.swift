@@ -7,11 +7,13 @@ import Observation
 @Observable
 final class VoiceRecorder {
     static let maximumSeconds: TimeInterval = 120
-    private static let bars = 28
+    private static let bars = 36
 
     /// The latest loudness readings, oldest first, each from 0 to 1.
     private(set) var levels: [Float] = Array(repeating: 0, count: VoiceRecorder.bars)
     private(set) var recording = false
+    /// When the microphone started hearing, for the elapsed time beside the wave.
+    private(set) var startedAt: Date?
 
     @ObservationIgnored private var recorder: AVAudioRecorder?
     @ObservationIgnored private var meter: Task<Void, Never>?
@@ -45,6 +47,7 @@ final class VoiceRecorder {
         guard created.record(forDuration: Self.maximumSeconds) else { throw Failure.unavailable }
         recorder = created
         recording = true
+        startedAt = Date()
         levels = Array(repeating: 0, count: Self.bars)
         meter = Task { [weak self] in
             while !Task.isCancelled {
@@ -83,6 +86,7 @@ final class VoiceRecorder {
         recorder?.stop()
         recorder = nil
         recording = false
+        startedAt = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 }

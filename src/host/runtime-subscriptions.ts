@@ -85,7 +85,7 @@ export function subscribeWorkspaceRuntime(host: RuntimeSubscriptionHost) {
     void desktop.launchedUpdate().then((version) => version ? host.dispatch({ type: "app.launched", version }) : undefined).catch(() => undefined);
     return desktop.onAppUpdate((update) => void host.dispatch({ type: "app.update-changed", update }));
   });
-  listen(() => desktop.onDictationModel(({ model, message }) => void host.dispatch({ type: "dictation.model", model, ...(message ? { message } : {}) })));
+  listen(() => desktop.onDictationModel(({ model, message, progress }) => void host.dispatch({ type: "dictation.model", model, ...(message ? { message } : {}), ...(progress === undefined ? {} : { progress }) })));
   listen(() => desktop.onBrowserEvent((page) => void host.dispatch({ type: "browser.updated", page })));
   listen(() => desktop.onTerminalEvent((update) => void host.dispatch({ type: "terminal.updated", update })));
   listen(() => desktop.onBrowserFind(({ tabId, matches, index }) => void host.dispatch({

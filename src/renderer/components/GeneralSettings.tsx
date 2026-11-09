@@ -36,12 +36,13 @@ function updateDescription(update: AppUpdate, current: string | null | undefined
 }
 
 /** The speech model holding to talk reads, and the step that fetches it. */
-export type DictationSettings = { model: DictationModel; message: string | null; binding: string | null; onDownload: () => void };
+export type DictationSettings = { model: DictationModel; message: string | null; progress: number | null; binding: string | null; onDownload: () => void; onCancelDownload: () => void };
 
-function dictationDescription({ model, message }: DictationSettings) {
+function dictationDescription(dictation: DictationSettings) {
+  const { model, message } = dictation;
   switch (model) {
     case "ready": return "Parakeet, on this Mac. Shared with other apps that use it.";
-    case "downloading": return "Downloading Parakeet, about 450 MB.";
+    case "downloading": return dictation.progress === null ? "Getting Parakeet ready for this Mac." : "Downloading Parakeet, about 450 MB.";
     case "failed": return message ?? "The download stopped.";
     default: return "Parakeet, about 450 MB. Downloaded once and shared with other apps that use it.";
   }
@@ -106,7 +107,8 @@ export function GeneralSettings({ dictation, cli: { status, busy, error }, onRea
         </div>
         <SettingRow id="general.dictation" status={dictation.model === "ready"} description={dictationDescription(dictation)}>
           {(dictation.model === "missing" || dictation.model === "failed") && <button type="button" onClick={dictation.onDownload}>{dictation.model === "failed" ? "Try again" : "Download"}</button>}
-          {dictation.model === "downloading" && <em role="status"><SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />Downloading…</em>}
+          {dictation.model === "downloading" && <em role="status"><SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />{dictation.progress === null ? "Preparing…" : `${Math.round(dictation.progress * 100)}%`}</em>}
+          {dictation.model === "downloading" && <button type="button" onClick={dictation.onCancelDownload}>Cancel</button>}
         </SettingRow>
       </section>}
 

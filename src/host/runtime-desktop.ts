@@ -56,7 +56,7 @@ export type RuntimeDesktop = Pick<DesktopAPI,
   | "focusBrowserTab" | "onBrowserFind"
   | "openFile" | "listApps" | "openFolderInApp"
   | "listSimulators" | "bootSimulator" | "simulatorInput" | "describeSimulator" | "captureSimulator"
-  | "onDictationModel" | "startDictation" | "stopDictation" | "cancelDictation" | "downloadDictationModel" | "transcribeAudio"
+  | "onDictationModel" | "startDictation" | "stopDictation" | "cancelDictation" | "downloadDictationModel" | "cancelDictationDownload" | "transcribeAudio"
   | "startTerminal" | "writeTerminal" | "resizeTerminal" | "closeTerminal" | "readTerminal" | "onTerminalEvent"
   | "setCaptureOptions" | "setShortcuts" | "setShortcutCapture"
   | "closeWindow" | "focusWindow" | "announceThread" | "setBadgeCount"

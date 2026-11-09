@@ -82,9 +82,10 @@ const dictationDesktop = {
   stopDictation: async () => "",
   cancelDictation: async () => {},
   downloadDictationModel: async () => {},
+  cancelDictationDownload: async () => {},
   transcribeAudio: async () => "",
   onDictationLevel: () => () => {},
-} satisfies Pick<DesktopAPI, "onDictationModel" | "startDictation" | "stopDictation" | "cancelDictation" | "downloadDictationModel" | "transcribeAudio" | "onDictationLevel">;
+} satisfies Pick<DesktopAPI, "onDictationModel" | "startDictation" | "stopDictation" | "cancelDictation" | "downloadDictationModel" | "cancelDictationDownload" | "transcribeAudio" | "onDictationLevel">;
 
 export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const sent: RunCommand[] = [];

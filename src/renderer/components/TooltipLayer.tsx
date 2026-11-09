@@ -120,7 +120,12 @@ export function TooltipLayer() {
 
     const onTip = (target: EventTarget | null) => target instanceof Node && !!box.current?.contains(target);
 
+    /** A held press is acting, so nothing it passes over explains itself until it lets go. */
+    let holding = false;
+    const lift = () => { holding = false; };
+
     const over = (event: MouseEvent) => {
+      if (holding) return;
       if (onTip(event.target)) return stay();
       const element = tipped(event.target);
       /** A control that cannot act explains why as soon as the pointer reaches it. */
@@ -134,7 +139,9 @@ export function TooltipLayer() {
     };
 
     const down = (event: PointerEvent) => {
-      if (!onTip(event.target)) hide();
+      if (onTip(event.target)) return;
+      holding = true;
+      hide();
     };
 
     /** Pressing a control that cannot act answers with its reason at once. */
@@ -158,6 +165,8 @@ export function TooltipLayer() {
     document.addEventListener("mouseover", over);
     document.addEventListener("focusin", focus);
     document.addEventListener("pointerdown", down, true);
+    document.addEventListener("pointerup", lift, true);
+    document.addEventListener("pointercancel", lift, true);
     document.addEventListener("click", press);
     document.addEventListener("keydown", key, true);
     /** A tooltip names a place on screen, so anything that moves that place takes it away. */
@@ -168,6 +177,8 @@ export function TooltipLayer() {
       document.removeEventListener("mouseover", over);
       document.removeEventListener("focusin", focus);
       document.removeEventListener("pointerdown", down, true);
+      document.removeEventListener("pointerup", lift, true);
+      document.removeEventListener("pointercancel", lift, true);
       document.removeEventListener("click", press);
       document.removeEventListener("keydown", key, true);
       document.removeEventListener("scroll", hide, true);

@@ -104,7 +104,7 @@ export type WorkspaceEvent =
   /** A run stopped driving a device a moment ago. `seq` names the stretch of driving that ended. */
   | { type: "simulator.idle"; seq: number }
   /** Where this computer's speech model stands, and how a hold went. `id` names the hold. */
-  | { type: "dictation.model"; model: DictationModel; message?: string }
+  | { type: "dictation.model"; model: DictationModel; message?: string; progress?: number }
   | { type: "dictation.started"; id: string }
   | { type: "dictation.transcribed"; id: string; text: string }
   | { type: "dictation.failed"; id: string; message: string }
@@ -221,6 +221,7 @@ type WorkspaceWork =
   | { type: "dictation.stop"; id: string }
   | { type: "dictation.cancel"; id: string }
   | { type: "dictation.download" }
+  | { type: "dictation.cancel-download" }
   /** A file the desktop opens for the reader. `roots` are the checkouts to look for it in, nearest first. */
   | { type: "file.open"; roots: string[]; path: string; line: number | null }
   | { type: "app.list" }

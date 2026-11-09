@@ -10,6 +10,7 @@
 import AVFoundation
 import FluidAudio
 import Foundation
+import os
 
 private let output = FileHandle.standardOutput
 private let outputLock = NSLock()
@@ -113,8 +114,17 @@ private actor Dictation {
     private var recorder: Recorder?
     private var recordingId: String?
 
+    /// FluidAudio's shared folder, unless `--models <folder>` names another.
+    private static let directory: URL = {
+        let arguments = CommandLine.arguments
+        if let at = arguments.firstIndex(of: "--models"), at + 1 < arguments.count {
+            return URL(fileURLWithPath: arguments[at + 1], isDirectory: true)
+        }
+        return AsrModels.defaultCacheDirectory(for: version)
+    }()
+
     private var modelExists: Bool {
-        AsrModels.modelsExist(at: AsrModels.defaultCacheDirectory(for: Self.version), version: Self.version)
+        AsrModels.modelsExist(at: Self.directory, version: Self.version)
     }
 
     func status() {
@@ -123,10 +133,27 @@ private actor Dictation {
         _ = try? loadManager()
     }
 
+    /// Reports whole percents while files arrive, then no percent while the model is compiled for this Mac.
     func download() async {
-        emit(["type": "model", "state": "downloading"])
+        emit(["type": "model", "state": "downloading", "progress": 0])
+        let reported = OSAllocatedUnfairLock(initialState: -1)
         do {
-            let models = try await AsrModels.downloadAndLoad(version: Self.version)
+            let models = try await AsrModels.downloadAndLoad(to: Self.directory, version: Self.version) { update in
+                let percent: Int
+                switch update.phase {
+                case .listing: percent = 0
+                case .downloading(_, let total) where total > 0: percent = Int(min(max(update.fractionCompleted * 2, 0), 1) * 100)
+                default: percent = -2
+                }
+                let changed = reported.withLock { last in
+                    guard last != percent else { return false }
+                    last = percent
+                    return true
+                }
+                guard changed else { return }
+                if percent < 0 { emit(["type": "model", "state": "downloading"]) }
+                else { emit(["type": "model", "state": "downloading", "progress": Double(percent) / 100]) }
+            }
             let created = AsrManager(config: .default)
             try await created.initialize(models: models)
             manager = created
@@ -141,7 +168,7 @@ private actor Dictation {
         if let loading { return loading }
         guard modelExists else { throw DictationError.message("The speech model is not downloaded.") }
         let task = Task<AsrManager, Error> {
-            let models = try await AsrModels.loadFromCache(version: Self.version)
+            let models = try await AsrModels.load(from: Self.directory, version: Self.version)
             let created = AsrManager(config: .default)
             try await created.initialize(models: models)
             return created

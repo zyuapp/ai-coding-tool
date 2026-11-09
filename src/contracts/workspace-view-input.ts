@@ -397,6 +397,7 @@ const commands = {
   "dictation.stop": { fields: {}, at: "local" },
   "dictation.cancel": { fields: {}, at: "local" },
   "dictation.download": { fields: {}, at: "local" },
+  "dictation.cancel-download": { fields: {}, at: "local" },
   "browser-import.read": { fields: {}, at: "local" },
   "browser-import.choose": { fields: { sourceId: nullable(isImportSourceId) }, at: "local" },
   "browser-import.toggle": { fields: { site: isImportSite }, at: "local" },

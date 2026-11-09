@@ -24,6 +24,10 @@ export const dictationEffects = {
     await desktop.cancelDictation(effect.id).catch(() => undefined);
   },
 
+  "dictation.cancel-download": async (_effect, { dispatch, desktop }) => {
+    await desktop.cancelDictationDownload().catch((error) => dispatch({ type: "action.failed", message: errorMessage(error) }));
+  },
+
   "dictation.download": async (_effect, { dispatch, desktop }) => {
     try {
       await desktop.downloadDictationModel();

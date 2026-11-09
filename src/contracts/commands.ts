@@ -80,7 +80,9 @@ export type DictationCommand =
   | { type: "dictation.stop" }
   | { type: "dictation.cancel" }
   /** Fetches the speech model into the folder other apps using it share. */
-  | { type: "dictation.download" };
+  | { type: "dictation.download" }
+  /** Stops a download under way and drops what it fetched. */
+  | { type: "dictation.cancel-download" };
 
 export type CliCommand =
   | { type: "cli.read" }

@@ -22,7 +22,7 @@ const MICROPHONE_DENIED = "AI Coding Tool can't hear you. Allow it in System Set
 const UNREADABLE_RECORDING = "That recording is too long or unreadable.";
 
 type HelperMessage =
-  | { type: "model"; state: "ready" | "missing" | "downloading" | "failed"; message?: string }
+  | { type: "model"; state: "ready" | "missing" | "downloading" | "failed"; message?: string; progress?: number }
   | { type: "started" | "cancelled"; id: string }
   | { type: "level"; id: string; value: number }
   | { type: "text"; id: string; text: string }
@@ -120,9 +120,22 @@ export class DictationHost {
 
   async downloadDictationModel() {
     if (this.readStatus().model === "unsupported") throw new Error(DICTATION_UNSUPPORTED);
-    this.setStatus({ model: "downloading" });
+    this.setStatus({ model: "downloading", progress: 0 });
     this.keepAlive();
     this.send({ op: "download" });
+  }
+
+  /**
+   * Stopping the helper is the only way to stop FluidAudio's download. A download only starts while
+   * the model is missing, so what is in its folder is this download's own partial copy.
+   */
+  async cancelDictationDownload() {
+    if (this.status.model !== "downloading") return;
+    const child = this.helper;
+    this.helper = null;
+    child?.kill();
+    await rm(this.options.models ?? sharedModelDirectory(), { recursive: true, force: true });
+    this.setStatus({ model: "missing" });
   }
 
   async transcribeAudio(audio: string) {
@@ -145,7 +158,7 @@ export class DictationHost {
   }
 
   private setStatus(next: DictationModelStatus) {
-    if (next.model === this.status.model && next.message === this.status.message) return;
+    if (next.model === this.status.model && next.message === this.status.message && next.progress === this.status.progress) return;
     this.status = next;
     for (const listener of this.modelListeners) listener(this.status);
   }
@@ -177,7 +190,9 @@ export class DictationHost {
   private heard(message: HelperMessage) {
     switch (message.type) {
       case "model":
-        this.setStatus(message.state === "failed" ? { model: "failed", message: message.message ?? "The speech model could not be downloaded." } : { model: message.state });
+        this.setStatus(message.state === "failed" ? { model: "failed", message: message.message ?? "The speech model could not be downloaded." }
+          : message.state === "downloading" && typeof message.progress === "number" ? { model: "downloading", progress: Math.min(1, Math.max(0, message.progress)) }
+            : { model: message.state });
         return;
       case "level":
         if (message.id === this.recordingId) this.levelListener?.(message.value);
@@ -197,7 +212,7 @@ export class DictationHost {
 
   private ensureHelper(): ChildProcessWithoutNullStreams {
     if (this.helper) return this.helper;
-    const child = spawn(this.options.helper, [], { stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(this.options.helper, this.options.models ? ["--models", this.options.models] : [], { stdio: ["pipe", "pipe", "pipe"] });
     this.helper = child;
     createInterface({ input: child.stdout }).on("line", (line) => {
       try {
@@ -251,6 +266,7 @@ export function dictationDesktop(host: () => DictationHost) {
     stopDictation: (id: string) => host().stopDictation(id),
     cancelDictation: (id: string) => host().cancelDictation(id),
     downloadDictationModel: () => host().downloadDictationModel(),
+    cancelDictationDownload: () => host().cancelDictationDownload(),
     transcribeAudio: (audio: string) => host().transcribeAudio(audio),
   };
 }

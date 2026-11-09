@@ -6,7 +6,7 @@ import { rejected, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 
 export const DICTATION_INPUTS = [
-  "dictation.start", "dictation.stop", "dictation.cancel", "dictation.download",
+  "dictation.start", "dictation.stop", "dictation.cancel", "dictation.download", "dictation.cancel-download",
   "dictation.model", "dictation.started", "dictation.transcribed", "dictation.failed",
 ] as const;
 type DictationInput = Extract<WorkspaceInput, { type: (typeof DICTATION_INPUTS)[number] }>;
@@ -51,10 +51,14 @@ export function reduceDictation(state: WorkspaceState, input: DictationInput): W
 
     case "dictation.download":
       if (state.dictation.model !== "missing" && state.dictation.model !== "failed") return settled(state);
-      return settled(withDictation(state, { model: "downloading", message: null }), [{ type: "dictation.download" }]);
+      return settled(withDictation(state, { model: "downloading", message: null, progress: 0 }), [{ type: "dictation.download" }]);
+
+    case "dictation.cancel-download":
+      if (state.dictation.model !== "downloading") return settled(state);
+      return settled(withDictation(state, { model: "missing", message: null, progress: null }), [{ type: "dictation.cancel-download" }]);
 
     case "dictation.model":
-      return settled(withDictation(state, { model: input.model, message: input.message ?? null }));
+      return settled(withDictation(state, { model: input.model, message: input.message ?? null, progress: input.model === "downloading" ? input.progress ?? null : null }));
 
     case "dictation.started": {
       const session = current(state, input.id);

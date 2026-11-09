@@ -13,12 +13,14 @@ export type DictationState = {
   model: DictationModel;
   /** Why the model is unsupported or failed. */
   message: string | null;
+  /** How much of the model has downloaded, 0 to 1. Null while it is prepared, or when nothing downloads. */
+  progress: number | null;
   session: DictationSession | null;
   /** Bumped when spoken words are in the draft on screen and its composer should send it. */
   release: number;
 };
 
-export const NO_DICTATION: DictationState = { model: "unsupported", message: null, session: null, release: 0 };
+export const NO_DICTATION: DictationState = { model: "unsupported", message: null, progress: null, session: null, release: 0 };
 
 /** How long the send button must be held before it listens rather than sends. */
 export const DICTATION_HOLD_MS = 250;

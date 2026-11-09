@@ -46,8 +46,10 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       dictation={{
         model: workspace.dictation.model,
         message: workspace.dictation.message,
+        progress: workspace.dictation.progress,
         binding: dictationBinding(workspace.shortcuts),
         onDownload: () => void workspace.dispatch({ type: "dictation.download" }),
+        onCancelDownload: () => void workspace.dispatch({ type: "dictation.cancel-download" }),
       }}
       notifications={workspace.notifications} remote={workspace.remote} remoteChecking={workspace.remoteChecking}
       agentSettingsReload={workspace.agentSettingsReload} onReloadAgentSettings={() => void workspace.actions.reloadAgentSettings()}

@@ -98,6 +98,27 @@ test("downloading the model is only offered while it is missing or failed", () =
   assert.equal(again.effects.length, 0);
 });
 
+test("cancelling a download stops it and offers the download again", () => {
+  const downloading = run(workspace(), [{ type: "dictation.model", model: "missing" }, { type: "dictation.download" }, { type: "dictation.model", model: "downloading", progress: 0.3 }]);
+  const cancelled = reduce(downloading, { type: "dictation.cancel-download" });
+  assert.deepEqual(effectOf(cancelled, "dictation.cancel-download"), { type: "dictation.cancel-download" });
+  assert.equal(cancelled.state.dictation.model, "missing");
+  assert.equal(cancelled.state.dictation.progress, null);
+  assert.equal(reduce(cancelled.state, { type: "dictation.cancel-download" }).effects.length, 0, "nothing to cancel once it stopped");
+});
+
+test("a download shows how much has arrived, then that it is being prepared, then nothing once ready", () => {
+  const started = run(workspace(), [{ type: "dictation.model", model: "missing" }, { type: "dictation.download" }]);
+  assert.equal(deriveView(started).dictation.progress, 0);
+  const halfway = run(started, [{ type: "dictation.model", model: "downloading", progress: 0.42 }]);
+  assert.equal(deriveView(halfway).dictation.progress, 0.42);
+  const preparing = run(halfway, [{ type: "dictation.model", model: "downloading" }]);
+  assert.equal(deriveView(preparing).dictation.progress, null);
+  const ready = run(preparing, [{ type: "dictation.model", model: "ready", progress: 1 }]);
+  assert.equal(ready.dictation.model, "ready");
+  assert.equal(ready.dictation.progress, null);
+});
+
 test("spoken words join typing with one space, or start the draft", () => {
   assert.equal(withSpokenWords("", " hello "), "hello");
   assert.equal(withSpokenWords("Fix it.", "Now."), "Fix it. Now.");
@@ -106,8 +127,8 @@ test("spoken words join typing with one space, or start the draft", () => {
 });
 
 test("holding to talk on a paired computer's thread shows this computer's microphone and sends from here", () => {
-  const remote = workspace({ threads: [task("remote-thread")], currentId: "remote-thread", dictation: { model: "unsupported", message: null, session: null, release: 7 } });
-  const local = workspace({ dictation: { model: "ready", message: null, session: null, release: 0 } });
+  const remote = workspace({ threads: [task("remote-thread")], currentId: "remote-thread", dictation: { model: "unsupported", message: null, progress: null, session: null, release: 7 } });
+  const local = workspace({ dictation: { model: "ready", message: null, progress: null, session: null, release: 0 } });
   const link = { id: "linux", name: "linux", host: "linux.tail.ts.net", status: "connected" as const, error: null, pairedAt: 1, state: remote };
   const state = { ...local, computers: { ...local.computers, name: "This Mac", paired: [link], active: "linux" } };
   const key = promptKey(state);

@@ -142,7 +142,7 @@ struct ComposerView<Above: View>: View {
                 }
                 HStack(spacing: 8) {
                     if talk.active {
-                        TalkStrip(phase: talk, levels: recorder.levels, cancelling: talkCancelling)
+                        TalkStrip(phase: talk, levels: recorder.levels, startedAt: recorder.startedAt, cancelling: talkCancelling)
                     }
                     if !blocked && !talk.active {
                         Menu {
@@ -341,17 +341,21 @@ struct ComposerView<Above: View>: View {
     private var talkButton: some View {
         let microphone = !typed || talk.active
         let lit = typed || talk == .listening || talk == .starting
+        let hearing = talk == .listening && !talkCancelling
         return ZStack {
+            if hearing { TalkHalo(level: recorder.levels.last ?? 0).transition(.opacity) }
             Circle()
-                .fill(talkCancelling ? palette.raised : lit ? palette.accent : palette.raised)
+                .fill(talkCancelling ? palette.dangerSurface : lit ? palette.accent : palette.raised)
+                .overlay { if talkCancelling { Circle().strokeBorder(palette.danger.opacity(0.4), lineWidth: 1) } }
                 .frame(width: 34, height: 34)
-                .scaleEffect(talk == .listening && !talkCancelling ? 1.25 : 1)
+                .scaleEffect(hearing ? 1.12 : 1)
             if talk == .transcribing {
                 ProgressView().tint(palette.inkDim)
             } else {
-                Image(systemName: microphone ? "mic.fill" : "arrow.up")
+                Image(systemName: talkCancelling ? "xmark" : microphone ? "mic.fill" : "arrow.up")
                     .font(.body.weight(.bold))
-                    .foregroundStyle(talkCancelling ? palette.muted : lit ? palette.accentInk : palette.inkDim)
+                    .foregroundStyle(talkCancelling ? palette.danger : lit ? palette.accentInk : palette.inkDim)
+                    .contentTransition(.symbolEffect(.replace))
             }
         }
         .animation(.snappy(duration: 0.2), value: talk)
