@@ -187,8 +187,9 @@ struct ComputerMenu: View {
             Section("Computers") {
                 let computers = model.connection.computers
                 ForEach(computers) { computer in
-                    Button { model.connection.switchTo(computer) } label: {
-                        if computer.origin == model.connection.origin { Label(computer.title, systemImage: "checkmark") } else { Text(computer.title) }
+                    /// A toggle puts the checkmark in the menu's own gutter, so every name starts at one edge.
+                    Toggle(isOn: Binding(get: { computer.origin == model.connection.origin }, set: { _ in model.connection.switchTo(computer) })) {
+                        Text(computer.title)
                         /// Two computers of one name are told apart by where each is reached.
                         if computers.filter({ $0.title == computer.title }).count > 1 { Text(computer.address) }
                     }
