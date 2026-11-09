@@ -61,7 +61,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
           retrying={workspace.retrying}
           limitPause={workspace.limitPause}
           waitingOn={workspace.waitingOn}
-          blocked={workspace.approval !== null}
+          blocked={workspace.approval !== undefined}
           streamingTail={workspace.streamingTail}
           readingPoint={workspace.readingPoint}
           onReadingPointMove={(point) => {
