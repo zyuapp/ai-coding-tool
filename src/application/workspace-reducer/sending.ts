@@ -197,13 +197,14 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
 
     /**
      * A steered message, or one a starting run is taking, is already on its way to the agent, so only
-     * one still waiting can be dropped; the caller hears when it was not, without an error shown here.
+     * one still waiting can be dropped. Asked `ifWaiting`, the caller hears when it was not, without an
+     * error shown here.
      */
     case "task.drop-queued": {
       const taskId = targetId(state, input.taskId);
       const queued = taskId ? queuedFor(state, taskId) : [];
       const message = queued.find((item) => item.id === input.messageId);
-      if (!taskId || !message || message.steering || drainingQueued(state, taskId, message.id)) return settled(state, [], { ok: false, message: QUEUED_SENT });
+      if (!taskId || !message || message.steering || drainingQueued(state, taskId, message.id)) return input.ifWaiting ? settled(state, [], { ok: false, message: QUEUED_SENT }) : settled(state);
       return settled(withUndelivered(withQueued(state, taskId, queued.filter((item) => item.id !== message.id)), taskId, [message]));
     }
 

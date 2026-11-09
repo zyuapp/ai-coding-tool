@@ -228,7 +228,8 @@ export type TaskCommand =
   | { type: "attachments.notice"; taskId?: string; message: string | null }
   /** Moves to the thread `delta` away in the sidebar, which is where the keyboard walks the list. */
   | { type: "task.steer-queued"; taskId?: string; messageId: string }
-  | { type: "task.drop-queued"; taskId?: string; messageId: string }
+  /** `ifWaiting` asks to hear when the message was no longer waiting rather than have nothing happen. */
+  | { type: "task.drop-queued"; taskId?: string; messageId: string; ifWaiting?: true }
   /** Takes one of the user's own queued messages back into the composer to be rewritten and sent again. */
   | { type: "task.edit-queued"; taskId?: string; messageId: string };
 

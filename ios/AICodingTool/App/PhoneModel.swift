@@ -37,12 +37,11 @@ final class PhoneModel {
     }
     /// Unsent words by thread, kept for as long as the app runs.
     @ObservationIgnored private var drafts: [String: String] = [:]
-    /// Words handed back to the composer on screen, such as a queued message taken out of the queue.
-    private(set) var handedBack: (id: UUID, text: String)?
     /// A queued message on its way out of the queue, whose words come back once the computer has taken it out.
     private(set) var editing: (requestId: String, taskId: String, messageId: String, text: String)?
-    /// The draft spoken words last landed in, so a composer showing it reads it again.
-    private(set) var spokenInto: (id: UUID, key: String)?
+    /// The draft last filled from outside its composer, so a composer showing it reads it again, and
+    /// takes the keyboard when the words are ones to rewrite.
+    private(set) var refilled: (id: UUID, key: String, focus: Bool)?
 
     @ObservationIgnored private let storage: PhoneStorage
     /// The thread whose changes the changes screen shows.
@@ -226,12 +225,7 @@ final class PhoneModel {
     func addSpokenWords(_ words: String, to key: String) {
         let typed = draft(for: key).trimmingCharacters(in: .whitespacesAndNewlines)
         keepDraft(typed.isEmpty ? words : "\(typed) \(words)", for: key)
-        spokenInto = (UUID(), key)
-    }
-
-    /// Puts a message's words back in the composer on screen, after anything already typed there.
-    func handBack(_ text: String) {
-        handedBack = (UUID(), text)
+        refilled = (UUID(), key, false)
     }
 
     /// Asks for a queued message back; its words reach the composer only once it has left the queue.
@@ -240,17 +234,14 @@ final class PhoneModel {
         editing = (send(.editQueued(taskId, messageId: message.id)), taskId, message.id, message.text)
     }
 
-    /// Settles the edit once its command has left the outbox: taken, its words come back to its thread's
-    /// composer, or to that thread's draft when another thread is on screen; otherwise it lets go.
+    /// Settles the edit once its command has left the outbox: taken, its words join its thread's draft,
+    /// whichever screen is showing; otherwise it lets go.
     func settleEdit() {
         guard let editing, !state.outbox.contains(where: { $0.requestId == editing.requestId }) else { return }
         self.editing = nil
         guard state.accepted == editing.requestId else { return }
-        if view.thread?.id == editing.taskId {
-            handBack(editing.text)
-        } else {
-            let typed = draft(for: editing.taskId).trimmingCharacters(in: .whitespacesAndNewlines)
-            keepDraft(typed.isEmpty ? editing.text : "\(typed)\n\n\(editing.text)", for: editing.taskId)
-        }
+        let typed = draft(for: editing.taskId).trimmingCharacters(in: .whitespacesAndNewlines)
+        keepDraft(typed.isEmpty ? editing.text : "\(typed)\n\n\(editing.text)", for: editing.taskId)
+        refilled = (UUID(), editing.taskId, true)
     }
 }

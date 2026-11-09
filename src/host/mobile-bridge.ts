@@ -1,7 +1,7 @@
-import { applyMobilePatch, diffMobileView, mobileArchivedThreads, mobileThreadRead, phoneEditsQueued, phoneReachesThread, projectMobileView, remoteMemberHolder } from "../application/mobile-projection.js";
+import { applyMobilePatch, diffMobileView, mobileArchivedThreads, mobileThreadRead, phoneEditsQueued, phoneReachesThread, projectMobileView, remoteMemberHolder, saysQueuedGone } from "../application/mobile-projection.js";
 import { NEW_THREAD_DRAFT, promptKey, type WorkspaceState } from "../application/workspace-state.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
-import type { WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
+import type { WorkspaceCommandResult, WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
 import type { AppCommand } from "../contracts/commands.js";
 import { isMobileQuery, isMobileRequest, type MobileQuery, type MobileRequest, type MobileResponse, type MobileView, type MobileViewUpdate } from "../contracts/mobile.js";
 import { isPhoneCommand, isWorkspaceViewInput } from "../contracts/workspace-view-input.js";
@@ -12,6 +12,7 @@ import { messageImagePath } from "../domain/message-artifacts.js";
 import { attachmentSendFor } from "../application/composer-attachments.js";
 import { drainingQueued, editableQueued } from "../application/workspace-reducer/run-queue.js";
 import { QUEUED_SENT } from "../application/computers.js";
+import { REMOTE_UNSUPPORTED } from "../contracts/computer-capabilities.js";
 import { errorMessage } from "./errors.js";
 
 /** What a phone is refused with when it sends something outside the surface open to it. */
@@ -93,12 +94,14 @@ async function linkedImage(host: MobileBridgeHost, reader: MobileBridgeReader, q
 function editedQueued(state: WorkspaceState, command: Extract<AppCommand, { type: "task.edit-queued" }>): AppCommand | { refusal: string } {
   const taskId = command.taskId;
   if (taskId === undefined) return { refusal: QUEUED_SENT };
-  const holder = remoteMemberHolder(state, taskId)?.state ?? state;
+  const remote = remoteMemberHolder(state, taskId);
+  if (remote && !saysQueuedGone(remote)) return { refusal: REMOTE_UNSUPPORTED };
+  const holder = remote?.state ?? state;
   const edit = editableQueued(holder.queuedMessages[taskId] ?? [], command.messageId);
   if ("refusal" in edit) return edit;
   if (drainingQueued(holder, taskId, edit.message.id)) return { refusal: QUEUED_SENT };
   if (!phoneEditsQueued(edit.message)) return { refusal: MOBILE_QUEUED_NOT_WORDS };
-  return { type: "task.drop-queued", taskId, messageId: command.messageId };
+  return { type: "task.drop-queued", taskId, messageId: command.messageId, ifWaiting: true };
 }
 
 /** What a phone is refused with when it sends from the new thread's draft before the last send from there has started. */
@@ -114,6 +117,26 @@ function touchesDraft(state: WorkspaceState, command: AppCommand): boolean {
 /** Whether a send from the new thread's draft has yet to start: its images are being written, or its run is starting. */
 function draftSending(state: WorkspaceState): boolean {
   return attachmentSendFor(state.attachmentSends).busy || Object.values(state.pendingRuns).some((pending) => pending.draftKey === NEW_THREAD_DRAFT);
+}
+
+/** How long a phone's edit waits to hear the computer holding the queue took the message out, under the relay's own deadline. */
+export const MOBILE_EDIT_WAIT_MS = 5_000;
+
+/**
+ * An edit is answered once the computer holding the queue has taken the message out, so words that
+ * already ran never come back. A holder slower than the relay allows is taken at its word, since a
+ * phone told no would lose words the holder did take out; a later refusal still reaches the view.
+ */
+async function editSettled(execution: WorkspaceExecution): Promise<WorkspaceCommandResult> {
+  const accepted = execution.accepted instanceof Promise ? await execution.accepted : execution.accepted;
+  if (!accepted.ok) return accepted;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<WorkspaceCommandResult>((resolve) => { timer = setTimeout(() => resolve({ ok: true }), MOBILE_EDIT_WAIT_MS); });
+  try {
+    return await Promise.race([execution.completed, late]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -158,8 +181,7 @@ export async function answerMobileRequest(host: MobileBridgeHost, request: Mobil
     if ("refusal" in commands) return failed(commands.refusal);
     for (const command of commands) {
       const execution = host.execute(command);
-      /** An edit is answered only once the computer holding the queue has taken the message out, so its words never come back twice. */
-      const settled = request.command.type === "task.edit-queued" ? await execution.completed
+      const settled = request.command.type === "task.edit-queued" ? await editSettled(execution)
         : execution.accepted instanceof Promise ? await execution.accepted : execution.accepted;
       if (!settled.ok) return failed(settled.message);
     }

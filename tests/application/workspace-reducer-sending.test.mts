@@ -204,9 +204,10 @@ test("dropping a queued message removes only that one", () => {
 
   assert.deepEqual(dropped.effects, []);
   assert.deepEqual(dropped.state.queuedMessages["task-a"].map((message) => message.text), ["Second"]);
-  const again = reduce(dropped.state, { type: "task.drop-queued", messageId: first.id });
-  assert.equal(again.state, dropped.state);
-  assert.equal(again.result?.ok, false, "a message already gone says so to whoever asked");
+  assert.equal(reduce(dropped.state, { type: "task.drop-queued", messageId: first.id }).result?.ok ?? true, true, "a message already gone is simply not there to drop");
+  const asked = reduce(dropped.state, { type: "task.drop-queued", messageId: first.id, ifWaiting: true });
+  assert.equal(asked.state, dropped.state);
+  assert.equal(asked.result?.ok, false, "asked, it says the message had already gone");
 });
 
 test("editing a queued message takes it back into the composer, ahead of the draft", () => {

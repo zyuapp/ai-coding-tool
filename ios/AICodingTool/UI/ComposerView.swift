@@ -29,7 +29,6 @@ struct ComposerView<Above: View>: View {
     @Environment(\.palette) private var palette
     @State private var draft = ""
     @State private var given: String?
-    @State private var seenHandBack: UUID?
     @State private var images: [PickedImage] = []
     @State private var tray: ComposerTray?
     @State private var shooting = false
@@ -164,10 +163,11 @@ struct ComposerView<Above: View>: View {
             .ignoresSafeArea()
         }
         .onAppear { draft = model.draft(for: draftKey) }
-        .onChange(of: model.spokenInto?.id) { _, id in
-            guard id != nil, model.spokenInto?.key == draftKey else { return }
+        .onChange(of: model.refilled?.id) { _, id in
+            guard id != nil, let refilled = model.refilled, refilled.key == draftKey else { return }
             lastSent = nil
             draft = model.draft(for: draftKey)
+            if refilled.focus { focused = true }
         }
         .onDisappear {
             if talk == .starting || talk == .listening { cancelTalk() }
@@ -186,13 +186,6 @@ struct ComposerView<Above: View>: View {
             given = next.id
             lastSent = nil
             if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { draft = text }
-        }
-        .onChange(of: model.handedBack?.id) { _, id in
-            guard let id, id != seenHandBack, let text = model.handedBack?.text else { return }
-            seenHandBack = id
-            lastSent = nil
-            focused = true
-            draft = draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? text : "\(draft.trimmingCharacters(in: .whitespacesAndNewlines))\n\n\(text)"
         }
     }
 

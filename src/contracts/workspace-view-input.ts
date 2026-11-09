@@ -323,7 +323,7 @@ const commands = {
   "attachments.notice": { fields: { taskId: optionalText, message: nullableText }, at: "local" },
   "task.send": { fields: { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isModelId), engine: optional(isAgentEngine), effort: optional(isAgentEffort), role: optional(isThreadRole), coordinatorId: optionalText, brief: optional(isThreadBrief), title: optional(startTitle), from: optionalText, sender: optional(remoteSender), lead: optional(remoteLead), memory: optional(memoryText) }, at: "own", agent: agentSend, phone: phone.sends },
   "task.steer-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread", phone: phone.namesQueued },
-  "task.drop-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread", phone: phone.namesQueued },
+  "task.drop-queued": { fields: { taskId: optionalText, messageId: text, ifWaiting: optional(literals(true)) }, at: "thread", phone: phone.namesQueued },
   "task.edit-queued": { fields: { taskId: optionalText, messageId: text }, at: "own", phone: phone.editsQueued },
   "annotation.add": { fields: { taskId: optionalText, quote: text, note: optionalText, anchor: optional(isAnnotationAnchor) }, at: "local", phone: phone.annotates },
   "annotation.note": { fields: { taskId: optionalText, annotationId: text, note: text }, at: "local", phone: phone.notesAnnotation },

@@ -12,6 +12,7 @@ import { coordinationMembers, coordinatorRoster, memberActivity, ownCoordination
 import { computerOfThread, selectedComputer, type PairedComputer } from "./computers.js";
 import { isUsersOwn } from "../domain/message-origin.js";
 import { drainingQueued } from "./workspace-reducer/run-queue.js";
+import { supportsComputerCommand } from "../contracts/computer-capabilities.js";
 import { describeToolCall } from "../domain/tool-call.js";
 import { deliveryLabel, isCoordinator } from "../domain/coordination.js";
 import type { CoordinationDecisionView, ProposalView } from "./coordination-view.js";
@@ -351,6 +352,11 @@ export function remoteMemberHolder(state: WorkspaceState, taskId: string): Paire
   return lead !== undefined && coordinationMembers(state, lead).some((member) => member.computer?.id === holder.id && member.thread.id === taskId) ? holder : null;
 }
 
+/** Whether a paired computer says when a message it was asked to drop had already gone; one too old to is never asked for one back. */
+export function saysQueuedGone(computer: PairedComputer): boolean {
+  return computer.capabilities !== undefined && supportsComputerCommand(computer.capabilities, { type: "task.drop-queued", messageId: "", ifWaiting: true });
+}
+
 /**
  * Only the user's own words travel to the phone's composer and back: images and files are paths on
  * the computer, and pasted text and notes ride beside the words, which a phone's composer cannot hold.
@@ -373,6 +379,7 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
   const transcript = threadTranscript(shown, thread.id, MOBILE_TRANSCRIPT_MESSAGES, MOBILE_MESSAGE_TEXT_LIMIT);
   if (!transcript) return null;
   const blocked = elsewhere ? threadActivity(shown).blocked : view.blockedThreadIds;
+  const editable = !elsewhere || saysQueuedGone(elsewhere);
   /** A coordinator answers for the threads under it, as its Needs-you card does, its own first. */
   const member = view.approval ? undefined : view.coordination.approvals[0];
   const approval = view.approval ?? member?.approval;
@@ -403,7 +410,7 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
         detail: approvalDetail(approval.input),
       }
       : null,
-    queued: view.queuedMessages.map((message) => ({ id: message.id, text: message.text, ...labelOf(message), ...(message.steering ? { steering: true } : {}), ...(phoneEditsQueued(message) && !drainingQueued(shown, thread.id, message.id) ? { editable: true as const } : {}) })),
+    queued: view.queuedMessages.map((message) => ({ id: message.id, text: message.text, ...labelOf(message), ...(message.steering ? { steering: true } : {}), ...(editable && phoneEditsQueued(message) && !drainingQueued(shown, thread.id, message.id) ? { editable: true as const } : {}) })),
     settings: { engine: view.engine, model: view.model, effort: view.effort, fastMode: view.fastMode, policy: view.policy, ...(view.coordinating ? { coordinating: true as const } : {}) },
     location,
     worktrees: project && !elsewhere ? worktreeChoices(state, project.id, thread.worktreeId) : [],
