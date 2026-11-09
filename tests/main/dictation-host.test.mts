@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, test } from "vitest";
@@ -12,10 +12,12 @@ const hosts: DictationHost[] = [];
 /** A helper that answers like the real one: it hears "said" on start and writes it down on stop. */
 const FAKE_HELPER = `#!/usr/bin/env node
 const rl = require("node:readline").createInterface({ input: process.stdin });
+const heardFile = require("node:path").join(__dirname, "heard.log");
 const say = (message) => process.stdout.write(JSON.stringify(message) + "\\n");
 let listening = null;
 rl.on("line", (line) => {
   const request = JSON.parse(line);
+  require("node:fs").appendFileSync(heardFile, request.op + "\\n");
   if (request.op === "start") { listening = request.id; say({ type: "level", id: request.id, value: 0.5 }); say({ type: "started", id: request.id }); }
   else if (request.op === "stop") { listening = null; say({ type: "text", id: request.id, text: "said" }); }
   else if (request.op === "cancel") { listening = null; say({ type: "cancelled", id: request.id }); }
@@ -26,6 +28,11 @@ rl.on("line", (line) => {
 });
 `;
 
+function completeModel(models: string) {
+  for (const file of ["Preprocessor.mlmodelc", "Encoder.mlmodelc", "Decoder.mlmodelc", "JointDecision.mlmodelc"]) mkdirSync(path.join(models, file), { recursive: true });
+  writeFileSync(path.join(models, "parakeet_vocab.json"), "{}");
+}
+
 function setup(options: { models?: boolean; microphone?: () => Promise<boolean> } = {}) {
   const folder = mkdtempSync(path.join(os.tmpdir(), "aic-dictation-test-"));
   folders.push(folder);
@@ -33,9 +40,7 @@ function setup(options: { models?: boolean; microphone?: () => Promise<boolean> 
   writeFileSync(helper, FAKE_HELPER);
   chmodSync(helper, 0o755);
   const models = path.join(folder, "models");
-  if (options.models !== false) {
-    for (const file of ["Preprocessor.mlmodelc", "Encoder.mlmodelc", "Decoder.mlmodelc", "JointDecision.mlmodelc"]) mkdirSync(path.join(models, file), { recursive: true });
-  }
+  if (options.models !== false) completeModel(models);
   const host = new DictationHost({ helper, models, microphone: options.microphone ?? (async () => true) });
   hosts.push(host);
   return host;
@@ -126,4 +131,41 @@ test("cancelling a download stops the helper and removes the partial model", { s
   } finally {
     delete process.env.SLOW_DOWNLOAD;
   }
+});
+
+test("a model without its vocabulary is not ready, so the download is offered", { skip: !appleSilicon }, () => {
+  const host = setup();
+  rmSync(path.join(folders.at(-1)!, "models", "parakeet_vocab.json"));
+  const seen: string[] = [];
+  host.onDictationModel(({ model }) => seen.push(model));
+  assert.deepEqual(seen, ["missing"]);
+});
+
+test("cancelling keeps a model that became complete during the download", { skip: !appleSilicon }, async () => {
+  process.env.SLOW_DOWNLOAD = "1";
+  try {
+    const host = setup({ models: false });
+    const seen: string[] = [];
+    host.onDictationModel(({ model }) => seen.push(model));
+    await host.downloadDictationModel();
+    const models = path.join(folders.at(-1)!, "models");
+    completeModel(models);
+    await host.cancelDictationDownload();
+    assert.equal(seen.at(-1), "ready");
+    assert.equal(existsSync(path.join(models, "parakeet_vocab.json")), true);
+  } finally {
+    delete process.env.SLOW_DOWNLOAD;
+  }
+});
+
+test("a hold that fails to start tells the helper to drop it", { skip: !appleSilicon }, async () => {
+  let allowed = true;
+  const host = setup({ microphone: async () => allowed });
+  await host.startDictation("first");
+  await host.stopDictation("first");
+  allowed = false;
+  await assert.rejects(host.startDictation("second"), /System Settings/);
+  const heard = path.join(folders.at(-1)!, "heard.log");
+  for (let tries = 0; tries < 100 && !readFileSync(heard, "utf8").includes("cancel"); tries += 1) await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.deepEqual(readFileSync(heard, "utf8").trim().split("\n"), ["start", "stop", "cancel"]);
 });

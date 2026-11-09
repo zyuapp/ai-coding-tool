@@ -382,6 +382,14 @@ test("a phone's request is answered by the window, or by the wait running out", 
   const closed = new MobileRelay({ send: () => false });
   await assert.rejects(closed.snapshot("session-1"), /window is not open/);
 
+  const slow: MobileRequest[] = [];
+  const transcribing = new MobileRelay({ send: (request) => { slow.push(request); return true; } }, 40, 400);
+  const heard = transcribing.query("session-1", { kind: "transcribe", audio: "UklGRg==" });
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  transcribing.answer({ type: "mobile.response", requestId: slow[0].requestId, ok: true, result: { text: "words" } });
+  assert.deepEqual(await heard, { text: "words" }, "a recording waits longer than any other request");
+  await assert.rejects(transcribing.query("session-1", { kind: "directories", prefix: "/" }), /did not answer/);
+
   const abandoned = new MobileRelay({ send: () => true });
   const waiting = abandoned.snapshot("session-1");
   abandoned.failAll("The phone bridge was turned off.");

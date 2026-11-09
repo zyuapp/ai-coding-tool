@@ -17,7 +17,8 @@ const IDLE_MS = 3 * 60_000;
 const START_TIMEOUT_MS = 10_000;
 const TRANSCRIBE_TIMEOUT_MS = 120_000;
 const MODEL_FOLDER = "parakeet-tdt-0.6b-v2-coreml";
-const MODEL_FILES = ["Preprocessor.mlmodelc", "Encoder.mlmodelc", "Decoder.mlmodelc", "JointDecision.mlmodelc"];
+/** What FluidAudio needs to load Parakeet v2: its four models and their vocabulary. */
+const MODEL_FILES = ["Preprocessor.mlmodelc", "Encoder.mlmodelc", "Decoder.mlmodelc", "JointDecision.mlmodelc", "parakeet_vocab.json"];
 const MICROPHONE_DENIED = "AI Coding Tool can't hear you. Allow it in System Settings → Privacy & Security → Microphone.";
 const UNREADABLE_RECORDING = "That recording is too long or unreadable.";
 
@@ -94,6 +95,8 @@ export class DictationHost {
       await started;
     } catch (error) {
       if (this.recordingId === id) this.recordingId = null;
+      /** A start still queued behind other work would otherwise begin recording after the hold gave up. */
+      this.helper?.stdin.write(`${JSON.stringify({ op: "cancel", id })}\n`);
       throw error;
     } finally {
       if (this.starting === started) this.starting = null;
@@ -126,16 +129,17 @@ export class DictationHost {
   }
 
   /**
-   * Stopping the helper is the only way to stop FluidAudio's download. A download only starts while
-   * the model is missing, so what is in its folder is this download's own partial copy.
+   * Stopping the helper is the only way to stop FluidAudio's download. Only an incomplete folder is
+   * removed, so a model another app finished meanwhile is kept.
    */
   async cancelDictationDownload() {
     if (this.status.model !== "downloading") return;
     const child = this.helper;
     this.helper = null;
     child?.kill();
-    await rm(this.options.models ?? sharedModelDirectory(), { recursive: true, force: true });
-    this.setStatus({ model: "missing" });
+    const complete = this.modelComplete();
+    if (!complete) await rm(this.modelFolder(), { recursive: true, force: true });
+    this.setStatus(complete ? { model: "ready" } : { model: "missing" });
   }
 
   async transcribeAudio(audio: string) {
@@ -168,8 +172,16 @@ export class DictationHost {
     if (process.platform !== "darwin" || process.arch !== "arm64") return { model: "unsupported", message: DICTATION_UNSUPPORTED };
     if (!existsSync(this.options.helper)) return { model: "unsupported", message: "This build of the app has no dictation helper." };
     if (this.status.model === "downloading") return this.status;
-    const folder = this.options.models ?? sharedModelDirectory();
-    return MODEL_FILES.every((file) => existsSync(path.join(folder, file))) ? { model: "ready" } : { model: "missing" };
+    return this.modelComplete() ? { model: "ready" } : { model: "missing" };
+  }
+
+  private modelFolder() {
+    return this.options.models ?? sharedModelDirectory();
+  }
+
+  private modelComplete() {
+    const folder = this.modelFolder();
+    return MODEL_FILES.every((file) => existsSync(path.join(folder, file)));
   }
 
   private usable() {

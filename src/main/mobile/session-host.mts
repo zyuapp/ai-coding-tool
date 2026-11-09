@@ -3,6 +3,8 @@ import type { MobileCommand, MobileQuery, MobileRequest, MobileResponse, MobileV
 
 /** Shorter than a phone's own patience, so a lost answer comes back as a refusal rather than a hang. */
 export const MOBILE_REQUEST_TIMEOUT = 8_000;
+/** A recording may take its computer two minutes to write down, and loading the speech model first. */
+export const MOBILE_TRANSCRIBE_TIMEOUT = 130_000;
 
 type Pending = {
   settle: (response: MobileResponse) => void;
@@ -29,7 +31,7 @@ function isView(value: unknown): value is MobileView {
 export class MobileRelay {
   private readonly pending = new Map<string, Pending>();
 
-  constructor(private readonly host: MobileRelayHost, private readonly patience = MOBILE_REQUEST_TIMEOUT) {}
+  constructor(private readonly host: MobileRelayHost, private readonly patience = MOBILE_REQUEST_TIMEOUT, private readonly transcribePatience = MOBILE_TRANSCRIBE_TIMEOUT) {}
 
   async snapshot(sessionId: string): Promise<MobileView> {
     const response = await this.ask({ type: "mobile.request", requestId: randomUUID(), sessionId, op: "snapshot" });
@@ -45,7 +47,7 @@ export class MobileRelay {
 
   /** The window's own answer, passed through as it came: what a read returns is the phone's to draw. */
   async query(sessionId: string, query: MobileQuery): Promise<unknown> {
-    const response = await this.ask({ type: "mobile.request", requestId: randomUUID(), sessionId, op: "query", query });
+    const response = await this.ask({ type: "mobile.request", requestId: randomUUID(), sessionId, op: "query", query }, query.kind === "transcribe" ? this.transcribePatience : this.patience);
     if (!response.ok) throw new Error(response.message);
     return response.result;
   }
@@ -68,12 +70,12 @@ export class MobileRelay {
     }
   }
 
-  private ask(request: MobileRequest): Promise<MobileResponse> {
+  private ask(request: MobileRequest, patience = this.patience): Promise<MobileResponse> {
     return new Promise<MobileResponse>((resolve) => {
       const timer = setTimeout(() => {
         this.pending.delete(request.requestId);
         resolve({ type: "mobile.response", requestId: request.requestId, ok: false, message: "Your computer did not answer in time. Try again." });
-      }, this.patience);
+      }, patience);
       timer.unref?.();
       this.pending.set(request.requestId, { settle: resolve, timer });
       if (this.host.send(request)) return;

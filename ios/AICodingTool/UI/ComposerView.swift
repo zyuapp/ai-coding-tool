@@ -45,6 +45,8 @@ struct ComposerView<Above: View>: View {
     @State private var talkNote: String?
     @State private var heard = 0
     @State private var talkEnded = false
+    /// Which press the hold delay belongs to, so a timer from an earlier tap never starts a later one.
+    @State private var pressCount = 0
     @GestureState private var pressing = false
     @Environment(\.scenePhase) private var scenePhase
     @FocusState private var focused: Bool
@@ -388,9 +390,11 @@ struct ComposerView<Above: View>: View {
             talkReleased = false
             talkEnded = false
             talkCancelling = false
+            pressCount += 1
+            let press = pressCount
             Task { @MainActor in
                 try? await Task.sleep(for: TalkPhase.holdDelay)
-                if talk == .pressing { startTalking() }
+                if talk == .pressing && press == pressCount { startTalking() }
             }
         case .pressing, .starting, .listening:
             let cancelling = rise < -TalkPhase.cancelDistance
