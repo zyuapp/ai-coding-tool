@@ -25,7 +25,7 @@ const sizeRules = {
 };
 
 export default [
-  { ignores: ["node_modules/**", "dist/**", "release/**", "vendor/**", "native/dictation/.build/**"] },
+  { ignores: ["node_modules/**", "dist/**", "release/**", "vendor/**", "native/dictation/.build/**", "ios/build/**"] },
   { files: ["**/*.ts", "**/*.mts", "**/*.cts"], languageOptions: typescript(false), rules: sizeRules },
   { files: ["**/*.tsx", "**/*.jsx"], languageOptions: typescript(true), rules: sizeRules },
   { files: ["**/*.js", "**/*.mjs", "**/*.cjs"], rules: sizeRules },
