@@ -240,15 +240,22 @@ final class PhoneModel {
     func commands(for scope: CommandScope) -> [SlashCommand]? { commandLists[commandsKey(scope)] }
 
     /// Reads the scope's list again at most once a minute, keeping the last one meanwhile, so skills
-    /// installed since show up without typing waiting on the computer.
+    /// installed since show up without typing waiting on the computer. A read nobody answered, such as
+    /// one cut off by the line dropping, is tried again the next time the menu opens or the line returns.
     func readCommands(for scope: CommandScope) {
         guard live else { return }
         let key = commandsKey(scope)
         if let read = commandsRead[key], Date().timeIntervalSince(read) < 60 { return }
-        commandsRead[key] = Date()
+        let started = Date()
+        commandsRead[key] = started
         Task {
-            let answer = try? await connection.query(.commands(taskId: scope.taskId)).decode(CommandDiscovery.self)
-            commandLists[key] = answer?.commands ?? commandLists[key] ?? []
+            do {
+                let answer = try await connection.query(.commands(taskId: scope.taskId)).decode(CommandDiscovery.self)
+                commandLists[key] = answer.commands ?? commandLists[key] ?? []
+            } catch {
+                if commandsRead[key] == started { commandsRead[key] = nil }
+                commandLists[key] = commandLists[key] ?? []
+            }
         }
     }
 
