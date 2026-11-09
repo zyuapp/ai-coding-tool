@@ -662,19 +662,23 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .anchored-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; }
 /**
  * A row's trailing rail: one set of slots with two layers over them, the marks a row carries and the
- * actions it offers. Both fill from the right edge, so the slots line up down the list. A rail is as
- * wide as its own marks, or its actions when there are more of them, so a title gives up only the
- * room its own row needs and never moves under the pointer. An action shows while the row is
- * hovered, focused from the keyboard or has its menu open, and covers only the marks in its own
- * slots: the menu sits on the engine, and in Priority dismiss takes the engine's slot and the menu
- * the one beside it.
+ * actions it offers. Both fill from the right edge, so the slots line up down the list. At rest a
+ * rail is as wide as its own marks, so a title gives up only the room its own row needs; it widens
+ * to its actions only while they show. An action shows while the row is hovered, focused from the
+ * keyboard or has its menu open, and covers only the marks in its own slots: the menu sits on the
+ * engine, and in Priority dismiss takes the engine's slot and the menu the one beside it.
  */
 .row-rail {
   flex: none;
   display: grid;
-  width: calc(max(var(--rail-marks, 1), var(--rail-actions, 1)) * var(--row-slot));
+  /** One track the rail's own width, so actions wider than a resting rail never push its marks off the row. */
+  grid-template-columns: minmax(0, 1fr);
+  width: calc(var(--rail-marks, 1) * var(--row-slot));
   height: var(--row-slot);
 }
+.task-entry:hover .row-rail,
+.task-entry:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .row-rail,
+.row-rail:has(.row-actions :focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), .row-actions [aria-expanded="true"]) { width: calc(max(var(--rail-marks, 1), var(--rail-actions, 1)) * var(--row-slot)); }
 .row-rail:has(.row-marks > :nth-child(2)) { --rail-marks: 2; }
 .row-rail:has(.row-marks > :nth-child(3)) { --rail-marks: 3; }
 .row-rail:has(.row-marks > :nth-child(4)) { --rail-marks: 4; }
