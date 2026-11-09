@@ -163,14 +163,14 @@ struct ThreadScreen: View {
                                 .fitsShortScreens()
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                             } else if let decisions = thread.decisions, let decision = decisions.first {
-                                DecisionCard(decision: decision, count: decisions.count, refused: refused("decision.answer")) { answer in
+                                DecisionCard(decision: decision, count: decisions.count, refused: refused("decision.answer"), failure: model.view.error) { answer in
                                     model.send(.answerDecision(decision, answer: answer))
                                 }
                                 .id("\(decision.taskId):\(decision.id)")
                                 .fitsShortScreens()
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                             } else if let suggestions = thread.suggestions, !suggestions.isEmpty {
-                                SuggestionsCard(suggestions: suggestions, refused: refused("proposal.start")) { proposalId in
+                                SuggestionsCard(suggestions: suggestions, refused: refused("proposal.start"), failure: model.view.error) { proposalId in
                                     model.send(.startSuggestion(thread.id, proposalId: proposalId))
                                 }
                                 .id(thread.id)
@@ -178,7 +178,7 @@ struct ThreadScreen: View {
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
                             if let limit = thread.limit {
-                                LimitRow(pause: limit, refused: refused("limit.resume") ?? refused("limit.cancel"), onResume: { model.send(.resumeLimit(thread.id)) }, onCancel: { model.send(.cancelLimit(thread.id)) })
+                                LimitRow(pause: limit, refused: refused("limit.resume") ?? refused("limit.cancel"), failure: model.view.error, onResume: { model.send(.resumeLimit(thread.id)) }, onCancel: { model.send(.cancelLimit(thread.id)) })
                                     .id("\(thread.id):\(limit.window):\(limit.resetsAt)")
                                     .transition(.move(edge: .bottom).combined(with: .opacity))
                             }

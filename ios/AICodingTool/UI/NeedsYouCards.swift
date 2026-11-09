@@ -16,6 +16,18 @@ private struct CardFrame: ViewModifier {
     }
 }
 
+extension View {
+    /// Lets a card's pending step go once the computer turns it down or reports a failure, so its controls answer again.
+    func releasing(refused: String?, failure: String?, _ release: @escaping () -> Void) -> some View {
+        onChange(of: refused) { was, next in
+            if next != nil, next != was { release() }
+        }
+        .onChange(of: failure) { was, next in
+            if next != nil, next != was { release() }
+        }
+    }
+}
+
 /// A card's glyph and its first lines: who asks and what.
 private struct CardHead: View {
     var symbol: String
@@ -89,25 +101,39 @@ struct DecisionCard: View {
     var decision: MobileDecision
     var count: Int
     var refused: String?
+    var failure: String?
     var onAnswer: (String) -> Void
     @Environment(\.palette) private var palette
     @State private var answered: String?
-    @State private var released: String?
     @State private var contextOpen = false
     @State private var writing = false
     @State private var own = ""
 
-    init(decision: MobileDecision, count: Int, refused: String?, onAnswer: @escaping (String) -> Void) {
-        self.decision = decision
-        self.count = count
-        self.refused = refused
-        self.onAnswer = onAnswer
-        _released = State(initialValue: refused)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             CardHead(symbol: "signpost.right.and.left.fill", caption: decision.from.map { "\($0) · Needs your decision" } ?? "Needs your decision", count: count > 1 ? "1 of \(count)" : nil, title: decision.question)
+            ViewThatFits(in: .vertical) {
+                choices
+                ScrollView { choices }.scrollBounceBehavior(.basedOnSize)
+            }
+            .frame(maxHeight: 460)
+        }
+        .modifier(CardFrame())
+        .sensoryFeedback(.success, trigger: answered) { _, next in next != nil }
+        .alert("Your Answer", isPresented: $writing) {
+            TextField("Answer", text: $own)
+            Button("Cancel", role: .cancel) {}
+            Button("Send") { answer(own.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                .disabled(own.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        } message: {
+            Text(decision.question)
+        }
+        .releasing(refused: refused, failure: failure) { answered = nil }
+    }
+
+    /// The context, the options and the way to answer in the user's own words, which scroll together once they outgrow the card.
+    private var choices: some View {
+        VStack(alignment: .leading, spacing: 12) {
             if let context = decision.context, !context.isEmpty {
                 Disclosure(label: "Context", symbol: "text.alignleft", open: $contextOpen) {
                     Text(context).font(.subheadline).foregroundStyle(palette.inkDim).textSelection(.enabled)
@@ -131,22 +157,6 @@ struct DecisionCard: View {
             .buttonStyle(.target)
             .disabled(answered != nil)
             .opacity(answered != nil ? 0.45 : 1)
-        }
-        .modifier(CardFrame())
-        .sensoryFeedback(.success, trigger: answered) { _, next in next != nil }
-        .alert("Your Answer", isPresented: $writing) {
-            TextField("Answer", text: $own)
-            Button("Cancel", role: .cancel) {}
-            Button("Send") { answer(own.trimmingCharacters(in: .whitespacesAndNewlines)) }
-                .disabled(own.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        } message: {
-            Text(decision.question)
-        }
-        .onChange(of: refused) { _, next in
-            if let next, next != released {
-                released = next
-                answered = nil
-            }
         }
     }
 
@@ -200,20 +210,14 @@ struct DecisionCard: View {
 struct SuggestionsCard: View {
     var suggestions: [MobileSuggestion]
     var refused: String?
+    var failure: String?
     var onStart: (String) -> Void
     @Environment(\.palette) private var palette
     @State private var folded = false
     @State private var opened: String?
     @State private var promptOpen = false
-    @State private var asked: Set<String> = []
-    @State private var released: String?
-
-    init(suggestions: [MobileSuggestion], refused: String?, onStart: @escaping (String) -> Void) {
-        self.suggestions = suggestions
-        self.refused = refused
-        self.onStart = onStart
-        _released = State(initialValue: refused)
-    }
+    /// Starts on their way that the computer has yet to show, each with the error its row showed when tapped.
+    @State private var asked: [String: String?] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -248,15 +252,11 @@ struct SuggestionsCard: View {
             }
         }
         .modifier(CardFrame())
-        .onChange(of: refused) { _, next in
-            if let next, next != released {
-                released = next
-                asked = []
-            }
-        }
-        .onChange(of: suggestions.map(\.id)) { _, ids in
-            asked.formIntersection(ids)
-            if let opened, !ids.contains(opened) { self.opened = nil }
+        .releasing(refused: refused, failure: failure) { asked = [:] }
+        .onChange(of: suggestions) { _, next in
+            // The computer's own word takes over once it shows the start, or a failure the row did not show before.
+            asked = asked.filter { id, error in next.contains { $0.id == id && $0.starting != true && $0.error == error } }
+            if let opened, !next.contains(where: { $0.id == opened }) { self.opened = nil }
         }
     }
 
@@ -268,7 +268,7 @@ struct SuggestionsCard: View {
 
     private func row(_ suggestion: MobileSuggestion) -> some View {
         let open = opened == suggestion.id
-        let starting = suggestion.starting == true || asked.contains(suggestion.id)
+        let starting = suggestion.starting == true || asked.keys.contains(suggestion.id)
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 10) {
                 Button {
@@ -295,7 +295,7 @@ struct SuggestionsCard: View {
                 .accessibilityValue(open ? "Expanded" : "Collapsed")
                 .accessibilityHint("Shows its brief")
                 Button {
-                    asked.insert(suggestion.id)
+                    asked[suggestion.id] = .some(suggestion.error)
                     onStart(suggestion.id)
                 } label: {
                     HStack(spacing: 5) {
@@ -352,19 +352,11 @@ struct SuggestionsCard: View {
 struct LimitRow: View {
     var pause: MobileLimitPause
     var refused: String?
+    var failure: String?
     var onResume: () -> Void
     var onCancel: () -> Void
     @Environment(\.palette) private var palette
     @State private var acting = false
-    @State private var released: String?
-
-    init(pause: MobileLimitPause, refused: String?, onResume: @escaping () -> Void, onCancel: @escaping () -> Void) {
-        self.pause = pause
-        self.refused = refused
-        self.onResume = onResume
-        self.onCancel = onCancel
-        _released = State(initialValue: refused)
-    }
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
@@ -405,11 +397,6 @@ struct LimitRow: View {
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .accessibilityElement(children: .contain)
-        .onChange(of: refused) { _, next in
-            if let next, next != released {
-                released = next
-                acting = false
-            }
-        }
+        .releasing(refused: refused, failure: failure) { acting = false }
     }
 }

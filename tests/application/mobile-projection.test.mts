@@ -741,6 +741,8 @@ test("the view counts the archive, and a query lists it newest first with when e
     { id: "new", title: "Untitled thread", projectName: null, archivedAt: NOW - 1, deletesAt: NOW - 1 + 5 * 86_400_000 },
     { id: "old", title: "old", projectName: "App", archivedAt: NOW - 2, deletesAt: NOW - 2 + 5 * 86_400_000 },
   ]);
+  const many = workspace(Array.from({ length: 150 }, (_, index) => task(`a${index}`, { archivedAt: NOW - index })));
+  assert.deepEqual([projectMobileView(many, NOW).archived, mobileArchivedThreads(many).length, mobileArchivedThreads(many).at(-1)?.id], [150, 150, "a149"], "the oldest is as reachable as the newest");
   const restored = projectMobileView(workspace([task("old", { archivedAt: NOW - 2 }), task("new"), task("live")]), NOW);
   const patch = diffMobileView(view, restored);
   assert.equal(patch?.archived, 1);

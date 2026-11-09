@@ -88,9 +88,6 @@ export const MOBILE_DECISION_LIMIT = 20;
 /** How much of a suggestion's prompt is carried. The phone shows it only on request. */
 export const MOBILE_SUGGESTION_PROMPT_LIMIT = 4_000;
 
-/** How many archived threads an "archived" query lists, newest first. */
-export const MOBILE_ARCHIVED_LIMIT = 100;
-
 export function emptyMobileView(): MobileView {
   return {
     groups: [],
@@ -424,9 +421,9 @@ function projectSuggestions(proposals: readonly ProposalView[]): MobileSuggestio
   return suggestions;
 }
 
-/** The archived threads as the phone's Archived list reads them, newest first. */
+/** Every archived thread as the phone's Archived list reads it, newest first. Retention bounds the list, and only a query reads it. */
 export function mobileArchivedThreads(state: WorkspaceState): MobileArchivedThread[] {
-  return workspaceViewCollections(state).archivedThreads.slice(0, MOBILE_ARCHIVED_LIMIT).map((thread) => {
+  return workspaceViewCollections(state).archivedThreads.map((thread) => {
     const project = projectFor(state, thread);
     const archivedAt = thread.archivedAt!;
     return { id: thread.id, title: thread.title || "Untitled thread", projectName: project ? projectName(project) : null, archivedAt, deletesAt: archivedAt + ARCHIVE_RETENTION_MS };
