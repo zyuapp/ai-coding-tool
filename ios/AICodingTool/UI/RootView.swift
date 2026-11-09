@@ -201,15 +201,15 @@ struct ComputerMenu: View {
             if model.live, let usage = model.view.usage {
                 Section {
                     Button { panel = .usage } label: {
-                        Label("Usage", systemImage: "gauge.with.dots.needle.33percent")
+                        Text("Usage")
                         if let summary = usage.summary { Text(summary) }
                     }
                 }
             }
             Section {
-                Button { panel = .pairing } label: { Label("Pair a Computer…", systemImage: "plus") }
+                Button { panel = .pairing } label: { Text("Pair a Computer…") }
                 if let current {
-                    Button(role: .destructive) { forgetting = current } label: { Label("Forget \(current.title)…", systemImage: "minus.circle") }
+                    Button(role: .destructive) { forgetting = current } label: { Text("Forget \(current.title)…") }
                 }
             }
         } label: {
