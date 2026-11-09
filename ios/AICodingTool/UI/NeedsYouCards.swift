@@ -101,8 +101,9 @@ private struct Disclosure<Inner: View>: View {
     }
 }
 
-/// A choice a thread raised for the user. One tap on an option answers it, as the desktop's Send
-/// answer does; the user's own words go through a field of their own. `count` is how many wait.
+/// A choice a thread raised for the user. A tap picks an option, starting from the recommended one,
+/// and Send Answer sends it, as on the desktop; the user's own words go through a field of their own.
+/// `count` is how many wait.
 struct DecisionCard: View {
     var decision: MobileDecision
     var count: Int
@@ -110,10 +111,29 @@ struct DecisionCard: View {
     var failure: String?
     var onAnswer: (String) -> Void
     @Environment(\.palette) private var palette
+    @State private var selected: String?
     @State private var answered: String?
     @State private var contextOpen = false
     @State private var writing = false
     @State private var own = ""
+
+    init(decision: MobileDecision, count: Int, refused: String?, failure: String?, onAnswer: @escaping (String) -> Void) {
+        self.decision = decision
+        self.count = count
+        self.refused = refused
+        self.failure = failure
+        self.onAnswer = onAnswer
+        _selected = State(initialValue: Self.recommended(decision))
+    }
+
+    private static func recommended(_ decision: MobileDecision) -> String? {
+        decision.options.first { $0.recommended == true }?.label
+    }
+
+    /// The selection, while it still names one of the options.
+    private var choice: String? {
+        decision.options.contains { $0.label == selected } ? selected : nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -125,6 +145,7 @@ struct DecisionCard: View {
             .frame(maxHeight: 460)
         }
         .modifier(CardFrame())
+        .sensoryFeedback(.selection, trigger: selected)
         .sensoryFeedback(.success, trigger: answered) { _, next in next != nil }
         .alert("Your Answer", isPresented: $writing) {
             TextField("Answer", text: $own)
@@ -134,10 +155,13 @@ struct DecisionCard: View {
         } message: {
             Text(decision.question)
         }
+        .onChange(of: decision.id) {
+            selected = Self.recommended(decision)
+        }
         .releasing(answered, refused: refused, failure: failure) { answered = nil }
     }
 
-    /// The context, the options and the way to answer in the user's own words, which scroll together once they outgrow the card.
+    /// The context, the options and the ways to answer, which scroll together once they outgrow the card.
     private var choices: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let context = decision.context, !context.isEmpty {
@@ -149,6 +173,7 @@ struct DecisionCard: View {
                 VStack(spacing: 8) {
                     ForEach(decision.options, id: \.label) { option(for: $0) }
                 }
+                send
             }
             Button {
                 own = ""
@@ -166,6 +191,26 @@ struct DecisionCard: View {
         }
     }
 
+    private var send: some View {
+        let sending = answered != nil
+        let ready = choice != nil && !sending
+        return Button {
+            if let choice { answer(choice) }
+        } label: {
+            HStack(spacing: 6) {
+                if sending { ProgressView().controlSize(.small).tint(palette.accentInk) }
+                Text(sending ? "Sending…" : "Send Answer")
+            }
+            .font(.body.weight(.semibold))
+            .foregroundStyle(ready || sending ? palette.accentInk : palette.muted)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(ready || sending ? palette.accent : palette.raised, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.target)
+        .disabled(!ready)
+    }
+
     private func answer(_ text: String) {
         guard !text.isEmpty, answered == nil else { return }
         answered = text
@@ -173,10 +218,14 @@ struct DecisionCard: View {
     }
 
     private func option(for option: MobileDecision.Option) -> some View {
-        let chosen = answered == option.label
+        let picked = choice == option.label
         let recommended = option.recommended == true
-        return Button { answer(option.label) } label: {
-            HStack(alignment: .center, spacing: 10) {
+        return Button { selected = option.label } label: {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: picked ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(picked ? palette.accent : palette.quiet)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(option.label).font(.body.weight(.semibold)).foregroundStyle(palette.ink)
@@ -195,19 +244,23 @@ struct DecisionCard: View {
                 }
                 .multilineTextAlignment(.leading)
                 Spacer(minLength: 0)
-                if chosen { ProgressView().controlSize(.small).tint(palette.ink) }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
             .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-            .background(palette.raised, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(recommended ? palette.accentLine : .clear, lineWidth: 1))
+            .background(picked ? palette.accentSurface : palette.raised, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(picked ? palette.accent : recommended ? palette.accentLine : .clear, lineWidth: picked ? 2 : 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.target)
         .disabled(answered != nil)
-        .opacity(answered != nil && !chosen ? 0.45 : 1)
+        .opacity(answered != nil && answered != option.label ? 0.45 : 1)
         .accessibilityLabel(recommended ? "\(option.label), recommended" : option.label)
         .accessibilityHint(option.description ?? "")
+        .accessibilityAddTraits(picked ? [.isSelected] : [])
     }
 }
 
