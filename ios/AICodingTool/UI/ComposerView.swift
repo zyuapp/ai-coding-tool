@@ -49,6 +49,8 @@ struct ComposerView<Above: View>: View {
     @State private var talkEnded = false
     /// A finger is on the microphone, so only the touch's first report starts or finishes anything.
     @State private var talkTouching = false
+    /// The press outlasted a tap, so letting go adds the words and sliding up cancels.
+    @State private var talkHeld = false
     /// A tap left the microphone listening, until the next press adds the words.
     @State private var talkHandsFree = false
     @State private var pressedAt = Date.distantPast
@@ -243,7 +245,7 @@ struct ComposerView<Above: View>: View {
             }
             HStack(spacing: 8) {
                 if talk.active {
-                    TalkStrip(phase: talk, levels: recorder.levels, startedAt: recorder.startedAt, cancelling: talkCancelling, handsFree: talkHandsFree, onCancel: cancelTalk)
+                    TalkStrip(phase: talk, levels: recorder.levels, startedAt: recorder.startedAt, cancelling: talkCancelling, handsFree: talkHandsFree, held: talkHeld, onCancel: cancelTalk)
                 }
                 if !blocked && !talk.active {
                     Button {
@@ -290,7 +292,8 @@ struct ComposerView<Above: View>: View {
                     .accessibilityLabel("Send")
                     .accessibilityHint("Adds what you said and sends the message")
                 } else if talk.active {
-                    EmptyView()
+                    /// Holds Send's place, so the microphone stays under the finger.
+                    Color.clear.frame(width: 44, height: 44)
                 } else if queueing {
                     if let onStop { stopButton(onStop, aside: true) }
                     if let onSteer {
@@ -423,7 +426,7 @@ struct ComposerView<Above: View>: View {
         .frame(width: 44, height: 44)
         .contentShape(Rectangle())
         .overlay(alignment: .top) {
-            if talk == .listening && !talkHandsFree {
+            if talk == .listening && talkHeld && !talkHandsFree {
                 TalkCancelTarget(armed: talkCancelling)
                     .offset(y: -TalkPhase.cancelDistance - 18)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
@@ -453,8 +456,15 @@ struct ComposerView<Above: View>: View {
             guard talk == .idle else { return }
             talkReleased = false
             talkCancelling = false
+            talkHeld = false
             pressedAt = time
             startTalking()
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(TalkPhase.tapSeconds))
+                if talkTouching, !talkHandsFree, talk == .starting || talk == .listening {
+                    withAnimation(.snappy(duration: 0.2)) { talkHeld = true }
+                }
+            }
             return
         }
         guard !talkHandsFree, talk == .starting || talk == .listening else { return }

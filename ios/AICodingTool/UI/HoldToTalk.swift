@@ -34,6 +34,8 @@ struct TalkStrip: View {
     var startedAt: Date?
     var cancelling: Bool
     var handsFree: Bool
+    /// The press outlasted a tap; until then, what letting go will do isn't known yet.
+    var held: Bool
     var onCancel: () -> Void
 
     @Environment(\.palette) private var palette
@@ -88,12 +90,13 @@ struct TalkStrip: View {
             .clipped()
             .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.35)], startPoint: .leading, endPoint: .trailing))
             .accessibilityHidden(true)
-            if !freed {
+            if !listening || cancelling || (held && !freed) {
                 Text(!listening ? "Writing it down…" : cancelling ? "Let go to cancel" : "Swipe up to cancel")
                     .font(.footnote)
                     .foregroundStyle(cancelling ? palette.danger : palette.inkDim)
                     .lineLimit(1)
                     .fixedSize()
+                    .transition(.opacity)
             }
         }
         .padding(.leading, freed ? -6 : 6)
