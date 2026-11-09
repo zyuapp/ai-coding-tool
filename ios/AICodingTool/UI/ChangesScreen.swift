@@ -5,6 +5,7 @@ import SwiftUI
 struct ChangesScreen: View {
     var model: PhoneModel
     @Environment(\.palette) private var palette
+    @Environment(\.displayScale) private var displayScale
     @State private var mode: Mode = .uncommitted
     @State private var summary: Summary = .reading
     @State private var open: Set<String> = []
@@ -68,59 +69,52 @@ struct ChangesScreen: View {
 
     private func content(_ thread: MobileThreadView) -> some View {
         let base: String = { if case .branches(let base, _) = thread.branchRange { return base } else { return "base" } }()
-        return List {
-            Picker("Comparison", selection: $mode) {
-                Text("Uncommitted").tag(Mode.uncommitted)
-                Text("Against \(base)").tag(Mode.branch)
-            }
-            .pickerStyle(.segmented)
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
-            if case .read(.available(_, let files, let additions, let deletions)) = summary, !files.isEmpty {
-                HStack {
-                    Text("\(files.count) \(files.count == 1 ? "file" : "files") changed").font(.footnote.weight(.semibold)).foregroundStyle(palette.muted)
-                    Spacer()
-                    Counts(additions: additions, deletions: deletions)
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                Picker("Comparison", selection: $mode) {
+                    Text("Uncommitted").tag(Mode.uncommitted)
+                    Text("Against \(base)").tag(Mode.branch)
                 }
-                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-            }
-            if let note = note {
-                Group {
-                    if model.live, summary == .reading {
-                        ProgressView(note).frame(maxWidth: .infinity).padding(.vertical, 40)
-                    } else {
-                        ContentUnavailableView {
-                            Label(noteTitle, systemImage: isFailure ? "exclamationmark.triangle" : model.live ? "plus.forwardslash.minus" : "icloud.slash")
-                        } description: {
-                            Text(note)
-                        } actions: {
-                            if model.live, isFailure { Button("Try Again") { refresh() } }
+                .pickerStyle(.segmented)
+                .padding(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                if case .read(.available(_, let files, let additions, let deletions)) = summary, !files.isEmpty {
+                    HStack {
+                        Text("\(files.count) \(files.count == 1 ? "file" : "files") changed").font(.footnote.weight(.semibold)).foregroundStyle(palette.muted)
+                        Spacer()
+                        Counts(additions: additions, deletions: deletions)
+                    }
+                    .padding(EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16))
+                }
+                if let note = note {
+                    Group {
+                        if model.live, summary == .reading {
+                            ProgressView(note).frame(maxWidth: .infinity).padding(.vertical, 40)
+                        } else {
+                            ContentUnavailableView {
+                                Label(noteTitle, systemImage: isFailure ? "exclamationmark.triangle" : model.live ? "plus.forwardslash.minus" : "icloud.slash")
+                            } description: {
+                                Text(note)
+                            } actions: {
+                                if model.live, isFailure { Button("Try Again") { refresh() } }
+                            }
                         }
                     }
+                    .padding(.top, 24)
                 }
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-            }
-            ForEach(files) { file in
-                FileSection(file: file, open: open.contains(file.path), patch: patches[patchKey(file)], onToggle: { toggle(file) }, onRetry: { read(file, force: true) })
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(palette.canvas)
-                    .listRowSeparatorTint(palette.lineSoft)
-                    .alignmentGuide(.listRowSeparatorLeading) { _ in 46 }
+                ForEach(files) { file in
+                    FileSection(file: file, open: open.contains(file.path), patch: patches[patchKey(file)], onToggle: { toggle(file) }, onRetry: { read(file, force: true) })
+                        .background(palette.canvas)
+                    if file.id != files.last?.id {
+                        palette.lineSoft.frame(height: 1 / displayScale).padding(.leading, 46)
+                    }
+                }
             }
         }
-        .listStyle(.plain)
         .refreshable {
             patches = [:]
             await readSummary()
         }
         .hardTopEdge()
-        // Row separators keep the tint they were first drawn with, so a theme change redraws the list.
-        .id(palette.id)
-        .scrollContentBackground(.hidden)
     }
 
     private var files: [DiffFileSummary] {
