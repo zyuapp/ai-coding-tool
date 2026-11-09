@@ -1,4 +1,4 @@
-import { Notification, type BrowserWindow } from "electron";
+import { Notification, powerMonitor, type BrowserWindow } from "electron";
 import type { ThreadNotice } from "../contracts/ipc.js";
 
 /** Says what happened where the user already is, since taking the window would take their place. */
@@ -27,4 +27,12 @@ export function announceThread(host: NoticeHost, notice: ThreadNotice) {
     const shown = host.window();
     if (shown && !shown.isDestroyed()) shown.webContents.send("window:open-thread", notice.taskId);
   });
+}
+
+/** How long the Mac sits untouched before the user counts as away from it. */
+const AWAY_AFTER_SECONDS = 180;
+
+/** Whether the user has stepped away from this computer: it is locked, or nobody has touched it for a while. */
+export function desktopAway(): boolean {
+  return powerMonitor.getSystemIdleState(AWAY_AFTER_SECONDS) !== "active";
 }

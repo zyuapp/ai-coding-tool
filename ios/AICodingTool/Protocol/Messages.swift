@@ -225,7 +225,8 @@ enum MobileErrorCode: String, Sendable {
 
 enum MobileServerMessage: Equatable, Sendable {
     case paired(sequence: Int, deviceId: String, deviceName: String, token: String)
-    case snapshot(sequence: Int, sessionId: String, view: MobileView, instance: String?, vocabulary: MobileVocabulary?, computer: String?)
+    /// `push` says the computer takes this phone's push token; older computers never say.
+    case snapshot(sequence: Int, sessionId: String, view: MobileView, instance: String?, vocabulary: MobileVocabulary?, computer: String?, push: Bool = false)
     case patch(sequence: Int, patch: MobilePatch)
     case ack(sequence: Int, requestId: String, ok: Bool, message: String)
     case answer(sequence: Int, requestId: String, result: Result<JSONValue, AnswerError>)
@@ -238,7 +239,7 @@ enum MobileServerMessage: Equatable, Sendable {
 
     var sequence: Int {
         switch self {
-        case .paired(let sequence, _, _, _), .snapshot(let sequence, _, _, _, _, _), .patch(let sequence, _), .ack(let sequence, _, _, _), .answer(let sequence, _, _), .error(let sequence, _, _), .ping(let sequence, _):
+        case .paired(let sequence, _, _, _), .snapshot(let sequence, _, _, _, _, _, _), .patch(let sequence, _), .ack(let sequence, _, _, _), .answer(let sequence, _, _), .error(let sequence, _, _), .ping(let sequence, _):
             sequence
         }
     }
@@ -262,7 +263,7 @@ func parseServerFrame(_ text: String) -> (message: MobileServerMessage?, sequenc
         case "snapshot":
             guard let sessionId = string("sessionId"), let view = object["view"] else { return skipped }
             let vocabulary = try? object["vocabulary"]?.decode(MobileVocabulary.self)
-            return (.snapshot(sequence: sequence, sessionId: sessionId, view: try view.decode(MobileView.self), instance: string("instance"), vocabulary: vocabulary, computer: string("computer")), sequence)
+            return (.snapshot(sequence: sequence, sessionId: sessionId, view: try view.decode(MobileView.self), instance: string("instance"), vocabulary: vocabulary, computer: string("computer"), push: object["push"] == .bool(true)), sequence)
         case "patch":
             guard let patch = object["patch"] else { return skipped }
             return (.patch(sequence: sequence, patch: try patch.decode(MobilePatch.self)), sequence)
@@ -288,6 +289,16 @@ func parseServerFrame(_ text: String) -> (message: MobileServerMessage?, sequenc
 }
 
 /// What the phone sends.
+/// Where this phone takes notices while the app is closed: its APNs token, and which APNs issued it.
+struct PhonePush: Codable, Equatable, Sendable {
+    enum Environment: String, Codable, Sendable {
+        case production, sandbox
+    }
+
+    var token: String
+    var environment: Environment
+}
+
 enum MobileClientMessage: Equatable, Sendable {
     case pair(code: String, deviceName: String)
     case resume(token: String, sessionId: String?, lastSequence: Int)
@@ -295,6 +306,7 @@ enum MobileClientMessage: Equatable, Sendable {
     case query(requestId: String, query: JSONValue)
     case pong(at: Double)
     case ping(at: Double)
+    case pushToken(PhonePush?)
 
     var json: JSONValue {
         switch self {
@@ -312,6 +324,8 @@ enum MobileClientMessage: Equatable, Sendable {
             .object(["kind": .string("query"), "requestId": .string(requestId), "query": query])
         case .pong(let at): .object(["kind": .string("pong"), "at": .number(at)])
         case .ping(let at): .object(["kind": .string("ping"), "at": .number(at)])
+        case .pushToken(let push):
+            .object(["kind": .string("push-token"), "push": push.map { .object(["token": .string($0.token), "environment": .string($0.environment.rawValue)]) } ?? .null])
         }
     }
 

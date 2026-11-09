@@ -1,6 +1,6 @@
 import type { PendingQuestion } from "../domain/agent-question.js";
 import type { AppCommand } from "./commands.js";
-import type { MobilePairingOffer, MobileServerState } from "../domain/mobile.js";
+import { isPhonePush, type MobilePairingOffer, type MobileServerState, type PhonePush } from "../domain/mobile.js";
 import type { AgentEngine, AgentModel, EngineAccess, EngineId } from "../domain/agent-engine.js";
 import type { AgentEffort, ExecutionPolicy } from "../domain/run.js";
 import { isDiffRange, type DiffRange } from "../domain/diff.js";
@@ -453,7 +453,13 @@ export type MobilePongMessage = { kind: "pong"; at: number };
  */
 export type MobileProbeMessage = { kind: "ping"; at: number };
 
-export type MobileClientMessage = MobilePairRequest | MobileResumeRequest | MobileCommandRequest | MobileQueryRequest | MobilePongMessage | MobileProbeMessage;
+/**
+ * Where this phone takes notices while the app is closed, or null once it no longer does. Sent only
+ * to a computer whose snapshot says it takes one.
+ */
+export type MobilePushTokenMessage = { kind: "push-token"; push: PhonePush | null };
+
+export type MobileClientMessage = MobilePairRequest | MobileResumeRequest | MobileCommandRequest | MobileQueryRequest | MobilePongMessage | MobileProbeMessage | MobilePushTokenMessage;
 
 /**
  * Every message the server sends carries a sequence, counting from one within a session and never
@@ -479,6 +485,8 @@ export type MobileSnapshotMessage = Sequenced & {
   vocabulary?: MobileVocabulary;
   /** What this computer calls itself, which a phone paired with several tells them apart by. */
   computer?: string;
+  /** That this computer takes the phone's push token. Absent from older desktops. */
+  push?: true;
 };
 
 /** One effort as a picker names it. `delegates` is an effort a coordinator never takes. */
@@ -536,6 +544,7 @@ export function isMobileClientMessage(value: unknown): value is MobileClientMess
   if (value.kind === "command") return isString(value.requestId) && isPhoneCommand(value.command);
   if (value.kind === "query") return isString(value.requestId) && isMobileQuery(value.query);
   if (value.kind === "pong" || value.kind === "ping") return isCount(value.at);
+  if (value.kind === "push-token") return value.push === null || isPhonePush(value.push);
   return false;
 }
 

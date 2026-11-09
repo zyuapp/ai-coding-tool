@@ -24,6 +24,10 @@ targets:
         buildPhase: resources
     dependencies:
       - package: Markdown
+    entitlements:
+      path: AICodingTool/AICodingTool.entitlements
+      properties:
+        aps-environment: development
     info:
       path: AICodingTool/Info.plist
       properties:

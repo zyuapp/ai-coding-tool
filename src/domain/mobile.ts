@@ -125,13 +125,28 @@ export type PairedDevice = {
   tokenHash: string;
   pairedAt: number;
   lastSeenAt: number | null;
+  /** Where a phone takes notices while the app is closed. Absent until the phone allows notifications. */
+  push?: PhonePush;
 };
 
-/** A paired device as settings draws it. The hash never leaves the main process. */
-export type PairedDeviceView = Omit<PairedDevice, "tokenHash">;
+/** Which APNs gateway issued a push token: a debug build is given its tokens by the sandbox. */
+export type PushEnvironment = "production" | "sandbox";
+
+export type PhonePush = { token: string; environment: PushEnvironment };
+
+const PUSH_TOKEN = /^[0-9a-f]{64,200}$/;
+
+export function isPhonePush(value: unknown): value is PhonePush {
+  if (!value || typeof value !== "object") return false;
+  const push = value as Record<string, unknown>;
+  return typeof push.token === "string" && PUSH_TOKEN.test(push.token) && (push.environment === "production" || push.environment === "sandbox");
+}
+
+/** A paired device as settings draws it. The hash and the push token never leave the main process. */
+export type PairedDeviceView = Omit<PairedDevice, "tokenHash" | "push">;
 
 export function deviceView(device: PairedDevice): PairedDeviceView {
-  const { tokenHash: _secret, ...view } = device;
+  const { tokenHash: _secret, push: _push, ...view } = device;
   return view;
 }
 

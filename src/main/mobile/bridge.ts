@@ -1,4 +1,5 @@
 import { powerSaveBlocker } from "electron";
+import type { ThreadNotice } from "../../contracts/ipc.js";
 import type { MobileResponse, MobileViewUpdate } from "../../contracts/mobile.js";
 import type { MobileServerState } from "../../domain/mobile.js";
 import type { DesktopEvents } from "../desktop-events.js";
@@ -96,6 +97,8 @@ export const mobileBridge = {
   revokeDevice: async (deviceId: string) => (await readyHost()).revokeMobileDevice(deviceId),
   refreshTailscale: async () => (await readyHost()).refreshTailscale(),
   announceName: async () => (await readyHost()).announceComputerName(),
+  /** Phones are told only once the bridge has loaded; before that no phone can have given a token. */
+  notifyPhones: (notice: ThreadNotice) => host?.noticePhones(notice),
   answer: (response: MobileResponse) => host?.answerMobileRequest(response),
   publish: (update: MobileViewUpdate) => host?.publishMobileView(update),
 };

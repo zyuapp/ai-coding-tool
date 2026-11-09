@@ -17,12 +17,12 @@ final class ProtocolTests: XCTestCase {
     }
 
     private func snapshotView() throws -> MobileView {
-        guard case .snapshot(_, _, let view, _, _, _)? = frame(snapshotFrame()) else { throw XCTSkip("snapshot did not parse") }
+        guard case .snapshot(_, _, let view, _, _, _, _)? = frame(snapshotFrame()) else { throw XCTSkip("snapshot did not parse") }
         return view
     }
 
     func testSnapshotDecodes() throws {
-        guard case .snapshot(let sequence, let session, let view, let instance, let vocabulary, let computer)? = frame(snapshotFrame()) else { return XCTFail("snapshot did not parse") }
+        guard case .snapshot(let sequence, let session, let view, let instance, let vocabulary, let computer, _)? = frame(snapshotFrame()) else { return XCTFail("snapshot did not parse") }
         XCTAssertEqual(sequence, 1)
         XCTAssertEqual(session, "s1")
         XCTAssertEqual(instance, "one")
@@ -221,7 +221,7 @@ final class ProtocolTests: XCTestCase {
 
     func testSnapshotNamesTheComputer() {
         let frame = snapshotFrame().replacingOccurrences(of: #""instance":"one""#, with: #""instance":"one","computer":"Studio""#)
-        guard case .snapshot(_, _, _, _, _, let computer)? = parseServerFrame(frame).message else { return XCTFail("snapshot did not parse") }
+        guard case .snapshot(_, _, _, _, _, let computer, _)? = parseServerFrame(frame).message else { return XCTFail("snapshot did not parse") }
         XCTAssertEqual(computer, "Studio")
     }
 

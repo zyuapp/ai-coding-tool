@@ -1,0 +1,16 @@
+name = "aicodingtool-relay"
+main = "worker.mts"
+compatibility_date = "2026-11-01"
+workers_dev = true
+preview_urls = false
+
+[vars]
+APNS_TOPIC = "com.zyuapp.aicodingtool.phone"
+
+[[ratelimits]]
+name = "PER_DEVICE"
+namespace_id = "1001"
+simple = { limit = 30, period = 60 }
+
+[observability]
+enabled = false

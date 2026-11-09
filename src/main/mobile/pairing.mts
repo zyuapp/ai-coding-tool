@@ -5,6 +5,7 @@ import type { MobileErrorCode } from "../../contracts/mobile.js";
 import {
   createPairingCode,
   deviceView,
+  isPhonePush,
   MAX_PAIRED_DEVICES,
   noPairingAttempts,
   pairingCodeLive,
@@ -17,6 +18,7 @@ import {
   type PairedDeviceView,
   type PairingAttempts,
   type PairingCode,
+  type PhonePush,
 } from "../../domain/mobile.js";
 
 /** What a phone is called when it does not say. */
@@ -62,6 +64,13 @@ function isStoredDevice(value: unknown): value is PairedDevice {
     && typeof device.tokenHash === "string" && /^[0-9a-f]{64}$/.test(device.tokenHash)
     && typeof device.pairedAt === "number"
     && (device.lastSeenAt === null || typeof device.lastSeenAt === "number");
+}
+
+/** A push token that does not read is dropped on its own; the device it came with stays paired. */
+function withReadablePush(device: PairedDevice): PairedDevice {
+  if (device.push === undefined || isPhonePush(device.push)) return device;
+  const { push: _unreadable, ...rest } = device;
+  return rest;
 }
 
 /**
@@ -126,7 +135,7 @@ export class PairingStore {
       for (const record of records) {
         /** Devices written before computers could pair are phones, which is all there was. */
         const device = record && typeof record === "object" && !("kind" in record) ? { ...record, kind: "phone" } : record;
-        if (isStoredDevice(device) && devices.length < MAX_PAIRED_DEVICES) devices.push(device);
+        if (isStoredDevice(device) && devices.length < MAX_PAIRED_DEVICES) devices.push(withReadablePush(device));
         else kept.push(record);
       }
       return { devices, kept, fields };
@@ -259,6 +268,31 @@ export class PairingStore {
     const device = this.devices.find((entry) => entry.id === deviceId);
     if (!device || (device.lastSeenAt !== null && at - device.lastSeenAt < SEEN_WRITE_INTERVAL_MS)) return;
     this.devices = this.devices.map((entry) => entry.id === deviceId ? { ...entry, lastSeenAt: at } : entry);
+    this.write();
+  }
+
+  /** Phones that take notices while closed. */
+  pushTargets(): Array<PairedDevice & { push: PhonePush }> {
+    return this.devices.filter((device): device is PairedDevice & { push: PhonePush } => device.kind === "phone" && device.push !== undefined);
+  }
+
+  /**
+   * Where a phone now takes pushes, or that it no longer does. A token belongs to one app install, so
+   * an older pairing of the same phone stops holding it and the phone is not told twice.
+   */
+  setPush(deviceId: string, push: PhonePush | null) {
+    const device = this.devices.find((entry) => entry.id === deviceId);
+    if (!device || device.kind !== "phone") return;
+    if (push ? device.push?.token === push.token && device.push.environment === push.environment : device.push === undefined) return;
+    this.devices = this.devices.map((entry) => {
+      if (entry.id === deviceId) {
+        const { push: _old, ...rest } = entry;
+        return push ? { ...rest, push } : rest;
+      }
+      if (!push || entry.push?.token !== push.token) return entry;
+      const { push: _taken, ...rest } = entry;
+      return rest;
+    });
     this.write();
   }
 

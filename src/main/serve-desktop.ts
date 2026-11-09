@@ -78,7 +78,11 @@ function headlessDesktop(host: ServeDesktopHost) {
     setShortcutCapture: nothing,
     closeWindow: nothing,
     focusWindow: nothing,
-    announceThread: (notice) => host.mobile().noticeComputers(notice),
+    /** A computer with no desktop has nobody at it, so a phone is always told. */
+    announceThread: (notice) => {
+      host.mobile().noticeComputers(notice);
+      void host.mobile().noticePhones(notice);
+    },
     setBadgeCount: nothing,
   } satisfies Partial<RuntimeDesktop>;
 }

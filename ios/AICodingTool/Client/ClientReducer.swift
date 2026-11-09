@@ -65,6 +65,10 @@ struct MobileClientState: Equatable, Sendable {
     var attempt = 0
     var notice: String?
     var dismissedError: String?
+    /// Where this phone takes notices while closed, or nil while it may not.
+    var push: PhonePush?
+    /// Whether the computer on the line said it takes the push token.
+    var takesPush = false
 
     init(credential: MobileCredential?, code: String?, deviceName: String, outbox: [OutboxEntry] = [], vocabulary: MobileVocabulary? = nil) {
         let entry: MobileEntry = credential != nil ? .ready : code != nil ? .pairing : .blocked
@@ -88,6 +92,7 @@ enum MobileClientEvent: Sendable {
     case settled
     case wake(stale: Bool)
     case dismissNotice
+    case pushChanged(PhonePush?)
 }
 
 enum MobileClientEffect: Equatable, Sendable {
@@ -183,6 +188,11 @@ enum MobileClient {
             next.notice = nil
             next.dismissedError = state.view.error
             return (next, [])
+        case .pushChanged(let push):
+            guard push != state.push else { return (state, []) }
+            var next = state
+            next.push = push
+            return (next, state.connection == .live && state.takesPush ? [.send(.pushToken(push))] : [])
         }
     }
 
@@ -291,7 +301,7 @@ enum MobileClient {
             seen.entry = .ready
             seen.notice = nil
             return (seen, [.store(credential)])
-        case .snapshot(_, let sessionId, let view, let instance, let vocabulary, let computer):
+        case .snapshot(_, let sessionId, let view, let instance, let vocabulary, let computer, let push):
             var kept = sessionId == seen.sessionId ? seen : restarted(seen, instance: instance)
             kept.notice = kept.outbox == seen.outbox ? nil : restarted
             kept.synced = true
@@ -299,7 +309,10 @@ enum MobileClient {
             kept.sessionId = sessionId
             kept.vocabulary = vocabulary
             if let computer { kept.computerName = computer }
-            return live(shown(kept, view))
+            kept.takesPush = push
+            var (next, effects) = live(shown(kept, view))
+            if push { effects.append(.send(.pushToken(next.push))) }
+            return (next, effects)
         case .patch(_, let patch):
             guard let view = seen.view.applying(patch) else { return resync(state) }
             return settled(shown(seen, view))

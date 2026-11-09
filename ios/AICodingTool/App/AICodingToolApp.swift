@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct AICodingToolApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = PhoneModel(connection: PhoneConnection())
     @Environment(\.scenePhase) private var scenePhase
 
@@ -10,6 +11,13 @@ struct AICodingToolApp: App {
             RootView(model: model)
                 .onOpenURL { url in
                     if let link = PairingLink(url.absoluteString) { model.connection.pair(with: link) }
+                }
+                .onAppear { PushNotifications.shared.attach(model) }
+                .onChange(of: model.live) { _, live in
+                    if live { PushNotifications.shared.refresh(ask: true) }
+                }
+                .onChange(of: model.current) { _, current in
+                    PushNotifications.shared.cleared(deviceId: model.state.credential?.deviceId, taskId: current)
                 }
                 .task {
                     // `npm run start:ios` hands the simulator a pairing link here; a phone already paired with that computer goes back to it.
@@ -23,7 +31,9 @@ struct AICodingToolApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
-            case .active: model.connection.becameActive()
+            case .active:
+                model.connection.becameActive()
+                PushNotifications.shared.refresh(ask: false)
             case .background: model.connection.resignedActive()
             default: break
             }

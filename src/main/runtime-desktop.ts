@@ -2,7 +2,7 @@ import { app, dialog, shell, type BrowserWindow } from "electron";
 import type { ComputerDesktop, RuntimeDesktop } from "../host/runtime-desktop.js";
 import type { ComputerLinks } from "./computers/computer-links.mjs" with { "resolution-mode": "import" };
 import { computerUsePermissions, requestComputerUsePermission } from "./computer-use-host.js";
-import { announceThread, type NoticeHost } from "./desktop-notice.js";
+import { announceThread, desktopAway, type NoticeHost } from "./desktop-notice.js";
 import { setUnreadBadge } from "./dock-menu.js";
 import { downloadImage } from "./image-download.js";
 import type { KeyboardBridge } from "./keyboard-host.js";
@@ -161,7 +161,11 @@ function windowDesktop(host: RuntimeDesktopHost) {
       const window = host.window();
       if (window?.isFocused()) window.webContents.focus();
     },
-    announceThread: (notice) => announceThread(host.notices, notice),
+    /** The phone is told only when the user has stepped away from this computer, where the desktop already says it. */
+    announceThread: (notice) => {
+      announceThread(host.notices, notice);
+      if (desktopAway()) void mobileBridge.notifyPhones(notice);
+    },
     setBadgeCount: setUnreadBadge,
   } satisfies Partial<RuntimeDesktop>;
 }

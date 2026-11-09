@@ -131,6 +131,22 @@ test("a snapshot names this build's engines, modes, models and efforts for a pho
   assert.equal(MOBILE_VOCABULARY.efforts[0]?.delegates, true);
 });
 
+test("a snapshot says the computer takes a push token, and a phone's token is kept on its pairing", async (t) => {
+  const { devices, socketUrl } = await harness(t);
+  const code = devices.mint(Date.now());
+  const client = phone(socketUrl);
+  t.onTestFinished(() => client.socket.close());
+  await client.opened();
+
+  client.send({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: code.code, deviceName: "iPhone" });
+  assert.equal((await client.waitFor("snapshot")).push, true);
+  const push = { token: "cd".repeat(32), environment: "production" as const };
+  client.send({ kind: "push-token", push });
+  await until(() => devices.pushTargets()[0], "the token was never kept");
+  assert.deepEqual(devices.pushTargets()[0]?.push, push);
+  assert.deepEqual(client.closes, []);
+});
+
 test("a phone trades its code for a token and is handed the view", async (t) => {
   const { devices, socketUrl, server, commands } = await harness(t);
   const code = devices.mint(Date.now());

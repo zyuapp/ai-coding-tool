@@ -5,3 +5,4 @@ DerivedData/
 .swiftpm/
 Package.resolved
 AICodingTool/Info.plist
+AICodingTool/AICodingTool.entitlements

@@ -36,6 +36,8 @@ final class PhoneConnection {
     @ObservationIgnored private var pathSignature: String?
     @ObservationIgnored private var foreground = true
     @ObservationIgnored private var storedVocabulary: MobileVocabulary?
+    /// Where this phone takes notices, kept across computers since every one it is paired with is told.
+    @ObservationIgnored private var push: PhonePush?
 
     init(storage: PhoneStorage = PhoneStorage()) {
         self.storage = storage
@@ -71,6 +73,7 @@ final class PhoneConnection {
         storage.origin = link.origin
         storedVocabulary = storage.vocabulary(for: link.origin)
         state = MobileClientState(credential: nil, code: link.code, deviceName: Self.deviceName, vocabulary: storedVocabulary)
+        state.push = push
         storage.writeOutbox([], for: link.origin)
         open()
     }
@@ -84,6 +87,7 @@ final class PhoneConnection {
         storedVocabulary = storage.vocabulary(for: computer.origin)
         state = MobileClientState(credential: computer.credential, code: nil, deviceName: Self.deviceName, outbox: storage.readOutbox(for: computer.origin), vocabulary: storedVocabulary)
         state.computerName = computer.name
+        state.push = push
         open()
     }
 
@@ -109,6 +113,12 @@ final class PhoneConnection {
 
     func send(_ command: PhoneCommand) {
         dispatch(.dispatch(requestId: UUID().uuidString.lowercased(), command: command, at: Self.now))
+    }
+
+    /// Where this phone now takes notices, or nil once it may not; the computer on the line is told.
+    func setPush(_ push: PhonePush?) {
+        self.push = push
+        dispatch(.pushChanged(push))
     }
 
     func dismissNotice() {

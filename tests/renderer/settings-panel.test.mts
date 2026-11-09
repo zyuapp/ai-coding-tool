@@ -557,7 +557,7 @@ test("every on/off setting is a switch named after its row", async () => {
   }));
   await act(async () => {});
   const switches = [...view.container.querySelectorAll<HTMLButtonElement>("[role='switch']")];
-  assert.deepEqual(switches.map((control) => [control.getAttribute("aria-label"), control.getAttribute("aria-checked")]), [["Desktop notifications", "true"], ["Claude in Chrome", "false"]]);
+  assert.deepEqual(switches.map((control) => [control.getAttribute("aria-label"), control.getAttribute("aria-checked")]), [["Notifications", "true"], ["Claude in Chrome", "false"]]);
   await act(async () => { item(switches[0]).click(); });
   await act(async () => { item(switches[1]).click(); });
   assert.deepEqual(changed, [["notifications", false], ["chrome", true]]);

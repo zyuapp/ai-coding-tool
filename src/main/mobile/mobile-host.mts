@@ -15,6 +15,7 @@ import {
 import { allowedOrigins, BIND_HOST, reachableAddresses, tailscaleAddress } from "./addresses.mjs";
 import { MobileServer, type WorkspaceHooks } from "./mobile-server.mjs";
 import { PairingStore } from "./pairing.mjs";
+import { pushToPhones } from "./phone-push.mjs";
 import { MobileRelay } from "./session-host.mjs";
 import { readTailscale, startTailscaleServe, stopTailscaleServe, type TailscaleAction } from "./tailscale.mjs";
 
@@ -461,6 +462,12 @@ async function serveListening(listening: MobileServer, port: number) {
 /** Hands a notice to the computers on the line; with no server up there is no one to hand it to. */
 export function noticeComputers(notice: ThreadNotice): void {
   server?.notice(notice);
+}
+
+/** Hands a notice to the phones that take them while closed, unless the phone bridge is off. */
+export function noticePhones(notice: ThreadNotice): Promise<void> {
+  if (!settings.enabled || !devices) return Promise.resolve();
+  return pushToPhones(devices, notice);
 }
 
 /** Tells the computers on the line what this one now calls itself. */

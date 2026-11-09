@@ -182,4 +182,22 @@ final class ClientReducerTests: XCTestCase {
         let (older, _) = run(state, [.closed, .opened(at: 1), .received(snapshot(1, session: "s2"))])
         XCTAssertNil(older.vocabulary, "a computer that names none is not read with another build's names")
     }
+
+    func testPushTokenGoesOnlyToAComputerThatTakesIt() {
+        let push = PhonePush(token: String(repeating: "b", count: 64), environment: .production)
+        let older = paired()
+        XCTAssertEqual(sent(run(older, [.pushChanged(push)]).1), [], "a computer that never said it takes one is not sent one")
+
+        let start = MobileClientState(credential: MobileCredential(token: token, deviceId: "d1", deviceName: "iPhone"), code: nil, deviceName: "iPhone")
+        let newer = MobileServerMessage.snapshot(sequence: 1, sessionId: "s1", view: view("Thread"), instance: "one", vocabulary: nil, computer: nil, push: true)
+        let (live, opening) = run(start, [.opened(at: 0), .received(newer)])
+        XCTAssertTrue(sent(opening).contains(.pushToken(nil)), "a phone that may not show notices says so")
+
+        let (allowed, effects) = run(live, [.pushChanged(push)])
+        XCTAssertEqual(sent(effects), [.pushToken(push)])
+        XCTAssertEqual(sent(run(allowed, [.pushChanged(push)]).1), [], "the same token is not sent twice")
+
+        let (_, resumed) = run(allowed, [.closed, .opened(at: 1), .received(newer)])
+        XCTAssertTrue(sent(resumed).contains(.pushToken(push)), "a computer is told again on every snapshot")
+    }
 }

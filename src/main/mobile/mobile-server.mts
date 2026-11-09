@@ -301,7 +301,7 @@ export class MobileServer {
       if (session.kind !== "phone") continue;
       if (update.kind === "snapshot") {
         session.awaitingSnapshot = false;
-        this.emit(session, { kind: "snapshot", sessionId: session.id, view: update.view, instance: this.instance, vocabulary: MOBILE_VOCABULARY, ...this.computerName() });
+        this.emit(session, { kind: "snapshot", sessionId: session.id, view: update.view, instance: this.instance, vocabulary: MOBILE_VOCABULARY, ...this.computerName(), push: true });
       } else if (!session.awaitingSnapshot) {
         if (congested(session)) this.fallBehind(session);
         else this.emit(session, { kind: "patch", patch: update.patch });
@@ -432,7 +432,7 @@ export class MobileServer {
         this.view = view;
       }
       session.awaitingSnapshot = false;
-      this.emit(session, { kind: "snapshot", sessionId: session.id, view: this.view, instance: this.instance, vocabulary: MOBILE_VOCABULARY, ...this.computerName() });
+      this.emit(session, { kind: "snapshot", sessionId: session.id, view: this.view, instance: this.instance, vocabulary: MOBILE_VOCABULARY, ...this.computerName(), push: true });
     } catch (error) {
       /**
        * A session with no view to patch is no session. The phone hears why, is hung up on, and
@@ -531,6 +531,7 @@ export class MobileServer {
     if (message.kind === "query") return this.onQuery(session, message);
     /** A phone checking the line after a sleep or a change of network is answered at once. */
     if (message.kind === "ping") return this.emit(session, { kind: "ping", at: Date.now() });
+    if (message.kind === "push-token") return this.options.devices.setPush(session.deviceId, message.push);
     if (message.kind !== "command") return;
     const { requestId } = message;
     const handled = this.handled.get(session.deviceId);

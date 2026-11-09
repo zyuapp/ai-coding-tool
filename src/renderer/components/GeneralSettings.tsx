@@ -119,7 +119,7 @@ export function GeneralSettings({ dictation, cli: { status, busy, error }, onRea
           </div>
         </div>
 
-        <SettingRow id="general.notifications" description="When a run finishes, fails, or needs permission in a thread you are away from.">
+        <SettingRow id="general.notifications" description="When a run finishes, fails, or needs you. Your phone hears it once you step away from this computer.">
           <SettingSwitch id="general.notifications" on={notifications} onChange={onSetNotifications} />
         </SettingRow>
       </section>
