@@ -619,25 +619,14 @@ struct SettingsTray: View {
                 .onTapGesture(perform: onClose)
                 .accessibilityLabel("Close")
                 .accessibilityAddTraits(.isButton)
+            if headings.reduce(0, { $0 + $1.models.count }) > 6 {
+                ScrollView { models(headings) }.frame(height: 360)
+            } else {
+                models(headings)
+            }
+            palette.line.frame(height: 0.5).padding(.horizontal, 14)
             VStack(spacing: 0) {
-                if !headings.isEmpty {
-                    row("Model", symbol: "cpu") {
-                        Picker("Model", selection: Binding(get: { "\(settings.engine)|\(settings.model ?? "")" }, set: { value in
-                            let parts = value.split(separator: "|", maxSplits: 1).map(String.init)
-                            if parts.count == 2 { quick.onModel(parts[0], parts[1]) }
-                        })) {
-                            ForEach(headings, id: \.key) { heading in
-                                Section(headings.count > 1 ? heading.label : "") {
-                                    ForEach(heading.models, id: \.id) { spec in
-                                        Text(spec.label).tag("\(heading.engine)|\(spec.id)")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
                 if !efforts.isEmpty, let chosenEffort {
-                    divider
                     row("Effort", symbol: "gauge.with.dots.needle.50percent") {
                         Picker("Effort", selection: Binding(get: { chosenEffort }, set: { quick.onEffort(settings.engine, $0) })) {
                             ForEach(efforts, id: \.id) { Text($0.label).tag($0.id) }
@@ -645,11 +634,11 @@ struct SettingsTray: View {
                     }
                 }
                 if known {
-                    divider
-                    row("Mode", symbol: Self.policySymbol(settings.policy)) {
+                    if !efforts.isEmpty { divider }
+                    row("Mode", symbol: "hand.raised") {
                         Picker("Mode", selection: Binding(get: { settings.policy }, set: quick.onPolicy)) {
                             ForEach(catalog.policies(settings.engine), id: \.id) { policy in
-                                Label(policy.label, systemImage: Self.policySymbol(policy.id)).tag(policy.id)
+                                Text(policy.label).tag(policy.id)
                             }
                         }
                     }
@@ -702,6 +691,42 @@ struct SettingsTray: View {
         }
     }
 
+    /// The models to choose from, each with what it is for; one tap picks it.
+    private func models(_ headings: [ModelHeading]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(headings, id: \.key) { heading in
+                if headings.count > 1 {
+                    SectionLabel(heading.label).padding(.horizontal, 14).padding(.top, 8).padding(.bottom, 2)
+                }
+                ForEach(heading.models, id: \.id) { spec in
+                    let selected = heading.engine == settings.engine && spec.id == settings.model
+                    Button { quick.onModel(heading.engine, spec.id) } label: {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(spec.label).font(.body.weight(.medium)).foregroundStyle(palette.ink)
+                                if !spec.description.isEmpty {
+                                    Text(spec.description).font(.footnote).foregroundStyle(palette.muted).lineLimit(2)
+                                }
+                            }
+                            Spacer(minLength: 8)
+                            Image(systemName: "checkmark")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(palette.accent)
+                                .opacity(selected ? 1 : 0)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .frame(minHeight: 50)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(selected ? [.isSelected] : [])
+                }
+            }
+        }
+        .padding(.bottom, 4)
+    }
+
     /// A setting's name, then its value as the system's menu picker.
     private func row<Choices: View>(_ title: String, symbol: String, @ViewBuilder picker: () -> Choices) -> some View {
         HStack(spacing: 8) {
@@ -716,18 +741,7 @@ struct SettingsTray: View {
         .padding(.trailing, 4)
         .frame(minHeight: 50)
     }
-
-    static func policySymbol(_ policy: String) -> String {
-        switch policy {
-        case "confirm": "hand.raised"
-        case "allow-edits": "pencil.line"
-        case "autonomous": "wand.and.sparkles"
-        case "bypass": "bolt"
-        default: "circle.dashed"
-        }
-    }
 }
-
 
 /// A question the agent asked: pick an option, or type an answer. Typing stays local until sent.
 struct QuestionPromptView: View {
