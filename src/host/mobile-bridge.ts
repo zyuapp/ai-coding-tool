@@ -1,5 +1,5 @@
 import { applyMobilePatch, diffMobileView, mobileThreadRead, projectMobileView } from "../application/mobile-projection.js";
-import type { WorkspaceState } from "../application/workspace-state.js";
+import { NEW_THREAD_DRAFT, promptKey, type WorkspaceState } from "../application/workspace-state.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
 import type { WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
 import type { AppCommand } from "../contracts/commands.js";
@@ -9,6 +9,7 @@ import type { RuntimeDesktop } from "./runtime-desktop.js";
 import type { MobileServerState } from "../domain/mobile.js";
 import { threadWorkspaceId } from "../application/thread-location.js";
 import { coordinationMembers } from "../application/coordination.js";
+import { attachmentSendFor } from "../application/composer-attachments.js";
 import { isCoordinator } from "../domain/coordination.js";
 import { errorMessage } from "./errors.js";
 
@@ -68,6 +69,35 @@ function phoneReaches(state: WorkspaceState, command: AppCommand, taskId: string
     && coordinationMembers(state, lead.id).some((member) => member.computer && member.thread.id === taskId));
 }
 
+/** What a phone is refused with when it sends from the new thread's draft before the last send from there has started. */
+export const MOBILE_DRAFT_BUSY = "The last message from this new thread is still on its way. Send again once its thread opens.";
+
+/** Whether a phone's command writes or sends the new thread's draft, which the computer has open. */
+function touchesDraft(state: WorkspaceState, command: AppCommand): boolean {
+  if (promptKey(state) !== NEW_THREAD_DRAFT) return false;
+  if (command.type === "view.set-prompt" || command.type === "attachments.send") return command.taskId === undefined;
+  return command.type === "task.send" && command.taskId === undefined && command.text === undefined;
+}
+
+/** Whether a send from the new thread's draft has yet to start: its images are being written, or its run is starting. */
+function draftSending(state: WorkspaceState): boolean {
+  return attachmentSendFor(state.attachmentSends).busy || Object.values(state.pendingRuns).some((pending) => pending.draftKey === NEW_THREAD_DRAFT);
+}
+
+/**
+ * A phone's images leave its composer at once, so a send to a thread carries its words, even none.
+ * One from the new thread's draft goes as the composer's own draft send does: its words become the
+ * draft's, so the thread starts where the draft points and opens once it runs.
+ */
+function phoneCommands(state: WorkspaceState, command: AppCommand): AppCommand[] {
+  if (command.type !== "attachments.send") return [command];
+  if (command.taskId === undefined && promptKey(state) === NEW_THREAD_DRAFT) {
+    const { text, ...send } = command;
+    return [{ type: "view.set-prompt", prompt: text ?? "" }, send];
+  }
+  return [command.text === undefined ? { ...command, text: "" } : command];
+}
+
 /**
  * Each phone reads a projection of runtime state and writes through the shared command path.
  * Commands are validated at this boundary before reaching the reducer.
@@ -86,11 +116,13 @@ export async function answerMobileRequest(host: MobileBridgeHost, request: Mobil
     if (!isPhoneCommand(request.command) || !isWorkspaceViewInput(request.command)) return failed(MOBILE_REFUSED);
     const taskId = "taskId" in request.command ? request.command.taskId : undefined;
     if (taskId !== undefined && !phoneReaches(host.state(), request.command, taskId)) return failed(`No thread has the ID ${taskId}.`);
-    /** A phone's images leave its composer at once, so its send carries its words, even none, and never waits on a desktop draft. */
-    const command = request.command.type === "attachments.send" && request.command.text === undefined ? { ...request.command, text: "" } : request.command;
-    const execution = host.execute(command);
-    const accepted = execution.accepted instanceof Promise ? await execution.accepted : execution.accepted;
-    if (!accepted.ok) return failed(accepted.message);
+    /** The draft holds one send's words, so nothing may rewrite or send it until the last send from it has started. */
+    if (touchesDraft(host.state(), request.command) && draftSending(host.state())) return failed(MOBILE_DRAFT_BUSY);
+    for (const command of phoneCommands(host.state(), request.command)) {
+      const execution = host.execute(command);
+      const accepted = execution.accepted instanceof Promise ? await execution.accepted : execution.accepted;
+      if (!accepted.ok) return failed(accepted.message);
+    }
     return ok(projectMobileView(host.state(), Date.now()));
   } catch (error) {
     return failed(errorMessage(error));

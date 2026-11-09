@@ -3,8 +3,8 @@ import { rankedThread } from "../../src/domain/thread-storage.ts";
 import { test } from "vitest";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
-import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import { answerMobileRequest, MOBILE_NO_CHECKOUT, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/host/mobile-bridge.ts";
+import { deriveView, emptyWorkspaceState, NEW_THREAD_DRAFT, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { answerMobileRequest, MOBILE_DRAFT_BUSY, MOBILE_NO_CHECKOUT, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/host/mobile-bridge.ts";
 import { emptyMobileServerState, type MobileServerState, type MobileSessionView } from "../../src/domain/mobile.ts";
 import type { MobileRequest, MobileView } from "../../src/contracts/mobile.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";
@@ -96,6 +96,66 @@ test("a phone is answered as soon as the reducer has decided, not when the run e
   assert.equal(typeof response === "object" && response.ok, true);
   assert.deepEqual(inputs, [{ type: "task.send", text: "ship it" }]);
   finishRun();
+});
+
+const PHOTO = { id: "photo", source: "data:image/png;base64,AQID", annotations: [] };
+const PROJECTLESS = { id: "projectless", kind: "projectless", root: "/tmp" } as const;
+
+/** The phone's images written to disk and their run started, as the host's effects would. */
+function written(state: WorkspaceState): WorkspaceState {
+  const saved = reduce(state, { type: "attachments.saved", ids: [PHOTO.id], attachments: [{ path: "/tmp/photo.png", labels: [] }] });
+  const resolving = saved.effects.find((effect) => effect.type === "resolve-run-workspace");
+  assert.ok(resolving?.type === "resolve-run-workspace", "the send never asked for a place to run");
+  return reduce(saved.state, { type: "run.resolved", pendingId: resolving.pendingId, workspace: PROJECTLESS }).state;
+}
+
+for (const [kind, text] of [["with words", "From my phone"], ["photo-only", undefined]] as const) {
+  test(`a phone's ${kind} send from the new thread's draft starts the draft's thread and opens it`, async () => {
+    const driver = host(workspace({ currentId: null, prompts: { [NEW_THREAD_DRAFT]: "typed on the desktop" }, draftRole: "coordinator" }));
+    const response = await answerMobileRequest(driver.bridge, request({
+      type: "mobile.request", requestId: "req-1", sessionId: "session-1", op: "command",
+      command: { type: "attachments.send", ...(text === undefined ? {} : { text }), attachments: [PHOTO] },
+    }));
+    assert.equal(response.ok, true);
+    assert.deepEqual(driver.inputs, [{ type: "view.set-prompt", prompt: text ?? "" }, { type: "attachments.send", attachments: [PHOTO] }]);
+
+    const started = written(driver.current());
+    const thread = required(started.threads[0]);
+    assert.equal(started.currentId, thread.id, "the computer stayed on the draft, so the phone did too");
+    assert.equal(thread.role, "coordinator", "the draft's choices were left behind");
+    assert.equal(thread.messages[0]?.text, text ?? "");
+    assert.deepEqual(thread.messages[0]?.attachments, ["/tmp/photo.png"]);
+    assert.equal(started.prompts[NEW_THREAD_DRAFT], undefined);
+  });
+}
+
+test("a phone's second send from the draft is refused while the first is still on its way, which keeps the first one's words", async () => {
+  const driver = host(workspace({ currentId: null }));
+  const send = (requestId: string, text: string) => answerMobileRequest(driver.bridge, request({
+    type: "mobile.request", requestId, sessionId: "session-1", op: "command",
+    command: { type: "attachments.send", text, attachments: [PHOTO] },
+  }));
+  assert.equal((await send("req-1", "First")).ok, true);
+  const second = await send("req-2", "Second");
+  assert.equal(!second.ok && second.message, MOBILE_DRAFT_BUSY);
+  for (const command of [{ type: "view.set-prompt", prompt: "Words only" }, { type: "task.send" }] as const) {
+    const wordsOnly = await answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: command.type, sessionId: "session-1", op: "command", command }));
+    assert.equal(!wordsOnly.ok && wordsOnly.message, MOBILE_DRAFT_BUSY, `${command.type} reached the draft while its pictures were on their way`);
+  }
+
+  const started = written(driver.current());
+  assert.equal(required(started.threads[0]).messages[0]?.text, "First");
+});
+
+test("a phone's images to a thread carry their words and leave the desktop's draft alone", async () => {
+  const driver = host(workspace({ threads: [task("task-1")], currentId: "task-1", prompts: { "task-1": "typed on the desktop" } }));
+  const response = await answerMobileRequest(driver.bridge, request({
+    type: "mobile.request", requestId: "req-1", sessionId: "session-1", op: "command",
+    command: { type: "attachments.send", taskId: "task-1", attachments: [PHOTO] },
+  }));
+  assert.equal(response.ok, true);
+  assert.deepEqual(driver.inputs, [{ type: "attachments.send", taskId: "task-1", text: "", attachments: [PHOTO] }]);
+  assert.equal(driver.current().prompts["task-1"], "typed on the desktop");
 });
 
 test("a phone's photo-only send names its words, so it never waits on the desktop's draft", async () => {
