@@ -25,13 +25,16 @@ rm -rf "$out"
 mkdir -p "$out"
 xcodebuild -quiet -project AICodingTool.xcodeproj -scheme AICodingTool -configuration Release -destination 'generic/platform=iOS' \
   -archivePath "$out/AICodingTool.xcarchive" CURRENT_PROJECT_VERSION="$build" "${version[@]}" CODE_SIGNING_ALLOWED=NO archive
-cat > "$out/ExportOptions.plist" <<PLIST
+
+# Writes the export options for one destination: "export" leaves an IPA here, "upload" sends it to App Store Connect.
+export_options() {
+  cat > "$out/ExportOptions-$1.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>method</key><string>app-store-connect</string>
-  <key>destination</key><string>${TESTFLIGHT_DESTINATION:-upload}</string>
+  <key>destination</key><string>$1</string>
   <key>teamID</key><string>T3Y739SK63</string>
 $(if [[ -n "${IOS_PROFILE_UUID:-}" ]]; then cat <<MANUAL
   <key>signingStyle</key><string>manual</string>
@@ -44,5 +47,22 @@ else echo '  <key>signingStyle</key><string>automatic</string>'; fi)
 </dict>
 </plist>
 PLIST
-xcodebuild -quiet -exportArchive -archivePath "$out/AICodingTool.xcarchive" -exportOptionsPlist "$out/ExportOptions.plist" -exportPath "$out/export" "${auth[@]}"
+}
+
+# The signed app is checked before anything is uploaded: a build without the push entitlement never
+# receives a notification, and nothing else would say so.
+export_options export
+xcodebuild -quiet -exportArchive -archivePath "$out/AICodingTool.xcarchive" -exportOptionsPlist "$out/ExportOptions-export.plist" -exportPath "$out/export" "${auth[@]}"
+rm -rf "$out/check"
+ditto -x -k "$out/export/AICodingTool.ipa" "$out/check"
+aps=$(codesign -d --entitlements - --xml "$out/check/Payload/AICodingTool.app" 2>/dev/null | plutil -extract aps-environment raw - 2>/dev/null || true)
+rm -rf "$out/check"
+if [[ "$aps" != "production" ]]; then
+  echo "error: the exported app is not entitled to production push notifications (aps-environment: ${aps:-missing})." >&2
+  exit 1
+fi
+if [[ "${TESTFLIGHT_DESTINATION:-upload}" == "upload" ]]; then
+  export_options upload
+  xcodebuild -quiet -exportArchive -archivePath "$out/AICodingTool.xcarchive" -exportOptionsPlist "$out/ExportOptions-upload.plist" -exportPath "$out/upload" "${auth[@]}"
+fi
 echo "Exported build $build (${TESTFLIGHT_DESTINATION:-upload})."
