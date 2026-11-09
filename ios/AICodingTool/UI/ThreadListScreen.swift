@@ -5,6 +5,7 @@ struct ThreadListScreen: View {
     var model: PhoneModel
     @Environment(\.palette) private var palette
     @State private var renaming: MobileThreadEntry?
+    @State private var archiving: ArchiveAsk?
     @State private var now = Date()
     @State private var query = ""
 
@@ -98,6 +99,7 @@ struct ThreadListScreen: View {
         .sheet(item: $renaming) { thread in
             RenameSheet(title: thread.title) { title in model.send(.rename(thread.id, title: title)) }
         }
+        .archiveConfirmation($archiving) { asked in model.archive(asked.id, leaving: false) }
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
@@ -155,7 +157,7 @@ struct ThreadListScreen: View {
             .listRowInsets(EdgeInsets(top: id == "priority" ? 12 : 26, leading: 16, bottom: 2, trailing: 16))
             if open {
                 ForEach(threads) { thread in
-                    ThreadRow(thread: thread, now: now, snoozed: id == "snoozed", model: model) { renaming = thread }
+                    ThreadRow(thread: thread, now: now, snoozed: id == "snoozed", model: model, onRename: { renaming = thread }, onArchive: { archiving = $0 })
                 }
             }
         }
@@ -238,8 +240,8 @@ struct ThreadRow: View {
     var snoozed = false
     var model: PhoneModel
     var onRename: () -> Void
+    var onArchive: (ArchiveAsk) -> Void
     @Environment(\.palette) private var palette
-    @State private var archiving: ArchiveAsk?
 
     private var needsYou: Bool { thread.status == "awaiting-approval" || thread.waiting == true }
     private var running: Bool { thread.status == "running" && !needsYou }
@@ -278,7 +280,6 @@ struct ThreadRow: View {
         .listRowBackground(Color.clear)
         .listRowSeparatorTint(palette.lineSoft)
         .contextMenu { menuItems }
-        .archiveConfirmation($archiving) { asked in model.archive(asked.id, leaving: false) }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) { askArchive() } label: { Label("Archive", systemImage: "archivebox") }
             Button(action: onRename) { Label("Rename", systemImage: "pencil") }
@@ -325,7 +326,7 @@ struct ThreadRow: View {
     }
 
     private func askArchive() {
-        archiving = ArchiveAsk(id: thread.id, title: thread.title, running: thread.status == "running" || thread.status == "awaiting-approval")
+        onArchive(ArchiveAsk(id: thread.id, title: thread.title, running: thread.status == "running" || thread.status == "awaiting-approval"))
     }
 
     @ViewBuilder private var menuItems: some View {
