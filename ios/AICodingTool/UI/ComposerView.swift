@@ -436,11 +436,13 @@ struct ComposerView<Above: View>: View {
         talkCancelling = false
     }
 
-    /// The computer writes down what was heard, and the words follow whatever was typed, to be sent with it.
+    /// The computer writes down what was heard, and the words follow whatever was typed, to be sent with
+    /// it. They are kept with the draft the hold began on, even if its thread is left before they arrive.
     private func finishTalking() {
         talkCancelling = false
         guard let wav = recorder.stop() else { talk = .idle; return }
         talk = .transcribing
+        let key = draftKey
         Task { @MainActor in
             defer { talk = .idle }
             do {
@@ -449,8 +451,10 @@ struct ComposerView<Above: View>: View {
                     talkNote = "Didn't catch anything."
                     return
                 }
-                let typedSoFar = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-                draft = typedSoFar.isEmpty ? words : "\(typedSoFar) \(words)"
+                let typedSoFar = model.draft(for: key).trimmingCharacters(in: .whitespacesAndNewlines)
+                let joined = typedSoFar.isEmpty ? words : "\(typedSoFar) \(words)"
+                model.keepDraft(joined, for: key)
+                draft = joined
             } catch {
                 talkNote = error.localizedDescription
             }

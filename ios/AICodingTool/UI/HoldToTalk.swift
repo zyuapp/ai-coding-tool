@@ -67,7 +67,7 @@ struct TalkStrip: View {
         .padding(.leading, 6)
         .frame(minHeight: 44)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(listening ? "Listening. Let go to send, or swipe up to cancel." : "Writing down what you said")
+        .accessibilityLabel(listening ? "Listening. Let go to add the words to your message, or swipe up to cancel." : "Writing down what you said")
     }
 
     private func elapsed(at now: Date) -> String {
