@@ -169,7 +169,7 @@ struct ThreadScreen: View {
             .animation(.snappy, value: thread.background?.contains(where: \.live) == true)
         } else if let draft {
             VStack(spacing: 0) {
-                DraftWelcome(engine: model.catalog.engineLabel(draft.settings.engine), computer: model.state.computerName) { model.handBack($0) }
+                DraftWelcome(engine: model.catalog.engineLabel(draft.settings.engine), computer: model.state.computerName)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 ComposerView(model: model, draftKey: "draft", running: false, settings: draft.settings, question: nil, returned: draftReturned, onSend: { text, sources in
                     if sources.isEmpty {
@@ -279,14 +279,7 @@ struct ThreadScreen: View {
 struct DraftWelcome: View {
     var engine: String
     var computer: String?
-    var onSuggest: (String) -> Void
     @Environment(\.palette) private var palette
-
-    private static let suggestions: [(symbol: String, text: String)] = [
-        ("checkmark.seal", "Find and fix the failing tests"),
-        ("plus.forwardslash.minus", "Review my uncommitted changes"),
-        ("map", "Explain how this project is put together"),
-    ]
 
     var body: some View {
         VStack(spacing: 14) {
@@ -306,27 +299,6 @@ struct DraftWelcome: View {
                     .multilineTextAlignment(.center)
             }
             .accessibilityElement(children: .combine)
-            VStack(spacing: 8) {
-                ForEach(Self.suggestions, id: \.text) { suggestion in
-                    Button { onSuggest(suggestion.text) } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: suggestion.symbol)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(palette.accent)
-                                .frame(width: 22)
-                            Text(suggestion.text).font(.subheadline).foregroundStyle(palette.ink)
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal, 16)
-                        .frame(minHeight: 44)
-                        .background(palette.surface, in: Capsule())
-                        .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Puts this in the message box")
-                }
-            }
-            .padding(.top, 10)
         }
         .frame(maxWidth: 420)
         .padding(.horizontal, 24)
