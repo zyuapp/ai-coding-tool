@@ -6,6 +6,8 @@ struct ThreadScreen: View {
     @Environment(\.palette) private var palette
     @State private var sheet: ThreadSheet?
     @State private var archiving: ArchiveAsk?
+    /// The coordinator Stop All was asked for, until the user confirms or lets it go.
+    @State private var stopping: StopAllAsk?
 
     enum ThreadSheet: String, Identifiable {
         case location, rename, project, startIn, members, background, addProject, usage
@@ -39,6 +41,7 @@ struct ThreadScreen: View {
     private var subtitle: String? {
         var parts: [String] = []
         if let project { parts.append(project ?? "No project") }
+        if let computer = thread?.computer { parts.append(computer) }
         if let thread, thread.location != .local { parts.append(Format.locationLabel(thread.location)) }
         if model.state.connection != .live { parts.append(model.state.connection.label) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
@@ -66,6 +69,14 @@ struct ThreadScreen: View {
             .archiveConfirmation($archiving, restorable: model.view.archived != nil) { asked in
                 if model.view.thread?.id == asked.id { model.archive(asked.id, leaving: true) }
             }
+            .confirmationDialog(stopping.map { "Stop \($0.title) and every thread under it?" } ?? "", isPresented: Binding(get: { stopping != nil }, set: { if !$0 { stopping = nil } }), titleVisibility: .visible, presenting: stopping) { asked in
+                Button("Stop All", role: .destructive) {
+                    if model.view.thread?.id == asked.id { model.send(.stopAll(asked.id)) }
+                }
+            } message: { _ in
+                Text("Every run, background task and usage-limit wait under it ends now.")
+            }
+            .onChange(of: model.state.outbox.count) { _, _ in model.settleEdit() }
             .onAppear { model.readUsage(within: 15 * 60) }
             .onChange(of: model.view.thread?.status) { was, now in
                 if was == "running", now != "running" { model.readUsage(within: 30) }
@@ -73,6 +84,7 @@ struct ThreadScreen: View {
             .onChange(of: model.current) { was, _ in
                 if let sheet, !fits(sheet, was: was) { self.sheet = nil }
                 if let archiving, archiving.id != model.view.thread?.id { self.archiving = nil }
+                if let stopping, stopping.id != model.view.thread?.id { self.stopping = nil }
             }
     }
 
@@ -134,6 +146,15 @@ struct ThreadScreen: View {
             }
         }
         Section {
+            if role == "coordinator", let stoppable = thread.stoppable {
+                Button(role: .destructive) {
+                    stopping = StopAllAsk(id: thread.id, title: thread.title.isEmpty ? "Untitled thread" : thread.title)
+                } label: {
+                    Label("Stop All…", systemImage: "stop.circle")
+                    if !stoppable { Text("Nothing is running") }
+                }
+                .disabled(!stoppable)
+            }
             Button(role: .destructive) {
                 archiving = ArchiveAsk(id: thread.id, title: thread.title, running: thread.status == "running" || thread.status == "awaiting-approval")
             } label: {
@@ -303,6 +324,12 @@ struct ThreadScreen: View {
             sheet = next
         }
     }
+}
+
+/// A coordinator the user asked to stop with everything under it.
+private struct StopAllAsk: Identifiable, Equatable {
+    var id: String
+    var title: String
 }
 
 /// The empty page above a new thread's composer: where it starts, and with whom.

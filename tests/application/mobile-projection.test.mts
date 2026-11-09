@@ -187,7 +187,7 @@ test("the open thread carries its transcript, approval, queue, draft and setting
   assert.equal(thread.approval?.approvalId, "approval-1");
   assert.equal(thread.approval?.toolName, "Bash");
   assert.match(thread.approval!.detail, /rm -rf build/);
-  assert.deepEqual(thread.queued, [{ id: "queued-1", text: "then this" }, { id: "queued-2", text: "stop the stack", origin: "From Monday · lead" }]);
+  assert.deepEqual(thread.queued, [{ id: "queued-1", text: "then this", editable: true }, { id: "queued-2", text: "stop the stack", origin: "From Monday · lead" }]);
   assert.equal("prompt" in thread, false, "the draft stays on the desktop");
   assert.deepEqual(thread.settings, { fastMode: false, engine: "claude", model: "sonnet", effort: "high", policy: "allow-edits" });
 });
@@ -466,7 +466,7 @@ test("an open coordinator lists the threads under it, here and on paired compute
   });
   assert.deepEqual(projectMobileView(state, NOW).thread?.members, [
     { id: "near", title: "Near work", status: "idle" },
-    { id: "far", title: "Far work", status: "running", computer: "Studio" },
+    { id: "far", title: "Far work", status: "running", computer: "Studio", online: true },
   ]);
   assert.deepEqual(projectMobileView({ ...state, currentId: "near" }, NOW).thread?.members, []);
 });

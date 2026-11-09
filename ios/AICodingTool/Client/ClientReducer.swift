@@ -61,6 +61,8 @@ struct MobileClientState: Equatable, Sendable {
     var computerName: String?
     var outbox: [OutboxEntry] = []
     var returned: ReturnedCommand?
+    /// The request id of the last command the computer took that its screen waits to hear was taken.
+    var accepted: String?
     var openedAt: Double = 0
     var attempt = 0
     var notice: String?
@@ -121,6 +123,8 @@ enum MobileClient {
     static let viewCommands: Set<String> = ["task.select", "task.new"]
     /// Commands that act on a run as it stood when asked, dropped rather than carried out late.
     static let momentCommands: Set<String> = ["run.cancel", "run.decide"]
+    /// Commands whose screen acts only once the computer has taken them.
+    static let confirmedCommands: Set<String> = ["task.edit-queued"]
 
     static func backoffDelay(_ attempt: Int) -> Int {
         if attempt <= 1 { return retryBaseMs }
@@ -319,7 +323,10 @@ enum MobileClient {
         case .ack(_, let requestId, let ok, let text):
             let asked = seen.outbox.first { $0.requestId == requestId }
             seen.outbox.removeAll { $0.requestId == requestId }
-            if ok { return settled(seen) }
+            if ok {
+                if let asked, confirmedCommands.contains(asked.command.type) { seen.accepted = requestId }
+                return settled(seen)
+            }
             if let asked { seen = givenBack(seen, [asked], message: text) }
             seen.notice = text
             return settled(seen)

@@ -1,4 +1,4 @@
-import { deriveView, type WorkspaceState } from "./workspace-state.js";
+import { deriveView, type QueuedMessage, type WorkspaceState } from "./workspace-state.js";
 import { clipText, labelOf, threadSummaries, threadTranscript } from "./thread-projection.js";
 import { projectName, type Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
@@ -9,6 +9,8 @@ import { worktreeName } from "../domain/worktree.js";
 import { orderThreads } from "./thread-order.js";
 import { worktreeChoices } from "./worktree-choices.js";
 import { coordinationMembers, coordinatorRoster, memberActivity, ownCoordinationSections, rowHeadline, waitingLine } from "./coordination.js";
+import { computerOfThread, selectedComputer, type PairedComputer } from "./computers.js";
+import { isUsersOwn } from "../domain/message-origin.js";
 import { describeToolCall } from "../domain/tool-call.js";
 import { deliveryLabel, isCoordinator } from "../domain/coordination.js";
 import type { CoordinationDecisionView, ProposalView } from "./coordination-view.js";
@@ -213,7 +215,7 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
     ({ projectId: project.id, name: projectName(project), threads: rankGroup(entries.get(project.id) ?? [], threadsById) }));
   /** Always last, and always there, because it is the only way to start a thread in no project. */
   groups.push({ projectId: null, name: "Recents", threads: rankGroup(entries.get(null) ?? [], threadsById) });
-  const thread = projectMobileThread(state, view);
+  const thread = projectMobileThread(state, view, view.stoppableCoordinatorIds);
   return {
     groups,
     activity: projectMobileActivity(state, here, entriesById),
@@ -332,16 +334,49 @@ function changesOf(view: ReturnType<typeof deriveView>): MobileChanges | null {
   return { branch: environment.branch, files: environment.files.length, additions: environment.additions, deletions: environment.deletions };
 }
 
-function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deriveView>): MobileThreadView | null {
+/**
+ * The threads a phone may name: this computer's own, and those on a paired computer working under a
+ * coordinator here, which the coordinator's screen lists. Nothing else of another computer is ever on the phone's.
+ */
+export function phoneReachesThread(state: WorkspaceState, taskId: string): boolean {
+  return state.threads.some((thread) => thread.id === taskId) || remoteMemberHolder(state, taskId) !== null;
+}
+
+/** The paired computer holding a thread that works under a coordinator here, or null. */
+export function remoteMemberHolder(state: WorkspaceState, taskId: string): PairedComputer | null {
+  const holder = computerOfThread(state, taskId);
+  if (!holder) return null;
+  const lead = holder.state?.threads.find((thread) => thread.id === taskId)?.remoteLead?.threadId;
+  return lead !== undefined && coordinationMembers(state, lead).some((member) => member.computer?.id === holder.id && member.thread.id === taskId) ? holder : null;
+}
+
+/**
+ * Only the user's own words travel to the phone's composer and back: images and files are paths on
+ * the computer, and pasted text and notes ride beside the words, which a phone's composer cannot hold.
+ */
+export function phoneEditsQueued(message: QueuedMessage): boolean {
+  return isUsersOwn(message) && !message.steering && !message.attachments.length && !message.files?.length && !message.pastes?.length && !message.annotations?.length;
+}
+
+/**
+ * The thread the desktop has open. One on a paired computer is read from that computer's mirror, and
+ * only while it works under a coordinator here, so it is answered, approved and messaged through this
+ * computer; its checkout is that computer's, so it offers no review and no move.
+ */
+function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deriveView>, stoppable: ReadonlySet<string>): MobileThreadView | null {
   const thread = view.currentThread;
   if (!thread) return null;
-  const transcript = threadTranscript(state, thread.id, MOBILE_TRANSCRIPT_MESSAGES, MOBILE_MESSAGE_TEXT_LIMIT);
+  const elsewhere = selectedComputer(state);
+  const shown = elsewhere?.state ?? state;
+  if (elsewhere && remoteMemberHolder(state, thread.id)?.id !== elsewhere.id) return null;
+  const transcript = threadTranscript(shown, thread.id, MOBILE_TRANSCRIPT_MESSAGES, MOBILE_MESSAGE_TEXT_LIMIT);
   if (!transcript) return null;
+  const blocked = elsewhere ? threadActivity(shown).blocked : view.blockedThreadIds;
   /** A coordinator answers for the threads under it, as its Needs-you card does, its own first. */
   const member = view.approval ? undefined : view.coordination.approvals[0];
   const approval = view.approval ?? member?.approval;
-  const project = projectFor(state, thread);
-  const diff = diffFor(state, thread.id);
+  const project = projectFor(shown, thread);
+  const diff = diffFor(shown, thread.id);
   const location = locationOf(view);
   return {
     id: thread.id,
@@ -353,7 +388,7 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
     messages: withDetails(thread, transcript.messages),
     omitted: transcript.omitted,
     streamingTail: view.streamingTail?.text ?? null,
-    status: view.blockedThreadIds.has(thread.id) ? "awaiting-approval" : view.status,
+    status: blocked.has(thread.id) ? "awaiting-approval" : view.status,
     question: view.question ?? null,
     approval: approval
       ? {
@@ -367,13 +402,13 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
         detail: approvalDetail(approval.input),
       }
       : null,
-    queued: view.queuedMessages.map((message) => ({ id: message.id, text: message.text, ...labelOf(message), ...(message.steering ? { steering: true } : {}) })),
+    queued: view.queuedMessages.map((message) => ({ id: message.id, text: message.text, ...labelOf(message), ...(message.steering ? { steering: true } : {}), ...(phoneEditsQueued(message) ? { editable: true as const } : {}) })),
     settings: { engine: view.engine, model: view.model, effort: view.effort, fastMode: view.fastMode, policy: view.policy, ...(view.coordinating ? { coordinating: true as const } : {}) },
     location,
-    worktrees: project ? worktreeChoices(state, project.id, thread.worktreeId) : [],
-    canMove: Boolean(project?.workspaceId) && location.kind !== "creating" && location.kind !== "releasing" && !view.runningThreadIds.has(thread.id),
+    worktrees: project && !elsewhere ? worktreeChoices(state, project.id, thread.worktreeId) : [],
+    canMove: !elsewhere && Boolean(project?.workspaceId) && location.kind !== "creating" && location.kind !== "releasing" && !view.runningThreadIds.has(thread.id),
     changes: changesOf(view),
-    reviewable: threadWorkspaceId(state, thread) !== undefined,
+    reviewable: !elsewhere && threadWorkspaceId(state, thread) !== undefined,
     branchRange: diff.range.kind === "branches" ? diff.range : diff.branchRange ?? DEFAULT_BRANCH_RANGE,
     members: isCoordinator(thread) ? projectMembers(state, thread.id, view) : NO_MEMBERS,
     role: thread.role ?? null,
@@ -381,6 +416,8 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
     decisions: projectDecisions(thread, view.coordination.decisions),
     suggestions: projectSuggestions(view.coordination.proposals),
     limit: view.limitPause ? { resetsAt: view.limitPause.resetsAt, window: view.limitPause.window, position: view.limitPause.position } : null,
+    ...(elsewhere ? { computer: elsewhere.name } : {}),
+    stoppable: stoppable.has(thread.id),
   };
 }
 
@@ -514,7 +551,7 @@ function projectMembers(state: WorkspaceState, leadId: string, view: ReturnType<
   return coordinationMembers(state, leadId).map((member) => {
     const { working, blocked } = memberActivity(member, view.runningThreadIds, view.blockedThreadIds);
     const status: MobileMember["status"] = blocked.has(member.thread.id) ? "awaiting-approval" : working.has(member.thread.id) ? "running" : "idle";
-    return { id: member.thread.id, title: member.thread.title || "Untitled thread", status, ...(member.computer ? { computer: member.computer.name } : {}) };
+    return { id: member.thread.id, title: member.thread.title || "Untitled thread", status, ...(member.computer ? { computer: member.computer.name, online: member.computer.status === "connected" } : {}) };
   });
 }
 
@@ -601,7 +638,7 @@ function diffMobileThread(previous: MobileThreadView | null, next: MobileThreadV
  */
 const MOVING_KEYS = [
   "loading", "title", "projectId", "projectName", "worktreeId", "omitted", "status", "question", "approval",
-  "queued", "settings", "location", "worktrees", "canMove", "changes", "reviewable", "branchRange", "members", "role", "background", "decisions", "suggestions", "limit",
+  "queued", "settings", "location", "worktrees", "canMove", "changes", "reviewable", "branchRange", "members", "role", "background", "decisions", "suggestions", "limit", "computer", "stoppable",
 ] as const satisfies ReadonlyArray<keyof Omit<MobileThreadView, "id" | "messages" | "streamingTail">>;
 
 /**

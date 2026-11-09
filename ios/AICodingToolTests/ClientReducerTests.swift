@@ -96,6 +96,18 @@ final class ClientReducerTests: XCTestCase {
         XCTAssertEqual(refused.notice, "No.")
     }
 
+    func testOnlyAnEditTheComputerTookIsAccepted() {
+        var state = run(paired(), [.dispatch(requestId: "edit", command: .editQueued("t1", messageId: "q1"), at: 1), .dispatch(requestId: "send", command: .send("t1", text: "hi"), at: 1)]).0
+        state = run(state, [.received(.ack(sequence: 2, requestId: "send", ok: true, message: ""))]).0
+        XCTAssertNil(state.accepted)
+        state = run(state, [.received(.ack(sequence: 3, requestId: "edit", ok: true, message: ""))]).0
+        XCTAssertEqual(state.accepted, "edit")
+        state = run(state, [.dispatch(requestId: "late", command: .editQueued("t1", messageId: "q2"), at: 2), .received(.ack(sequence: 4, requestId: "late", ok: false, message: "That message has already been sent."))]).0
+        XCTAssertEqual(state.accepted, "edit")
+        XCTAssertEqual(state.returned?.requestId, "late")
+        XCTAssertEqual(state.notice, "That message has already been sent.")
+    }
+
     func testStaleDecisionReleasesItsCard() {
         var state = run(paired(), [.closed]).0
         let approval = MobileApproval(taskId: "t1", from: nil, approvalId: "a1", runId: "run", title: "", description: "", toolName: "Bash", detail: "")

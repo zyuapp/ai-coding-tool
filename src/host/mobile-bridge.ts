@@ -1,4 +1,4 @@
-import { applyMobilePatch, diffMobileView, mobileArchivedThreads, mobileThreadRead, projectMobileView } from "../application/mobile-projection.js";
+import { applyMobilePatch, diffMobileView, mobileArchivedThreads, mobileThreadRead, phoneEditsQueued, phoneReachesThread, projectMobileView, remoteMemberHolder } from "../application/mobile-projection.js";
 import { NEW_THREAD_DRAFT, promptKey, type WorkspaceState } from "../application/workspace-state.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
 import type { WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
@@ -9,13 +9,16 @@ import type { RuntimeDesktop } from "./runtime-desktop.js";
 import type { MobileServerState } from "../domain/mobile.js";
 import { threadWorkspaceId, threadWorkspaceRoot } from "../application/thread-location.js";
 import { messageImagePath } from "../domain/message-artifacts.js";
-import { coordinationMembers } from "../application/coordination.js";
 import { attachmentSendFor } from "../application/composer-attachments.js";
-import { isCoordinator } from "../domain/coordination.js";
+import { editableQueued } from "../application/workspace-reducer/run-queue.js";
+import { QUEUED_SENT } from "../application/computers.js";
 import { errorMessage } from "./errors.js";
 
 /** What a phone is refused with when it sends something outside the surface open to it. */
 export const MOBILE_REFUSED = "That command is not one a phone may send.";
+
+/** What a phone is refused with when it asks to edit a queued message carrying more than words. */
+export const MOBILE_QUEUED_NOT_WORDS = "A message with images, files, pasted text or notes can only be edited on the computer.";
 
 /** What a phone is refused with when it asks to review a thread that has no checkout. */
 export const MOBILE_NO_CHECKOUT = "This thread has no checkout to review.";
@@ -38,13 +41,16 @@ export type MobileBridgeHost = {
  * A review query names a thread, and the thread names the checkout: a phone never says which directory
  * to read. Whitespace-only changes are left out, as the desktop's review leaves them out by default. A
  * folder query lists folders by path prefix, as the desktop's own add-project field does. A thread
- * query reads one of this computer's threads without opening it, as a coordinator's tab does. An
+ * query reads a thread the phone may name without opening it, as a coordinator's tab does, one on a
+ * paired computer from what that computer last published here. An
  * image query reads only an image the named reply links, as the desktop's previews of it do. An
  * archived query lists what the Archive settings page lists.
  */
 async function answerQuery(host: MobileBridgeHost, query: MobileQuery): Promise<unknown> {
   if (query.kind === "archived") return mobileArchivedThreads(host.state());
   if (query.kind === "thread") {
+    const remote = remoteMemberHolder(host.state(), query.taskId)?.state;
+    if (remote) return mobileThreadRead(remote, query.taskId) ?? Promise.reject(new Error(`No thread has the ID ${query.taskId}.`));
     if (!host.state().threads.some((thread) => thread.id === query.taskId)) throw new Error(`No thread has the ID ${query.taskId}.`);
     await host.hydrate?.(query.taskId);
     return mobileThreadRead(host.state(), query.taskId) ?? Promise.reject(new Error(`No thread has the ID ${query.taskId}.`));
@@ -78,14 +84,18 @@ async function linkedImage(host: MobileBridgeHost, reader: MobileBridgeReader, q
 }
 
 /**
- * The threads a phone's command may name: those on this computer, and, for answering an approval or
- * a decision, those on a paired computer working under a coordinator here, whose Needs-you card
- * shows them. Nothing else of another computer is ever on the phone's.
+ * A phone's edit takes a queued message's words back to its own composer, so the computer's composer
+ * never holds them: the message leaves the queue of whichever computer holds the thread, as a paired
+ * computer's edit takes it, or the phone is told why it cannot.
  */
-function phoneReaches(state: WorkspaceState, command: AppCommand, taskId: string): boolean {
-  if (state.threads.some((thread) => thread.id === taskId)) return true;
-  return (command.type === "run.decide" || command.type === "decision.answer") && state.threads.some((lead) => isCoordinator(lead)
-    && coordinationMembers(state, lead.id).some((member) => member.computer && member.thread.id === taskId));
+function editedQueued(state: WorkspaceState, command: Extract<AppCommand, { type: "task.edit-queued" }>): AppCommand | { refusal: string } {
+  const taskId = command.taskId;
+  if (taskId === undefined) return { refusal: QUEUED_SENT };
+  const holder = remoteMemberHolder(state, taskId)?.state ?? state;
+  const edit = editableQueued(holder.queuedMessages[taskId] ?? [], command.messageId);
+  if ("refusal" in edit) return edit;
+  if (!phoneEditsQueued(edit.message)) return { refusal: MOBILE_QUEUED_NOT_WORDS };
+  return { type: "task.drop-queued", taskId, messageId: command.messageId };
 }
 
 /** What a phone is refused with when it sends from the new thread's draft before the last send from there has started. */
@@ -108,7 +118,11 @@ function draftSending(state: WorkspaceState): boolean {
  * One from the new thread's draft goes as the composer's own draft send does: its words become the
  * draft's, so the thread starts where the draft points and opens once it runs.
  */
-function phoneCommands(state: WorkspaceState, command: AppCommand): AppCommand[] {
+function phoneCommands(state: WorkspaceState, command: AppCommand): AppCommand[] | { refusal: string } {
+  if (command.type === "task.edit-queued") {
+    const edited = editedQueued(state, command);
+    return "refusal" in edited ? edited : [edited];
+  }
   if (command.type !== "attachments.send") return [command];
   if (command.taskId === undefined && promptKey(state) === NEW_THREAD_DRAFT) {
     const { text, ...send } = command;
@@ -134,10 +148,12 @@ export async function answerMobileRequest(host: MobileBridgeHost, request: Mobil
     /** What a phone may send, and then every field as the window's own checks read it. */
     if (!isPhoneCommand(request.command) || !isWorkspaceViewInput(request.command)) return failed(MOBILE_REFUSED);
     const taskId = "taskId" in request.command ? request.command.taskId : undefined;
-    if (taskId !== undefined && !phoneReaches(host.state(), request.command, taskId)) return failed(`No thread has the ID ${taskId}.`);
+    if (taskId !== undefined && !phoneReachesThread(host.state(), taskId)) return failed(`No thread has the ID ${taskId}.`);
     /** The draft holds one send's words, so nothing may rewrite or send it until the last send from it has started. */
     if (touchesDraft(host.state(), request.command) && draftSending(host.state())) return failed(MOBILE_DRAFT_BUSY);
-    for (const command of phoneCommands(host.state(), request.command)) {
+    const commands = phoneCommands(host.state(), request.command);
+    if ("refusal" in commands) return failed(commands.refusal);
+    for (const command of commands) {
       const execution = host.execute(command);
       const accepted = execution.accepted instanceof Promise ? await execution.accepted : execution.accepted;
       if (!accepted.ok) return failed(accepted.message);

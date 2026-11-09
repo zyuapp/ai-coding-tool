@@ -114,8 +114,12 @@ final class PhoneConnection {
         settle?.cancel()
     }
 
-    func send(_ command: PhoneCommand) {
-        dispatch(.dispatch(requestId: UUID().uuidString.lowercased(), command: command, at: Self.now))
+    /// Answers with the id the computer acknowledges the command by.
+    @discardableResult
+    func send(_ command: PhoneCommand) -> String {
+        let requestId = UUID().uuidString.lowercased()
+        dispatch(.dispatch(requestId: requestId, command: command, at: Self.now))
+        return requestId
     }
 
     /// Where this phone now takes notices, or nil once it may not; the computer on the line is told.

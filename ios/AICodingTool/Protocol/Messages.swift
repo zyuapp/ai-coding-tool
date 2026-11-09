@@ -67,12 +67,14 @@ struct MobileThreadDelta: Decodable, Equatable, Sendable {
     var decisions: PatchField<[MobileDecision]?> = .absent
     var suggestions: PatchField<[MobileSuggestion]?> = .absent
     var limit: PatchField<MobileLimitPause?> = .absent
+    var computer: PatchField<String?> = .absent
+    var stoppable: PatchField<Bool?> = .absent
     var spliced: Spliced?
     var messages: [MobileMessage]?
     var tail: Tail?
 
     private enum CodingKeys: String, CodingKey {
-        case loading, title, projectId, projectName, worktreeId, omitted, streamingTail, status, approval, question, queued, settings, location, worktrees, canMove, changes, reviewable, branchRange, members, role, background, decisions, suggestions, limit, spliced, messages, tail
+        case loading, title, projectId, projectName, worktreeId, omitted, streamingTail, status, approval, question, queued, settings, location, worktrees, canMove, changes, reviewable, branchRange, members, role, background, decisions, suggestions, limit, computer, stoppable, spliced, messages, tail
     }
 
     init() {}
@@ -103,6 +105,8 @@ struct MobileThreadDelta: Decodable, Equatable, Sendable {
         decisions = try container.patchField([MobileDecision].self, forKey: .decisions)
         suggestions = try container.patchField([MobileSuggestion].self, forKey: .suggestions)
         limit = try container.patchField(MobileLimitPause.self, forKey: .limit)
+        computer = try container.patchField(String.self, forKey: .computer)
+        stoppable = try container.patchField(Bool.self, forKey: .stoppable)
         spliced = try container.decodeIfPresent(Spliced.self, forKey: .spliced)
         messages = try container.decodeIfPresent([MobileMessage].self, forKey: .messages)
         tail = try container.decodeIfPresent(Tail.self, forKey: .tail)
@@ -221,6 +225,8 @@ extension MobileThreadView {
         next.decisions = delta.decisions.applied(to: decisions)
         next.suggestions = delta.suggestions.applied(to: suggestions)
         next.limit = delta.limit.applied(to: limit)
+        next.computer = delta.computer.applied(to: computer)
+        next.stoppable = delta.stoppable.applied(to: stoppable)
         if let tail = delta.tail {
             // The server counts the tail in UTF-16 code units, as JavaScript strings do.
             guard streamingTail?.utf16.count == tail.from else { return nil }

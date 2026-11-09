@@ -72,6 +72,11 @@ struct MobileMember: Codable, Equatable, Identifiable, Sendable {
     var title: String
     var status: String
     var computer: String?
+    /// Set on a thread on another computer: whether that computer's line is up. Nil from older computers, which open no such thread.
+    var online: Bool?
+
+    /// Whether the phone can open it: one on this computer, or one elsewhere whose computer is reachable.
+    var openable: Bool { computer == nil || online == true }
 }
 
 /// A workflow, process or subagent the open thread's session keeps going. Stop sends `run.stop-process` with its id.
@@ -173,6 +178,8 @@ struct MobileQueuedMessage: Codable, Equatable, Identifiable, Sendable {
     var text: String
     var origin: String?
     var steering: Bool?
+    /// Set on the user's own words alone, which Edit takes back to the composer. Nil from older computers.
+    var editable: Bool?
 }
 
 enum MobileLocation: Codable, Equatable, Sendable {
@@ -358,6 +365,10 @@ struct MobileThreadView: Codable, Equatable, Sendable {
     var decisions: [MobileDecision]? = nil
     var suggestions: [MobileSuggestion]? = nil
     var limit: MobileLimitPause? = nil
+    /// The paired computer the thread runs on, when it is not the one on the line.
+    var computer: String? = nil
+    /// On a coordinator, whether Stop All has anything to stop. Nil from computers too old to take it from a phone.
+    var stoppable: Bool? = nil
 }
 
 struct MobileDraftView: Codable, Equatable, Sendable {

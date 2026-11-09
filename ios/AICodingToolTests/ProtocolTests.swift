@@ -245,6 +245,23 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(PhoneCommand.cancelLimit("t1").json, .object(["type": .string("limit.cancel"), "taskId": .string("t1")]))
     }
 
+    func testStopAllQueuedEditAndPairedComputerTravel() throws {
+        let view = try snapshotView()
+        XCTAssertNil(view.thread?.stoppable, "a computer too old to stop all from a phone never says so")
+        let json = #"{"thread":{"kind":"changed","id":"t1","delta":{"stoppable":true,"computer":"Studio","queued":[{"id":"q1","text":"Then docs","editable":true},{"id":"q2","text":"Relayed","origin":"Lead"}],"members":[{"id":"m1","title":"Tests","status":"idle","computer":"Studio","online":false},{"id":"m2","title":"Docs","status":"idle","computer":"Studio"}]}}}"#
+        let next = try XCTUnwrap(view.applying(JSONDecoder().decode(MobilePatch.self, from: Data(json.utf8))))
+        XCTAssertEqual(next.thread?.stoppable, true)
+        XCTAssertEqual(next.thread?.computer, "Studio")
+        XCTAssertEqual(next.thread?.queued.map { $0.editable == true }, [true, false])
+        XCTAssertEqual(next.thread?.members?.map(\.openable), [false, false], "offline, or from a computer too old to open it")
+        let back = try XCTUnwrap(next.applying(JSONDecoder().decode(MobilePatch.self, from: Data(#"{"thread":{"kind":"changed","id":"t1","delta":{"stoppable":false,"members":[{"id":"m1","title":"Tests","status":"idle","computer":"Studio","online":true}]}}}"#.utf8))))
+        XCTAssertEqual(back.thread?.stoppable, false)
+        XCTAssertEqual(back.thread?.members?.first?.openable, true)
+        XCTAssertEqual(back.thread?.computer, "Studio")
+        XCTAssertEqual(PhoneCommand.stopAll("lead").json, .object(["type": .string("coordination.stop-all"), "taskId": .string("lead")]))
+        XCTAssertEqual(PhoneCommand.editQueued("t1", messageId: "q1").json, .object(["type": .string("task.edit-queued"), "taskId": .string("t1"), "messageId": .string("q1")]))
+    }
+
     func testSnoozeAndArchiveTravel() throws {
         let view = try snapshotView()
         XCTAssertNil(view.archived, "a computer too old to list its archive never says so")

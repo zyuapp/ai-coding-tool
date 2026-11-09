@@ -46,10 +46,10 @@ struct ConversationView: View {
                     if !thread.queued.isEmpty {
                         VStack(spacing: 8) {
                             ForEach(thread.queued) { message in
-                                QueuedRow(message: message, onSteer: { model.send(.steerQueued(thread.id, messageId: message.id)) }, onDrop: {
-                                    model.send(.dropQueued(thread.id, messageId: message.id))
-                                    model.handBack(message.text)
-                                })
+                                QueuedRow(message: message, editing: model.editing?.messageId == message.id, busy: model.editing != nil,
+                                          onEdit: message.editable == true ? { model.editQueued(thread.id, message) } : nil,
+                                          onSteer: { model.send(.steerQueued(thread.id, messageId: message.id)) },
+                                          onDrop: { model.send(.dropQueued(thread.id, messageId: message.id)) })
                             }
                         }
                         .accessibilityElement(children: .contain)
@@ -246,6 +246,12 @@ private struct ToolCallRow: View {
 
 private struct QueuedRow: View {
     var message: MobileQueuedMessage
+    /// This message is on its way back to the composer.
+    var editing: Bool
+    /// Some message is on its way back, so no other edit starts.
+    var busy: Bool
+    /// Nil for a message only the computer can edit.
+    var onEdit: (() -> Void)?
     var onSteer: () -> Void
     var onDrop: () -> Void
     @Environment(\.palette) private var palette
@@ -257,14 +263,27 @@ private struct QueuedRow: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(palette.muted)
                 Spacer(minLength: 0)
-                if message.steering == true {
+                if message.steering == true || editing {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.mini)
-                        Text("Steering…").font(.caption.weight(.medium))
+                        Text(editing ? "Editing…" : "Steering…").font(.caption.weight(.medium))
                     }
                     .foregroundStyle(palette.muted)
                     .frame(height: 28)
                 } else {
+                    if let onEdit {
+                        Button(action: onEdit) {
+                            Image(systemName: "pencil")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(palette.inkDim)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.target)
+                        .disabled(busy)
+                        .accessibilityLabel("Edit queued message")
+                        .accessibilityHint("Takes it out of the queue and into the message field")
+                    }
                     Button(action: onSteer) {
                         Label("Steer Now", systemImage: "bolt.fill")
                             .font(.footnote.weight(.semibold))

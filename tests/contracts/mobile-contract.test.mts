@@ -243,7 +243,7 @@ test("a query names a thread and a comparison, and travels to the window like a 
   assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "archived" } }), true);
 });
 
-test("a phone answers decisions, starts one suggestion where it was suggested, settles a usage pause, and snoozes", () => {
+test("a phone answers decisions, starts one suggestion where it was suggested, settles a usage pause, snoozes, stops a coordinator, and edits a queued message", () => {
   const allowed: unknown[] = [
     { type: "decision.answer", taskId: "t1", decisionId: "d1", answer: "SQLite" },
     { type: "proposal.start", taskId: "lead", proposalId: "p1" },
@@ -251,6 +251,8 @@ test("a phone answers decisions, starts one suggestion where it was suggested, s
     { type: "limit.cancel", taskId: "t1" },
     { type: "task.snooze", taskId: "t1", hours: 24 },
     { type: "task.unsnooze", taskId: "t1" },
+    { type: "coordination.stop-all", taskId: "lead" },
+    { type: "task.edit-queued", taskId: "t1", messageId: "q1" },
   ];
   for (const command of allowed) assert.equal(isPhoneCommand(command), true, JSON.stringify(command));
   const refused: unknown[] = [
@@ -262,6 +264,8 @@ test("a phone answers decisions, starts one suggestion where it was suggested, s
     { type: "limit.resume" },
     { type: "task.snooze", taskId: "t1", hours: 2 },
     { type: "task.unsnooze" },
+    { type: "coordination.stop-all" },
+    { type: "task.edit-queued", messageId: "q1" },
   ];
   for (const command of refused) assert.equal(isPhoneCommand(command), false, JSON.stringify(command));
 });
@@ -324,8 +328,9 @@ test("a phone may send exactly the commands that declare a phone rule", () => {
     "app.update": true, "app.cancel-update": true, "app.check-for-updates": true, "engine.read": true, "engine.update": true,
     "usage.read": true, "usage.dismiss-warning": true,
     "decision.answer": true, "proposal.start": true, "limit.resume": true, "limit.cancel": true, "task.snooze": true, "task.unsnooze": true,
+    "coordination.stop-all": true, "task.edit-queued": true,
   };
-  assert.equal(Object.keys(types).length, 45);
+  assert.equal(Object.keys(types).length, 47);
   for (const type of ["terminal.input", "worktree.delete", "project.remove", "browser.open", "task.set-coordinator", "run.compact"]) {
     assert.equal(isPhoneCommand({ type, taskId: "task-1" }), false, type);
   }

@@ -386,11 +386,11 @@ struct MembersSheet: View {
                     Text("No threads yet. Ask it to start some.").foregroundStyle(palette.muted).listRowBackground(Color.clear)
                 }
                 ForEach(members) { member in
-                    if member.computer == nil {
+                    if member.openable {
                         NavigationLink {
                             MemberTranscript(model: model, member: member) {
                                 dismiss()
-                                model.openThread(member.id, title: member.title, project: project)
+                                model.openThread(member.id, title: member.title, project: member.computer ?? project)
                             }
                                 .onAppear { withAnimation(.snappy) { detent = .large } }
                         } label: {
@@ -400,7 +400,7 @@ struct MembersSheet: View {
                     } else {
                         row(member)
                             .sheetRow()
-                            .accessibilityHint("Open it on \(member.computer ?? "that computer")")
+                            .accessibilityHint(member.online == false ? "\(member.computer ?? "Its computer") is offline" : "Open it on \(member.computer ?? "that computer")")
                     }
                 }
             }
@@ -418,7 +418,7 @@ struct MembersSheet: View {
             MemberMark(status: member.status).frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
                 Text(member.title).foregroundStyle(palette.ink).lineLimit(1)
-                Text([Format.statusLabel(member.status) ?? "Idle", member.computer].compactMap { $0 }.joined(separator: " · "))
+                Text([member.online == false ? "Offline" : Format.statusLabel(member.status) ?? "Idle", member.computer].compactMap { $0 }.joined(separator: " · "))
                     .font(.footnote)
                     .foregroundStyle(member.status == "awaiting-approval" ? palette.accent : palette.muted)
             }

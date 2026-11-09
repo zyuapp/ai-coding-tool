@@ -104,7 +104,12 @@ export type MobileMessage = {
 export type MobileToolCall = { family: ToolFamily; label: string; argument: string; sigil?: string; verb?: true };
 
 /** A thread working under the open coordinator, wherever it runs. `computer` names another computer holding it, which the phone cannot open. */
-export type MobileMember = { id: string; title: string; status: MobileRunStatus; computer?: string };
+/**
+ * A thread working under the open coordinator. One on another computer names it in `computer`, and
+ * `online` says whether that computer's line is up, which is when the phone may open it. `online` is
+ * absent from older desktops, which open no thread on another computer.
+ */
+export type MobileMember = { id: string; title: string; status: MobileRunStatus; computer?: string; online?: boolean };
 
 /**
  * Work the open thread's session keeps going beside its conversation: a subagent, a shell or
@@ -187,6 +192,8 @@ export type MobileQueuedMessage = {
   origin?: string;
   /** Set while the message is on its way into the run, which takes its controls away. */
   steering?: boolean;
+  /** Set on the user's own words alone, which `task.edit-queued` takes back to the phone. Absent from older desktops. */
+  editable?: true;
 };
 
 /** Where a thread's runs happen, as the phone names it. */
@@ -279,6 +286,10 @@ export type MobileThreadView = {
   suggestions?: MobileSuggestion[];
   /** Null unless it waits out a usage limit. Absent from older desktops. */
   limit?: MobileLimitPause | null;
+  /** The paired computer holding it, when it is a thread under a coordinator here that runs there. */
+  computer?: string;
+  /** On a coordinator, whether `coordination.stop-all` has anything to stop. Absent from older desktops. */
+  stoppable?: boolean;
 };
 
 /**

@@ -39,6 +39,8 @@ final class PhoneModel {
     @ObservationIgnored private var drafts: [String: String] = [:]
     /// Words handed back to the composer on screen, such as a queued message taken out of the queue.
     private(set) var handedBack: (id: UUID, text: String)?
+    /// A queued message on its way out of the queue, whose words come back once the computer has taken it out.
+    private(set) var editing: (requestId: String, messageId: String, text: String)?
     /// The draft spoken words last landed in, so a composer showing it reads it again.
     private(set) var spokenInto: (id: UUID, key: String)?
 
@@ -78,7 +80,8 @@ final class PhoneModel {
         return current == opening.was && current != opening.want
     }
 
-    func send(_ command: PhoneCommand) {
+    @discardableResult
+    func send(_ command: PhoneCommand) -> String {
         connection.send(command)
     }
 
@@ -229,5 +232,18 @@ final class PhoneModel {
     /// Puts a message's words back in the composer on screen, after anything already typed there.
     func handBack(_ text: String) {
         handedBack = (UUID(), text)
+    }
+
+    /// Asks for a queued message back; its words reach the composer only once it has left the queue.
+    func editQueued(_ taskId: String, _ message: MobileQueuedMessage) {
+        guard editing == nil else { return }
+        editing = (send(.editQueued(taskId, messageId: message.id)), message.id, message.text)
+    }
+
+    /// Settles the edit once its command has left the outbox: taken, its words come back; otherwise it lets go.
+    func settleEdit() {
+        guard let editing, !state.outbox.contains(where: { $0.requestId == editing.requestId }) else { return }
+        if state.accepted == editing.requestId { handBack(editing.text) }
+        self.editing = nil
     }
 }

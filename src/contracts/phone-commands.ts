@@ -114,6 +114,9 @@ export const movesWorktree: PhoneRule = (command) => named(command) && isDestina
 
 export const namesQueued: PhoneRule = (command) => named(command) && isString(command.messageId);
 
+/** An edit names its thread, since the phone's composer takes the words for the thread it shows. */
+export const editsQueued: PhoneRule = (command) => isString(command.taskId) && isString(command.messageId);
+
 export const cancels: PhoneRule = named;
 
 export const decides: PhoneRule = (command) => isString(command.taskId) && isString(command.runId) && isString(command.approvalId) && typeof command.allow === "boolean";

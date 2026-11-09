@@ -4,7 +4,8 @@ import { test } from "vitest";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
 import { deriveView, emptyWorkspaceState, NEW_THREAD_DRAFT, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import { answerMobileRequest, MOBILE_DRAFT_BUSY, MOBILE_NO_CHECKOUT, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/host/mobile-bridge.ts";
+import { answerMobileRequest, MOBILE_DRAFT_BUSY, MOBILE_NO_CHECKOUT, MOBILE_QUEUED_NOT_WORDS, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/host/mobile-bridge.ts";
+import { QUEUED_NOT_YOURS, QUEUED_SENT } from "../../src/application/computers.ts";
 import { emptyMobileServerState, type MobileServerState, type MobileSessionView } from "../../src/domain/mobile.ts";
 import type { MobileRequest, MobileView } from "../../src/contracts/mobile.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";
@@ -265,30 +266,80 @@ test("a command the phone is not allowed to send never reaches the reducer", asy
   assert.equal(driver.current().currentId, "thread-1");
 });
 
-test("a phone answers the approval of a coordinator's thread on a paired computer, and reaches nothing else there", async () => {
+test("a phone opens a coordinator's thread on a paired computer and acts on it there, and reaches no stranger there", async () => {
   const approval = { approvalId: "a1", taskId: "member", runId: "run-1", title: "Run a command", description: "rm", toolName: "Bash", input: { command: "rm" } };
+  const queued = { id: "q1", text: "Then the docs", prompt: "Then the docs", attachments: [], usersOwn: true as const };
   const holder = workspace({
-    threads: [task("member", { title: "Dark mode", remoteLead: { threadId: "lead", title: "Lead", computer: "Mac" } }), task("stranger")],
+    threads: [task("member", { title: "Dark mode", remoteLead: { threadId: "lead", title: "Lead", computer: "Mac" }, messages: [message("Make it dark", NOW)] }), task("stranger")],
+    currentId: "member",
     activeRuns: { member: activeRun("member", "run-1", { status: "awaiting-approval" }), stranger: activeRun("stranger", "run-2", { status: "awaiting-approval" }) },
     approvals: { "run-1": approval, "run-2": { ...approval, taskId: "stranger", runId: "run-2", approvalId: "a2" } },
+    queuedMessages: { member: [queued] },
   });
   const base = workspace({ threads: [task("lead", { role: "coordinator", title: "Lead" })], currentId: "lead" });
   const paired = { id: "linux", name: "Linux", host: "linux.ts.net", status: "connected" as const, error: null, pairedAt: 1, capabilities: COMPUTER_CAPABILITIES, state: holder };
   const driver = host({ ...base, computers: { ...base.computers, name: "Mac", paired: [paired] } });
   const send = (command: object) => answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "r1", sessionId: "s1", op: "command", command: command as never }));
+  const read = (taskId: string) => answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "q1", sessionId: "s1", op: "query", query: { kind: "thread", taskId } }));
 
-  const shown = required(projectMobileView(driver.current(), NOW).thread?.approval);
-  const allowed = await send({ type: "run.decide", taskId: shown.taskId, runId: shown.runId, approvalId: shown.approvalId, allow: true });
-  assert.equal(allowed.ok, true, "the approval its coordinator shows is answered from the phone");
-  assert.equal(driver.inputs.length, 1);
+  assert.deepEqual(projectMobileView(driver.current(), NOW).thread?.members?.[0], { id: "member", title: "Dark mode", status: "awaiting-approval", computer: "Linux", online: true });
+  const transcript = await read("member");
+  assert.equal(transcript.ok && (transcript.result as { messages: unknown[] }).messages.length, 1, "its conversation is read from what that computer published");
 
-  const forged = [
+  const opened = await send({ type: "task.select", taskId: "member" });
+  assert.equal(opened.ok, true);
+  const shown = required((opened as { result: MobileView }).result.thread);
+  assert.deepEqual([shown.id, shown.computer, shown.reviewable, shown.approval?.approvalId, shown.queued[0]?.editable], ["member", "Linux", false, "a1", true]);
+  for (const command of [
+    { type: "run.decide", taskId: "member", runId: "run-1", approvalId: "a1", allow: true },
+    { type: "task.send", taskId: "member", text: "Also the icons" },
+    { type: "task.edit-queued", taskId: "member", messageId: "q1" },
+  ]) assert.equal((await send(command)).ok, true, JSON.stringify(command));
+  assert.deepEqual(driver.inputs.at(-1), { type: "task.drop-queued", taskId: "member", messageId: "q1" }, "the queue is that computer's, and the words go back to the phone alone");
+  assert.equal(driver.current().prompts.member, undefined);
+
+  const inputs = driver.inputs.length;
+  for (const command of [
+    { type: "task.select", taskId: "stranger" },
     { type: "run.decide", taskId: "stranger", runId: "run-2", approvalId: "a2", allow: true },
-    { type: "task.archive", taskId: "member" },
-    { type: "run.cancel", taskId: "member" },
-  ];
-  for (const command of forged) assert.deepEqual(await send(command), { type: "mobile.response", requestId: "r1", ok: false, message: `No thread has the ID ${command.taskId}.` }, JSON.stringify(command));
-  assert.equal(driver.inputs.length, 1);
+  ]) assert.deepEqual(await send(command), { type: "mobile.response", requestId: "r1", ok: false, message: `No thread has the ID ${command.taskId}.` }, JSON.stringify(command));
+  assert.equal((await read("stranger")).ok, false);
+  assert.equal(driver.inputs.length, inputs);
+});
+
+test("a coordinator's thread on a paired computer whose line is down is shown so, and opening it says why it cannot", async () => {
+  const holder = workspace({ threads: [task("member", { remoteLead: { threadId: "lead", title: "Lead", computer: "Mac" } })] });
+  const base = workspace({ threads: [task("lead", { role: "coordinator", title: "Lead" })], currentId: "lead" });
+  const paired = { id: "linux", name: "Linux", host: "linux.ts.net", status: "offline" as const, error: null, pairedAt: 1, capabilities: COMPUTER_CAPABILITIES, state: holder };
+  const driver = host({ ...base, computers: { ...base.computers, name: "Mac", paired: [paired] } });
+
+  assert.equal(projectMobileView(driver.current(), NOW).thread?.members?.[0]?.online, false);
+  const opened = await answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "r1", sessionId: "s1", op: "command", command: { type: "task.select", taskId: "member" } }));
+  assert.equal(opened.ok, false);
+  assert.match((opened as { message: string }).message, /Linux/);
+  assert.equal(driver.current().computers.active, null);
+});
+
+test("a phone's edit takes back only its own words, leaves the computer's composer alone, and fails once the message has gone", async () => {
+  const own = (id: string, extra: object = {}) => ({ id, text: id, prompt: id, attachments: [], usersOwn: true as const, ...extra });
+  const driver = host(workspace({
+    threads: [task("thread-1")],
+    currentId: "thread-1",
+    activeRuns: { "thread-1": activeRun("thread-1", "run-1") },
+    prompts: { "thread-1": "typed on the desktop" },
+    queuedMessages: { "thread-1": [own("plain"), own("pictured", { attachments: ["/tmp/a.png"] }), own("steering", { steering: true }), { ...own("relayed"), usersOwn: undefined, origin: { kind: "coordination" } }] },
+  }));
+  const edit = (messageId: string) => answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "r1", sessionId: "s1", op: "command", command: { type: "task.edit-queued", taskId: "thread-1", messageId } }));
+
+  assert.deepEqual(projectMobileView(driver.current(), NOW).thread?.queued.map((message) => message.editable ?? false), [true, false, false, false]);
+  assert.equal((await edit("plain")).ok, true);
+  assert.deepEqual(driver.current().queuedMessages["thread-1"]?.map((message) => message.id), ["pictured", "steering", "relayed"]);
+  assert.equal(driver.current().prompts["thread-1"], "typed on the desktop");
+  assert.deepEqual(await edit("plain"), { type: "mobile.response", requestId: "r1", ok: false, message: QUEUED_SENT }, "it started running meanwhile");
+  assert.deepEqual(await edit("steering"), { type: "mobile.response", requestId: "r1", ok: false, message: QUEUED_SENT });
+  assert.deepEqual(await edit("pictured"), { type: "mobile.response", requestId: "r1", ok: false, message: MOBILE_QUEUED_NOT_WORDS });
+  assert.deepEqual(await edit("relayed"), { type: "mobile.response", requestId: "r1", ok: false, message: QUEUED_NOT_YOURS });
+  assert.equal(driver.current().queuedMessages["thread-1"]?.length, 3);
 });
 
 test("a phone answers the decision of a coordinator's thread on a paired computer, and no stranger's there", async () => {
@@ -307,7 +358,7 @@ test("a phone answers the decision of a coordinator's thread on a paired compute
   assert.equal(driver.inputs.length, 1);
 });
 
-test("a phone answers a decision, starts a suggestion, settles a usage pause, snoozes, and restores, each as the desktop does", async () => {
+test("a phone answers a decision, starts a suggestion, settles a usage pause, snoozes, restores, and stops all, each as the desktop does", async () => {
   const finding = { id: "f1", headline: "Found a bug", at: NOW };
   const driver = host(workspace({
     threads: [
@@ -315,8 +366,10 @@ test("a phone answers a decision, starts a suggestion, settles a usage pause, sn
       task("paused", { limitPause: { resetsAt: NOW + 3_600_000, window: "session", pausedAt: NOW } }),
       task("noisy", { findings: [finding] }),
       task("gone", { archivedAt: NOW }),
+      task("worker", { parentId: "lead" }),
     ],
     currentId: "lead",
+    activeRuns: { worker: activeRun("worker", "run-w") },
   }));
   const send = (command: object) => answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "r1", sessionId: "s1", op: "command", command: command as never }));
   const thread = (id: string) => required(driver.current().threads.find((item) => item.id === id));
@@ -340,6 +393,10 @@ test("a phone answers a decision, starts a suggestion, settles a usage pause, sn
   assert.equal((await send({ type: "task.restore", taskId: "gone" })).ok, true);
   assert.equal(thread("gone").archivedAt, undefined);
   assert.equal(projectMobileView(driver.current(), NOW).archived, 0);
+
+  assert.equal(projectMobileView(driver.current(), NOW).thread?.stoppable, true);
+  assert.equal((await send({ type: "coordination.stop-all", taskId: "lead" })).ok, true);
+  assert.equal(driver.current().quietStops.includes("run-w"), true, "the run under it is stopped quietly, as Stop all on the desktop stops it");
 });
 
 test("a command the reducer refuses answers with what the window said about it", async () => {

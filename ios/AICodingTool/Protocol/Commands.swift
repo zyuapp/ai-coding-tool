@@ -51,6 +51,10 @@ extension PhoneCommand {
     static func send(_ taskId: String?, text body: String?, steer: Bool? = nil) -> PhoneCommand { PhoneCommand("task.send", ["taskId": jsonText(taskId), "text": jsonText(body), "steer": jsonFlag(steer)]) }
     static func steerQueued(_ taskId: String, messageId: String) -> PhoneCommand { PhoneCommand("task.steer-queued", ["taskId": jsonText(taskId), "messageId": .string(messageId)]) }
     static func dropQueued(_ taskId: String, messageId: String) -> PhoneCommand { PhoneCommand("task.drop-queued", ["taskId": jsonText(taskId), "messageId": .string(messageId)]) }
+    /// Takes a queued message out of the queue so its words come back to this phone's composer.
+    static func editQueued(_ taskId: String, messageId: String) -> PhoneCommand { PhoneCommand("task.edit-queued", ["taskId": .string(taskId), "messageId": .string(messageId)]) }
+    /// Stops a coordinator and everything working under it.
+    static func stopAll(_ taskId: String) -> PhoneCommand { PhoneCommand("coordination.stop-all", ["taskId": .string(taskId)]) }
     static func cancel(_ taskId: String) -> PhoneCommand { PhoneCommand("run.cancel", ["taskId": jsonText(taskId)]) }
     /// Ends one workflow, process or subagent without ending the run.
     static func stopProcess(_ taskId: String, processId: String) -> PhoneCommand { PhoneCommand("run.stop-process", ["taskId": .string(taskId), "processId": .string(processId)]) }
