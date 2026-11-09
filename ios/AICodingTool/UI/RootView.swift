@@ -14,7 +14,7 @@ struct RootView: View {
         let palette = Palette.resolve(theme, systemDark: systemScheme == .dark)
         content
             .environment(\.palette, palette)
-            .tint(palette.accent)
+            .tint(palette.ink)
             .preferredColorScheme(theme.mode == "auto" ? nil : palette.scheme)
             .onChange(of: model.view.theme) { _, next in
                 guard model.state.synced else { return }
@@ -80,7 +80,7 @@ struct ConnectionMark: View {
                 if connection == .offline {
                     Image(systemName: "icloud.slash").font(.caption.weight(.semibold))
                 } else {
-                    ProgressView().controlSize(.mini)
+                    Spinner(size: 11)
                 }
                 Text(connection.label).font(.caption.weight(.medium))
             }
@@ -142,7 +142,7 @@ extension View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .animation(.snappy, value: model.notice)
+        .animation(.glide, value: model.notice)
     }
 
     /// The bar's second line under the title, on iOS 26 where the system draws one; earlier, `LegacyBarTitle` draws it.
@@ -172,18 +172,25 @@ extension View {
 struct ComputerMenu: View {
     var model: PhoneModel
     @Environment(\.palette) private var palette
-    @State private var pairing = false
-    @State private var showingUsage = false
+    @State private var panel: Panel?
     @State private var forgetting: PairedComputer?
+
+    private enum Panel: String, Identifiable {
+        case pairing, usage
+        var id: String { rawValue }
+    }
 
     private var current: PairedComputer? { model.connection.computers.first { $0.origin == model.connection.origin } }
 
     var body: some View {
         Menu {
             Section("Computers") {
-                ForEach(model.connection.computers) { computer in
+                let computers = model.connection.computers
+                ForEach(computers) { computer in
                     Button { model.connection.switchTo(computer) } label: {
                         if computer.origin == model.connection.origin { Label(computer.title, systemImage: "checkmark") } else { Text(computer.title) }
+                        /// Two computers of one name are told apart by where each is reached.
+                        if computers.filter({ $0.title == computer.title }).count > 1 { Text(computer.address) }
                     }
                 }
             }
@@ -192,14 +199,14 @@ struct ComputerMenu: View {
             }
             if model.live, let usage = model.view.usage {
                 Section {
-                    Button { showingUsage = true } label: {
+                    Button { panel = .usage } label: {
                         Label("Usage", systemImage: "gauge.with.dots.needle.33percent")
                         if let summary = usage.summary { Text(summary) }
                     }
                 }
             }
             Section {
-                Button { pairing = true } label: { Label("Pair a Computer…", systemImage: "plus") }
+                Button { panel = .pairing } label: { Label("Pair a Computer…", systemImage: "plus") }
                 if let current {
                     Button(role: .destructive) { forgetting = current } label: { Label("Forget \(current.title)…", systemImage: "minus.circle") }
                 }
@@ -215,7 +222,7 @@ struct ComputerMenu: View {
                             }
                         }
                     if model.restarting {
-                        ProgressView().controlSize(.mini)
+                        Spinner(size: 11)
                     } else {
                         ConnectionMark(connection: model.state.connection)
                     }
@@ -225,7 +232,7 @@ struct ComputerMenu: View {
                     Image(systemName: "desktopcomputer").font(.footnote.weight(.semibold))
                     Text(model.state.computerName ?? current?.title ?? "Computer").lineLimit(1)
                     if model.restarting {
-                        ProgressView().controlSize(.mini)
+                        Spinner(size: 11)
                     } else if model.state.connection != .live {
                         ConnectionMark(connection: model.state.connection)
                     } else if model.view.updateOffered {
@@ -248,8 +255,12 @@ struct ComputerMenu: View {
                 model.readUsage(within: 15 * 60)
             }
         }
-        .sheet(isPresented: $pairing) { PairAnotherSheet(model: model) }
-        .sheet(isPresented: $showingUsage) { UsageSheet(model: model) }
+        .sheet(item: $panel) { panel in
+            switch panel {
+            case .pairing: PairAnotherSheet(model: model)
+            case .usage: UsageSheet(model: model)
+            }
+        }
         .confirmationDialog(forgetting.map { "Forget \($0.title)?" } ?? "", isPresented: Binding(get: { forgetting != nil }, set: { if !$0 { forgetting = nil } }), titleVisibility: .visible) {
             Button("Forget", role: .destructive) {
                 if let forgetting { model.connection.forget(forgetting) }

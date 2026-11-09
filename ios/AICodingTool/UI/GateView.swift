@@ -27,23 +27,21 @@ struct GateView: View {
             VStack(spacing: 28) {
                 VStack(spacing: 16) {
                     Image(systemName: "laptopcomputer.and.iphone")
-                        .font(.system(size: 34, weight: .medium))
-                        .foregroundStyle(.white)
-                        .frame(width: 84, height: 84)
-                        .background(
-                            LinearGradient(colors: [palette.accent, palette.accent.opacity(0.78)], startPoint: .topLeading, endPoint: .bottomTrailing),
-                            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        )
-                        .shadow(color: palette.accent.opacity(0.35), radius: 18, y: 8)
+                        .font(.system(size: 30, weight: .medium))
+                        .foregroundStyle(palette.accent)
+                        .frame(width: 76, height: 76)
+                        .background(palette.accentChip, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(palette.accentLine))
                         .accessibilityHidden(true)
-                    VStack(spacing: 8) {
+                    VStack(spacing: Space.s) {
                         Text("Pair with Your Computer")
-                            .font(.title.weight(.bold))
+                            .font(.title.weight(.semibold))
+                            .tracking(-0.4)
                             .foregroundStyle(palette.ink)
                             .multilineTextAlignment(.center)
                         Text(model.state.notice ?? MobileClient.scanAgain)
                             .font(.body)
-                            .foregroundStyle(palette.inkDim)
+                            .foregroundStyle(palette.muted)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -51,24 +49,20 @@ struct GateView: View {
 
                 VStack(alignment: .leading, spacing: 0) {
                     step(1, "Open **AI Coding Tool** on your computer.")
-                    palette.lineSoft.frame(height: 1).padding(.leading, 52)
+                    palette.lineSoft.frame(height: 1).padding(.leading, 50)
                     step(2, "Go to **Settings › Devices**.")
-                    palette.lineSoft.frame(height: 1).padding(.leading, 52)
+                    palette.lineSoft.frame(height: 1).padding(.leading, 50)
                     step(3, DataScannerViewController.isSupported ? "Choose **Pair a phone**, then scan the code." : "Choose **Pair a phone**, then paste its link below.")
                 }
-                .background(palette.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .background(palette.surface, in: RoundedRectangle(cornerRadius: Radius.bubble, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.bubble, style: .continuous).strokeBorder(palette.lineSoft))
 
-                VStack(spacing: 12) {
+                VStack(spacing: Space.m) {
                     if DataScannerViewController.isSupported {
                         Button { scanning = true } label: {
-                            Label("Scan QR Code", systemImage: "qrcode.viewfinder")
-                                .font(.body.weight(.semibold))
-                                .frame(maxWidth: .infinity, minHeight: 50)
-                                .foregroundStyle(palette.accentInk)
-                                .background(palette.accent, in: Capsule())
-                                .contentShape(Capsule())
+                            ActionLabel(title: "Scan QR Code", symbol: "qrcode.viewfinder")
                         }
-                        .buttonStyle(.target)
+                        .buttonStyle(.press)
                     }
 
                     HStack(spacing: 8) {
@@ -93,22 +87,21 @@ struct GateView: View {
                     .padding(.trailing, 8)
                     .frame(minHeight: 50)
                     .background(palette.surface, in: Capsule())
+                    .overlay(Capsule().strokeBorder(focused ? palette.lineStrong : palette.lineSoft))
+                    .animation(.touch, value: focused)
                     if !link.isEmpty, typedLink == nil {
                         Text("Not a pairing link. Copy it from your computer.").font(.footnote).foregroundStyle(palette.danger)
                     }
                     if !link.isEmpty {
                         Button(action: pairWithLink) {
-                            Text("Pair")
-                                .font(.body.weight(.semibold))
-                                .frame(maxWidth: .infinity, minHeight: 50)
-                                .foregroundStyle(typedLink == nil ? palette.muted : palette.accentInk)
-                                .background(typedLink == nil ? palette.raised : palette.accent, in: Capsule())
-                                .contentShape(Capsule())
+                            ActionLabel(title: "Pair", enabled: typedLink != nil)
                         }
-                        .buttonStyle(.target)
+                        .buttonStyle(.press)
                         .disabled(typedLink == nil)
+                        .transition(.rise)
                     }
                 }
+                .animation(.glide, value: link.isEmpty)
 
                 if let origin {
                     VStack(alignment: .leading, spacing: 8) {
@@ -132,19 +125,21 @@ struct GateView: View {
                                 .font(.subheadline.weight(.semibold))
                                 .buttonStyle(.borderedProminent)
                                 .buttonBorderShape(.capsule)
+                                .tint(palette.accent)
                                 .disabled(typedCode == nil)
                         }
                         .padding(.leading, 16)
                         .padding(.trailing, 8)
                         .frame(minHeight: 50)
                         .background(palette.surface, in: Capsule())
+                        .overlay(Capsule().strokeBorder(palette.lineSoft))
                         if code.count == PairingLink.codeLength, typedCode == nil {
                             Text("Not a pairing code. Check it on your computer.").font(.footnote).foregroundStyle(palette.danger).padding(.leading, 16)
                         }
                     }
                 }
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, Space.page)
             .padding(.vertical, 32)
             .frame(maxWidth: 480)
             .frame(maxWidth: .infinity)
@@ -171,20 +166,20 @@ struct GateView: View {
     }
 
     private func step(_ number: Int, _ text: LocalizedStringKey) -> some View {
-        HStack(spacing: 14) {
+        HStack(spacing: Space.m) {
             Text("\(number)")
-                .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(palette.accent)
+                .font(.footnote.weight(.semibold).monospacedDigit())
+                .foregroundStyle(palette.mutedStrong)
                 .frame(width: 26, height: 26)
-                .background(palette.accentChip, in: Circle())
+                .background(palette.raised, in: Circle())
             Text(text)
                 .font(.subheadline)
                 .foregroundStyle(palette.inkDim)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.horizontal, Space.m)
+        .padding(.vertical, 13)
     }
 
     private func pairWithLink() {

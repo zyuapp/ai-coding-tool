@@ -33,7 +33,7 @@ struct ArchivedScreen: View {
                 } description: {
                     Text(problem)
                 } actions: {
-                    Button("Try Again") { Task { await load() } }
+                    Button("Try Again") { Task { await load() } }.foregroundStyle(palette.accent)
                 }
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
@@ -41,7 +41,7 @@ struct ArchivedScreen: View {
             } else {
                 HStack {
                     Spacer()
-                    ProgressView().tint(palette.muted)
+                    Spinner(size: 20, color: palette.muted)
                     Spacer()
                 }
                 .padding(.top, 80)
@@ -99,7 +99,7 @@ struct ArchivedScreen: View {
             } label: {
                 ZStack {
                     Text("Restore").opacity(busy ? 0 : 1)
-                    if busy { ProgressView().controlSize(.small).tint(palette.accent) }
+                    if busy { Spinner(size: 15, color: palette.accent) }
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(palette.accent)

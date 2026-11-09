@@ -101,7 +101,7 @@ struct TalkStrip: View {
         }
         .padding(.leading, freed ? -6 : 6)
         .frame(minHeight: 44)
-        .animation(.snappy(duration: 0.2), value: freed)
+        .animation(.touch, value: freed)
         .accessibilityElement(children: freed ? .contain : .combine)
         .accessibilityLabel(!listening ? "Writing down what you said" : freed ? "Listening hands-free" : "Listening. Let go to add the words to your message, or swipe up to cancel.")
     }
@@ -149,7 +149,7 @@ struct TalkCancelTarget: View {
                 .foregroundStyle(palette.muted)
                 .opacity(armed ? 0 : 1)
         }
-        .animation(.snappy(duration: 0.18), value: armed)
+        .animation(.touch, value: armed)
         .accessibilityHidden(true)
     }
 }

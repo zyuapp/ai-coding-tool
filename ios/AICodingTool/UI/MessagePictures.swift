@@ -197,7 +197,7 @@ private struct PictureTile: View {
                         if let image {
                             SwiftUI.Image(uiImage: image).resizable().scaledToFit()
                         } else {
-                            ProgressView().controlSize(.small)
+                            Spinner(size: 15)
                         }
                     }
                     .frame(width: 256, height: 144)
@@ -312,7 +312,7 @@ private struct PicturePage: View {
             if failed {
                 Text("This image is no longer available.").font(.subheadline).foregroundStyle(.white.opacity(0.7))
             } else if loading {
-                ProgressView().tint(.white)
+                Spinner(size: 20, color: .white)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

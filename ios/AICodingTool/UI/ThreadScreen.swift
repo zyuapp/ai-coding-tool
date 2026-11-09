@@ -54,9 +54,7 @@ struct ThreadScreen: View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .barSubtitle(subtitle)
-            .toolbarTitleMenu {
-                if let thread { titleMenu(thread) }
-            }
+            .titleMenu(thread) { titleMenu($0) }
             .toolbar {
                 if #unavailable(iOS 26) {
                     LegacyBarTitle(title: title, subtitle: subtitle)
@@ -209,15 +207,16 @@ struct ThreadScreen: View {
                         }
                     }
             }
-            .animation(.snappy, value: thread.approval?.approvalId)
-            .animation(.snappy, value: thread.decisions?.first?.id)
-            .animation(.snappy, value: thread.suggestions?.isEmpty == false)
-            .animation(.snappy, value: thread.limit == nil)
-            .animation(.snappy, value: thread.background?.contains(where: \.live) == true)
+            .animation(.glide, value: thread.approval?.approvalId)
+            .animation(.glide, value: thread.decisions?.first?.id)
+            .animation(.glide, value: thread.suggestions?.isEmpty == false)
+            .animation(.glide, value: thread.limit == nil)
+            .animation(.glide, value: thread.background?.contains(where: \.live) == true)
         } else if let draft {
             VStack(spacing: 0) {
-                DraftWelcome(engine: model.catalog.engineLabel(draft.settings.engine), computer: model.state.computerName)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                DraftWelcome(engine: model.catalog.engineLabel(draft.settings.engine), computer: model.state.computerName, project: draft.projectName, recent: recent(in: draft.projectId)) { thread in
+                    model.openThread(thread.id, title: thread.title, project: thread.projectName)
+                }
                 ComposerView(model: model, draftKey: "draft", running: false, settings: draft.settings, question: nil, returned: draftReturned, onSend: { text, sources in
                     if sources.isEmpty {
                         model.send(.setPrompt(text))
@@ -230,19 +229,22 @@ struct ThreadScreen: View {
                 }
             }
         } else if let missed = model.missed {
-            VStack(spacing: 16) {
-                Image(systemName: "exclamationmark.bubble").font(.system(size: 36, weight: .light)).foregroundStyle(palette.quiet)
-                Text("Couldn't open the thread").font(.headline).foregroundStyle(palette.ink)
-                Button("Try Again") { model.retryMissed() }
-                    .buttonStyle(.borderedProminent)
-                    .buttonBorderShape(.capsule)
-                    .accessibilityLabel("Try opening \(missed.title) again")
+            VStack(spacing: Space.xl) {
+                VStack(spacing: 6) {
+                    Text("Couldn't open the thread").font(.title3.weight(.semibold)).foregroundStyle(palette.ink)
+                    Text("Your computer didn't answer in time.").font(.subheadline).foregroundStyle(palette.muted)
+                }
+                Button { model.retryMissed() } label: {
+                    ActionLabel(title: "Try Again", symbol: "arrow.clockwise").frame(maxWidth: 200)
+                }
+                .buttonStyle(.press)
+                .accessibilityLabel("Try opening \(missed.title) again")
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            VStack(spacing: 12) {
-                ProgressView().tint(palette.muted)
-                Text("Opening the thread…").font(.subheadline).foregroundStyle(palette.muted)
+            HStack(spacing: Space.s) {
+                Spinner(size: 14, color: palette.muted)
+                Text("Opening the thread").font(.subheadline).foregroundStyle(palette.muted).shimmer(palette.ink)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .accessibilityElement(children: .combine)
@@ -251,6 +253,12 @@ struct ThreadScreen: View {
     }
 
     private var projects: [MobileProjectGroup] { model.view.groups.filter { $0.projectId != nil } }
+
+    /// The threads last active where a draft is about to start, newest first.
+    private func recent(in projectId: String?) -> [MobileThreadEntry] {
+        let threads = model.view.groups.first { $0.projectId == projectId }?.threads ?? []
+        return Array(threads.sorted { $0.lastActivityAt > $1.lastActivityAt }.prefix(4))
+    }
 
     /// The request the computer last turned down, when it was a command of this type.
     private func refused(_ type: String) -> String? {
@@ -337,29 +345,71 @@ private struct StopAllAsk: Identifiable, Equatable {
 struct DraftWelcome: View {
     var engine: String
     var computer: String?
+    var project: String?
+    var recent: [MobileThreadEntry]
+    var onOpen: (MobileThreadEntry) -> Void
     @Environment(\.palette) private var palette
 
     var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 28, weight: .medium))
-                .foregroundStyle(palette.accent)
-                .frame(width: 64, height: 64)
-                .background(palette.accentChip, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            VStack(spacing: 6) {
-                Text("What should \(engine) work on?")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(palette.ink)
-                    .multilineTextAlignment(.center)
-                Text(computer.map { "It runs on \($0), and you can follow along here." } ?? "It runs on your computer, and you can follow along here.")
-                    .font(.subheadline)
-                    .foregroundStyle(palette.muted)
-                    .multilineTextAlignment(.center)
+        ViewThatFits(in: .vertical) {
+            if !recent.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    recents
+                    Spacer(minLength: Space.xl)
+                    heading
+                }
             }
-            .accessibilityElement(children: .combine)
+            VStack(alignment: .leading, spacing: 0) {
+                Spacer(minLength: 0)
+                heading
+            }
         }
-        .frame(maxWidth: 420)
-        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        .padding(.horizontal, Space.page)
+        .padding(.bottom, Space.l)
+    }
+
+    private var heading: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("What should \(engine) work on?")
+                .font(.title.weight(.semibold))
+                .tracking(-0.4)
+                .foregroundStyle(palette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Label(computer.map { "Runs on \($0)" } ?? "Runs on your computer", systemImage: "desktopcomputer")
+                .font(.subheadline)
+                .foregroundStyle(palette.muted)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The threads last active here, each a tap away, so a thread already on the subject is picked up rather than started again.
+    private var recents: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(project.map { "Recent in \($0)" } ?? "Recent")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(palette.mutedStrong)
+                .padding(.top, Space.l)
+                .padding(.bottom, Space.xs)
+                .accessibilityAddTraits(.isHeader)
+            ForEach(recent) { thread in
+                Button { onOpen(thread) } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                        Text(thread.title.isEmpty ? "Untitled thread" : thread.title)
+                            .font(.body)
+                            .foregroundStyle(palette.inkSoft)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                        Text(Format.relativeTime(thread.lastActivityAt, now: Date()))
+                            .font(.footnote.monospacedDigit())
+                            .foregroundStyle(palette.muted)
+                    }
+                    .frame(minHeight: 46)
+                }
+                .buttonStyle(RowPress())
+                if thread.id != recent.last?.id { palette.lineSoft.frame(height: 1) }
+            }
+        }
     }
 }
 
@@ -377,7 +427,7 @@ struct StartOptions: View {
         let choosing = draft.canWorktree || !draft.worktrees.isEmpty || draft.worktreeName != nil
         let coordinating = draft.settings.coordinating == true
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
+            HStack(spacing: Space.s) {
                 chip(draft.projectName ?? "No project", symbol: "folder", chosen: false, menu: true, action: onPickProject)
                     .accessibilityLabel("Project: \(draft.projectName ?? "None")")
                 if draft.projectId != nil, choosing {
@@ -388,14 +438,14 @@ struct StartOptions: View {
                     .accessibilityAddTraits(coordinating ? [.isSelected] : [])
                     .accessibilityHint("A coordinator starts and steers threads of its own")
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, Space.card)
         }
         .mask(HStack(spacing: 0) {
             LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing).frame(width: 8)
             Color.black
             LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 24)
         })
-        .padding(.bottom, 10)
+        .padding(.bottom, Space.xs)
     }
 
     private func chip(_ label: String, symbol: String, chosen: Bool, menu: Bool, action: @escaping () -> Void) -> some View {
@@ -407,12 +457,15 @@ struct StartOptions: View {
             }
             .font(.footnote.weight(.semibold))
             .foregroundStyle(chosen ? palette.accent : palette.inkDim)
-            .padding(.horizontal, 11)
-            .frame(height: 32)
+            .padding(.horizontal, Space.m)
+            .frame(height: 34)
             .background(chosen ? palette.accentChip : palette.surface, in: Capsule())
-            .contentShape(Capsule())
+            .overlay(Capsule().strokeBorder(chosen ? palette.accentLine : palette.lineSoft))
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .animation(.touch, value: chosen)
         }
-        .buttonStyle(.target)
+        .buttonStyle(.press)
     }
 }
 
@@ -423,7 +476,6 @@ struct ApprovalCard: View {
     var engine: String
     var refused: String?
     var onDecide: (Bool) -> Void
-    @Environment(\.palette) private var palette
     @State private var decided: Bool?
     @State private var released: String?
     @State private var detailOpen: Bool
@@ -433,59 +485,18 @@ struct ApprovalCard: View {
         self.engine = engine
         self.refused = refused
         self.onDecide = onDecide
-        _detailOpen = State(initialValue: Format.glanceable(approval.detail))
+        _detailOpen = State(initialValue: Format.glanceable(ApprovalPreview(detail: approval.detail).plain))
         _released = State(initialValue: refused)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "hand.raised.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(palette.accent)
-                    .frame(width: 34, height: 34)
-                    .background(palette.accentChip, in: Circle())
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(approval.from.map { "\($0) · Needs your approval" } ?? "Needs your approval")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(palette.accent)
-                    Text(approval.title).font(.headline).foregroundStyle(palette.ink)
-                    Text(approval.description).font(.subheadline).foregroundStyle(palette.inkDim).fixedSize(horizontal: false, vertical: true)
-                }
-            }
+        VStack(alignment: .leading, spacing: Space.m) {
+            CardHead(symbol: "hand.raised.fill", caption: approval.from.map { "\($0) · Needs your approval" } ?? "Needs your approval", title: approval.title, detail: approval.description)
             if !approval.detail.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    Button {
-                        withAnimation(.snappy) { detailOpen.toggle() }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: ToolNames.family(engine: engine, approval.toolName).symbol).font(.caption.weight(.semibold))
-                            Text(ToolNames.label(approval.toolName)).font(.footnote.weight(.semibold))
-                            Spacer(minLength: 0)
-                            Image(systemName: "chevron.down").font(.caption2.weight(.bold)).rotationEffect(.degrees(detailOpen ? 180 : 0))
-                        }
-                        .foregroundStyle(palette.muted)
-                        .padding(.horizontal, 12)
-                        .frame(height: 34)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.target)
-                    .accessibilityValue(detailOpen ? "Expanded" : "Collapsed")
-                    if detailOpen {
-                        ScrollView {
-                            Text(approval.detail)
-                                .font(.footnote.monospaced())
-                                .foregroundStyle(palette.codeInk)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 12)
-                                .padding(.bottom, 12)
-                        }
-                        .frame(maxHeight: 160)
-                        .fixedSize(horizontal: false, vertical: true)
-                    }
+                let preview = ApprovalPreview(detail: approval.detail)
+                Disclosure(label: preview.subject ?? ToolNames.label(approval.toolName), symbol: ToolNames.family(engine: engine, approval.toolName).symbol, open: $detailOpen) {
+                    ApprovalPreviewView(preview: preview)
                 }
-                .background(palette.codeSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             HStack(spacing: 10) {
                 decision(allow: false)
@@ -493,13 +504,7 @@ struct ApprovalCard: View {
             }
             .padding(.top, 2)
         }
-        .padding(16)
-        .background(palette.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(palette.accentLine, lineWidth: 1))
-        .shadow(color: .black.opacity(palette.dark ? 0.35 : 0.08), radius: 16, y: 6)
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
-        .accessibilityElement(children: .contain)
+        .modifier(CardFrame())
         .sensoryFeedback(trigger: decided) { _, next in
             next.map { $0 ? .success : .warning }
         }
@@ -517,19 +522,69 @@ struct ApprovalCard: View {
             decided = allow
             onDecide(allow)
         } label: {
-            HStack(spacing: 6) {
-                if chosen { ProgressView().controlSize(.small).tint(allow ? palette.accentInk : palette.ink) }
-                Text(chosen ? (allow ? "Allowing…" : "Denying…") : (allow ? "Allow Once" : "Deny"))
-            }
-            .font(.body.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 48)
-            .foregroundStyle(allow ? palette.accentInk : palette.ink)
-            .background(allow ? palette.accent : palette.raised, in: Capsule())
-            .contentShape(Capsule())
+            ActionLabel(title: chosen ? (allow ? "Allowing…" : "Denying…") : (allow ? "Allow Once" : "Deny"), busy: chosen, prominent: allow)
         }
-        .buttonStyle(.target)
+        .buttonStyle(.press)
         .disabled(decided != nil)
         .opacity(decided != nil && !chosen ? 0.45 : 1)
+        .animation(.touch, value: decided)
+    }
+}
+
+/// What an approval is for, drawn as the action it is: a command, a file's new content, or the lines an edit swaps.
+private struct ApprovalPreviewView: View {
+    var preview: ApprovalPreview
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        switch preview {
+        case .command(let command):
+            code("$ " + command)
+        case .file(let path, let content):
+            VStack(alignment: .leading, spacing: Space.s) {
+                location(path)
+                code(content)
+            }
+        case .edit(let path, let removed, let added):
+            VStack(alignment: .leading, spacing: Space.s) {
+                location(path)
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(removed.enumerated()), id: \.offset) { _, line in change(line, added: false) }
+                    ForEach(Array(added.enumerated()), id: \.offset) { _, line in change(line, added: true) }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+            }
+        case .raw(let detail):
+            code(detail)
+        }
+    }
+
+    private func location(_ path: String) -> some View {
+        Text(path)
+            .font(.caption.monospaced())
+            .foregroundStyle(palette.muted)
+            .lineLimit(1)
+            .truncationMode(.head)
+    }
+
+    private func code(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote.monospaced())
+            .foregroundStyle(palette.codeInk)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func change(_ line: String, added: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(added ? "+" : "−").foregroundStyle(added ? palette.success : palette.danger)
+            Text(line.isEmpty ? " " : line).foregroundStyle(palette.ink)
+            Spacer(minLength: 0)
+        }
+        .font(.footnote.monospaced())
+        .padding(.horizontal, Space.s)
+        .padding(.vertical, 2)
+        .background(added ? palette.diffAddSurface : palette.diffDeleteSurface)
     }
 }
 
@@ -544,11 +599,7 @@ private struct CoordinatorStrip: View {
         let waiting = members.filter { $0.status == "awaiting-approval" }.count
         Button(action: onOpen) {
             HStack(spacing: 10) {
-                Image(systemName: "person.2.fill")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(palette.accent)
-                    .frame(width: 30, height: 30)
-                    .background(palette.accentChip, in: Circle())
+                GlyphDisc(symbol: "person.2.fill", size: 30)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(members.isEmpty ? "Coordinating" : "Coordinating \(members.count) \(members.count == 1 ? "thread" : "threads")")
                         .font(.subheadline.weight(.semibold))
@@ -559,17 +610,43 @@ private struct CoordinatorStrip: View {
                         .font(.footnote)
                 }
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(palette.quiet)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(palette.quiet)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(palette.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .contentShape(Rectangle())
+            .strip()
         }
-        .buttonStyle(.target)
-        .padding(.horizontal, 12)
-        .padding(.top, 4)
-        .padding(.bottom, 4)
+        .buttonStyle(.press)
+        .padding(.horizontal, Space.card)
+        .padding(.vertical, Space.xs)
         .accessibilityHint("Shows the threads it coordinates")
+    }
+}
+
+extension View {
+    /// The band a strip above a conversation sits on.
+    func strip() -> some View { modifier(StripGround()) }
+}
+
+private struct StripGround: ViewModifier {
+    @Environment(\.palette) private var palette
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.bubble, style: .continuous)
+        content
+            .padding(.horizontal, Space.m)
+            .padding(.vertical, 10)
+            .background(palette.surface, in: shape)
+            .overlay(shape.strokeBorder(palette.lineSoft))
+            .contentShape(Rectangle())
+    }
+}
+
+private extension View {
+    /// A menu behind the bar's title, drawn only while there is something for it to act on.
+    @ViewBuilder func titleMenu<Subject, Items: View>(_ subject: Subject?, @ViewBuilder items: (Subject) -> Items) -> some View {
+        if let subject {
+            toolbarTitleMenu { items(subject) }
+        } else {
+            self
+        }
     }
 }

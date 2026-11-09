@@ -187,4 +187,12 @@ final class DomainTests: XCTestCase {
         let commands = [SlashCommand(name: "code-review", description: "", argumentHint: "", aliases: ["review"]), SlashCommand(name: "visualize", description: "", argumentHint: "")]
         XCTAssertEqual(SlashCommands.matching(commands, "rev").map(\.name), ["code-review"], "an alias matches")
     }
+
+    func testApprovalPreviewReadsTheActionFromTheToolInput() {
+        XCTAssertEqual(ApprovalPreview(detail: #"{"command":"npm test","description":"Run tests"}"#), .command("npm test"))
+        XCTAssertEqual(ApprovalPreview(detail: #"{"file_path":"/repo/a.json","content":"{}\n"}"#), .file(path: "/repo/a.json", content: "{}\n"))
+        XCTAssertEqual(ApprovalPreview(detail: #"{"file_path":"/repo/a.ts","old_string":"a\nb","new_string":""}"#), .edit(path: "/repo/a.ts", removed: ["a", "b"], added: []))
+        XCTAssertEqual(ApprovalPreview(detail: "not json"), .raw("not json"))
+        XCTAssertEqual(ApprovalPreview(detail: #"{"query":"x"}"#), .raw(#"{"query":"x"}"#))
+    }
 }

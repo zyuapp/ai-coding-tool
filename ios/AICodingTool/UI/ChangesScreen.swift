@@ -54,7 +54,7 @@ struct ChangesScreen: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Toggle(isOn: Binding(get: { wrap }, set: { value in withAnimation(.snappy) { wrap = value } })) {
+                    Toggle(isOn: Binding(get: { wrap }, set: { value in withAnimation(.glide) { wrap = value } })) {
                         Label("Wrap Lines", systemImage: "text.word.spacing")
                     }
                     Button { refresh() } label: { Label("Reload", systemImage: "arrow.clockwise") }
@@ -88,14 +88,19 @@ struct ChangesScreen: View {
                 if let note = note {
                     Group {
                         if model.live, summary == .reading {
-                            ProgressView(note).frame(maxWidth: .infinity).padding(.vertical, 40)
+                            HStack(spacing: Space.s) {
+                                Spinner(size: 13, color: palette.muted)
+                                Text("Reading the comparison").font(.subheadline).foregroundStyle(palette.muted).shimmer(palette.ink)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 40)
                         } else {
                             ContentUnavailableView {
                                 Label(noteTitle, systemImage: isFailure ? "exclamationmark.triangle" : model.live ? "plus.forwardslash.minus" : "icloud.slash")
                             } description: {
                                 Text(note)
                             } actions: {
-                                if model.live, isFailure { Button("Try Again") { refresh() } }
+                                if model.live, isFailure { Button("Try Again") { refresh() }.foregroundStyle(palette.accent) }
                             }
                         }
                     }
@@ -198,7 +203,7 @@ struct ChangesScreen: View {
     }
 }
 
-private struct Counts: View {
+struct Counts: View {
     var additions: Int
     var deletions: Int
     @Environment(\.palette) private var palette
@@ -329,7 +334,8 @@ private struct FileSection: View {
                 if rows.count > drawn.count {
                     let hidden = rows.count - drawn.count
                     Button("Show \(hidden) more \(hidden == 1 ? "line" : "lines")") { whole = true }
-                        .font(.footnote)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(palette.accent)
                         .frame(maxWidth: .infinity)
                         .padding(10)
                 }

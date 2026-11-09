@@ -9,27 +9,20 @@ struct BackgroundStrip: View {
     var body: some View {
         Button(action: onOpen) {
             HStack(spacing: 10) {
-                Image(systemName: "square.stack.3d.up.fill")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(palette.accent)
-                    .frame(width: 30, height: 30)
-                    .background(palette.accentChip, in: Circle())
+                GlyphDisc(symbol: "square.stack.3d.up.fill", size: 30)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Running in background").font(.subheadline.weight(.semibold)).foregroundStyle(palette.ink)
                     Text(BackgroundWork.summary(items)).font(.footnote).foregroundStyle(palette.muted).lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 RunningMark()
-                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(palette.quiet)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(palette.quiet)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(palette.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .contentShape(Rectangle())
+            .strip()
         }
-        .buttonStyle(.target)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
+        .buttonStyle(.press)
+        .padding(.horizontal, Space.card)
+        .padding(.vertical, Space.xs)
         .accessibilityHint("Shows its subagents and processes")
     }
 }
@@ -70,11 +63,7 @@ struct BackgroundSheet: View {
 
     private func row(_ item: MobileBackgroundItem) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: BackgroundWork.symbol(item.kind))
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(item.live ? palette.accent : palette.muted)
-                .frame(width: 28, height: 28)
-                .background(item.live ? palette.accentChip : palette.surface, in: Circle())
+            GlyphDisc(symbol: BackgroundWork.symbol(item.kind), size: 30, live: item.live)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title).foregroundStyle(palette.ink).lineLimit(2)
                 Text(item.detail).font(.footnote).foregroundStyle(item.status == "failed" ? palette.danger : palette.muted).lineLimit(2)
@@ -88,7 +77,7 @@ struct BackgroundSheet: View {
 
     @ViewBuilder private func trailing(_ item: MobileBackgroundItem) -> some View {
         if item.stopping == true {
-            ProgressView().controlSize(.small).tint(palette.muted).accessibilityLabel("Stopping")
+            Spinner(size: 15, color: palette.muted).accessibilityLabel("Stopping")
         } else if item.stoppable {
             Button { stopping = item } label: {
                 Image(systemName: "stop.fill")

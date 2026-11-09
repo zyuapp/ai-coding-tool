@@ -147,7 +147,7 @@ struct ComposerView<Above: View>: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: heard)
         .sensoryFeedback(.selection, trigger: talkCancelling)
         .sensoryFeedback(.selection, trigger: commandsPicked)
-        .animation(.snappy(duration: 0.2), value: commandQuery == nil)
+        .animation(.touch, value: commandQuery == nil)
         .onChange(of: commandQuery == nil || !model.live ? nil : commandScope) { _, scope in
             if let scope { model.readCommands(for: scope) }
         }
@@ -216,8 +216,9 @@ struct ComposerView<Above: View>: View {
                             Image(uiImage: image.thumbnail)
                                 .resizable()
                                 .scaledToFill()
-                                .frame(width: 56, height: 56)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .frame(width: 60, height: 60)
+                                .clipShape(RoundedRectangle(cornerRadius: Radius.block, style: .continuous))
+                                .transition(.pop)
                                 .overlay(alignment: .topTrailing) {
                                     Button { images.removeAll { $0.id == image.id } } label: {
                                         Image(systemName: "xmark.circle.fill")
@@ -235,6 +236,7 @@ struct ComposerView<Above: View>: View {
                     }
                     .padding(.top, 6)
                     .padding(.trailing, 6)
+                    .animation(.glide, value: images.count)
                 }
             }
             if !blocked {
@@ -242,6 +244,7 @@ struct ComposerView<Above: View>: View {
                     .lineLimit(1...7)
                     .focused($focused)
                     .foregroundStyle(palette.ink)
+                    .tint(palette.accent)
                     .textInputAutocapitalization(.sentences)
                     .accessibilityLabel("Message")
                     .onKeyPress(keys: [.return], phases: .down) { press in
@@ -263,7 +266,7 @@ struct ComposerView<Above: View>: View {
                 if !blocked && !talk.active {
                     Button {
                         focused = false
-                        withAnimation(.snappy) { tray = .attach }
+                        withAnimation(.glide) { tray = .attach }
                     } label: {
                         Image(systemName: "plus")
                             .font(.body.weight(.semibold))
@@ -273,18 +276,18 @@ struct ComposerView<Above: View>: View {
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.target)
+                    .buttonStyle(.press)
                     .disabled(images.count >= PickedImage.limit)
                     .accessibilityLabel("Add pictures")
                 }
                 if !talk.active {
                 Button {
                     focused = false
-                    withAnimation(.snappy) { tray = .settings }
+                    withAnimation(.glide) { tray = .settings }
                 } label: {
                     settingsChip(summary)
                 }
-                .buttonStyle(.target)
+                .buttonStyle(.press)
                 .accessibilityLabel("Thread settings: \([summary.mode, summary.model, summary.effort, usage.map { "plan \($0.share)% used" }].compactMap { $0 }.joined(separator: ", "))")
                 Spacer(minLength: 4)
                 }
@@ -324,11 +327,12 @@ struct ComposerView<Above: View>: View {
                             .foregroundStyle(typed ? palette.accentInk : palette.muted)
                             .frame(width: 34, height: 34)
                             .background(typed ? palette.accent : palette.raised, in: Circle())
-                            .animation(.snappy(duration: 0.2), value: typed)
+                            .scaleEffect(typed ? 1 : 0.92)
+                            .animation(.touch, value: typed)
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.target)
+                    .buttonStyle(.press)
                     .disabled(!typed)
                     .accessibilityLabel("Send")
                     .keyboardShortcut(.return, modifiers: .command)
@@ -401,7 +405,7 @@ struct ComposerView<Above: View>: View {
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.target)
+        .buttonStyle(.press)
     }
 
     private func stopButton(_ action: @escaping () -> Void, aside: Bool) -> some View {
@@ -414,7 +418,7 @@ struct ComposerView<Above: View>: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.target)
+        .buttonStyle(.press)
         .accessibilityLabel("Stop this run")
     }
 
@@ -432,7 +436,7 @@ struct ComposerView<Above: View>: View {
                 .frame(width: 34, height: 34)
                 .scaleEffect(hearing ? 1.12 : 1)
             if talk == .transcribing {
-                ProgressView().tint(palette.inkDim)
+                Spinner(size: 20, color: palette.inkDim)
             } else {
                 Image(systemName: talkCancelling ? "xmark" : talkHandsFree ? "checkmark" : "mic.fill")
                     .font(.body.weight(.semibold))
@@ -440,8 +444,8 @@ struct ComposerView<Above: View>: View {
                     .contentTransition(.symbolEffect(.replace))
             }
         }
-        .animation(.snappy(duration: 0.2), value: talk)
-        .animation(.snappy(duration: 0.2), value: talkHandsFree)
+        .animation(.touch, value: talk)
+        .animation(.touch, value: talkHandsFree)
         .frame(width: 44, height: 44)
         .contentShape(Rectangle())
         .overlay(alignment: .top) {
@@ -481,7 +485,7 @@ struct ComposerView<Above: View>: View {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(TalkPhase.tapSeconds))
                 if talkTouching, !talkHandsFree, talk == .starting || talk == .listening {
-                    withAnimation(.snappy(duration: 0.2)) { talkHeld = true }
+                    withAnimation(.touch) { talkHeld = true }
                 }
             }
             return
@@ -613,7 +617,7 @@ struct ComposerView<Above: View>: View {
     }
 
     private func closeTray() {
-        withAnimation(.snappy) { tray = nil }
+        withAnimation(.glide) { tray = nil }
     }
 
     private func load(_ items: [PhotosPickerItem]) {
@@ -689,7 +693,7 @@ struct TrayFrame<Content: View>: View {
                     if value.translation.height > 60 || value.predictedEndTranslation.height > 160 {
                         onClose()
                     } else {
-                        withAnimation(.snappy) { drag = 0 }
+                        withAnimation(.glide) { drag = 0 }
                     }
                 }
         )
@@ -768,6 +772,7 @@ struct SettingsTray: View {
                 }
             }
             .clipped()
+            .animation(.glide, value: settings)
         }
     }
 
@@ -787,11 +792,13 @@ struct SettingsTray: View {
         let efforts = self.efforts
         return VStack(spacing: 0) {
             if headings.reduce(0, { $0 + $1.models.count }) > 6 {
-                ScrollView { models(headings) }.frame(height: 360)
+                ScrollView { models(headings) }
+                    .frame(height: 340)
+                    .mask(LinearGradient(stops: [.init(color: .black, location: 0.9), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
             } else {
                 models(headings)
             }
-            palette.line.frame(height: 0.5).padding(.horizontal, 14)
+            palette.line.frame(height: 0.5).padding(.horizontal, 14).padding(.bottom, Space.xs)
             if !efforts.isEmpty, let chosenEffort {
                 link("Effort", symbol: "gauge.with.dots.needle.50percent", value: efforts.first { $0.id == chosenEffort }?.label ?? chosenEffort, to: .effort)
             }
@@ -804,6 +811,7 @@ struct SettingsTray: View {
                 Toggle(isOn: Binding(get: { settings.fastMode == true }, set: quick.onFastMode)) {
                     rowLabel("Fast Mode", symbol: "hare")
                 }
+                .tint(palette.accent)
                 .padding(.horizontal, 14)
                 .frame(minHeight: 50)
             }
@@ -826,7 +834,7 @@ struct SettingsTray: View {
     }
 
     private var divider: some View {
-        palette.line.frame(height: 0.5).padding(.leading, 48)
+        palette.line.frame(height: 0.5).padding(.leading, 48).padding(.trailing, 14)
     }
 
     private func rowLabel(_ title: String, symbol: String) -> some View {
@@ -840,7 +848,7 @@ struct SettingsTray: View {
     /// A setting's name and value, opening its choices on a page of their own.
     private func link(_ title: String, symbol: String, value: String, to target: Page) -> some View {
         Button {
-            withAnimation(.snappy) { page = target }
+            withAnimation(.glide) { page = target }
         } label: {
             HStack(spacing: 8) {
                 rowLabel(title, symbol: symbol)
@@ -863,7 +871,7 @@ struct SettingsTray: View {
                 Text(title).font(.headline).foregroundStyle(palette.ink)
                 HStack {
                     Button {
-                        withAnimation(.snappy) { page = nil }
+                        withAnimation(.glide) { page = nil }
                     } label: {
                         Image(systemName: "chevron.left")
                             .font(.body.weight(.semibold))
@@ -880,7 +888,7 @@ struct SettingsTray: View {
             ForEach(items) { item in
                 option(item.label, detail: item.detail, selected: item.id == selected) {
                     pick(item.id)
-                    withAnimation(.snappy) { page = nil }
+                    withAnimation(.glide) { page = nil }
                 }
             }
         }
@@ -956,20 +964,8 @@ struct QuestionPromptView: View {
 
     var body: some View {
         let empty = answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "questionmark.bubble.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(palette.accent)
-                    .frame(width: 34, height: 34)
-                    .background(palette.accentChip, in: Circle())
-                VStack(alignment: .leading, spacing: 3) {
-                    Text((question.header.isEmpty ? "Question" : question.header) + (question.blocking ? " · Waiting for you" : " · Still working"))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(palette.accent)
-                    Text(question.question).font(.headline).foregroundStyle(palette.ink).fixedSize(horizontal: false, vertical: true)
-                }
-            }
+        VStack(alignment: .leading, spacing: Space.m) {
+            CardHead(symbol: "questionmark.bubble.fill", caption: (question.header.isEmpty ? "Question" : question.header) + (question.blocking ? " · Waiting for you" : " · Still working"), title: question.question)
             if !question.options.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(Array(question.options.enumerated()), id: \.offset) { index, option in
@@ -992,8 +988,10 @@ struct QuestionPromptView: View {
                             }
                             .padding(.horizontal, 14)
                             .padding(.vertical, 12)
+                            .frame(minHeight: 48)
                             .background(chosen == option.label ? palette.accentChip : Color.clear)
                             .contentShape(Rectangle())
+                            .animation(.touch, value: chosen)
                         }
                         .buttonStyle(.target)
                         .disabled(unavailable)
@@ -1001,7 +999,7 @@ struct QuestionPromptView: View {
                     }
                 }
                 .background(palette.raised)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
             }
             TextField(question.options.isEmpty ? "Type your answer…" : "Or type your own answer…", text: Binding(get: { chosen == nil ? answer : "" }, set: { value in
                 typed = true
@@ -1010,8 +1008,8 @@ struct QuestionPromptView: View {
             .lineLimit(1...4)
             .font(.subheadline)
             .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(palette.raised, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.vertical, 13)
+            .background(palette.raised, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
             .disabled(unavailable)
             .accessibilityLabel("Your answer")
             Button {
@@ -1020,25 +1018,13 @@ struct QuestionPromptView: View {
                 submitting = true
                 onSubmit(text)
             } label: {
-                HStack(spacing: 6) {
-                    if unavailable { ProgressView().controlSize(.small).tint(palette.accentInk) }
-                    Text(unavailable ? "Sending…" : "Send Answer")
-                }
-                .font(.body.weight(.semibold))
-                .foregroundStyle(empty && !unavailable ? palette.muted : palette.accentInk)
-                .frame(maxWidth: .infinity, minHeight: 48)
-                .background(empty && !unavailable ? palette.raised : palette.accent, in: Capsule())
-                .contentShape(Capsule())
+                ActionLabel(title: unavailable ? "Sending…" : "Send Answer", busy: unavailable, enabled: !empty || unavailable)
             }
-            .buttonStyle(.target)
+            .buttonStyle(.press)
             .disabled(unavailable || empty)
         }
-        .padding(16)
-        .background(palette.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(palette.accentLine, lineWidth: 1))
-        .shadow(color: .black.opacity(palette.dark ? 0.35 : 0.08), radius: 16, y: 6)
-        .padding(.horizontal, 12)
-        .padding(.bottom, 8)
+        .modifier(CardFrame())
+        .padding(.bottom, Space.s)
         .onChange(of: refused) { _, next in
             if let next, next != released {
                 released = next
@@ -1121,7 +1107,7 @@ struct CameraPicker: UIViewControllerRepresentable {
 extension View {
     /// The composer's own field: Liquid Glass on iOS 26, so the transcript reads through it as it scrolls beneath.
     @ViewBuilder func composerSurface(_ palette: Palette, focused: Bool) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 26, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Radius.field, style: .continuous)
         if #available(iOS 26, *) {
             glassEffect(.regular.tint(palette.surface.opacity(0.55)).interactive(), in: shape)
         } else {

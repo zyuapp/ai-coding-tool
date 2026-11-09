@@ -18,6 +18,12 @@ struct PairedComputer: Codable, Equatable, Identifiable, Sendable {
         guard host.contains(where: \.isLetter) else { return host }
         return host.split(separator: ".").first.map(String.init) ?? host
     }
+
+    /// Where the computer is reached: its host, and its port when the link named one.
+    var address: String {
+        let host = origin.host() ?? origin.absoluteString
+        return origin.port.map { "\(host):\($0)" } ?? host
+    }
 }
 
 /// What the phone keeps between launches. The token lives in the Keychain; the rest is preferences.

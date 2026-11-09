@@ -33,7 +33,7 @@ struct CommandPicker: View {
                 }
             } else {
                 HStack(spacing: 10) {
-                    ProgressView().controlSize(.small)
+                    Spinner(size: 15)
                     Text("Loading commands…")
                 }
                 .modifier(StatusRow(palette: palette))

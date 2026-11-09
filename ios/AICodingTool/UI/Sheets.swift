@@ -64,6 +64,7 @@ struct SheetConfirm: ToolbarContent {
     var enabled: Bool
     var onCancel: () -> Void
     var onConfirm: () -> Void
+    @Environment(\.palette) private var palette
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
@@ -75,7 +76,7 @@ struct SheetConfirm: ToolbarContent {
         }
         ToolbarItem(placement: .confirmationAction) {
             if #available(iOS 26, *) {
-                Button(label, role: .confirm, action: onConfirm).disabled(!enabled)
+                Button(label, role: .confirm, action: onConfirm).tint(palette.accent).disabled(!enabled)
             } else {
                 Button(label, action: onConfirm).disabled(!enabled)
             }
@@ -201,7 +202,7 @@ struct ProjectSheet: View {
                 if searching, matches.isEmpty {
                     VStack(spacing: 8) {
                         Text("No project matches “\(query.trimmingCharacters(in: .whitespaces))”").foregroundStyle(palette.muted)
-                        Button("Clear search") { query = "" }
+                        Button("Clear search") { query = "" }.foregroundStyle(palette.accent)
                     }
                     .frame(maxWidth: .infinity)
                     .listRowBackground(Color.clear)
@@ -392,7 +393,7 @@ struct MembersSheet: View {
                                 dismiss()
                                 model.openThread(member.id, title: member.title, project: member.computer ?? project)
                             }
-                                .onAppear { withAnimation(.snappy) { detent = .large } }
+                                .onAppear { withAnimation(.glide) { detent = .large } }
                         } label: {
                             row(member)
                         }
@@ -438,7 +439,7 @@ struct MemberTranscript: View {
     var body: some View {
         ScrollViewReader { reader in
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 18) {
                     if let read {
                         if read.omitted > 0 {
                             Text("\(read.omitted) earlier \(read.omitted == 1 ? "message is" : "messages are") only on the computer.").font(.footnote).foregroundStyle(palette.muted)
@@ -453,13 +454,14 @@ struct MemberTranscript: View {
                             }
                         }
                         if let tail = read.streamingTail { MarkdownView(text: tail) }
-                        if read.status == "running" { ThinkingDots().accessibilityLabel("Working") }
+                        if read.status == "running" { WorkingLine() }
                     } else {
                         Text(problem ?? "Reading the thread…").foregroundStyle(palette.muted).frame(maxWidth: .infinity)
                     }
                     Color.clear.frame(height: 1).id("end")
                 }
-                .padding(16)
+                .padding(.horizontal, Space.page)
+                .padding(.vertical, Space.l)
             }
             .environment(\.pictureSource, PictureSource(taskId: member.id, store: model.pictures, connection: model.connection))
             .defaultScrollAnchor(.top, for: .alignment)
@@ -480,15 +482,10 @@ struct MemberTranscript: View {
         }
         .bottomBar {
             Button(action: onOpen) {
-                Label("Open to Reply", systemImage: "bubble.left.and.text.bubble.right")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(palette.accentInk)
-                    .frame(maxWidth: .infinity, minHeight: 50)
-                    .background(palette.accent, in: Capsule())
-                    .contentShape(Capsule())
+                ActionLabel(title: "Open to Reply", symbol: "arrow.up.forward")
             }
-            .buttonStyle(.target)
-            .padding(.horizontal, 16)
+            .buttonStyle(.press)
+            .padding(.horizontal, Space.l)
             .padding(.bottom, 8)
             .accessibilityHint("Opens this thread to talk to it")
         }

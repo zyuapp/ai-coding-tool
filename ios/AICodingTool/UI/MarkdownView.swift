@@ -63,13 +63,15 @@ private struct BlockView: View {
         switch block {
         case let heading as Heading:
             SwiftUI.Text(Inline.render(heading, palette: palette))
-                .font(heading.level <= 1 ? .title2.weight(.bold) : heading.level == 2 ? .title3.weight(.semibold) : .headline)
+                .font(heading.level <= 1 ? .title3.weight(.bold) : heading.level == 2 ? .headline : .subheadline.weight(.semibold))
                 .foregroundStyle(palette.ink)
-                .padding(.top, 6)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, heading.level <= 2 ? 10 : 6)
+                .padding(.bottom, -4)
         case let paragraph as Paragraph:
             SwiftUI.Text(Inline.render(paragraph, palette: palette))
                 .foregroundStyle(palette.ink)
-                .lineSpacing(3)
+                .lineSpacing(4)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
         case let code as CodeBlock where code.language?.lowercased() == "mermaid":
@@ -79,8 +81,8 @@ private struct BlockView: View {
             CodeBlockView(code: code.code.hasSuffix("\n") ? String(code.code.dropLast()) : code.code, language: code.language)
         case let quote as BlockQuote:
             BlockList(blocks: quote.blockChildren.map { $0 as any Markup })
-                .padding(.leading, 12)
-                .overlay(alignment: .leading) { palette.lineStrong.frame(width: 3) }
+                .padding(.leading, 14)
+                .overlay(alignment: .leading) { Capsule().fill(palette.lineStrong).frame(width: 3) }
                 .foregroundStyle(palette.inkDim)
         case let list as UnorderedList:
             ListView(items: Array(list.listItems), ordered: nil)
@@ -89,7 +91,7 @@ private struct BlockView: View {
         case let table as Markdown.Table:
             TableView(table: table)
         case is ThematicBreak:
-            palette.line.frame(height: 1).padding(.vertical, 4)
+            palette.line.frame(height: 1).padding(.vertical, Space.s)
         case let html as HTMLBlock:
             SwiftUI.Text(html.rawHTML).font(.footnote.monospaced()).foregroundStyle(palette.muted)
         default:
@@ -105,9 +107,9 @@ private struct ListView: View {
     @Environment(\.palette) private var palette
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Space.s) {
             ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: Space.s) {
                     Group {
                         if let checkbox = item.checkbox {
                             SwiftUI.Image(systemName: checkbox == .checked ? "checkmark.circle.fill" : "circle")
@@ -115,10 +117,11 @@ private struct ListView: View {
                         } else if let ordered {
                             SwiftUI.Text("\(ordered + index).").monospacedDigit().foregroundStyle(palette.muted)
                         } else {
-                            SwiftUI.Text("•").foregroundStyle(palette.muted)
+                            Circle().fill(palette.quiet).frame(width: 5, height: 5)
+                                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 5.5 }
                         }
                     }
-                    .frame(minWidth: 16, alignment: .leading)
+                    .frame(minWidth: 14, alignment: .center)
                     BlockList(blocks: item.blockChildren.map { $0 as any Markup })
                 }
             }
@@ -135,8 +138,8 @@ private struct TableView: View {
             grid(fill: true)
             ScrollView(.horizontal, showsIndicators: false) { grid(fill: false) }
         }
-        .background(palette.sunken, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(palette.lineSoft))
+        .background(palette.sunken, in: RoundedRectangle(cornerRadius: Radius.block, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.block, style: .continuous).strokeBorder(palette.lineSoft))
     }
 
     /// A filled grid shares the card's width among its columns; a scrolling one keeps every column to its content.
@@ -195,7 +198,8 @@ struct CodeBlockView: View {
                     Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "square.on.square")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(copied ? palette.success : palette.muted)
-                        .frame(height: 32)
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(height: 36)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.target)
@@ -212,8 +216,9 @@ struct CodeBlockView: View {
                 }
             }
         }
-        .background(palette.codeSurface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(palette.lineSoft))
+        .background(palette.codeSurface, in: RoundedRectangle(cornerRadius: Radius.block, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.block, style: .continuous).strokeBorder(palette.lineSoft))
+        .sensoryFeedback(.success, trigger: copied) { _, next in next }
     }
 
     private var text: some View {
@@ -237,11 +242,11 @@ struct WrapLinesButton: View {
     @Environment(\.palette) private var palette
 
     var body: some View {
-        Button { withAnimation(.snappy) { wrap.toggle() } } label: {
+        Button { withAnimation(.glide) { wrap.toggle() } } label: {
             SwiftUI.Image(systemName: "arrow.turn.down.left")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(wrap ? palette.accent : palette.muted)
-                .frame(width: 28, height: 32)
+                .frame(width: 28, height: 36)
                 .minimumTapTarget()
         }
         .buttonStyle(.target)

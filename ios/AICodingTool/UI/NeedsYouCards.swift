@@ -1,17 +1,18 @@
 import SwiftUI
 
 /// The frame every card over the composer wears: raised off the transcript, edged in the accent.
-private struct CardFrame: ViewModifier {
+struct CardFrame: ViewModifier {
     @Environment(\.palette) private var palette
 
     func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
         content
-            .padding(16)
-            .background(palette.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(palette.accentLine, lineWidth: 1))
-            .shadow(color: .black.opacity(palette.dark ? 0.35 : 0.08), radius: 16, y: 6)
-            .padding(.horizontal, 12)
-            .padding(.top, 8)
+            .padding(Space.l)
+            .background(palette.surface, in: shape)
+            .overlay(shape.strokeBorder(palette.accentLine, lineWidth: 1))
+            .shadow(color: .black.opacity(palette.dark ? 0.32 : 0.07), radius: 18, y: 8)
+            .padding(.horizontal, Space.card)
+            .padding(.top, Space.s)
             .accessibilityElement(children: .contain)
     }
 }
@@ -35,34 +36,34 @@ extension View {
 }
 
 /// A card's glyph and its first lines: who asks and what.
-private struct CardHead: View {
+struct CardHead: View {
     var symbol: String
     var caption: String
     var count: String?
     var title: String
+    var detail: String?
     @Environment(\.palette) private var palette
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(palette.accent)
-                .frame(width: 34, height: 34)
-                .background(palette.accentChip, in: Circle())
+        HStack(alignment: .top, spacing: Space.m) {
+            GlyphDisc(symbol: symbol)
             VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: Space.s) {
                     Text(caption).font(.caption.weight(.semibold)).foregroundStyle(palette.accent).lineLimit(1)
                     Spacer(minLength: 0)
                     if let count { Text(count).font(.caption.monospacedDigit()).foregroundStyle(palette.muted) }
                 }
                 Text(title).font(.headline).foregroundStyle(palette.ink).fixedSize(horizontal: false, vertical: true)
+                if let detail, !detail.isEmpty {
+                    Text(detail).font(.subheadline).foregroundStyle(palette.inkDim).fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }
 }
 
 /// A labelled block that opens on a tap, for what is there to read only on request.
-private struct Disclosure<Inner: View>: View {
+struct Disclosure<Inner: View>: View {
     var label: String
     var symbol: String
     @Binding var open: Bool
@@ -72,7 +73,7 @@ private struct Disclosure<Inner: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                withAnimation(.snappy) { open.toggle() }
+                withAnimation(.glide) { open.toggle() }
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: symbol).font(.caption.weight(.semibold))
@@ -81,8 +82,9 @@ private struct Disclosure<Inner: View>: View {
                     Image(systemName: "chevron.down").font(.caption2.weight(.bold)).rotationEffect(.degrees(open ? 180 : 0))
                 }
                 .foregroundStyle(palette.muted)
-                .padding(.horizontal, 12)
-                .frame(height: 34)
+                .padding(.horizontal, Space.m)
+                .frame(height: 38)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.target)
             .accessibilityValue(open ? "Expanded" : "Collapsed")
@@ -95,9 +97,10 @@ private struct Disclosure<Inner: View>: View {
                 }
                 .frame(maxHeight: 180)
                 .fixedSize(horizontal: false, vertical: true)
+                .transition(.opacity)
             }
         }
-        .background(palette.codeSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(palette.codeSurface, in: RoundedRectangle(cornerRadius: Radius.block, style: .continuous))
     }
 }
 
@@ -179,13 +182,17 @@ struct DecisionCard: View {
                 own = ""
                 writing = true
             } label: {
-                Text(decision.options.isEmpty ? "Answer…" : "Other Answer…")
-                    .font(.body.weight(.semibold))
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .foregroundStyle(decision.options.isEmpty ? palette.accentInk : palette.ink)
-                    .background(decision.options.isEmpty ? palette.accent : palette.raised, in: Capsule())
+                if decision.options.isEmpty {
+                    ActionLabel(title: "Answer…")
+                } else {
+                    Text("Other Answer…")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(palette.inkDim)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
             }
-            .buttonStyle(.target)
+            .buttonStyle(.press)
             .disabled(answered != nil)
             .opacity(answered != nil ? 0.45 : 1)
         }
@@ -197,17 +204,9 @@ struct DecisionCard: View {
         return Button {
             if let choice { answer(choice) }
         } label: {
-            HStack(spacing: 6) {
-                if sending { ProgressView().controlSize(.small).tint(palette.accentInk) }
-                Text(sending ? "Sending…" : "Send Answer")
-            }
-            .font(.body.weight(.semibold))
-            .foregroundStyle(ready || sending ? palette.accentInk : palette.muted)
-            .frame(maxWidth: .infinity, minHeight: 48)
-            .background(ready || sending ? palette.accent : palette.raised, in: Capsule())
-            .contentShape(Capsule())
+            ActionLabel(title: sending ? "Sending…" : "Send Answer", busy: sending, enabled: ready || sending)
         }
-        .buttonStyle(.target)
+        .buttonStyle(.press)
         .disabled(!ready)
     }
 
@@ -224,20 +223,14 @@ struct DecisionCard: View {
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: picked ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(picked ? palette.accent : palette.quiet)
+                    .foregroundStyle(picked ? palette.accent : palette.quietSoft)
+                    .contentTransition(.symbolEffect(.replace))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(option.label).font(.body.weight(.semibold)).foregroundStyle(palette.ink)
-                        if recommended {
-                            Text("Recommended")
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(palette.accent)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 2)
-                                .background(palette.accentChip, in: Capsule())
-                        }
+                    if recommended {
+                        Text("Recommended").font(.caption2.weight(.semibold)).foregroundStyle(palette.accent)
                     }
+                    Text(option.label).font(.body.weight(.semibold)).foregroundStyle(palette.ink)
                     if let description = option.description, !description.isEmpty {
                         Text(description).font(.footnote).foregroundStyle(palette.muted).fixedSize(horizontal: false, vertical: true)
                     }
@@ -247,15 +240,16 @@ struct DecisionCard: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
-            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-            .background(picked ? palette.accentSurface : palette.raised, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            .background(picked ? palette.accentSurface : palette.raised, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(picked ? palette.accent : recommended ? palette.accentLine : .clear, lineWidth: picked ? 2 : 1)
+                RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
+                    .strokeBorder(picked ? palette.accent : .clear, lineWidth: 1.5)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+            .animation(.touch, value: picked)
         }
-        .buttonStyle(.target)
+        .buttonStyle(.press)
         .disabled(answered != nil)
         .opacity(answered != nil && answered != option.label ? 0.45 : 1)
         .accessibilityLabel(recommended ? "\(option.label), recommended" : option.label)
@@ -281,14 +275,10 @@ struct SuggestionsCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Button {
-                withAnimation(.snappy) { folded.toggle() }
+                withAnimation(.glide) { folded.toggle() }
             } label: {
                 HStack(alignment: .center, spacing: 12) {
-                    Image(systemName: "rectangle.stack.badge.plus")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(palette.accent)
-                        .frame(width: 34, height: 34)
-                        .background(palette.accentChip, in: Circle())
+                    GlyphDisc(symbol: "rectangle.stack.badge.plus")
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Suggested threads").font(.caption.weight(.semibold)).foregroundStyle(palette.accent)
                         Text(suggestions.count == 1 ? "1 thread to start" : "\(suggestions.count) threads to start").font(.headline).foregroundStyle(palette.ink)
@@ -331,7 +321,7 @@ struct SuggestionsCard: View {
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 10) {
                 Button {
-                    withAnimation(.snappy) {
+                    withAnimation(.glide) {
                         opened = open ? nil : suggestion.id
                         promptOpen = false
                     }
@@ -359,7 +349,7 @@ struct SuggestionsCard: View {
                 } label: {
                     HStack(spacing: 5) {
                         if starting {
-                            ProgressView().controlSize(.mini).tint(palette.accentInk)
+                            Spinner(size: 11, color: palette.accentInk)
                         } else {
                             Image(systemName: "play.fill").font(.caption2)
                         }
@@ -370,8 +360,9 @@ struct SuggestionsCard: View {
                     .padding(.horizontal, 14)
                     .frame(height: 34)
                     .background(palette.accent, in: Capsule())
+                    .frame(minHeight: 44)
                 }
-                .buttonStyle(.target)
+                .buttonStyle(.press)
                 .disabled(starting)
                 .accessibilityLabel(starting ? "Starting \(suggestion.title)" : "Start \(suggestion.title)")
             }
@@ -392,9 +383,9 @@ struct SuggestionsCard: View {
                 .transition(.opacity)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(palette.raised.opacity(0.6), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal, Space.m)
+        .padding(.vertical, 6)
+        .background(palette.raised, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
     }
 
     private func briefLine(_ label: String, _ value: String) -> some View {
@@ -420,11 +411,7 @@ struct LimitRow: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
             HStack(alignment: .center, spacing: 10) {
-                Image(systemName: "hourglass")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(palette.accent)
-                    .frame(width: 30, height: 30)
-                    .background(palette.accentChip, in: Circle())
+                GlyphDisc(symbol: "hourglass", size: 30)
                 Text(Format.limitLabel(pause, now: context.date))
                     .font(.footnote)
                     .foregroundStyle(palette.inkDim)
@@ -435,26 +422,29 @@ struct LimitRow: View {
                     if pause.resumesOnItsOwn { onCancel() } else { onResume() }
                 } label: {
                     HStack(spacing: 5) {
-                        if acting { ProgressView().controlSize(.mini).tint(pause.resumesOnItsOwn ? palette.ink : palette.accentInk) }
+                        if acting { Spinner(size: 11, color: pause.resumesOnItsOwn ? palette.ink : palette.accentInk) }
                         Text(pause.resumesOnItsOwn ? "Cancel Auto-Resume" : "Resume")
                     }
                     .lineLimit(1)
                     .fixedSize()
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(pause.resumesOnItsOwn ? palette.ink : palette.accentInk)
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, Space.m)
                     .frame(minHeight: 34)
                     .background(pause.resumesOnItsOwn ? palette.raised : palette.accent, in: Capsule())
+                    .frame(minHeight: 44)
                 }
-                .buttonStyle(.target)
+                .buttonStyle(.press)
                 .disabled(acting)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(palette.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
+        .padding(.leading, Space.m)
+        .padding(.trailing, Space.s)
+        .padding(.vertical, 6)
+        .background(palette.surface, in: RoundedRectangle(cornerRadius: Radius.bubble, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.bubble, style: .continuous).strokeBorder(palette.lineSoft))
+        .padding(.horizontal, Space.card)
+        .padding(.top, Space.s)
         .accessibilityElement(children: .contain)
         .releasing(acting, refused: refused, failure: failure) { acting = false }
     }
