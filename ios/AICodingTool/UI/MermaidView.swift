@@ -299,6 +299,7 @@ struct MermaidViewer: View {
                     .foregroundStyle(palette.ink)
                     .frame(width: 44, height: 44)
                     .closeSurface(palette)
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Close diagram")

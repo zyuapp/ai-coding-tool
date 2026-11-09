@@ -85,10 +85,14 @@ struct ComposerView<Above: View>: View {
                     Image(systemName: "mic")
                     Text(talkNote).lineLimit(2)
                     Spacer()
-                    Button { self.talkNote = nil } label: { Image(systemName: "xmark").font(.caption.weight(.bold)) }
-                        .buttonStyle(.plain)
-                        .frame(width: 44, height: 32)
-                        .accessibilityLabel("Dismiss")
+                    Button { self.talkNote = nil } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.bold))
+                            .frame(width: 44, height: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Dismiss")
                 }
                 .font(.footnote)
                 .foregroundStyle(palette.muted)
@@ -326,6 +330,12 @@ struct ComposerView<Above: View>: View {
         .padding(.leading, 14)
         .padding(.trailing, 9)
         .padding(.bottom, 5)
+        .background {
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture { if !blocked && !talk.active { focused = true } }
+                .accessibilityHidden(true)
+        }
         .composerSurface(palette, focused: focused)
         .padding(.horizontal, 12)
         .padding(.bottom, 8)

@@ -97,12 +97,15 @@ struct UsageWarningRow: View {
             .accessibilityElement(children: .combine)
             .accessibilityHint(onOpen == nil ? "" : "Opens usage")
             Spacer(minLength: 0)
-            Button(action: onDismiss) { Image(systemName: "xmark").font(.caption.weight(.bold)) }
-                .buttonStyle(.plain)
-                .foregroundStyle(palette.muted)
-                .frame(width: 44, height: 32)
-                .contentShape(Rectangle())
-                .accessibilityLabel("Hide usage warning until reset")
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .frame(width: 44, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(palette.muted)
+            .accessibilityLabel("Hide usage warning until reset")
         }
         .font(.footnote)
         .padding(.leading, 16)

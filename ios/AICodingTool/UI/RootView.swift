@@ -112,9 +112,15 @@ struct NoticeBanner: View {
             .buttonStyle(.plain)
             .accessibilityHint(open ? "Shows less" : "Shows the whole notice")
             Button(action: onDismiss) {
-                Image(systemName: "xmark").font(.footnote.weight(.semibold)).foregroundStyle(palette.muted)
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(palette.muted)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .padding(.vertical, -12)
+            .padding(.trailing, -14)
             .accessibilityLabel("Dismiss")
         }
         .padding(.horizontal, 14)
