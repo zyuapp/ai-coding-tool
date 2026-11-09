@@ -2,9 +2,9 @@
 # Archives the app and uploads it to TestFlight. With ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_PATH set
 # (an App Store Connect key with the App Manager role), the upload goes through that key, and
 # IOS_PROFILE_UUID names an installed App Store profile whose Apple Distribution certificate is in a
-# keychain; without them, signing and upload go through the Apple ID signed in to Xcode. The archive
-# is built unsigned because automatic signing would ask for a development profile, which needs a
-# registered device; the export signs it for the App Store instead. MARKETING_VERSION names the
+# keychain; without them, signing and upload go through the Apple ID signed in to Xcode. Without a
+# profile the archive is built unsigned because automatic signing would ask for a development
+# profile, which needs a registered device; the export signs it for the App Store instead. MARKETING_VERSION names the
 # version; each upload gets a fresh build number, which is what TestFlight orders builds by.
 set -euo pipefail
 cd "${0:A:h}"
@@ -20,11 +20,18 @@ if [[ -n "${MARKETING_VERSION:-}" ]]; then
   version=(MARKETING_VERSION="$MARKETING_VERSION")
 fi
 
+# With a profile installed the archive is signed with it, which is what puts the push entitlement in
+# the app; without one it is built unsigned and the export's automatic signing does the rest.
+signing=(CODE_SIGNING_ALLOWED=NO)
+if [[ -n "${IOS_PROFILE_UUID:-}" ]]; then
+  signing=(AIC_SIGN_STYLE=Manual "AIC_SIGN_IDENTITY=Apple Distribution" AIC_SIGN_PROFILE="$IOS_PROFILE_UUID")
+fi
+
 xcodegen generate --quiet
 rm -rf "$out"
 mkdir -p "$out"
 xcodebuild -quiet -project AICodingTool.xcodeproj -scheme AICodingTool -configuration Release -destination 'generic/platform=iOS' \
-  -archivePath "$out/AICodingTool.xcarchive" CURRENT_PROJECT_VERSION="$build" "${version[@]}" CODE_SIGNING_ALLOWED=NO archive
+  -archivePath "$out/AICodingTool.xcarchive" CURRENT_PROJECT_VERSION="$build" "${version[@]}" "${signing[@]}" archive
 
 # Writes the export options for one destination: "export" leaves an IPA here, "upload" sends it to App Store Connect.
 export_options() {

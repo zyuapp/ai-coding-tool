@@ -52,7 +52,11 @@ targets:
         PRODUCT_NAME: AICodingTool
         ASSETCATALOG_COMPILER_APPICON_NAME: icon
         TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_STYLE: Automatic
+        # TestFlight passes AIC_SIGN_* to sign the archive with its App Store profile, so the push
+        # entitlement is in the archive the export signs; local builds keep automatic signing.
+        CODE_SIGN_STYLE: $(AIC_SIGN_STYLE:default=Automatic)
+        CODE_SIGN_IDENTITY: $(AIC_SIGN_IDENTITY:default=Apple Development)
+        PROVISIONING_PROFILE_SPECIFIER: $(AIC_SIGN_PROFILE)
         ENABLE_PREVIEWS: YES
     preBuildScripts:
       - name: Bundle the Mermaid library
