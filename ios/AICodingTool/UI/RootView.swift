@@ -204,14 +204,20 @@ struct ComputerMenu: View {
             }
         } label: {
             if #available(iOS 26, *) {
-                // The bar's subtitle names the computer and its line; the button only opens the list.
-                Image(systemName: "desktopcomputer")
-                    .foregroundStyle(palette.ink)
-                    .overlay(alignment: .topTrailing) {
-                        if model.view.updateOffered, model.live {
-                            Circle().fill(palette.accent).frame(width: 7, height: 7).offset(x: 3, y: -2).accessibilityHidden(true)
+                HStack(spacing: 6) {
+                    Image(systemName: "desktopcomputer")
+                        .foregroundStyle(palette.ink)
+                        .overlay(alignment: .topTrailing) {
+                            if model.view.updateOffered, model.live {
+                                Circle().fill(palette.accent).frame(width: 7, height: 7).offset(x: 3, y: -2).accessibilityHidden(true)
+                            }
                         }
+                    if model.restarting {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        ConnectionMark(connection: model.state.connection)
                     }
+                }
             } else {
                 HStack(spacing: 6) {
                     Image(systemName: "desktopcomputer").font(.footnote.weight(.semibold))

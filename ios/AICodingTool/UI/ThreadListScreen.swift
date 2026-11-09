@@ -79,9 +79,10 @@ struct ThreadListScreen: View {
         .scrollContentBackground(.hidden)
         .screenBackground(palette)
         .notice(model)
+        // The title is not drawn; it still names the back button on the screens pushed from here.
         .navigationTitle(narrowed?.name ?? "Threads")
-        .navigationBarTitleDisplayMode(.large)
-        .barSubtitle(computerLine)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(removing: .title)
         .searchable(text: $query, prompt: "Search Threads")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { ComputerMenu(model: model) }
@@ -106,14 +107,6 @@ struct ThreadListScreen: View {
                 now = Date()
             }
         }
-    }
-
-    /// The computer the list is from, and its line when that is not live.
-    private var computerLine: String? {
-        let name = model.state.computerName ?? model.connection.computers.first { $0.origin == model.connection.origin }?.title
-        let state = model.restarting ? "Restarting" : model.state.connection != .live ? model.state.connection.label : model.view.updateOffered ? "Update available" : nil
-        let parts = [name, state].compactMap { $0 }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private var composeButton: some View {
