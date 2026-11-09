@@ -406,13 +406,6 @@ test("a phone's request is answered by the window, or by the wait running out", 
   assert.deepEqual(await heard, { text: "words" }, "a recording waits longer than any other request");
   await assert.rejects(transcribing.query("session-1", { kind: "directories", prefix: "/" }), /did not answer/);
 
-  const editing = new MobileRelay({ send: (request) => { slow.push(request); return true; } }, 40, 40, 400);
-  const edited = editing.command("session-1", { type: "task.edit-queued", taskId: "task-1", messageId: "q1" });
-  await new Promise((resolve) => setTimeout(resolve, 120));
-  editing.answer({ type: "mobile.response", requestId: slow.at(-1)!.requestId, ok: true, result: null });
-  await edited;
-  await assert.rejects(editing.command("session-1", { type: "task.select", taskId: "task-1" }), /did not answer/, "an edit waits on the computer holding the queue; nothing else does");
-
   const abandoned = new MobileRelay({ send: () => true });
   const waiting = abandoned.snapshot("session-1");
   abandoned.failAll("The phone bridge was turned off.");

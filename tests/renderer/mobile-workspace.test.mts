@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { rankedThread } from "../../src/domain/thread-storage.ts";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
 import { deriveView, emptyWorkspaceState, NEW_THREAD_DRAFT, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import { answerMobileRequest, MOBILE_DRAFT_BUSY, MOBILE_NO_CHECKOUT, MOBILE_QUEUED_NOT_WORDS, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/host/mobile-bridge.ts";
+import { answerMobileRequest, MOBILE_DRAFT_BUSY, MOBILE_EDIT_LATE, MOBILE_EDIT_WAIT_MS, MOBILE_NO_CHECKOUT, MOBILE_QUEUED_NOT_WORDS, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/host/mobile-bridge.ts";
 import { QUEUED_NOT_YOURS, QUEUED_SENT } from "../../src/application/computers.ts";
 import { emptyMobileServerState, type MobileServerState, type MobileSessionView } from "../../src/domain/mobile.ts";
 import type { MobileRequest, MobileView } from "../../src/contracts/mobile.ts";
@@ -339,6 +339,28 @@ test("a phone's edit is never asked of a paired computer too old to say the mess
     assert.deepEqual(await edit(old), { type: "mobile.response", requestId: "r1", ok: false, message: REMOTE_UNSUPPORTED });
     assert.deepEqual(old.inputs, []);
   }
+});
+
+test("a phone's edit of a paired computer's queue that is not answered in time says so, and words that leave the queue later wait in this computer's composer", async () => {
+  const queued = { id: "q1", text: "Then the docs", prompt: "Then the docs", attachments: [], usersOwn: true as const };
+  const holder = workspace({ threads: [task("member", { remoteLead: { threadId: "lead", title: "Lead", computer: "Mac" } })], currentId: "member", activeRuns: { member: activeRun("member", "run-1") }, queuedMessages: { member: [queued] } });
+  const base = workspace({ threads: [task("lead", { role: "coordinator", title: "Lead" })], currentId: "lead", prompts: { member: "typed here" } });
+  const paired = { id: "linux", name: "Linux", host: "linux.ts.net", status: "connected" as const, error: null, pairedAt: 1, capabilities: COMPUTER_CAPABILITIES, state: holder };
+  let answer!: () => void;
+  const driver = host({ ...base, computers: { ...base.computers, name: "Mac", paired: [paired] } }, () => new Promise<void>((resolve) => { answer = resolve; }));
+
+  vi.useFakeTimers();
+  try {
+    const edited = answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "r1", sessionId: "s1", op: "command", command: { type: "task.edit-queued", taskId: "member", messageId: "q1" } }));
+    await vi.advanceTimersByTimeAsync(MOBILE_EDIT_WAIT_MS);
+    assert.deepEqual(await edited, { type: "mobile.response", requestId: "r1", ok: false, message: MOBILE_EDIT_LATE }, "never told it worked before the holder says so");
+  } finally {
+    vi.useRealTimers();
+  }
+  assert.equal(driver.current().prompts.member, "typed here");
+  answer();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(driver.current().prompts.member, "Then the docs\n\ntyped here");
 });
 
 test("a coordinator's thread on a paired computer whose line is down is shown so, and opening it says why it cannot", async () => {

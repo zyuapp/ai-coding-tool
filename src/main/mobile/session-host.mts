@@ -3,11 +3,6 @@ import type { MobileCommand, MobileQuery, MobileRequest, MobileResponse, MobileV
 
 /** Shorter than a phone's own patience, so a lost answer comes back as a refusal rather than a hang. */
 export const MOBILE_REQUEST_TIMEOUT = 8_000;
-/**
- * An edit waits for the paired computer holding the queue to take the message out, which its line
- * allows thirty seconds; the phone keeps asking for longer than this.
- */
-export const MOBILE_EDIT_TIMEOUT = 40_000;
 /** A recording may take its computer two minutes to write down, and loading the speech model first. */
 export const MOBILE_TRANSCRIBE_TIMEOUT = 130_000;
 
@@ -36,7 +31,7 @@ function isView(value: unknown): value is MobileView {
 export class MobileRelay {
   private readonly pending = new Map<string, Pending>();
 
-  constructor(private readonly host: MobileRelayHost, private readonly patience = MOBILE_REQUEST_TIMEOUT, private readonly transcribePatience = MOBILE_TRANSCRIBE_TIMEOUT, private readonly editPatience = MOBILE_EDIT_TIMEOUT) {}
+  constructor(private readonly host: MobileRelayHost, private readonly patience = MOBILE_REQUEST_TIMEOUT, private readonly transcribePatience = MOBILE_TRANSCRIBE_TIMEOUT) {}
 
   async snapshot(sessionId: string): Promise<MobileView> {
     const response = await this.ask({ type: "mobile.request", requestId: randomUUID(), sessionId, op: "snapshot" });
@@ -46,7 +41,7 @@ export class MobileRelay {
   }
 
   async command(sessionId: string, command: MobileCommand): Promise<void> {
-    const response = await this.ask({ type: "mobile.request", requestId: randomUUID(), sessionId, op: "command", command }, command.type === "task.edit-queued" ? this.editPatience : this.patience);
+    const response = await this.ask({ type: "mobile.request", requestId: randomUUID(), sessionId, op: "command", command });
     if (!response.ok) throw new Error(response.message);
   }
 
