@@ -23,7 +23,7 @@ import type { EngineAccessHost } from "./agent/engine-services.mjs" with { "reso
 import type { TaskDatabaseService } from "./task-database-service.mjs" with { "resolution-mode": "import" };
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolution-mode": "import" };
-import { DictationHost } from "./dictation-host.js";
+import { DictationHost, dictationHelper } from "./dictation-host.js";
 
 /** What `aic serve` and `aic pair` were asked for. */
 export type ServeArguments = {
@@ -144,7 +144,7 @@ export async function startServe(options: { userData: string; packaged: boolean;
     worktreesRoots: () => [worktreesRoot, ...legacyRoots],
     mobile: () => mobile,
     say,
-    dictation: new DictationHost({ helper: options.resources ? path.join(options.resources, "native", "aic-dictation") : path.resolve(__dirname, "..", "..", "native", "aic-dictation") }),
+    dictation: new DictationHost({ helper: dictationHelper(options.resources ? path.join(options.resources, "native") : path.resolve(__dirname, "..", "..", "native"), Boolean(options.resources)) }),
   });
   const runtime = createWorkspaceRuntime({ desktop, storage: createJsonStorage(path.join(userData, WINDOW_STORAGE_FILE)) });
   const publisher = createRuntimePublisher(runtime);

@@ -31,6 +31,14 @@ type HelperMessage =
 
 type Waiter = { resolve: (value: string) => void; reject: (error: Error) => void; timer: NodeJS.Timeout };
 
+/**
+ * Core ML keeps one compiled model per process name, which a differently signed helper of that name replaces, so a
+ * source build's helper runs under its own name to stop it and the installed app's recompiling each other's.
+ */
+export function dictationHelper(nativeFolder: string, packaged: boolean) {
+  return path.join(nativeFolder, packaged ? "aic-dictation" : "aic-dictation-dev");
+}
+
 export type DictationHostOptions = {
   /** Where the built helper is. */
   helper: string;

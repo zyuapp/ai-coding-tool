@@ -166,7 +166,11 @@
       "extraResources": [
         {
           "from": "dist/native",
-          "to": "native"
+          "to": "native",
+          "filter": [
+            "**/*",
+            "!aic-dictation-dev"
+          ]
         }
       ],
       "extendInfo": {
