@@ -1,24 +1,40 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
-import { LuMic as Mic, LuX as X } from "react-icons/lu";
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
+import { LuCheck as Check, LuMic as Mic, LuX as X } from "react-icons/lu";
 import { DICTATION_TAP_MS, type DictationModel, type DictationPhase } from "../../domain/dictation";
+import { displayShortcut, type ShortcutSetting } from "../../domain/shortcuts";
+import { MAC } from "../platform";
+import { shortcutTip } from "./TooltipLayer";
 
-/** The main composer's hold to talk, as the workspace reports it. */
+/** The main composer's dictation, as the workspace reports it. */
 export type ComposerDictation = {
   model: DictationModel;
   phase: DictationPhase | null;
+  /** Listening after the press that started it ended, until it is pressed again. */
+  handsFree: boolean;
+  /** Bumped when spoken words land with a send asked of them. */
+  sends: number;
+  /** The keystroke that dictates, as stored, or null when it has none. */
+  binding: string | null;
   onStart: () => void;
-  onStop: () => void;
+  onHandsFree: () => void;
+  onStop: (send?: boolean) => void;
   onCancel: () => void;
 };
+
+/** The keystroke dictation is bound to, as stored. */
+export function dictationBinding(shortcuts: ShortcutSetting[]) {
+  return shortcuts.find((shortcut) => shortcut.id === "dictation.hold")?.binding ?? null;
+}
 
 /** How far past the button a held pointer may wander before letting go cancels instead of keeping the words. */
 const SLACK_PX = 24;
 
 /**
  * The microphone button's press: it listens from the moment it goes down. Letting go over the button
- * writes the words into the draft; a tap, letting go away from it, or Escape drops the recording.
+ * after a hold writes the words into the draft; letting go after a tap keeps listening hands-free,
+ * until the next press writes them. Letting go away from it, or Escape, drops the recording.
  */
-export function useHoldToTalk(dictation: ComposerDictation | undefined) {
+export function useTalkPress(dictation: ComposerDictation | undefined) {
   const holding = useRef(false);
   const pressedAt = useRef(0);
   const [away, setAway] = useState(false);
@@ -31,8 +47,9 @@ export function useHoldToTalk(dictation: ComposerDictation | undefined) {
     if (!holding.current) return;
     holding.current = false;
     setPressed(false);
-    if (keep && Date.now() - pressedAt.current >= DICTATION_TAP_MS) latest.current?.onStop();
-    else latest.current?.onCancel();
+    if (!keep) latest.current?.onCancel();
+    else if (Date.now() - pressedAt.current < DICTATION_TAP_MS) latest.current?.onHandsFree();
+    else latest.current?.onStop();
   }
 
   useEffect(() => {
@@ -59,13 +76,20 @@ export function useHoldToTalk(dictation: ComposerDictation | undefined) {
     away,
     pressed,
     handlers: {
+      /** The caret stays in the draft, so Enter still sends while it listens. */
+      onMouseDown: (event: MouseEvent<HTMLButtonElement>) => event.preventDefault(),
       onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
         if (event.button !== 0 || holding.current) return;
+        const current = latest.current;
+        if (current?.handsFree) {
+          current.onStop();
+          return;
+        }
         event.currentTarget.setPointerCapture(event.pointerId);
         holding.current = true;
         pressedAt.current = Date.now();
         setPressed(true);
-        latest.current?.onStart();
+        current?.onStart();
       },
       onPointerMove: (event: PointerEvent<HTMLButtonElement>) => {
         if (holding.current) setAway(outside(event));
@@ -76,26 +100,44 @@ export function useHoldToTalk(dictation: ComposerDictation | undefined) {
   };
 }
 
+/** The composer's dictation: its press, and the draft sent each time spoken words land with a send asked of them. */
+export function useComposerTalk(dictation: ComposerDictation | undefined, send: () => void) {
+  const talk = useTalkPress(dictation);
+  const sends = dictation?.sends ?? 0;
+  const seen = useRef(sends);
+  useEffect(() => {
+    if (sends === seen.current) return;
+    seen.current = sends;
+    send();
+  }, [sends]);
+  return { talk, dictating: dictation?.phase ?? null, handsFree: dictation?.handsFree ?? false };
+}
+
 /**
- * Held to talk; letting go writes what was heard into the draft, which Send then sends like typing.
- * It shows only once this Mac has the speech model.
+ * Held to talk, or tapped to listen hands-free until it is pressed again. The words go into the draft,
+ * which Send then sends like typing. It shows only once this Mac has the speech model.
  */
-export function MicButton({ dictation, talk, disabled }: { dictation: ComposerDictation; talk: ReturnType<typeof useHoldToTalk>; disabled: boolean }) {
-  const listening = talk.pressed || dictation.phase === "starting" || dictation.phase === "recording";
+export function MicButton({ dictation, talk, disabled }: { dictation: ComposerDictation; talk: ReturnType<typeof useTalkPress>; disabled: boolean }) {
   const writing = dictation.phase === "transcribing";
+  const handsFree = dictation.handsFree;
+  const listening = !handsFree && (talk.pressed || dictation.phase === "starting" || dictation.phase === "recording");
+  const tip = handsFree
+    ? (dictation.binding ? shortcutTip("Add the words", dictation.binding) : "Add the words")
+    : `${dictation.binding ? shortcutTip("Hold to talk", dictation.binding) : "Hold to talk"} · Tap for hands-free`;
   return (
     <button type="button"
-      className={`mic-button${listening ? " talking" : ""}${listening && talk.away ? " away" : ""}`}
+      className={`mic-button${listening ? " talking" : ""}${listening && talk.away ? " away" : ""}${handsFree ? " hands-free" : ""}`}
       disabled={disabled || writing}
       aria-busy={writing || undefined}
-      aria-label="Hold to talk"
-      data-tip={listening ? undefined : "Hold to talk"}
+      aria-label={handsFree ? "Add the words" : "Dictate"}
+      data-tip={listening ? undefined : tip}
       {...talk.handlers}
     >
       {listening && <TalkHalo />}
       {writing ? <span className="send-spinner" aria-hidden="true" />
-        : listening && talk.away ? <X size={16} strokeWidth={2.5} aria-hidden="true" />
-          : <Mic size={16} strokeWidth={2.25} aria-hidden="true" />}
+        : handsFree ? <Check size={16} strokeWidth={2.75} aria-hidden="true" />
+          : listening && talk.away ? <X size={16} strokeWidth={2.5} aria-hidden="true" />
+            : <Mic size={16} strokeWidth={2.25} aria-hidden="true" />}
     </button>
   );
 }
@@ -148,12 +190,12 @@ function TalkHalo() {
   return <span ref={ring} className="talk-halo" aria-hidden="true" />;
 }
 
-/** Stands in the composer bar while the hold is listening or turning speech into words. */
-export function DictationStrip({ phase, away }: { phase: DictationPhase; away: boolean }) {
+/** Stands in the composer bar while dictation is listening or turning speech into words. */
+export function DictationStrip({ phase, away, handsFree, binding }: { phase: DictationPhase; away: boolean; handsFree: boolean; binding: string | null }) {
   const listening = phase !== "transcribing";
   const levels = useLevels(listening);
   const elapsed = useElapsed(phase === "recording");
-  const state = !listening ? " transcribing" : away ? " away" : "";
+  const state = !listening ? " transcribing" : away ? " away" : handsFree ? " hands-free" : "";
   return (
     <div className={`dictation-strip${state}`} role="status" aria-live="polite">
       <span className="dictation-time">{elapsed}</span>
@@ -161,7 +203,10 @@ export function DictationStrip({ phase, away }: { phase: DictationPhase; away: b
         {levels.map((level, index) => <span key={index} style={{ height: `${listening ? barHeight(level) : 14}%`, "--bar": index } as CSSProperties} />)}
       </div>
       <span className="dictation-hint">
-        {!listening ? "Writing it down…" : away ? "Let go to cancel" : <>Let go to add it<span className="dictation-escape"><kbd>Esc</kbd> cancels</span></>}
+        {!listening ? "Writing it down…"
+          : away ? "Let go to cancel"
+            : handsFree ? <>Hands-free<span className="dictation-escape">{binding && <span><kbd>{displayShortcut(binding, MAC)}</kbd> adds</span>}<span><kbd>↩</kbd> sends</span><span><kbd>Esc</kbd> cancels</span></span></>
+              : <>Let go to add it<span className="dictation-escape"><span><kbd>Esc</kbd> cancels</span></span></>}
       </span>
     </div>
   );

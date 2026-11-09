@@ -1,10 +1,9 @@
 import { SettingsPanel } from "./SettingsPanel";
-import { displayShortcut, type ShortcutSetting } from "../../domain/shortcuts";
+import { displayShortcut } from "../../domain/shortcuts";
 import { MAC } from "../platform";
+import { dictationBinding } from "./ComposerDictation";
 
-/** The keystroke holding to talk is bound to, as the platform writes it. */
-function dictationBinding(shortcuts: ShortcutSetting[]) {
-  const binding = shortcuts.find((shortcut) => shortcut.id === "dictation.hold")?.binding;
+function displayBinding(binding: string | null) {
   return binding ? displayShortcut(binding, MAC) : null;
 }
 import { useComputerUseReads } from "../task-workspace/computer-use-reads";
@@ -47,7 +46,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
         model: workspace.dictation.model,
         message: workspace.dictation.message,
         progress: workspace.dictation.progress,
-        binding: dictationBinding(workspace.shortcuts),
+        binding: displayBinding(dictationBinding(workspace.shortcuts)),
         onDownload: () => void workspace.dispatch({ type: "dictation.download" }),
         onCancelDownload: () => void workspace.dispatch({ type: "dictation.cancel-download" }),
       }}

@@ -37,6 +37,39 @@ test("letting go adds the words after what was typed and hands the caret back, s
   assert.equal(heard.effects.some((effect) => effect.type === "start-run" || effect.type === "send-attachments"), false);
 });
 
+test("a tap keeps listening hands-free and hands the caret to the draft", () => {
+  const { state, id } = held();
+  const freed = reduce(state, { type: "dictation.hands-free" });
+  assert.equal(freed.state.dictation.session?.handsFree, true);
+  assert.equal(deriveView(freed.state).dictation.handsFree, true);
+  assert.equal(freed.state.composerFocus, state.composerFocus + 1);
+  assert.equal(freed.effects.length, 0, "the microphone keeps recording");
+
+  const stopped = reduce(freed.state, { type: "dictation.stop" });
+  assert.deepEqual(effectOf(stopped, "dictation.stop"), { type: "dictation.stop", id });
+  assert.equal(deriveView(stopped.state).dictation.handsFree, false, "writing it down is the same for both");
+});
+
+test("stopping to send asks the draft to send once the words are in it", () => {
+  const { state, id } = held();
+  const typed = run(state, [{ type: "dictation.hands-free" }, { type: "view.set-prompt", prompt: "Look at the diff." }]);
+  const heard = run(typed, [{ type: "dictation.stop", send: true }, { type: "dictation.transcribed", id, text: "Then fix it." }]);
+  assert.equal(heard.prompts.a, "Look at the diff. Then fix it.");
+  assert.equal(heard.dictation.sends, typed.dictation.sends + 1);
+  assert.equal(deriveView(heard).dictation.sends, heard.dictation.sends);
+});
+
+test("a send asked of words that heard nothing, or of a thread left meanwhile, sends nothing", () => {
+  const silent = held();
+  const missed = run(silent.state, [{ type: "dictation.stop", send: true }, { type: "dictation.transcribed", id: silent.id, text: " " }]);
+  assert.equal(missed.dictation.sends, 0);
+
+  const away = held();
+  const moved = run(away.state, [{ type: "dictation.stop", send: true }, { type: "task.select", taskId: "b" }, { type: "dictation.transcribed", id: away.id, text: "keep me" }]);
+  assert.equal(moved.prompts.a, "keep me");
+  assert.equal(moved.dictation.sends, 0);
+});
+
 test("words for a thread left during the hold stay in its draft without taking the caret", () => {
   const { state, id } = held();
   const moved = run(state, [{ type: "dictation.stop" }, { type: "task.select", taskId: "b" }]);
@@ -127,13 +160,13 @@ test("spoken words join typing with one space, or start the draft", () => {
 });
 
 test("holding to talk on a paired computer's thread shows this computer's microphone", () => {
-  const remote = workspace({ threads: [task("remote-thread")], currentId: "remote-thread", dictation: { model: "unsupported", message: null, progress: null, session: null } });
-  const local = workspace({ dictation: { model: "ready", message: null, progress: null, session: null } });
+  const remote = workspace({ threads: [task("remote-thread")], currentId: "remote-thread", dictation: { model: "unsupported", message: null, progress: null, session: null, sends: 0 } });
+  const local = workspace({ dictation: { model: "ready", message: null, progress: null, session: null, sends: 0 } });
   const link = { id: "linux", name: "linux", host: "linux.tail.ts.net", status: "connected" as const, error: null, pairedAt: 1, state: remote };
   const state = { ...local, computers: { ...local.computers, name: "This Mac", paired: [link], active: "linux" } };
   const key = promptKey(state);
   assert.equal(key, "remote-thread");
-  const view = deriveView({ ...state, dictation: { ...state.dictation, session: { id: "hold", key, phase: "recording" } } });
+  const view = deriveView({ ...state, dictation: { ...state.dictation, session: { id: "hold", key, phase: "recording", handsFree: false, send: false } } });
   assert.equal(view.dictation.model, "ready");
   assert.equal(view.dictation.phase, "recording");
 });

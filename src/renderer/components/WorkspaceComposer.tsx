@@ -1,4 +1,5 @@
 import { ConversationComposer, type ComposerAction } from "./ConversationComposer";
+import { dictationBinding } from "./ComposerDictation";
 import { NeedsYouCard } from "./NeedsYouCard";
 import { ThreadStartOptions } from "./ThreadStartOptions";
 import { attachDroppedFiles, imageSources } from "../dropped-files";
@@ -31,8 +32,10 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       images={workspace.images}
       dictation={{
         ...workspace.dictation,
+        binding: dictationBinding(workspace.shortcuts),
         onStart: () => void workspace.dispatch({ type: "dictation.start" }),
-        onStop: () => void workspace.dispatch({ type: "dictation.stop" }),
+        onHandsFree: () => void workspace.dispatch({ type: "dictation.hands-free" }),
+        onStop: (send) => void workspace.dispatch(send ? { type: "dictation.stop", send } : { type: "dictation.stop" }),
         onCancel: () => void workspace.dispatch({ type: "dictation.cancel" }),
       }}
       onImageRemove={(imageId) => void workspace.dispatch({ type: "image.remove", imageId })}

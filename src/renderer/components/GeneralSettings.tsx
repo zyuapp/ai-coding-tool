@@ -101,8 +101,8 @@ export function GeneralSettings({ dictation, cli: { status, busy, error }, onRea
       {dictation && dictation.model !== "unsupported" && <section className="settings-group" aria-labelledby="dictation-heading">
         <div className="settings-group-heading">
           <div>
-            <h3 id="dictation-heading">Hold to talk</h3>
-            <p>Hold the microphone{dictation.binding ? <> or <kbd>{dictation.binding}</kbd></> : null}, speak, and let go to add the words to your message. What you say stays on this Mac.</p>
+            <h3 id="dictation-heading">Dictation</h3>
+            <p>Hold the microphone{dictation.binding ? <> or <kbd>{dictation.binding}</kbd></> : null} and let go to add the words to your message, or tap it to talk hands-free. What you say stays on this Mac.</p>
           </div>
         </div>
         <SettingRow id="general.dictation" status={dictation.model === "ready"} description={dictationDescription(dictation)}>

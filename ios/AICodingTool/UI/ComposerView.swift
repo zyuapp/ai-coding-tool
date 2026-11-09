@@ -45,6 +45,10 @@ struct ComposerView<Above: View>: View {
     @State private var talkNote: String?
     @State private var heard = 0
     @State private var talkEnded = false
+    /// A finger is on the microphone, so only the touch's first report starts or finishes anything.
+    @State private var talkTouching = false
+    /// A tap left the microphone listening, until the next press adds the words.
+    @State private var talkHandsFree = false
     @State private var pressedAt = Date.distantPast
     @GestureState private var pressing = false
     @Environment(\.scenePhase) private var scenePhase
@@ -143,7 +147,7 @@ struct ComposerView<Above: View>: View {
                 }
                 HStack(spacing: 8) {
                     if talk.active {
-                        TalkStrip(phase: talk, levels: recorder.levels, startedAt: recorder.startedAt, cancelling: talkCancelling)
+                        TalkStrip(phase: talk, levels: recorder.levels, startedAt: recorder.startedAt, cancelling: talkCancelling, handsFree: talkHandsFree, onCancel: cancelTalk)
                     }
                     if !blocked && !talk.active {
                         Menu {
@@ -182,7 +186,20 @@ struct ComposerView<Above: View>: View {
                     if canTalk || talk.active {
                         talkButton
                     }
-                    if talk.active {
+                    if talkHandsFree {
+                        Button { send(onSend) } label: {
+                            Image(systemName: "arrow.up")
+                                .font(.body.weight(.bold))
+                                .foregroundStyle(palette.contrastInk)
+                                .frame(width: 34, height: 34)
+                                .background(palette.contrast, in: Circle())
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Send")
+                        .accessibilityHint("Adds what you said and sends the message")
+                    } else if talk.active {
                         EmptyView()
                     } else if queueing {
                         if let onStop { stopButton(onStop, aside: true) }
@@ -233,7 +250,10 @@ struct ComposerView<Above: View>: View {
             /// A touch the system took away, such as by an alert, never ends, so the hold is dropped.
             Task { @MainActor in
                 await Task.yield()
-                if !talkEnded { cancelTalk() }
+                if !talkEnded {
+                    talkTouching = false
+                    cancelTalk()
+                }
             }
         }
         .photosPicker(isPresented: $picking, selection: $picked, maxSelectionCount: max(1, PickedImage.limit - images.count), matching: .images)
@@ -337,10 +357,11 @@ struct ComposerView<Above: View>: View {
     }
 
     /// The microphone: held, it listens; letting go writes what was heard into the draft for Send to
-    /// send like typing. A tap records nothing, and sliding up to the mark above it cancels.
+    /// send like typing, and sliding up to the mark above it cancels. A tap keeps it listening
+    /// hands-free, and the next press adds the words.
     private var talkButton: some View {
         let lit = talk == .listening || talk == .starting
-        let hearing = talk == .listening && !talkCancelling
+        let hearing = talk == .listening && !talkCancelling && !talkHandsFree
         return ZStack {
             if hearing { TalkHalo(level: recorder.levels.last ?? 0).transition(.opacity) }
             Circle()
@@ -351,17 +372,18 @@ struct ComposerView<Above: View>: View {
             if talk == .transcribing {
                 ProgressView().tint(palette.inkDim)
             } else {
-                Image(systemName: talkCancelling ? "xmark" : "mic.fill")
+                Image(systemName: talkCancelling ? "xmark" : talkHandsFree ? "checkmark" : "mic.fill")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(talkCancelling ? palette.danger : lit ? palette.accentInk : palette.inkDim)
                     .contentTransition(.symbolEffect(.replace))
             }
         }
         .animation(.snappy(duration: 0.2), value: talk)
+        .animation(.snappy(duration: 0.2), value: talkHandsFree)
         .frame(width: 44, height: 44)
         .contentShape(Rectangle())
         .overlay(alignment: .top) {
-            if talk == .listening {
+            if talk == .listening && !talkHandsFree {
                 TalkCancelTarget(armed: talkCancelling)
                     .offset(y: -TalkPhase.cancelDistance - 18)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
@@ -371,40 +393,61 @@ struct ComposerView<Above: View>: View {
         .gesture(
             DragGesture(minimumDistance: 0)
                 .updating($pressing) { _, state, _ in state = true }
-                .onChanged { value in pressMoved(value.translation.height) }
-                .onEnded { value in pressEnded(value.translation.height) }
+                .onChanged { value in pressMoved(value.translation.height, at: value.time) }
+                .onEnded { value in pressEnded(value.translation.height, at: value.time) }
         )
         .disabled(talk == .transcribing)
         .accessibilityElement()
-        .accessibilityLabel("Hold to talk")
-        .accessibilityHint("Hold, speak, and let go to add the words to your message")
+        .accessibilityLabel(talkHandsFree ? "Add the words" : "Dictate")
+        .accessibilityHint(talkHandsFree ? "Adds what you said to your message" : "Hold, speak, and let go to add the words to your message, or tap to talk hands-free")
         .accessibilityAddTraits(.isButton)
+        .accessibilityAction { talkHandsFree ? finishHandsFree() : tapToTalk() }
     }
 
-    private func pressMoved(_ rise: CGFloat) {
-        if talk == .idle {
-            talkReleased = false
+    /// `at` is when the touch happened, so a tap reads as one however long the main thread took to hear it.
+    private func pressMoved(_ rise: CGFloat, at time: Date) {
+        if !talkTouching {
+            talkTouching = true
             talkEnded = false
+            if talkHandsFree { return finishHandsFree() }
+            guard talk == .idle else { return }
+            talkReleased = false
             talkCancelling = false
-            pressedAt = .now
+            pressedAt = time
             startTalking()
             return
         }
-        guard talk == .starting || talk == .listening else { return }
+        guard !talkHandsFree, talk == .starting || talk == .listening else { return }
         let cancelling = rise < -TalkPhase.cancelDistance
         if cancelling != talkCancelling { talkCancelling = cancelling }
     }
 
-    private func pressEnded(_ rise: CGFloat) {
+    private func pressEnded(_ rise: CGFloat, at time: Date) {
         talkEnded = true
-        guard talk == .starting || talk == .listening else { return }
+        talkTouching = false
+        guard !talkHandsFree, talk == .starting || talk == .listening else { return }
         if rise < -TalkPhase.cancelDistance { return cancelTalk() }
-        if Date.now.timeIntervalSince(pressedAt) < TalkPhase.tapSeconds {
-            cancelTalk()
-            talkNote = "Hold to talk."
+        if time.timeIntervalSince(pressedAt) < TalkPhase.tapSeconds {
+            talkCancelling = false
+            talkHandsFree = true
             return
         }
         if talk == .starting { talkReleased = true } else { finishTalking() }
+    }
+
+    /// VoiceOver's activation: one action starts hands-free listening.
+    private func tapToTalk() {
+        guard talk == .idle else { return }
+        talkReleased = false
+        talkCancelling = false
+        startTalking()
+        if talk == .starting { talkHandsFree = true }
+    }
+
+    /// The press that ends hands-free listening, adding the words. Then sends them too when given how.
+    private func finishHandsFree(then how: ((String, [String]) -> Void)? = nil) {
+        talkHandsFree = false
+        if talk == .starting { talkReleased = true } else if talk == .listening { finishTalking(then: how) }
     }
 
     private func startTalking() {
@@ -412,7 +455,7 @@ struct ComposerView<Above: View>: View {
         /// The first hold only asks, since the alert takes the finger; the next hold listens.
         guard AVAudioApplication.shared.recordPermission != .undetermined else {
             Task { @MainActor in
-                if await AVAudioApplication.requestRecordPermission() { talkNote = "Hold again to talk." }
+                if await AVAudioApplication.requestRecordPermission() { talkNote = "Now hold to talk, or tap for hands-free." }
             }
             return
         }
@@ -434,6 +477,7 @@ struct ComposerView<Above: View>: View {
     }
 
     private func cancelTalk() {
+        talkHandsFree = false
         guard talk.active else { return }
         if talk == .listening { recorder.cancel() }
         talk = .idle
@@ -441,9 +485,11 @@ struct ComposerView<Above: View>: View {
     }
 
     /// The computer writes down what was heard, and the words follow whatever was typed, to be sent with
-    /// it. They are kept with the draft the hold began on, even if its thread is left before they arrive.
-    private func finishTalking() {
+    /// it. They are kept with the draft the hold began on, even if its thread is left before they arrive;
+    /// `how` sends them once they land in the draft still on screen.
+    private func finishTalking(then how: ((String, [String]) -> Void)? = nil) {
         talkCancelling = false
+        talkHandsFree = false
         guard let wav = recorder.stop() else { talk = .idle; return }
         talk = .transcribing
         let key = draftKey
@@ -456,6 +502,9 @@ struct ComposerView<Above: View>: View {
                     return
                 }
                 model.addSpokenWords(words, to: key)
+                guard let how, key == draftKey else { return }
+                draft = model.draft(for: key)
+                commit(how)
             } catch {
                 talkNote = error.localizedDescription
             }
@@ -464,6 +513,7 @@ struct ComposerView<Above: View>: View {
 
     /// Sends what is typed. Dictation still running stops first, and its last words go with the message.
     private func send(_ how: @escaping (String, [String]) -> Void) {
+        if talkHandsFree { return finishHandsFree(then: how) }
         guard !finishing else { return }
         guard focused else { return commit(how) }
         Dictation.finish()

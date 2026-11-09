@@ -1,6 +1,6 @@
 import { LuArrowUp as ArrowUp, LuCircleAlert as CircleAlert, LuInfo as Info, LuPaperclip as Paperclip, LuX as X } from "react-icons/lu";
 import { useRef, type ReactNode } from "react";
-import { DictationStrip, MicButton, useHoldToTalk, type ComposerDictation } from "./ComposerDictation";
+import { DictationStrip, MicButton, useComposerTalk, type ComposerDictation } from "./ComposerDictation";
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "./QuestionPrompt";
 import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
@@ -217,7 +217,7 @@ export type ConversationComposerProps = {
   files?: AttachedFile[];
   /** Bumped whenever something asks for the caret, which is all the composer needs to take it. */
   focusToken?: number;
-  /** Holding to talk. Only the main composer offers it. */
+  /** Dictation. Only the main composer offers it. */
   dictation?: ComposerDictation;
   /** Images the workspace is holding for this composer, such as windows the desktop hotkey grabbed. */
   images?: StagedImage[];
@@ -339,15 +339,16 @@ export function ConversationComposer({
   const controls = useCommandControls();
   const sendCommand: AppCommand = { type: "attachments.send", taskId, attachments: attachments.items };
 
-  /** While a run is going the message joins the queue, so only steering needs the run to be active. */
+  const { talk, dictating, handsFree } = useComposerTalk(dictation, () => void submit());
+
+  /** While a run is going the message joins the queue, so only steering needs the run to be active. Hands-free dictation sends once its words are in. */
   async function submit(steer = false) {
+    if (handsFree) return dictation?.onStop(true);
     if (attachments.sending || waiting || disabled || (steer && !runActive)) return;
     if (nothingToSend) return;
     if (!controls.available({ ...sendCommand, ...(steer ? { steer } : {}) })) return;
     attachments.send(steer);
   }
-  const talk = useHoldToTalk(dictation);
-  const dictating = dictation?.phase ?? null;
 
   return (
     <footer className={`composer-wrap ${surface}`}>
@@ -394,15 +395,15 @@ export function ConversationComposer({
           aria-activedescendant={menuActiveDescendant(menus)}
           rows={2}
         />
-        <div className={`composer-bar${dictating ? " dictating" : ""}`}>
-          {dictating && <DictationStrip phase={dictating} away={talk.away} />}
+        <div className={`composer-bar${dictating ? " dictating" : ""}${handsFree ? " hands-free" : ""}`}>
+          {dictating && <DictationStrip phase={dictating} away={talk.away} handsFree={handsFree} binding={dictation?.binding ?? null} />}
           <AttachButton disabled={disabled} onFilesAdd={onFilesAdd} />
           <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} coordinating={coordinating} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
             {planUsage && model !== undefined && <PlanUsageMeter engine={engine} engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
             {dictation?.model === "ready" && <MicButton dictation={dictation} talk={talk} disabled={disabled} />}
-            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} />
+            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || (nothingToSend && !handsFree)} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} />
           </div>
         </div>
       </div>}

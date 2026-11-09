@@ -5291,26 +5291,31 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .talk-halo::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 1px solid var(--accent); opacity: calc(0.15 + var(--talk-level, 0) * 0.5); transform: scale(calc(0.9 + var(--talk-level, 0) * 0.35)); transition: transform 90ms linear, opacity 90ms linear; }
 .mic-button.talking.away { background: var(--danger-surface); color: var(--danger); transform: none; box-shadow: inset 0 0 0 1px var(--danger-line); }
 .mic-button.talking.away .talk-halo { opacity: 0; }
+.mic-button.hands-free { background: var(--accent); color: var(--accent-ink); }
+.mic-button.hands-free:hover:not(:disabled) { background: var(--accent-hover); color: var(--accent-ink); }
 .composer:has(.composer-bar.dictating) { box-shadow: 0 0 0 1px var(--accent-line), var(--shadow-composer); }
 .composer:has(.dictation-strip.away) { box-shadow: 0 0 0 1px var(--danger-line), var(--shadow-composer); }
 .composer-bar.dictating > :is(.composer-attach, .composer-settings), .composer-bar.dictating .composer-actions > :not(.mic-button, .send-button) { display: none; }
-/* Send keeps its place so the held microphone never moves out from under the pointer. */
-.composer-bar.dictating .composer-actions > .send-button { visibility: hidden; }
+/* Send keeps its place so the held microphone never moves out from under the pointer. Hands-free, it adds the words and sends. */
+.composer-bar.dictating:not(.hands-free) .composer-actions > .send-button, .composer-bar.dictating .composer-actions > .send-button.running { visibility: hidden; }
 .dictation-strip { display: flex; flex: 1; align-items: center; gap: 14px; min-width: 0; height: 32px; padding-left: 8px; }
 .dictation-time { flex: none; min-width: 3.2ch; color: var(--accent-text); font-size: var(--text-control); font-variant-numeric: tabular-nums; font-weight: 560; }
 .dictation-wave { display: flex; flex: 1; align-items: center; justify-content: flex-end; gap: 3px; min-width: 40px; height: 26px; overflow: hidden; -webkit-mask-image: linear-gradient(to right, transparent, #000 35%); mask-image: linear-gradient(to right, transparent, #000 35%); }
 .dictation-wave span { flex: none; width: 3px; min-height: 3px; border-radius: 3px; background: var(--accent-text); transition: height 90ms linear; }
 .dictation-hint { display: flex; flex: none; align-items: center; gap: 12px; color: var(--ink-dim); font-size: var(--text-meta); white-space: nowrap; }
-.dictation-escape { display: flex; align-items: center; gap: 5px; color: var(--muted); }
+.dictation-escape { display: flex; align-items: center; gap: 12px; color: var(--muted); }
+.dictation-escape > span { display: flex; align-items: center; gap: 5px; }
 .dictation-escape kbd { padding: 1px 5px; border: 1px solid var(--line-glass); border-radius: 5px; font: inherit; font-size: 0.92em; line-height: 1.4; }
 .dictation-strip.away :is(.dictation-time, .dictation-hint) { color: var(--danger); }
 .dictation-strip.away .dictation-wave span { background: var(--danger-line); }
 .dictation-strip.transcribing .dictation-time { color: var(--muted); }
+.dictation-strip.hands-free .dictation-time::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--accent-text); vertical-align: 1px; animation: hands-free-pulse 1.2s ease-in-out infinite; }
+@keyframes hands-free-pulse { 50% { opacity: 0.3; } }
 .dictation-strip.transcribing .dictation-wave span { background: var(--muted); transition: height 260ms ease calc(var(--bar) * 5ms); animation: talk-sweep 1.4s ease-in-out calc(var(--bar) * 35ms) infinite; }
 @keyframes talk-sweep { 0%, 60%, 100% { opacity: 0.35; } 30% { opacity: 1; background: var(--accent-text); } }
 @container (max-width: 520px) { .dictation-escape { display: none; } }
 @media (prefers-reduced-motion: reduce) {
   .mic-button.talking { transform: none; }
   .talk-halo, .talk-halo::after, .dictation-wave span { transition: none; }
-  .dictation-strip.transcribing .dictation-wave span { animation: none; }
+  .dictation-strip.transcribing .dictation-wave span, .dictation-strip.hands-free .dictation-time::before { animation: none; }
 }

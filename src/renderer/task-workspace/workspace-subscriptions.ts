@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { shortcutCommands, type WorkspaceInput } from "../../application/workspace-reducer";
 import type { WorkspaceState } from "../../application/workspace-state";
+import { DICTATION_TAP_MS } from "../../domain/dictation";
 import { displayShortcut, keystrokeOf, resolveShortcuts, shortcutFor } from "../../domain/shortcuts";
 import { MAC } from "../platform";
 import { installFocusAppearance } from "../focus-appearance";
@@ -26,10 +27,14 @@ export function useWorkspaceSubscriptions(host: SubscriptionHost) {
     window.addEventListener("keydown", swallow, true);
     return () => window.removeEventListener("keydown", swallow, true);
   }, []);
-  /** A hold whose key or pointer goes up in another app never hears its release, so leaving the window drops it. */
+  /**
+   * A hold whose key or pointer goes up in another app never hears its release, so leaving the window
+   * drops it. Hands-free dictation keeps listening.
+   */
   useEffect(() => {
     function left() {
-      if (!windowInUse() && host.displayedState().dictation.session) void host.dispatch({ type: "dictation.cancel" });
+      const session = host.displayedState().dictation.session;
+      if (!windowInUse() && session && !session.handsFree) void host.dispatch({ type: "dictation.cancel" });
     }
     window.addEventListener(WINDOW_ACTIVITY_EVENT, left);
     return () => window.removeEventListener(WINDOW_ACTIVITY_EVENT, left);
@@ -71,9 +76,20 @@ export function useWorkspaceSubscriptions(host: SubscriptionHost) {
   }, []);
   useEffect(() => {
     if (!("desktop" in window)) return;
+    /** When the dictation key went down, or null when its press stopped hands-free dictation instead. */
+    let talkPressedAt: number | null = null;
     const stopListening = window.desktop.onShortcut(({ action, surface }) => {
-      if (action === "dictation.hold") void host.dispatch({ type: "dictation.start" });
-      else if (action === "dictation.release") void host.dispatch({ type: "dictation.stop" });
+      if (action === "dictation.hold") {
+        const session = host.displayedState().dictation.session;
+        const stopping = session?.handsFree === true && session.phase !== "transcribing";
+        talkPressedAt = stopping ? null : Date.now();
+        void host.dispatch({ type: stopping ? "dictation.stop" : "dictation.start" });
+      } else if (action === "dictation.release") {
+        if (talkPressedAt === null) return;
+        const tapped = Date.now() - talkPressedAt < DICTATION_TAP_MS;
+        talkPressedAt = null;
+        void host.dispatch({ type: tapped ? "dictation.hands-free" : "dictation.stop" });
+      }
       else if (action === "run.allow" || action === "run.deny") {
         for (const command of shortcutCommands(host.displayedState(), action, surface)) void host.dispatch(command);
       } else void host.dispatch({ type: "view.shortcut", action, surface });

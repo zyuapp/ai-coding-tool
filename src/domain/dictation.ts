@@ -1,4 +1,4 @@
-/** Holding to talk: the speech model this computer has, and the one recording the main composer is taking. */
+/** Dictation: the speech model this computer has, and the one recording the main composer is taking. */
 
 /** Whether this computer can turn speech into text, and where getting its model stands. */
 export type DictationModel = "unsupported" | "missing" | "downloading" | "ready" | "failed";
@@ -6,8 +6,11 @@ export type DictationModel = "unsupported" | "missing" | "downloading" | "ready"
 /** A recording is starting the microphone, hearing, or being turned into words. */
 export type DictationPhase = "starting" | "recording" | "transcribing";
 
-/** One hold. `key` is the draft its words go to, fixed when the hold began. */
-export type DictationSession = { id: string; key: string; phase: DictationPhase };
+/**
+ * One recording. `key` is the draft its words go to, fixed when it began. A hands-free recording keeps
+ * listening after the press ends; `send` sends the draft once its words land.
+ */
+export type DictationSession = { id: string; key: string; phase: DictationPhase; handsFree: boolean; send: boolean };
 
 export type DictationState = {
   model: DictationModel;
@@ -16,11 +19,13 @@ export type DictationState = {
   /** How much of the model has downloaded, 0 to 1. Null while it is prepared, or when nothing downloads. */
   progress: number | null;
   session: DictationSession | null;
+  /** Bumped when spoken words land in the draft on screen with a send asked of them. */
+  sends: number;
 };
 
-export const NO_DICTATION: DictationState = { model: "unsupported", message: null, progress: null, session: null };
+export const NO_DICTATION: DictationState = { model: "unsupported", message: null, progress: null, session: null, sends: 0 };
 
-/** A press on the microphone shorter than this is a tap, which records nothing. */
+/** A press on the microphone shorter than this is a tap, which keeps listening hands-free. */
 export const DICTATION_TAP_MS = 250;
 
 /** The longest recording a phone may send: two minutes of 16 kHz, 16-bit mono WAV. */

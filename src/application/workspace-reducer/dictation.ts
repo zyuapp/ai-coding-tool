@@ -1,4 +1,4 @@
-/** Holding to talk into the main composer: the hold, the words it brought back, and the send they ride. */
+/** Dictating into the main composer: the recording, the words it brought back, and the send they ride. */
 import { DICTATION_HEARD_NOTHING, dictationRefusal, withSpokenWords, type DictationState } from "../../domain/dictation.js";
 import { MAIN_COMPOSER, NO_ATTACHMENT_SEND } from "../composer-attachments.js";
 import { focusComposer } from "../composer-drafts.js";
@@ -7,7 +7,7 @@ import { rejected, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 
 export const DICTATION_INPUTS = [
-  "dictation.start", "dictation.stop", "dictation.cancel", "dictation.download", "dictation.cancel-download",
+  "dictation.start", "dictation.hands-free", "dictation.stop", "dictation.cancel", "dictation.download", "dictation.cancel-download",
   "dictation.model", "dictation.started", "dictation.transcribed", "dictation.failed",
 ] as const;
 type DictationInput = Extract<WorkspaceInput, { type: (typeof DICTATION_INPUTS)[number] }>;
@@ -34,14 +34,22 @@ export function reduceDictation(state: WorkspaceState, input: DictationInput): W
       const refusal = dictationRefusal(state.dictation);
       if (refusal) return rejected(state, refusal);
       if (state.dictation.session) return settled(state);
-      const session = { id: crypto.randomUUID(), key: promptKey(state), phase: "starting" as const };
+      const session = { id: crypto.randomUUID(), key: promptKey(state), phase: "starting" as const, handsFree: false, send: false };
       return settled(withDictation(state, { session }), [{ type: "dictation.start", id: session.id }]);
+    }
+
+    case "dictation.hands-free": {
+      const session = state.dictation.session;
+      if (!session || session.phase === "transcribing" || session.handsFree) return settled(state);
+      const freed = withDictation(state, { session: { ...session, handsFree: true } });
+      return settled(session.key === promptKey(freed) ? focusComposer(freed) : freed);
     }
 
     case "dictation.stop": {
       const session = state.dictation.session;
       if (!session || session.phase === "transcribing") return settled(state);
-      return settled(withDictation(state, { session: { ...session, phase: "transcribing" } }), [{ type: "dictation.stop", id: session.id }]);
+      const stopped = { ...session, phase: "transcribing" as const, send: input.send === true };
+      return settled(withDictation(state, { session: stopped }), [{ type: "dictation.stop", id: session.id }]);
     }
 
     case "dictation.cancel": {
@@ -73,8 +81,8 @@ export function reduceDictation(state: WorkspaceState, input: DictationInput): W
     }
 
     /**
-     * The words join the draft the hold began on, to be read over and sent like typing. A draft still
-     * on screen takes the caret, so Enter sends it.
+     * The words join the draft the recording began on, to be read over and sent like typing. A draft
+     * still on screen takes the caret, so Enter sends it, or is sent when the recording was stopped to send.
      */
     case "dictation.transcribed": {
       const session = current(state, input.id);
@@ -82,7 +90,8 @@ export function reduceDictation(state: WorkspaceState, input: DictationInput): W
       const ended = withDictation(state, { session: null });
       if (!input.text.trim()) return settled(noticed(ended, DICTATION_HEARD_NOTHING));
       const written = noticed(withPrompt(ended, session.key, withSpokenWords(ended.prompts[session.key] ?? "", input.text)), null);
-      return settled(session.key === promptKey(written) ? focusComposer(written) : written);
+      if (session.key !== promptKey(written)) return settled(written);
+      return settled(session.send ? withDictation(written, { sends: written.dictation.sends + 1 }) : focusComposer(written));
     }
   }
 }

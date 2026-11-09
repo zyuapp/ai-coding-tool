@@ -50,7 +50,7 @@ type SettingsControl = {
 
 export const SETTINGS_CONTROLS = [
   { id: "general.cli", section: "general", label: "aic", keywords: "cli terminal command install shell path open folder" },
-  { id: "general.dictation", section: "general", label: "Speech model", keywords: "dictation voice speak talk microphone mic hold parakeet transcribe" },
+  { id: "general.dictation", section: "general", label: "Speech model", keywords: "dictation voice speak talk microphone mic hold hands-free tap parakeet transcribe" },
   { id: "general.notifications", section: "general", label: "Desktop notifications", keywords: "alert banner notify sound away" },
   { id: "general.chrome-browser", section: "general", label: "Claude in Chrome", keywords: "extension browser chrome experimental" },
   { id: "general.updates", section: "general", label: "Updates", keywords: "check version release upgrade" },

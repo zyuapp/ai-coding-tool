@@ -72,12 +72,15 @@ export type PlanUsageCommand =
   | { type: "usage.dismiss-warning"; warning: string };
 
 /**
- * Holding to talk into the main composer. A hold starts the microphone; letting go turns what was
- * heard into words after the draft and sends it; cancelling drops the recording.
+ * Dictating into the main composer. Starting opens the microphone; stopping turns what was heard into
+ * words after the draft; cancelling drops the recording.
  */
 export type DictationCommand =
   | { type: "dictation.start" }
-  | { type: "dictation.stop" }
+  /** Keeps the recording going after the press that started it ends. */
+  | { type: "dictation.hands-free" }
+  /** `send` sends the draft once the words are in it. */
+  | { type: "dictation.stop"; send?: boolean }
   | { type: "dictation.cancel" }
   /** Fetches the speech model into the folder other apps using it share. */
   | { type: "dictation.download" }
