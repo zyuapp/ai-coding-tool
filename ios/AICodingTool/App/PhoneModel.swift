@@ -285,6 +285,7 @@ final class PhoneModel {
                     guard let now = view.thread, now.id == taskId else { return }
                     if page.end == transcript(now).omitted { return connection.keepEarlier(taskId, page) }
                 }
+                earlierFailed = (taskId, "The thread moved while reading. Try again.")
             } catch {
                 earlierFailed = (taskId, error.localizedDescription)
             }
