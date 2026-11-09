@@ -38,7 +38,7 @@ export function isDictationAudio(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= MAX_DICTATION_BASE64_LENGTH && value.length % 4 === 0 && BASE64.test(value);
 }
 
-export const DICTATION_UNSUPPORTED = "Dictation needs a Mac with Apple silicon.";
+export const DICTATION_UNSUPPORTED = "Dictation needs Linux or a Mac with Apple silicon.";
 export const DICTATION_MISSING = "Download the speech model in Settings → General to dictate.";
 export const DICTATION_DOWNLOADING = "The speech model is still downloading.";
 export const DICTATION_HEARD_NOTHING = "Didn't catch anything.";

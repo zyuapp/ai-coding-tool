@@ -29,6 +29,10 @@ The aic-dictation helper bundled on macOS links FluidAudio and the other Swift
 packages it depends on. Their license and notice files are in
 DICTATION-SWIFT-DEPENDENCIES.txt.
 
+On Linux, dictation runs on ONNX Runtime, through the onnxruntime-node package
+under the MIT License. The notices for the third-party software compiled into
+its native library are in ONNXRUNTIME-THIRD-PARTY-NOTICES.txt.
+
 CUA Driver and SDK
 ------------------
 

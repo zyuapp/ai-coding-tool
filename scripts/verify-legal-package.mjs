@@ -24,6 +24,7 @@ const legalFiles = [
   "LIBFFI-MIT.txt",
   "MANTLE-LICENSE.md",
   "MPL-2.0.txt",
+  "ONNXRUNTIME-THIRD-PARTY-NOTICES.txt",
   "NPM-RUNTIME-LICENSES.txt",
   "REACTIVEOBJC-MIT.md",
   "RENDERER-THIRD-PARTY-LICENSES.md",
@@ -38,6 +39,7 @@ const legalNeedles = {
   "INTER-OFL-1.1.txt": ["Copyright 2020 The Inter Project Authors", "SIL OPEN FONT LICENSE Version 1.1"],
   "LIBFFI-MIT.txt": ["Copyright (c) 1996-2025", "Permission is hereby granted"],
   "MANTLE-LICENSE.md": ["Copyright (c) 2012 - 2013, GitHub, Inc.", "Proton is copyright (c) 2012, Bitswift, Inc."],
+  "ONNXRUNTIME-THIRD-PARTY-NOTICES.txt": ["THIRD PARTY SOFTWARE NOTICES AND INFORMATION", "protobuf"],
   "MPL-2.0.txt": ["Mozilla Public License Version 2.0", "3.3. Distribution of a Larger Work", "Exhibit B - \"Incompatible With Secondary Licenses\" Notice"],
   "REACTIVEOBJC-MIT.md": ["Copyright (c) 2012 - 2016, GitHub, Inc.", "Permission is hereby granted"],
 };

@@ -4,6 +4,7 @@ import type { CliState } from "../../application/cli-installation";
 import { CLI_COMMAND, CLI_INSTALL_PATH, type CliStatus } from "../../domain/cli";
 import { NO_APP_UPDATE, type AppUpdate } from "../../domain/app-update";
 import type { DictationModel } from "../../domain/dictation";
+import { MAC } from "../platform";
 import { ConfirmAction, SettingRow, SettingSwitch } from "./SettingRow";
 import { SpinningIcon } from "./SpinningIcon";
 
@@ -38,13 +39,17 @@ function updateDescription(update: AppUpdate, current: string | null | undefined
 /** The speech model holding to talk reads, and the step that fetches it. */
 export type DictationSettings = { model: DictationModel; message: string | null; progress: number | null; binding: string | null; onDownload: () => void; onCancelDownload: () => void };
 
+const THIS_COMPUTER = MAC ? "this Mac" : "this computer";
+const MODEL_SIZE = MAC ? "about 450 MB" : "about 660 MB";
+
+/** Only macOS shares the model with other apps, through FluidAudio's folder. */
 function dictationDescription(dictation: DictationSettings) {
   const { model, message } = dictation;
   switch (model) {
-    case "ready": return "Parakeet, on this Mac. Shared with other apps that use it.";
-    case "downloading": return dictation.progress === null ? "Getting Parakeet ready for this Mac." : "Downloading Parakeet, about 450 MB.";
+    case "ready": return MAC ? "Parakeet, on this Mac. Shared with other apps that use it." : "Parakeet, on this computer.";
+    case "downloading": return dictation.progress === null ? `Getting Parakeet ready for ${THIS_COMPUTER}.` : `Downloading Parakeet, ${MODEL_SIZE}.`;
     case "failed": return message ?? "The download stopped.";
-    default: return "Parakeet, about 450 MB. Downloaded once and shared with other apps that use it.";
+    default: return `Parakeet, ${MODEL_SIZE}. Downloaded once${MAC ? " and shared with other apps that use it" : ""}.`;
   }
 }
 
@@ -102,7 +107,7 @@ export function GeneralSettings({ dictation, cli: { status, busy, error }, onRea
         <div className="settings-group-heading">
           <div>
             <h3 id="dictation-heading">Dictation</h3>
-            <p>Hold the microphone{dictation.binding ? <> or <kbd>{dictation.binding}</kbd></> : null} and let go to add the words to your message, or tap it to talk hands-free. What you say stays on this Mac.</p>
+            <p>Hold the microphone{dictation.binding ? <> or <kbd>{dictation.binding}</kbd></> : null} and let go to add the words to your message, or tap it to talk hands-free. What you say stays on {THIS_COMPUTER}.</p>
           </div>
         </div>
         <SettingRow id="general.dictation" status={dictation.model === "ready"} description={dictationDescription(dictation)}>

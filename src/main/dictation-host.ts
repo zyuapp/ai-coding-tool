@@ -1,6 +1,7 @@
 /**
- * Holding to talk, on macOS: a native helper records the microphone and runs Parakeet from the model
- * folder FluidAudio shares between apps, so a model another app downloaded is the one used here.
+ * Holding to talk: a helper records the microphone and runs Parakeet. On macOS it is a native program
+ * reading the model folder FluidAudio shares between apps, so a model another app downloaded is the one
+ * used here; on Linux it is a script that runs ONNX Runtime on a model in the user's data folder.
  */
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -11,14 +12,12 @@ import path from "node:path";
 import { createInterface } from "node:readline";
 import { DICTATION_UNSUPPORTED, MAX_DICTATION_AUDIO_BYTES, isDictationAudio } from "../domain/dictation.js";
 import type { DictationModelStatus } from "../contracts/ipc.js";
+import { dictationModelPlace, type DictationModelPlace } from "./dictation-models.js";
 
 /** The helper holds the model in memory, so it goes after this long without a hold. */
 const IDLE_MS = 3 * 60_000;
 const START_TIMEOUT_MS = 10_000;
 const TRANSCRIBE_TIMEOUT_MS = 120_000;
-const MODEL_FOLDER = "parakeet-tdt-0.6b-v2-coreml";
-/** What FluidAudio needs to load Parakeet v2: its four models and their vocabulary. */
-const MODEL_FILES = ["Preprocessor.mlmodelc", "Encoder.mlmodelc", "Decoder.mlmodelc", "JointDecision.mlmodelc", "parakeet_vocab.json"];
 const MICROPHONE_DENIED = "AI Coding Tool can't hear you. Allow it in System Settings → Privacy & Security → Microphone.";
 const UNREADABLE_RECORDING = "That recording is too long or unreadable.";
 
@@ -31,26 +30,29 @@ type HelperMessage =
 
 type Waiter = { resolve: (value: string) => void; reject: (error: Error) => void; timer: NodeJS.Timeout };
 
+/** The helper's file, and on Linux the runtime that runs it as a script. */
+export type DictationHelper = { file: string; runtime?: { command: string; env: Record<string, string> } };
+
 /**
- * Core ML keeps one compiled model per process name, which a differently signed helper of that name replaces, so a
- * source build's helper runs under its own name to stop it and the installed app's recompiling each other's.
+ * On macOS, Core ML keeps one compiled model per process name, which a differently signed helper of that name
+ * replaces, so a source build's helper runs under its own name to stop it and the installed app's recompiling
+ * each other's. On Linux the helper is a script beside this one, run by this process's own Node or Electron.
  */
-export function dictationHelper(nativeFolder: string, packaged: boolean) {
-  return path.join(nativeFolder, packaged ? "aic-dictation" : "aic-dictation-dev");
+export function dictationHelper(nativeFolder: string, packaged: boolean, platform: NodeJS.Platform = process.platform): DictationHelper {
+  if (platform === "linux") return { file: path.join(__dirname, "dictation-linux-helper.js"), runtime: { command: process.execPath, env: { ELECTRON_RUN_AS_NODE: "1" } } };
+  return { file: path.join(nativeFolder, packaged ? "aic-dictation" : "aic-dictation-dev") };
 }
 
 export type DictationHostOptions = {
-  /** Where the built helper is. */
-  helper: string;
+  /** How to run the helper. */
+  helper: DictationHelper;
   /** Asks for the microphone. A host without one can only transcribe recordings it is handed. */
   microphone?: () => Promise<boolean>;
-  /** Where the model's files are; FluidAudio's shared folder unless named. */
+  /** Where the model's files are; this computer's usual place unless named. */
   models?: string;
+  /** Where this computer keeps the model, or null where dictation can't run. */
+  place?: DictationModelPlace | null;
 };
-
-function sharedModelDirectory() {
-  return path.join(os.homedir(), "Library", "Application Support", "FluidAudio", "Models", MODEL_FOLDER);
-}
 
 /** A phone's recording, checked to be the small WAV it says it is before it touches the disk. */
 function wavBytes(audio: string): Buffer {
@@ -74,7 +76,11 @@ export class DictationHost {
   private readonly modelListeners = new Set<(status: DictationModelStatus) => void>();
   private levelListener: ((level: number) => void) | null = null;
 
-  constructor(private readonly options: DictationHostOptions) {}
+  private readonly place: DictationModelPlace | null;
+
+  constructor(private readonly options: DictationHostOptions) {
+    this.place = options.place === undefined ? dictationModelPlace() : options.place;
+  }
 
   onDictationModel(listener: (status: DictationModelStatus) => void) {
     this.setStatus(this.readStatus());
@@ -177,19 +183,19 @@ export class DictationHost {
 
   /** What the disk says, without starting the helper. */
   private readStatus(): DictationModelStatus {
-    if (process.platform !== "darwin" || process.arch !== "arm64") return { model: "unsupported", message: DICTATION_UNSUPPORTED };
-    if (!existsSync(this.options.helper)) return { model: "unsupported", message: "This build of the app has no dictation helper." };
+    if (!this.place) return { model: "unsupported", message: DICTATION_UNSUPPORTED };
+    if (!existsSync(this.options.helper.file)) return { model: "unsupported", message: "This build of the app has no dictation helper." };
     if (this.status.model === "downloading") return this.status;
     return this.modelComplete() ? { model: "ready" } : { model: "missing" };
   }
 
   private modelFolder() {
-    return this.options.models ?? sharedModelDirectory();
+    return this.options.models ?? this.place?.folder ?? "";
   }
 
   private modelComplete() {
     const folder = this.modelFolder();
-    return MODEL_FILES.every((file) => existsSync(path.join(folder, file)));
+    return Boolean(this.place?.files.every((file) => existsSync(path.join(folder, file))));
   }
 
   private usable() {
@@ -232,7 +238,11 @@ export class DictationHost {
 
   private ensureHelper(): ChildProcessWithoutNullStreams {
     if (this.helper) return this.helper;
-    const child = spawn(this.options.helper, this.options.models ? ["--models", this.options.models] : [], { stdio: ["pipe", "pipe", "pipe"] });
+    const { file, runtime } = this.options.helper;
+    const models = this.options.models ? ["--models", this.options.models] : [];
+    const child = runtime
+      ? spawn(runtime.command, [file, ...models], { stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, ...runtime.env } })
+      : spawn(file, models, { stdio: ["pipe", "pipe", "pipe"] });
     this.helper = child;
     createInterface({ input: child.stdout }).on("line", (line) => {
       try {

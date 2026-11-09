@@ -115,7 +115,7 @@ export function useComposerTalk(dictation: ComposerDictation | undefined, send: 
 
 /**
  * Held to talk, or tapped to listen hands-free until it is pressed again. The words go into the draft,
- * which Send then sends like typing. It shows only once this Mac has the speech model.
+ * which Send then sends like typing. It shows only once this computer has the speech model.
  */
 export function MicButton({ dictation, talk, disabled }: { dictation: ComposerDictation; talk: ReturnType<typeof useTalkPress>; disabled: boolean }) {
   const writing = dictation.phase === "transcribing";
