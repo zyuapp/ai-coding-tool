@@ -16,14 +16,12 @@ export type DictationState = {
   /** How much of the model has downloaded, 0 to 1. Null while it is prepared, or when nothing downloads. */
   progress: number | null;
   session: DictationSession | null;
-  /** Bumped when spoken words are in the draft on screen and its composer should send it. */
-  release: number;
 };
 
-export const NO_DICTATION: DictationState = { model: "unsupported", message: null, progress: null, session: null, release: 0 };
+export const NO_DICTATION: DictationState = { model: "unsupported", message: null, progress: null, session: null };
 
-/** How long the send button must be held before it listens rather than sends. */
-export const DICTATION_HOLD_MS = 250;
+/** A press on the microphone shorter than this is a tap, which records nothing. */
+export const DICTATION_TAP_MS = 250;
 
 /** The longest recording a phone may send: two minutes of 16 kHz, 16-bit mono WAV. */
 export const MAX_DICTATION_SECONDS = 120;
@@ -38,7 +36,7 @@ export function isDictationAudio(value: unknown): value is string {
 export const DICTATION_UNSUPPORTED = "Dictation needs a Mac with Apple silicon.";
 export const DICTATION_MISSING = "Download the speech model in Settings → General to dictate.";
 export const DICTATION_DOWNLOADING = "The speech model is still downloading.";
-export const DICTATION_HEARD_NOTHING = "Didn't catch anything, so nothing was sent.";
+export const DICTATION_HEARD_NOTHING = "Didn't catch anything.";
 
 /** Why a hold cannot start, or null when it can. */
 export function dictationRefusal(state: Pick<DictationState, "model" | "message">): string | null {

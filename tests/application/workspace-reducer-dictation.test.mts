@@ -21,7 +21,7 @@ test("a hold is refused until the speech model is ready, and says how to get it"
   assert.equal(refused.effects.length, 0);
 });
 
-test("letting go adds the words after what was typed, and asks the composer on screen to send", () => {
+test("letting go adds the words after what was typed and hands the caret back, sending nothing", () => {
   const { state, id } = held();
   assert.equal(state.dictation.session?.phase, "recording");
   const typed = reduce(state, { type: "view.set-prompt", prompt: "Look at the diff." }).state;
@@ -33,26 +33,26 @@ test("letting go adds the words after what was typed, and asks the composer on s
   const heard = reduce(stopped.state, { type: "dictation.transcribed", id, text: "Then fix the failing test." });
   assert.equal(heard.state.prompts.a, "Look at the diff. Then fix the failing test.");
   assert.equal(heard.state.dictation.session, null);
-  assert.equal(deriveView(heard.state).dictation.release, deriveView(state).dictation.release + 1);
+  assert.equal(heard.state.composerFocus, typed.composerFocus + 1, "the caret goes back to the draft so Enter sends it");
+  assert.equal(heard.effects.some((effect) => effect.type === "start-run" || effect.type === "send-attachments"), false);
 });
 
-test("words for a thread left during the hold stay in its draft and are not sent", () => {
+test("words for a thread left during the hold stay in its draft without taking the caret", () => {
   const { state, id } = held();
   const moved = run(state, [{ type: "dictation.stop" }, { type: "task.select", taskId: "b" }]);
   const heard = reduce(moved, { type: "dictation.transcribed", id, text: "keep me" });
 
   assert.equal(heard.state.prompts.a, "keep me");
   assert.equal(heard.state.prompts.b, undefined);
-  assert.equal(heard.state.dictation.release, state.dictation.release);
+  assert.equal(heard.state.composerFocus, moved.composerFocus);
 });
 
-test("a hold that heard nothing sends nothing and says so under the composer", () => {
+test("a hold that heard nothing writes nothing and says so under the composer", () => {
   const { state, id } = held(run(workspace(), [ready]));
   const heard = reduce(run(state, [{ type: "dictation.stop" }]), { type: "dictation.transcribed", id, text: "  " });
 
   assert.equal(heard.state.prompts[NEW_THREAD_DRAFT], undefined);
   assert.equal(heard.state.attachmentSends[MAIN_COMPOSER]?.error, DICTATION_HEARD_NOTHING);
-  assert.equal(heard.state.dictation.release, 0);
 });
 
 test("cancelling drops the hold, and a late answer for it changes nothing", () => {
@@ -126,15 +126,14 @@ test("spoken words join typing with one space, or start the draft", () => {
   assert.equal(withSpokenWords("Fix it.", ""), "Fix it.");
 });
 
-test("holding to talk on a paired computer's thread shows this computer's microphone and sends from here", () => {
-  const remote = workspace({ threads: [task("remote-thread")], currentId: "remote-thread", dictation: { model: "unsupported", message: null, progress: null, session: null, release: 7 } });
-  const local = workspace({ dictation: { model: "ready", message: null, progress: null, session: null, release: 0 } });
+test("holding to talk on a paired computer's thread shows this computer's microphone", () => {
+  const remote = workspace({ threads: [task("remote-thread")], currentId: "remote-thread", dictation: { model: "unsupported", message: null, progress: null, session: null } });
+  const local = workspace({ dictation: { model: "ready", message: null, progress: null, session: null } });
   const link = { id: "linux", name: "linux", host: "linux.tail.ts.net", status: "connected" as const, error: null, pairedAt: 1, state: remote };
   const state = { ...local, computers: { ...local.computers, name: "This Mac", paired: [link], active: "linux" } };
   const key = promptKey(state);
   assert.equal(key, "remote-thread");
-  const view = deriveView({ ...state, dictation: { ...state.dictation, session: { id: "hold", key, phase: "recording" }, release: 1 } });
+  const view = deriveView({ ...state, dictation: { ...state.dictation, session: { id: "hold", key, phase: "recording" } } });
   assert.equal(view.dictation.model, "ready");
   assert.equal(view.dictation.phase, "recording");
-  assert.equal(view.dictation.release, 1);
 });

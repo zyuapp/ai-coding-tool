@@ -1,6 +1,7 @@
 /** Holding to talk into the main composer: the hold, the words it brought back, and the send they ride. */
 import { DICTATION_HEARD_NOTHING, dictationRefusal, withSpokenWords, type DictationState } from "../../domain/dictation.js";
 import { MAIN_COMPOSER, NO_ATTACHMENT_SEND } from "../composer-attachments.js";
+import { focusComposer } from "../composer-drafts.js";
 import { promptKey, withPrompt, type WorkspaceState } from "../workspace-state.js";
 import { rejected, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
@@ -72,8 +73,8 @@ export function reduceDictation(state: WorkspaceState, input: DictationInput): W
     }
 
     /**
-     * The words join the draft the hold began on. Only a draft still on screen is sent, by its own
-     * composer, so images and pastes waiting in it go too; one left behind keeps the words for later.
+     * The words join the draft the hold began on, to be read over and sent like typing. A draft still
+     * on screen takes the caret, so Enter sends it.
      */
     case "dictation.transcribed": {
       const session = current(state, input.id);
@@ -81,8 +82,7 @@ export function reduceDictation(state: WorkspaceState, input: DictationInput): W
       const ended = withDictation(state, { session: null });
       if (!input.text.trim()) return settled(noticed(ended, DICTATION_HEARD_NOTHING));
       const written = noticed(withPrompt(ended, session.key, withSpokenWords(ended.prompts[session.key] ?? "", input.text)), null);
-      if (session.key !== promptKey(written)) return settled(written);
-      return settled(withDictation(written, { release: written.dictation.release + 1 }));
+      return settled(session.key === promptKey(written) ? focusComposer(written) : written);
     }
   }
 }

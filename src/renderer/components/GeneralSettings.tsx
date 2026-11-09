@@ -102,7 +102,7 @@ export function GeneralSettings({ dictation, cli: { status, busy, error }, onRea
         <div className="settings-group-heading">
           <div>
             <h3 id="dictation-heading">Hold to talk</h3>
-            <p>Hold Send{dictation.binding ? <> or <kbd>{dictation.binding}</kbd></> : null}, speak, and let go to send. What you say stays on this Mac.</p>
+            <p>Hold the microphone{dictation.binding ? <> or <kbd>{dictation.binding}</kbd></> : null}, speak, and let go to add the words to your message. What you say stays on this Mac.</p>
           </div>
         </div>
         <SettingRow id="general.dictation" status={dictation.model === "ready"} description={dictationDescription(dictation)}>

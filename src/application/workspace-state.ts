@@ -603,10 +603,10 @@ export function withDraft(state: WorkspaceState, change: Partial<AgentDraft>): W
 /** The new-thread composer's one draft, kept whichever project or computer it is pointed at. */
 export const NEW_THREAD_DRAFT = "draft:";
 
-/** The main composer's hold to talk: whether it can, what the hold on this draft is doing, and how many holds have sent. */
+/** The main composer's hold to talk: whether it can, and what the hold on this draft is doing. */
 function dictationView(state: WorkspaceState) {
-  const { model, message, progress, session, release } = state.dictation;
-  return { model, message, progress, phase: session && session.key === promptKey(state) ? session.phase : null, release };
+  const { model, message, progress, session } = state.dictation;
+  return { model, message, progress, phase: session && session.key === promptKey(state) ? session.phase : null };
 }
 
 export function promptKey(state: Pick<WorkspaceState, "currentId"> & { computers?: WorkspaceState["computers"] }): string {

@@ -1,14 +1,14 @@
 import SwiftUI
 
-/// Where a hold on Send stands. A press becomes a hold after `TalkPhase.holdDelay`; before that it is a tap.
+/// Where a hold on the microphone stands.
 enum TalkPhase: Equatable {
     case idle
-    case pressing
     case starting
     case listening
     case transcribing
 
-    static let holdDelay: Duration = .milliseconds(250)
+    /// A press shorter than this is a tap, which records nothing.
+    static let tapSeconds: TimeInterval = 0.25
     /// How far up a held finger travels before letting go cancels instead of sending.
     static let cancelDistance: CGFloat = 60
 
@@ -26,7 +26,7 @@ func talkBarHeight(_ level: Float, tallest: CGFloat) -> CGFloat {
 }
 
 /// Stands where the composer's settings were while a hold is listening or being written down: the
-/// elapsed time, the voice as a wave flowing toward Send, and what letting go will do.
+/// elapsed time, the voice as a wave flowing toward the microphone, and what letting go will do.
 struct TalkStrip: View {
     var phase: TalkPhase
     var levels: [Float]
@@ -76,7 +76,7 @@ struct TalkStrip: View {
     }
 }
 
-/// The ring behind a held Send that swells with the voice.
+/// The ring behind the held microphone that swells with the voice.
 struct TalkHalo: View {
     var level: Float
 
@@ -94,7 +94,7 @@ struct TalkHalo: View {
     }
 }
 
-/// The mark above a held Send that a finger slides up to, to cancel.
+/// The mark above the held microphone that a finger slides up to, to cancel.
 struct TalkCancelTarget: View {
     var armed: Bool
 

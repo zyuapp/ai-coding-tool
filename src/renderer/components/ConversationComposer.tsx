@@ -1,6 +1,6 @@
-import { LuArrowUp as ArrowUp, LuCircleAlert as CircleAlert, LuInfo as Info, LuMic as Mic, LuPaperclip as Paperclip, LuX as X } from "react-icons/lu";
+import { LuArrowUp as ArrowUp, LuCircleAlert as CircleAlert, LuInfo as Info, LuPaperclip as Paperclip, LuX as X } from "react-icons/lu";
 import { useRef, type ReactNode } from "react";
-import { DictationStrip, TalkHalo, useComposerDictation, type ComposerDictation, type useHoldToTalk } from "./ComposerDictation";
+import { DictationStrip, MicButton, useHoldToTalk, type ComposerDictation } from "./ComposerDictation";
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "./QuestionPrompt";
 import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
@@ -56,24 +56,17 @@ function sendLabel(surface: ComposerSurface, runActive: boolean) {
 
 const SEND_TIP = shortcutTip("Send", "Enter");
 const STOP_TIP = shortcutTip("Stop", "Escape");
-const SEND_OR_TALK_TIP = "Send · hold to talk";
-const TALK_TIP = "Hold to talk";
 
 /**
  * Sends what is written, or stops the run while one is going. `busy` is a send already on its way.
- * With dictation ready, holding it listens instead, and an empty composer shows it as a microphone.
  */
-function SendButton({ taskId, surface, runActive, command, disabled, busy, empty, talk, listening, onSend, onCancel }: {
+function SendButton({ taskId, surface, runActive, command, disabled, busy, onSend, onCancel }: {
   taskId: string | undefined;
   surface: ComposerSurface;
   runActive: boolean;
   command: AppCommand;
   disabled: boolean;
   busy: boolean;
-  empty: boolean;
-  talk: ReturnType<typeof useHoldToTalk> | null;
-  /** A hold is hearing, from this button or the keyboard. */
-  listening: boolean;
   onSend: () => void;
   onCancel: () => void;
 }) {
@@ -84,23 +77,16 @@ function SendButton({ taskId, surface, runActive, command, disabled, busy, empty
       </CommandButton>
     );
   }
-  const talking = (talk?.pressed ?? false) || listening;
-  const microphone = talk !== null && empty && !busy;
   return (
     <CommandButton command={command}
-      className={`send-button${busy ? " busy" : ""}${talking ? " talking" : ""}${talking && talk?.away ? " away" : ""}`}
+      className={`send-button${busy ? " busy" : ""}`}
       disabled={disabled || busy}
-      onClick={() => { if (!talk?.swallowClick()) onSend(); }}
-      {...talk?.handlers}
-      aria-label={microphone ? TALK_TIP : sendLabel(surface, false)}
+      onClick={onSend}
+      aria-label={sendLabel(surface, false)}
       aria-busy={busy || undefined}
-      data-tip={talking ? undefined : microphone ? TALK_TIP : talk ? SEND_OR_TALK_TIP : SEND_TIP}
+      data-tip={SEND_TIP}
     >
-      {talking && <TalkHalo />}
-      {busy ? <span className="send-spinner" aria-hidden="true" />
-        : talking && talk?.away ? <X size={16} strokeWidth={2.5} aria-hidden="true" />
-          : microphone || talking ? <Mic size={16} strokeWidth={2.25} aria-hidden="true" />
-            : <ArrowUp size={16} strokeWidth={2.5} aria-hidden="true" />}
+      {busy ? <span className="send-spinner" aria-hidden="true" /> : <ArrowUp size={16} strokeWidth={2.5} aria-hidden="true" />}
     </CommandButton>
   );
 }
@@ -360,7 +346,8 @@ export function ConversationComposer({
     if (!controls.available({ ...sendCommand, ...(steer ? { steer } : {}) })) return;
     attachments.send(steer);
   }
-  const { canTalk, talk, phase: dictating } = useComposerDictation(dictation, { disabled, runActive, submit });
+  const talk = useHoldToTalk(dictation);
+  const dictating = dictation?.phase ?? null;
 
   return (
     <footer className={`composer-wrap ${surface}`}>
@@ -414,7 +401,8 @@ export function ConversationComposer({
           <div className="composer-actions">
             {planUsage && model !== undefined && <PlanUsageMeter engine={engine} engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
-            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || (nothingToSend && !canTalk)} busy={!disabled && (attachments.sending || waiting || dictating === "transcribing")} empty={nothingToSend} talk={canTalk ? talk : null} listening={dictating === "starting" || dictating === "recording"} onSend={() => void submit()} onCancel={onCancel} />
+            {dictation?.model === "ready" && <MicButton dictation={dictation} talk={talk} disabled={disabled} />}
+            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} />
           </div>
         </div>
       </div>}

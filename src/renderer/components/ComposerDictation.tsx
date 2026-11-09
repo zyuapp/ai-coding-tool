@@ -1,43 +1,37 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
-import { DICTATION_HOLD_MS, type DictationModel, type DictationPhase } from "../../domain/dictation";
+import { LuMic as Mic, LuX as X } from "react-icons/lu";
+import { DICTATION_TAP_MS, type DictationModel, type DictationPhase } from "../../domain/dictation";
 
 /** The main composer's hold to talk, as the workspace reports it. */
 export type ComposerDictation = {
   model: DictationModel;
   phase: DictationPhase | null;
-  /** Bumped each time spoken words are in this draft and it should be sent. */
-  release: number;
   onStart: () => void;
   onStop: () => void;
   onCancel: () => void;
 };
 
-/** How far past the button a held pointer may wander before letting go cancels instead of sending. */
+/** How far past the button a held pointer may wander before letting go cancels instead of keeping the words. */
 const SLACK_PX = 24;
 
 /**
- * Tells a click from a hold on the send button. A press held past {@link DICTATION_HOLD_MS} listens;
- * letting go over the button sends, letting go away from it or pressing Escape cancels, and the
- * click a hold ends with is swallowed.
+ * The microphone button's press: it listens from the moment it goes down. Letting go over the button
+ * writes the words into the draft; a tap, letting go away from it, or Escape drops the recording.
  */
-export function useHoldToTalk(dictation: ComposerDictation | undefined, enabled: boolean) {
-  const timer = useRef<number>(0);
+export function useHoldToTalk(dictation: ComposerDictation | undefined) {
   const holding = useRef(false);
-  const swallowClick = useRef(false);
+  const pressedAt = useRef(0);
   const [away, setAway] = useState(false);
   const [pressed, setPressed] = useState(false);
   const latest = useRef(dictation);
   latest.current = dictation;
 
-  function end(send: boolean) {
-    window.clearTimeout(timer.current);
-    timer.current = 0;
+  function end(keep: boolean) {
     setAway(false);
     if (!holding.current) return;
     holding.current = false;
     setPressed(false);
-    swallowClick.current = true;
-    if (send) latest.current?.onStop();
+    if (keep && Date.now() - pressedAt.current >= DICTATION_TAP_MS) latest.current?.onStop();
     else latest.current?.onCancel();
   }
 
@@ -52,10 +46,7 @@ export function useHoldToTalk(dictation: ComposerDictation | undefined, enabled:
       else latest.current?.onCancel();
     }
     window.addEventListener("keydown", escape, true);
-    return () => {
-      window.removeEventListener("keydown", escape, true);
-      window.clearTimeout(timer.current);
-    };
+    return () => window.removeEventListener("keydown", escape, true);
   }, []);
 
   function outside(event: PointerEvent<HTMLButtonElement>) {
@@ -64,26 +55,17 @@ export function useHoldToTalk(dictation: ComposerDictation | undefined, enabled:
       || event.clientY < box.top - SLACK_PX || event.clientY > box.bottom + SLACK_PX;
   }
 
-  if (!dictation || !enabled) return { away: false, pressed: false, handlers: {}, swallowClick: () => false };
   return {
     away,
     pressed,
-    swallowClick: () => {
-      if (!swallowClick.current) return false;
-      swallowClick.current = false;
-      return true;
-    },
     handlers: {
       onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
-        if (event.button !== 0 || dictation.model !== "ready") return;
+        if (event.button !== 0 || holding.current) return;
         event.currentTarget.setPointerCapture(event.pointerId);
-        swallowClick.current = false;
-        timer.current = window.setTimeout(() => {
-          timer.current = 0;
-          holding.current = true;
-          setPressed(true);
-          latest.current?.onStart();
-        }, DICTATION_HOLD_MS);
+        holding.current = true;
+        pressedAt.current = Date.now();
+        setPressed(true);
+        latest.current?.onStart();
       },
       onPointerMove: (event: PointerEvent<HTMLButtonElement>) => {
         if (holding.current) setAway(outside(event));
@@ -95,21 +77,27 @@ export function useHoldToTalk(dictation: ComposerDictation | undefined, enabled:
 }
 
 /**
- * The main composer's side of a hold: whether it can listen, the gesture on its send button, and
- * sending the draft each time a hold's words land in it.
+ * Held to talk; letting go writes what was heard into the draft, which Send then sends like typing.
+ * It shows only once this Mac has the speech model.
  */
-export function useComposerDictation(dictation: ComposerDictation | undefined, { disabled, runActive, submit }: { disabled: boolean; runActive: boolean; submit: () => unknown }) {
-  const canTalk = dictation !== undefined && dictation.model === "ready" && !disabled;
-  const talk = useHoldToTalk(dictation, canTalk && !runActive);
-  const latestSubmit = useRef(submit);
-  latestSubmit.current = submit;
-  const released = useRef(dictation?.release ?? 0);
-  useEffect(() => {
-    if (dictation === undefined || dictation.release === released.current) return;
-    released.current = dictation.release;
-    void latestSubmit.current();
-  }, [dictation?.release]);
-  return { canTalk, talk, phase: dictation?.phase ?? null };
+export function MicButton({ dictation, talk, disabled }: { dictation: ComposerDictation; talk: ReturnType<typeof useHoldToTalk>; disabled: boolean }) {
+  const listening = talk.pressed || dictation.phase === "starting" || dictation.phase === "recording";
+  const writing = dictation.phase === "transcribing";
+  return (
+    <button type="button"
+      className={`mic-button${listening ? " talking" : ""}${listening && talk.away ? " away" : ""}`}
+      disabled={disabled || writing}
+      aria-busy={writing || undefined}
+      aria-label="Hold to talk"
+      data-tip={listening ? undefined : "Hold to talk"}
+      {...talk.handlers}
+    >
+      {listening && <TalkHalo />}
+      {writing ? <span className="send-spinner" aria-hidden="true" />
+        : listening && talk.away ? <X size={16} strokeWidth={2.5} aria-hidden="true" />
+          : <Mic size={16} strokeWidth={2.25} aria-hidden="true" />}
+    </button>
+  );
 }
 
 const BARS = 40;
@@ -149,10 +137,10 @@ function useElapsed(running: boolean) {
 }
 
 /**
- * A ring behind the held send button that swells with the voice. It writes the level straight to
+ * A ring behind the held microphone that swells with the voice. It writes the level straight to
  * a style property, so the composer never redraws for it.
  */
-export function TalkHalo() {
+function TalkHalo() {
   const ring = useRef<HTMLSpanElement>(null);
   useEffect(() => window.desktop.onDictationLevel((level) => {
     ring.current?.style.setProperty("--talk-level", String(loudness(level)));
@@ -173,7 +161,7 @@ export function DictationStrip({ phase, away }: { phase: DictationPhase; away: b
         {levels.map((level, index) => <span key={index} style={{ height: `${listening ? barHeight(level) : 14}%`, "--bar": index } as CSSProperties} />)}
       </div>
       <span className="dictation-hint">
-        {!listening ? "Writing it down…" : away ? "Let go to cancel" : <>Let go to send<span className="dictation-escape"><kbd>Esc</kbd> cancels</span></>}
+        {!listening ? "Writing it down…" : away ? "Let go to cancel" : <>Let go to add it<span className="dictation-escape"><kbd>Esc</kbd> cancels</span></>}
       </span>
     </div>
   );
