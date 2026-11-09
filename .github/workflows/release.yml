@@ -23,6 +23,8 @@ jobs:
   version:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     outputs:
       commit: ${{ steps.version.outputs.commit }}
       tag: ${{ steps.version.outputs.tag }}
@@ -45,6 +47,18 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           git bundle create "$RUNNER_TEMP/release.bundle" main "refs/tags/$TAG"
+      - name: Open a draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        # A draft left by a failed run is replaced, so its notes and packages are current.
+        run: |
+          if [ "$(gh release view "$TAG" --json isDraft --jq '.isDraft' 2>/dev/null)" = "false" ]; then
+            echo "$TAG is already published." >&2
+            exit 1
+          fi
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          gh release create "$TAG" --title "$TAG" --generate-notes --draft --target "$GITHUB_SHA"
       - name: Save release source
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -56,6 +70,8 @@ jobs:
     needs: version
     runs-on: macos-latest
     environment: release
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -92,7 +108,17 @@ jobs:
         with:
           path: node_modules
           key: ${{ steps.modules.outputs.cache-primary-key }}
+      - name: Restore the dictation helper
+        id: dictation-helper
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: dist/native/aic-dictation
+          key: dictation-helper-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('native/dictation/Package.resolved', 'native/dictation/Package.swift', 'native/dictation/Sources/**') }}
+      # The build skips a helper newer than its sources, and checkout gave the sources the current time.
+      - if: steps.dictation-helper.outputs.cache-hit == 'true'
+        run: touch dist/native/aic-dictation
       - name: Restore the dictation helper build
+        if: steps.dictation-helper.outputs.cache-hit != 'true'
         id: dictation
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -124,9 +150,17 @@ jobs:
           APPLE_API_KEY: ${{ runner.temp }}/apple.p8
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
+          # Zip level 7 takes about three times as long as 5 for a package under 1% smaller.
+          ELECTRON_BUILDER_COMPRESSION_LEVEL: "5"
         run: npm run package:mac -- --config.forceCodeSigning=true
+      - name: Save the dictation helper
+        if: steps.dictation-helper.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: dist/native/aic-dictation
+          key: ${{ steps.dictation-helper.outputs.cache-primary-key }}
       - name: Save the dictation helper build
-        if: steps.dictation.outputs.cache-hit != 'true'
+        if: steps.dictation-helper.outputs.cache-hit != 'true' && steps.dictation.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: native/dictation/.build
@@ -140,16 +174,11 @@ jobs:
             security delete-keychain "$SIGNING_KEYCHAIN"
           fi
           rm -f "$RUNNER_TEMP/aicodingtool.p12" "$RUNNER_TEMP/apple.p8"
-      - name: Save macOS packages
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: packages-mac
-          path: |
-            release/*.dmg
-            release/*.zip
-            release/*.zip.blockmap
-            release/latest-mac.yml
-          if-no-files-found: error
+      - name: Upload macOS packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: gh release upload "$TAG" release/*.dmg release/*.zip release/*.zip.blockmap release/latest-mac.yml --clobber
 
   build-linux:
     needs: version
@@ -162,6 +191,8 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -200,16 +231,11 @@ jobs:
           key: ${{ steps.modules.outputs.cache-primary-key }}
       - name: Build Linux package
         run: npm run package:linux -- --${{ matrix.arch }}
-      - name: Save Linux packages
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: packages-linux-${{ matrix.arch }}
-          path: |
-            release/*.AppImage
-            release/*.AppImage.blockmap
-            release/*.deb
-            release/latest-linux*.yml
-          if-no-files-found: error
+      - name: Upload Linux packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: gh release upload "$TAG" release/*.AppImage release/*.AppImage.blockmap release/*.deb release/latest-linux*.yml --clobber
 
   publish:
     needs:
@@ -228,12 +254,6 @@ jobs:
         with:
           name: release-source
           path: ${{ runner.temp }}/release-source
-      - name: Restore packages
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: packages-*
-          path: release
-          merge-multiple: true
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -257,13 +277,6 @@ jobs:
           else
             git push --atomic origin refs/remotes/release/main:refs/heads/main "refs/tags/$TAG"
           fi
-          gh release view "$TAG" >/dev/null 2>&1 || \
-            gh release create "$TAG" --title "$TAG" --generate-notes --verify-tag --draft
-          # A published release is complete. A retry must not replace its live assets.
-          if [ "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" = "false" ]; then
-            exit 0
-          fi
-          gh release upload "$TAG" release/* --clobber
           gh release edit "$TAG" --draft=false --latest
 
   testflight-upload:
@@ -276,14 +289,19 @@ jobs:
       send: false
     secrets: inherit
 
+  # Its own run waits for TestFlight to process the build, so this release finishes without waiting on Apple.
   testflight-send:
     needs:
+      - version
       - publish
       - testflight-upload
+    runs-on: ubuntu-24.04
     permissions:
-      contents: read
-    uses: ./.github/workflows/testflight.yml
-    with:
-      ref: ${{ github.sha }}
-      build: ${{ needs.testflight-upload.outputs.build }}
-    secrets: inherit
+      actions: write
+    steps:
+      - name: Send the build to public testers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.version.outputs.tag }}
+          BUILD: ${{ needs.testflight-upload.outputs.build }}
+        run: gh workflow run testflight.yml --repo "$GITHUB_REPOSITORY" --ref main -f ref="$TAG" -f build="$BUILD"
