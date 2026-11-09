@@ -106,11 +106,14 @@ enum MobileQuery: Sendable {
     case thread(taskId: String)
     /// A held recording, base64 16 kHz mono WAV, which the computer answers with `{ text }`.
     case transcribe(audio: String)
+    /// An image a reply links, by the link's destination, answered with `{ data, contentType }`: the computer's preview, or the original.
+    case image(taskId: String, messageId: String, href: String, preview: Bool)
 
     /// How long the computer may take. A recording waits out the computer's own limit, which covers
     /// loading its speech model and writing down two minutes of speech.
     var timeout: Duration {
         if case .transcribe = self { return .seconds(135) }
+        if case .image = self { return .seconds(30) }
         return .seconds(10)
     }
 
@@ -124,6 +127,8 @@ enum MobileQuery: Sendable {
             .object(["kind": .string("thread"), "taskId": .string(taskId)])
         case .transcribe(let audio):
             .object(["kind": .string("transcribe"), "audio": .string(audio)])
+        case .image(let taskId, let messageId, let href, let preview):
+            .object(["kind": .string("image"), "taskId": .string(taskId), "messageId": .string(messageId), "href": .string(href), "preview": .bool(preview)])
         case .diffPatch(let taskId, let range, let path, let previousPath):
             {
                 var object: [String: JSONValue] = ["kind": .string("diff-patch"), "taskId": .string(taskId), "range": range.json, "path": .string(path)]

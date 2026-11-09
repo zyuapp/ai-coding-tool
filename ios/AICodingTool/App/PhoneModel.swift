@@ -24,6 +24,7 @@ struct Opening: Equatable {
 @Observable
 final class PhoneModel {
     let connection: PhoneConnection
+    @ObservationIgnored let pictures = PictureStore()
     var path: [Route] = []
     private(set) var opening: Opening?
     private(set) var missed: Opening?

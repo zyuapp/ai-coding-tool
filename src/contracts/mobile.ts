@@ -92,6 +92,8 @@ export type MobileMessage = {
   call?: MobileToolCall;
   /** How many images the message carried. */
   images?: number;
+  /** Set on a reply that may link images, which the phone asks for by this ID with an "image" query. */
+  id?: string;
 };
 
 /** A tool call as a row reads it: its label, the argument that tells it from the next, and its family's glyph. */
@@ -371,7 +373,14 @@ export type MobileQuery =
   /** A thread's transcript without opening it, for one working under the open coordinator. */
   | { kind: "thread"; taskId: string }
   /** A held recording, base64 WAV, turned into words by this computer's speech model. Answers `{ text }`. */
-  | { kind: "transcribe"; audio: string };
+  | { kind: "transcribe"; audio: string }
+  /**
+   * An image a reply links, named by the link's destination as written. Answers {@link MobileImageRead}:
+   * the desktop's preview when `preview` is set, else the original.
+   */
+  | { kind: "image"; taskId: string; messageId: string; href: string; preview?: boolean };
+
+export type MobileImageRead = { data: string; contentType: string };
 
 /** What a {@link MobileQuery} of kind "thread" answers: the thread as its own screen would read it. */
 export type MobileThreadRead = { title: string; status: MobileRunStatus; messages: MobileMessage[]; omitted: number; streamingTail: string | null };
@@ -380,6 +389,8 @@ export function isMobileQuery(value: unknown): value is MobileQuery {
   if (isRecord(value) && value.kind === "directories") return typeof value.prefix === "string" && value.prefix.length <= MAX_PATH_LENGTH && !value.prefix.includes("\0");
   if (isRecord(value) && value.kind === "thread") return isString(value.taskId);
   if (isRecord(value) && value.kind === "transcribe") return isDictationAudio(value.audio);
+  if (isRecord(value) && value.kind === "image") return isString(value.taskId) && isString(value.messageId) && isString(value.href, MAX_PATH_LENGTH)
+    && (value.preview === undefined || typeof value.preview === "boolean");
   if (!isRecord(value) || !isString(value.taskId) || !isDiffRange(value.range)) return false;
   if (value.kind === "diff-summary") return true;
   return value.kind === "diff-patch" && isString(value.path, MAX_PATH_LENGTH) && (value.previousPath === undefined || isString(value.previousPath, MAX_PATH_LENGTH));

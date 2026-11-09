@@ -12,6 +12,7 @@ import { coordinationMembers, coordinatorRoster, memberActivity, ownCoordination
 import { describeToolCall } from "../domain/tool-call.js";
 import { isCoordinator } from "../domain/coordination.js";
 import type { ConversationMessage } from "../domain/conversation.js";
+import { mayLinkImages } from "../domain/message-artifacts.js";
 import { threadActivity, type ThreadActivity } from "./thread-activity.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
 import { diffFor } from "./workspace-diff.js";
@@ -408,15 +409,28 @@ function toolCallOf(engine: Thread["engine"], message: ConversationMessage): Mob
   return call;
 }
 
+const imageLinking = new WeakMap<ConversationMessage, boolean>();
+
+function linksImages(message: ConversationMessage): boolean {
+  let links = imageLinking.get(message);
+  if (links === undefined) {
+    links = mayLinkImages(message.text);
+    imageLinking.set(message, links);
+  }
+  return links;
+}
+
 /**
  * The transcript with what a phone reads beside each message's words: what each tool call did, and
- * how many images a message carried. The transcript is the thread's newest messages, in order.
+ * how many images a message carried, and the ID of a reply that may link images. The transcript is
+ * the thread's newest messages, in order.
  */
 function withDetails(thread: Thread, messages: MobileMessage[]): MobileMessage[] {
   const offset = thread.messages.length - messages.length;
   return messages.map((message, index) => {
     const stored = thread.messages[offset + index];
     if (message.kind === "tool" && stored?.kind === "tool") return { ...message, call: toolCallOf(thread.engine, stored) };
+    if (stored?.kind === "assistant" && linksImages(stored)) return { ...message, id: stored.id };
     return stored?.attachments?.length ? { ...message, images: stored.attachments.length } : message;
   });
 }

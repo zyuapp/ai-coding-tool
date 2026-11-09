@@ -345,6 +345,7 @@ test("a phone's review is read from the thread's own checkout, and refused for a
       diffPatch: async (...args) => { reads.push(args); return { status: "available", patch: "@@ -1 +1 @@\n-a\n+b\n" }; },
       directories: async (prefix) => { reads.push([prefix]); return ["/code/app", "/code/api"]; },
       transcribeAudio: async (audio) => { reads.push([audio]); return "run the tests"; },
+      readMessageImage: async (...args) => { reads.push(args); return { data: "iVBORw0KGgo=", contentType: "image/png" }; },
     },
   };
   const folders = await answerMobileRequest(bridge, request({ type: "mobile.request", requestId: "q0", sessionId: "s1", op: "query", query: { kind: "directories", prefix: "/code/" } }));
@@ -373,4 +374,37 @@ test("a phone's review is read from the thread's own checkout, and refused for a
   assert.deepEqual(loose, { type: "mobile.response", requestId: "q3", ok: false, message: MOBILE_NO_CHECKOUT });
   const blind = await answerMobileRequest(host(state).bridge, request({ type: "mobile.request", requestId: "q4", sessionId: "s1", op: "query", query: { kind: "diff-summary", taskId: "task-1", range: { kind: "uncommitted" } } }));
   assert.equal(blind.ok, false, "a host with nothing to read from refuses rather than reads nothing");
+});
+
+test("a phone reads only the images a reply links, by the reply's ID, from the thread's checkout", async () => {
+  const reply = message("Here: ![Home](shots/home.png) and [settings](/tmp/settings.png).", NOW, "assistant");
+  const plain = message("No pictures here.", NOW + 1, "assistant");
+  const state = workspace({
+    threads: [task("task-1", { projectId: "project-app", worktreeId: "wt-1", messages: [message("show me", NOW - 1), reply, plain] })],
+    projects: [{ id: "project-app", root: "/code/app", workspaceId: "ws-app" }],
+    worktrees: [{ id: "wt-1", projectId: "project-app", root: "/code/app-wt", workspaceId: "ws-wt", baseCommit: "abc", createdAt: NOW, lastUsedAt: NOW }],
+    currentId: "task-1",
+  });
+  const shown = required(projectMobileView(state, NOW).thread).messages;
+  assert.deepEqual(shown.map((item) => item.id), [undefined, reply.id, undefined], "only a reply that may link images carries its ID");
+
+  const reads: unknown[][] = [];
+  const bridge: MobileBridgeHost = { ...host(state).bridge, read: {
+    diffSummary: async () => assert.fail("no review is read"),
+    diffPatch: async () => assert.fail("no patch is read"),
+    directories: async () => [],
+    transcribeAudio: async () => "",
+    readMessageImage: async (...args) => { reads.push(args); return { data: "iVBORw0KGgo=", contentType: "image/png" }; },
+  } };
+  const ask = (requestId: string, href: string, messageId = reply.id, preview?: boolean) =>
+    answerMobileRequest(bridge, request({ type: "mobile.request", requestId, sessionId: "s1", op: "query", query: { kind: "image", taskId: "task-1", messageId, href, ...(preview === undefined ? {} : { preview }) } }));
+  assert.deepEqual(await ask("i1", "shots/home.png", reply.id, true), { type: "mobile.response", requestId: "i1", ok: true, result: { data: "iVBORw0KGgo=", contentType: "image/png" } });
+  assert.equal((await ask("i2", "/tmp/settings.png")).ok, true);
+  assert.deepEqual(reads, [
+    ["shots/home.png", "/code/app-wt", reply.id, true, "task-1"],
+    ["/tmp/settings.png", "/code/app-wt", reply.id, false, "task-1"],
+  ], "a relative link resolves against the checkout the thread works in");
+  assert.equal((await ask("i3", "/etc/secret.png")).ok, false, "an image the reply does not link is refused");
+  assert.equal((await ask("i4", "shots/home.png", plain.id)).ok, false, "another reply's ID does not reach this one's images");
+  assert.equal(reads.length, 2);
 });

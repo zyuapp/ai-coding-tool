@@ -7,7 +7,8 @@ import { isMobileQuery, isMobileRequest, type MobileQuery, type MobileRequest, t
 import { isPhoneCommand, isWorkspaceViewInput } from "../contracts/workspace-view-input.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
 import type { MobileServerState } from "../domain/mobile.js";
-import { threadWorkspaceId } from "../application/thread-location.js";
+import { threadWorkspaceId, threadWorkspaceRoot } from "../application/thread-location.js";
+import { messageImagePath } from "../domain/message-artifacts.js";
 import { coordinationMembers } from "../application/coordination.js";
 import { attachmentSendFor } from "../application/composer-attachments.js";
 import { isCoordinator } from "../domain/coordination.js";
@@ -20,7 +21,7 @@ export const MOBILE_REFUSED = "That command is not one a phone may send.";
 export const MOBILE_NO_CHECKOUT = "This thread has no checkout to review.";
 
 /** The reads a phone's queries are answered from. Content only; state never travels this way. */
-export type MobileBridgeReader = Pick<RuntimeDesktop, "diffSummary" | "diffPatch" | "directories" | "transcribeAudio">;
+export type MobileBridgeReader = Pick<RuntimeDesktop, "diffSummary" | "diffPatch" | "directories" | "transcribeAudio" | "readMessageImage">;
 
 /** The runtime state and the command execution that answers each phone request. */
 export type MobileBridgeHost = {
@@ -37,7 +38,8 @@ export type MobileBridgeHost = {
  * A review query names a thread, and the thread names the checkout: a phone never says which directory
  * to read. Whitespace-only changes are left out, as the desktop's review leaves them out by default. A
  * folder query lists folders by path prefix, as the desktop's own add-project field does. A thread
- * query reads one of this computer's threads without opening it, as a coordinator's tab does.
+ * query reads one of this computer's threads without opening it, as a coordinator's tab does. An
+ * image query reads only an image the named reply links, as the desktop's previews of it do.
  */
 async function answerQuery(host: MobileBridgeHost, query: MobileQuery): Promise<unknown> {
   if (query.kind === "thread") {
@@ -49,6 +51,7 @@ async function answerQuery(host: MobileBridgeHost, query: MobileQuery): Promise<
   if (!reader) throw new Error("This computer cannot answer that.");
   if (query.kind === "directories") return reader.directories(query.prefix);
   if (query.kind === "transcribe") return { text: await reader.transcribeAudio(query.audio) };
+  if (query.kind === "image") return linkedImage(host, reader, query);
   const state = host.state();
   const thread = state.threads.find((item) => item.id === query.taskId);
   if (!thread) throw new Error(`No thread has the ID ${query.taskId}.`);
@@ -56,6 +59,20 @@ async function answerQuery(host: MobileBridgeHost, query: MobileQuery): Promise<
   if (!workspaceId) throw new Error(MOBILE_NO_CHECKOUT);
   if (query.kind === "diff-summary") return reader.diffSummary(workspaceId, query.range, true);
   return reader.diffPatch(workspaceId, query.range, query.path, query.previousPath, true);
+}
+
+let images: Promise<typeof import("../application/message-images.js")> | undefined;
+
+async function linkedImage(host: MobileBridgeHost, reader: MobileBridgeReader, query: Extract<MobileQuery, { kind: "image" }>) {
+  if (!host.state().threads.some((thread) => thread.id === query.taskId)) throw new Error(`No thread has the ID ${query.taskId}.`);
+  await host.hydrate?.(query.taskId);
+  const state = host.state();
+  const thread = state.threads.find((item) => item.id === query.taskId);
+  const message = thread?.messages.find((item) => item.id === query.messageId);
+  const file = messageImagePath(query.href);
+  const { messageImages } = await (images ??= import("../application/message-images.js"));
+  if (!thread || message?.kind !== "assistant" || !file || !messageImages(message.text).some((image) => image.path === file)) throw new Error("That reply links no such image.");
+  return reader.readMessageImage(file, threadWorkspaceRoot(state, thread) ?? "", message.id, query.preview === true, thread.id);
 }
 
 /**

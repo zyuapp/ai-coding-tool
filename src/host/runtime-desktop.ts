@@ -42,7 +42,7 @@ export type RuntimeDesktop = Pick<DesktopAPI,
   | "send" | "onAgentEvent"
   | "changedFiles" | "diffSummary" | "diffPatch" | "pullRequest" | "checkoutBranch" | "createBranch"
   | "createWorktree" | "listManagedWorktrees" | "revealWorktree" | "releaseWorktree"
-  | "saveAttachment" | "preserveMessageImages" | "downloadImage"
+  | "saveAttachment" | "preserveMessageImages" | "readMessageImage" | "downloadImage"
   | "suggestTaskTitle" | "engineStatus" | "signInEngine" | "updateEngine" | "checkForUpdates" | "appUpdate" | "appBuild" | "onAppUpdate" | "launchedUpdate" | "downloadUpdate" | "installUpdate" | "openSourceLicenses"
   | "loadTaskStore" | "loadThreadMessages" | "searchThreadMessages" | "persistTaskStore" | "loadSubagentActivity" | "loadSubagentMetadata"
   | "listAutomations" | "saveAutomation" | "updateAutomation" | "deleteAutomation" | "runAutomationNow"

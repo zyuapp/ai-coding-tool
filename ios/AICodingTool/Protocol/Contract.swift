@@ -40,6 +40,8 @@ struct MobileMessage: Codable, Equatable, Sendable {
     var call: MobileToolCall?
     /// How many pictures the message carried.
     var images: Int?
+    /// Set on a reply that may link images, which are asked for by this ID.
+    var id: String?
 }
 
 /// A tool call as a row reads it: its label, and the argument that tells it from the next.

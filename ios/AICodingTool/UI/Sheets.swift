@@ -461,6 +461,7 @@ struct MemberTranscript: View {
                 }
                 .padding(16)
             }
+            .environment(\.pictureSource, PictureSource(taskId: member.id, store: model.pictures, connection: model.connection))
             .defaultScrollAnchor(.top, for: .alignment)
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .onChange(of: read?.messages.count) { _, _ in reader.scrollTo("end", anchor: .bottom) }

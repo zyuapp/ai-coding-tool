@@ -62,6 +62,7 @@ struct ConversationView: View {
                 .padding(.bottom, 16)
             }
             .scrollDismissesKeyboard(.interactively)
+            .environment(\.pictureSource, PictureSource(taskId: thread.id, store: model.pictures, connection: model.connection))
             .hardTopEdge()
             .defaultScrollAnchor(.top, for: .alignment)
             .defaultScrollAnchor(.bottom, for: .initialOffset)
@@ -135,6 +136,7 @@ struct MessageView: View {
         default:
             VStack(alignment: .leading, spacing: 6) {
                 MarkdownView(text: message.text)
+                if let id = message.id { MessagePicturesView(messageId: id, text: message.text) }
                 if answer {
                     HStack(spacing: 4) {
                         Text(Format.clockTime(message.at)).font(.caption).foregroundStyle(palette.quiet)

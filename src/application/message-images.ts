@@ -1,6 +1,6 @@
 import { fromMarkdown } from "mdast-util-from-markdown";
 import type { Nodes, Root } from "mdast";
-import { MAX_MESSAGE_IMAGES, messageImagePath } from "../domain/message-artifacts";
+import { MAX_MESSAGE_IMAGES, mayLinkImages, messageImagePath } from "../domain/message-artifacts";
 
 export type MessageImage = { path: string; label: string };
 
@@ -12,7 +12,7 @@ const MAX_CACHED_CHARS = 64 * 1024;
 
 /** The same Markdown destinations supply both previews and durable copies, including reference links. */
 export function messageImages(text: string): MessageImage[] {
-  if (!/\.(?:png|jpe?g|gif|webp)\b/i.test(text)) return [];
+  if (!mayLinkImages(text)) return [];
   if (text.length > MAX_CACHED_CHARS) return parseMessageImages(text);
   const hit = cached.get(text);
   if (hit) {

@@ -127,6 +127,10 @@ function storeDesktop(host: ServiceDesktopHost) {
       return writeAttachment(data, context);
     },
     preserveMessageImages: (files, root, messageId) => preserveMessageImages(files, root, messageId),
+    readMessageImage: async (file, root, messageId, preview, taskId) => {
+      const { bytes, contentType } = await host.reads.read({ kind: "message-image", path: file, root, message: messageId, thumbnail: preview }, { thread: taskId });
+      return { data: bytes.toString("base64"), contentType };
+    },
     suggestTaskTitle: async (text, attachments, engine, model) => {
       const images = attachments.map((item) => savedAttachmentPath(item)).filter((file): file is string => file !== null);
       if (!text.trim() && images.length === 0) return null;

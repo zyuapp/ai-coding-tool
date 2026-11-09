@@ -7,6 +7,8 @@ export type ImageDesktopAPI = {
   /** Capture-time context, if present. Annotated copies inherit it from their original image. */
   readAttachmentContext(file: string): Promise<ScreenshotContext | null>;
   preserveMessageImages(files: string[], root: string, messageId: string): Promise<void>;
+  /** A reply's linked image as base64 bytes, its preview or its original, read from whichever computer holds the thread. */
+  readMessageImage(file: string, root: string, messageId: string, preview: boolean, taskId: string): Promise<{ data: string; contentType: string }>;
   /** Prompts for a destination and saves the retained original shown by the viewer. */
   downloadImage(source: string): Promise<void>;
 };

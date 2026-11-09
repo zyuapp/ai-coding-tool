@@ -7,6 +7,11 @@ export function isMessageImageFile(file: string) {
   return /\.(?:png|jpe?g|gif|webp)$/i.test(file);
 }
 
+/** A cheap test that rules out text linking no image, before any Markdown is parsed. */
+export function mayLinkImages(text: string) {
+  return /\.(?:png|jpe?g|gif|webp)\b/i.test(text);
+}
+
 /** Shared by the protocol handler and the paired computer's query boundary. */
 export function isMessageImageReference(file: unknown, root: unknown, message: unknown): boolean {
   return typeof file === "string" && file.length <= 4096 && isMessageImageFile(file) && !/^[a-z][a-z\d+.-]*:\/\//i.test(file)
