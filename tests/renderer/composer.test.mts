@@ -720,3 +720,12 @@ test("Enter in the base branch search reviews the top match, in the reviewing en
   assert.match(query(view.container, ".review-back").dataset.tip ?? "", /^Back \(Esc(ape)?\)$/);
   await view.unmount();
 });
+
+test("hands-free dictation keeps a send button while a run is going, which adds the words and sends", async () => {
+  const stops: Array<boolean | undefined> = [];
+  const dictation = { model: "ready" as const, phase: "recording" as const, handsFree: true, sends: 0, binding: null, onStart: () => {}, onHandsFree: () => {}, onStop: (send?: boolean) => { stops.push(send); }, onCancel: () => {} };
+  const view = await mount(renderConversationComposer({ runActive: true, dictation }));
+  assert.equal(view.container.querySelector('button[aria-label="Stop task"]'), null, "the stop button is not what stands beside the microphone");
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Send task"]').click(); });
+  assert.deepEqual(stops, [true]);
+});

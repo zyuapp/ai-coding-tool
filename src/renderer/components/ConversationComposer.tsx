@@ -402,14 +402,14 @@ export function ConversationComposer({
           rows={2}
         />
         <div className={`composer-bar${dictating ? " dictating" : ""}${handsFree ? " hands-free" : ""}`}>
-          {dictating && <DictationStrip phase={dictating} away={talk.away} handsFree={handsFree} binding={dictation?.binding ?? null} />}
+          {dictating && <DictationStrip phase={dictating} away={talk.away} handsFree={handsFree} />}
           <AttachButton disabled={disabled} onFilesAdd={onFilesAdd} />
           <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} coordinating={coordinating} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
             {planUsage && model !== undefined && <PlanUsageMeter engine={engine} engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
             {dictation?.model === "ready" && <MicButton dictation={dictation} talk={talk} disabled={disabled} />}
-            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || (nothingToSend && !handsFree)} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} />
+            <SendButton taskId={taskId} surface={surface} runActive={runActive && !handsFree} command={sendCommand} disabled={disabled || (nothingToSend && !handsFree)} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} />
           </div>
         </div>
       </div>}

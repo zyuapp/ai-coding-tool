@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import { LuCheck as Check, LuMic as Mic, LuX as X } from "react-icons/lu";
 import { DICTATION_TAP_MS, type DictationModel, type DictationPhase } from "../../domain/dictation";
-import { displayShortcut, type ShortcutSetting } from "../../domain/shortcuts";
-import { MAC } from "../platform";
+import type { ShortcutSetting } from "../../domain/shortcuts";
 import { shortcutTip } from "./TooltipLayer";
 
 /** The main composer's dictation, as the workspace reports it. */
@@ -191,7 +190,7 @@ function TalkHalo() {
 }
 
 /** Stands in the composer bar while dictation is listening or turning speech into words. */
-export function DictationStrip({ phase, away, handsFree, binding }: { phase: DictationPhase; away: boolean; handsFree: boolean; binding: string | null }) {
+export function DictationStrip({ phase, away, handsFree }: { phase: DictationPhase; away: boolean; handsFree: boolean }) {
   const listening = phase !== "transcribing";
   const levels = useLevels(listening);
   const elapsed = useElapsed(phase === "recording");
@@ -202,12 +201,12 @@ export function DictationStrip({ phase, away, handsFree, binding }: { phase: Dic
       <div className="dictation-wave" aria-hidden="true">
         {levels.map((level, index) => <span key={index} style={{ height: `${listening ? barHeight(level) : 14}%`, "--bar": index } as CSSProperties} />)}
       </div>
-      <span className="dictation-hint">
+      {/** Hands-free, the two buttons beside the strip say what they do, so it says nothing. */}
+      {!(listening && !away && handsFree) && <span className="dictation-hint">
         {!listening ? "Writing it down…"
           : away ? "Let go to cancel"
-            : handsFree ? <>Hands-free<span className="dictation-escape">{binding && <span><kbd>{displayShortcut(binding, MAC)}</kbd> adds</span>}<span><kbd>↩</kbd> sends</span><span><kbd>Esc</kbd> cancels</span></span></>
-              : <>Let go to add it<span className="dictation-escape"><span><kbd>Esc</kbd> cancels</span></span></>}
-      </span>
+            : <>Let go to add it<span className="dictation-escape"><span><kbd>Esc</kbd> cancels</span></span></>}
+      </span>}
     </div>
   );
 }
