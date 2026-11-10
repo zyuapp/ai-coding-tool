@@ -1,5 +1,6 @@
 import type { EffectHandlers } from "./effect-host.js";
 import { errorMessage } from "./errors.js";
+import type { HostModule } from "./host-module.js";
 
 /** How long a run counts as driving a device after its last gesture. */
 const DRIVING_MS = 4_000;
@@ -35,3 +36,8 @@ export const simulatorEffects = {
     }
   },
 } satisfies Partial<EffectHandlers>;
+
+export const simulatorHost = {
+  effects: simulatorEffects,
+  subscribe: (host) => { void host.dispatch({ type: "simulator.refresh" }); },
+} satisfies HostModule;

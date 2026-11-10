@@ -15,6 +15,8 @@ import { drainingQueued, editableQueued } from "../application/workspace-reducer
 import { QUEUED_SENT } from "../application/computers.js";
 import { REMOTE_UNSUPPORTED } from "../contracts/computer-capabilities.js";
 import { errorMessage } from "./errors.js";
+import type { EffectHandlers, EffectHost } from "./effect-host.js";
+import type { HostModule } from "./host-module.js";
 
 /** What a phone is refused with when it sends something outside the surface open to it. */
 export const MOBILE_REFUSED = "That command is not one a phone may send.";
@@ -291,3 +293,22 @@ export function subscribeToMobile(host: MobileBridgeHost, desktop: RuntimeDeskto
     stopAnswering();
   };
 }
+
+/** The bridge's own settings, each of which answers with the whole of what the bridge is doing. */
+const changeBridge = async (effect: RemoteEffect, { dispatch, desktop }: EffectHost) => {
+  try {
+    await dispatch({ type: "remote.changed", remote: await runRemoteEffect(effect, desktop) });
+  } catch (error) {
+    await dispatch({ type: "action.failed", message: errorMessage(error) });
+  }
+};
+
+export const mobileHost = {
+  effects: {
+    "remote.set-enabled": changeBridge,
+    "remote.create-pairing-code": changeBridge,
+    "remote.revoke-device": changeBridge,
+    "remote.refresh": changeBridge,
+  } satisfies Partial<EffectHandlers>,
+  subscribe: (host) => subscribeToMobile(host, host.desktop),
+} satisfies HostModule;

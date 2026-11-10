@@ -1,5 +1,6 @@
 import { errorMessage } from "./errors.js";
 import type { EffectHandlers, EffectHost, EnvironmentRefreshEffect } from "./effect-host.js";
+import type { HostModule } from "./host-module.js";
 
 const directoryRequests = new WeakMap<object, object>();
 
@@ -176,3 +177,8 @@ export const projectEffects = {
     await dispatch({ type: "checkout.finished", ...(message === undefined ? {} : { message }) });
   },
 } satisfies Partial<EffectHandlers>;
+
+export const projectHost = {
+  effects: projectEffects,
+  subscribe: (host) => host.desktop.onOpenProject((workspace) => void host.dispatch({ type: "project.opened", workspace })),
+} satisfies HostModule;

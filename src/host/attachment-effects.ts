@@ -2,6 +2,7 @@ import { errorMessage } from "./errors.js";
 import type { OutgoingAttachment, RunAttachment } from "../domain/conversation.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
 import type { EffectHandlers } from "./effect-host.js";
+import type { HostModule } from "./host-module.js";
 
 /**
  * A staged image that carries no marks is already on disk. One that does arrives with the marks
@@ -31,3 +32,5 @@ export const attachmentEffects = {
     }
   },
 } satisfies EffectHandlers<"send-attachments">;
+
+export const attachmentHost = { effects: attachmentEffects } satisfies HostModule;

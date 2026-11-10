@@ -1,5 +1,6 @@
 import type { EffectHandlers } from "./effect-host.js";
 import { errorMessage } from "./errors.js";
+import type { HostModule } from "./host-module.js";
 
 /** The microphone and speech model, each answer carried back under the hold it belongs to. */
 export const dictationEffects = {
@@ -36,3 +37,8 @@ export const dictationEffects = {
     }
   },
 } satisfies Partial<EffectHandlers>;
+
+export const dictationHost = {
+  effects: dictationEffects,
+  subscribe: (host) => host.desktop.onDictationModel(({ model, message, progress }) => void host.dispatch({ type: "dictation.model", model, ...(message ? { message } : {}), ...(progress === undefined ? {} : { progress }) })),
+} satisfies HostModule;

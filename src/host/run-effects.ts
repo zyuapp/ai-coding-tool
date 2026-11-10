@@ -2,7 +2,10 @@ import { errorMessage } from "./errors.js";
 import { saveViewPreferences } from "./view-preferences-store.js";
 import { resolveRunWorkspace } from "./resolve-run-workspace.js";
 import type { EffectHandlers } from "./effect-host.js";
-import { isSubagentEvent } from "../contracts/ipc.js";
+import { isSubagentEvent, type AgentEvent } from "../contracts/ipc.js";
+import type { HostModule } from "./host-module.js";
+import type { RuntimeSubscriptionHost } from "./runtime-subscriptions.js";
+import { answerThreadRequest } from "./thread-requests.js";
 
 /** Loaded on first use, since its markdown parser is a large part of main's startup otherwise. */
 let images: Promise<typeof import("../application/message-images.js")> | undefined;
@@ -54,3 +57,63 @@ export const runEffects = {
     if (files.length) await desktop.preserveMessageImages(files, effect.root, effect.messageId);
   },
 } satisfies Partial<EffectHandlers>;
+
+/** How long a run's reports are gathered where there is no paint to wait for. */
+const FLUSH_INTERVAL_MS = 16;
+
+function shortly(flush: () => void) {
+  const timer = setTimeout(flush, FLUSH_INTERVAL_MS);
+  return () => clearTimeout(timer);
+}
+
+/** A run's reports, folded in a frame at a time. */
+function batchAgentEvents(host: RuntimeSubscriptionHost, holdReports: (flush: () => void) => void) {
+  const schedule = host.frame ?? shortly;
+  let waiting: AgentEvent[] = [];
+  let cancel: (() => void) | undefined;
+  function flush() {
+    cancel?.();
+    cancel = undefined;
+    if (!waiting.length) return;
+    const events = waiting;
+    waiting = [];
+    void host.dispatch({ type: "agent.events", events });
+  }
+  holdReports(flush);
+  const stopListening = host.desktop.onAgentEvent((event) => {
+    waiting.push(event);
+    cancel ??= schedule(flush);
+  });
+  return () => {
+    stopListening();
+    flush();
+  };
+}
+
+/** A thread request is answered from state, after what runs have reported so far is folded in. */
+function answerThreadRequests(host: RuntimeSubscriptionHost, flushAll: () => void) {
+  const { desktop } = host;
+  const stopListening = desktop.onThreadRequest((request) => {
+    flushAll();
+    void host.prepareThreadRequest(request).then((prepared) => answerThreadRequest(host, request, prepared))
+      .then((response) => desktop.answerThreadRequest(response))
+      .catch((error) => desktop.answerThreadRequest({ type: "thread.response", requestId: request.requestId, ok: false, message: errorMessage(error) }));
+  });
+  return () => {
+    stopListening();
+    for (const waiter of host.waiters.current) clearTimeout(waiter.timer);
+    host.waiters.current = [];
+  };
+}
+
+export const runHost = {
+  effects: runEffects,
+  subscribe: (host, runs) => {
+    const stopEvents = batchAgentEvents(host, runs.holdReports);
+    const stopRequests = answerThreadRequests(host, runs.flushAll);
+    return () => {
+      stopEvents();
+      stopRequests();
+    };
+  },
+} satisfies HostModule;

@@ -1,5 +1,6 @@
 import { errorMessage } from "./errors.js";
 import type { EffectHandlers } from "./effect-host.js";
+import type { HostModule } from "./host-module.js";
 
 /** Other computers running this app: finding them, pairing, and what is carried to one of them. */
 export const computerEffects = {
@@ -98,3 +99,16 @@ export const computerEffects = {
     }
   },
 } satisfies Partial<EffectHandlers>;
+
+export const computerHost = {
+  effects: computerEffects,
+  subscribe: (host) => {
+    const { desktop } = host;
+    const stops = [
+      desktop.onComputersChanged((name, links) => void host.dispatch({ type: "computers.changed", name, links })),
+      desktop.onComputerState((id, state) => void host.dispatch({ type: "computer.state", id, state })),
+      desktop.onComputerNotice((id, notice) => void host.dispatch({ type: "computer.notice", id, notice })),
+    ];
+    return () => { for (const stop of stops) stop(); };
+  },
+} satisfies HostModule;
