@@ -3475,9 +3475,9 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .diff-progress > span:first-child { padding: 3px 5px; }
 .diff-progress > .diff-progress-done { display: inline-flex; align-items: center; gap: 4px; color: var(--success); font-weight: 560; }
 .diff-progress-meter { position: absolute; left: 12px; right: 12px; bottom: 0; }
-.diff-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 8px 12px 0; color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.4; }
+.diff-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 8px 12px; color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.4; }
 .diff-status .task-spinner { flex: none; width: 12px; height: 12px; }
-.diff-error { margin: 6px 10px 0; }
+.diff-error { margin: 6px 10px; }
 
 .diff-scroll { position: relative; display: flex; flex: 1; min-height: 0; flex-direction: column; }
 /** One scroller for the whole review, so files read top to bottom instead of each scrolling inside itself. */
