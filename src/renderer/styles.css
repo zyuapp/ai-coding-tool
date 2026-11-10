@@ -33,8 +33,8 @@
    */
   --surface-glass: rgb(from var(--p-bg-4) r g b / 0.95);
   /* A float that only ever sits over the page, which is solid enough to blur: the find bar, the way back to the newest message */
-  --surface-lens: rgb(from var(--p-bg-5) r g b / 0.62);
-  --surface-lens-hover: rgb(from var(--p-bg-6) r g b / 0.8);
+  --surface-lens: rgb(from var(--p-bg-5) r g b / calc(0.16 + 0.5 * var(--glass-tint)));
+  --surface-lens-hover: rgb(from var(--p-bg-6) r g b / calc(0.4 + 0.4 * var(--glass-tint)));
   /**
    * The frame is the ground the sidebar and the gap around the page share. Where the platform draws
    * a material under the window it thins to a tint, and the fills that sit on it thin to washes of ink.
@@ -225,19 +225,20 @@
   --glint: inset 0 1px 0 rgb(255 255 255 / 0.075);
   /**
    * Glass, the material every float and raised control is cut from: a fill thin enough to show what
-   * moves under it, a sheen that is brightest at the top, a blur that keeps what is under it from
-   * reading as words, and a rim lit from above. --glass-menu is the same pane, thick enough to read a list on.
+   * moves under it, a sheen that is brightest at the top, a blur that only just keeps what is under
+   * it from reading as words, and a rim lit from above. --glass-menu is the same pane, thick enough to read a list on.
    */
-  --glass-sheen: linear-gradient(to bottom, rgb(255 255 255 / 0.11), rgb(255 255 255 / 0.035));
+  --glass-sheen: linear-gradient(to bottom, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.02));
   /**
    * How thick the glass is, 0 to 1. Over the system's own glass it is the tint the person set
    * there, so the window's panes clear and cloud with the rest of their desktop.
    */
   --glass-tint: 0.6;
-  --glass: var(--glass-sheen), rgb(from var(--surface) r g b / calc(0.26 + 0.4 * var(--glass-tint)));
-  --glass-menu: var(--glass-sheen), rgb(from var(--p-bg-4) r g b / calc(0.54 + 0.3 * var(--glass-tint)));
-  --glass-blur: blur(26px) saturate(180%);
-  --glass-rim: inset 0 1px 0 rgb(255 255 255 / 0.2), inset 0 0 0 1px rgb(255 255 255 / 0.055), inset 0 -1px 0 rgb(0 0 0 / 0.14);
+  --glass: var(--glass-sheen), rgb(from var(--surface) r g b / calc(0.06 + 0.56 * var(--glass-tint)));
+  --glass-menu: var(--glass-sheen), rgb(from var(--p-bg-4) r g b / calc(0.4 + 0.44 * var(--glass-tint)));
+  --glass-blur: blur(calc(9px + 18px * var(--glass-tint))) saturate(170%);
+  --glass-menu-blur: blur(calc(20px + 8px * var(--glass-tint))) saturate(170%);
+  --glass-rim: inset 0 1px 0 rgb(255 255 255 / 0.26), inset 0 0 0 1px rgb(255 255 255 / 0.08);
   /* A control cut from it: a wash of ink under the same sheen. */
   --glass-control: var(--glass-sheen), var(--wash);
   --glass-control-hover: var(--glass-sheen), var(--surface-hover);
@@ -324,6 +325,7 @@
     --glass: var(--surface);
     --glass-menu: var(--surface-menu);
     --glass-blur: none;
+    --glass-menu-blur: none;
     --surface-lens: var(--p-bg-5);
     --surface-lens-hover: var(--p-bg-6);
   }
@@ -671,7 +673,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   border-radius: 10px;
   padding: 5px;
   background: var(--glass-menu);
-  backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-menu-blur);
   box-shadow: var(--glass-rim), var(--shadow-menu);
   font-size: var(--text-menu);
   outline: none;
@@ -718,7 +720,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .menu-popover button:focus-visible:not([aria-disabled="true"]):where(:root:not([data-focus-appearance="quiet"]) *) :is(.menu-shortcut, .menu-chevron) { color: currentColor; }
 .menu-separator { height: 1px; margin: 5px 8px; background: var(--line-glass); }
 /** A searchable menu's field stays put while its items scroll under it. */
-.menu-search { position: sticky; top: -5px; z-index: 1; margin: -5px -5px 0; border-radius: 9px 9px 0 0; padding: 6px 6px 4px; background: var(--surface-glass); backdrop-filter: var(--glass-blur); }
+.menu-search { position: sticky; top: -5px; z-index: 1; margin: -5px -5px 0; border-radius: 9px 9px 0 0; padding: 6px 6px 4px; background: var(--surface-glass); backdrop-filter: var(--glass-menu-blur); }
 .menu-search-field { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border: 1px solid var(--line-input); border-radius: 5px; background: var(--surface-input); color: var(--quiet); cursor: text; }
 .menu-search-field > svg { flex: none; }
 .menu-search-field:focus-within { border-color: var(--focus-ring); box-shadow: 0 0 0 1px var(--focus-ring); }
@@ -3701,7 +3703,7 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
   border: 1px solid var(--line-glass);
   border-radius: 15px;
   background: var(--glass-menu);
-  backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-menu-blur);
   box-shadow: var(--glass-rim), var(--shadow-panel);
   animation: command-menu-in 110ms ease-out;
 }
@@ -4629,7 +4631,7 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   border-radius: 14px;
   padding: 13px;
   background: var(--glass-menu);
-  backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-menu-blur);
   box-shadow: var(--glass-rim), var(--shadow-panel);
 }
 .setting-heading { padding: 2px 9px 10px; color: var(--quiet-strong); font-size: var(--text-control); }
