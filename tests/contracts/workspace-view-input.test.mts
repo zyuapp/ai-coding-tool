@@ -1,7 +1,26 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { test } from "vitest";
 import { commandLeaves, commandPlacement, isAppCommandType, isExternalCommand, isWorkspaceViewInput, workspaceCommandDefinitions, type WorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
+import { externalAppCommands } from "../../src/contracts/app-commands.ts";
+import { annotationCommands, fileCommands, imageCommands, imageViewCommands, pasteCommands } from "../../src/contracts/attachment-commands.ts";
+import { automationCommands } from "../../src/contracts/automation-commands.ts";
+import { browserCommands, browserImportCommands } from "../../src/contracts/browser-commands.ts";
+import { cliCommands } from "../../src/contracts/cli-commands.ts";
+import { computerCommands } from "../../src/contracts/computer-commands.ts";
+import { computerUseCommands } from "../../src/contracts/computer-use-commands.ts";
+import { dictationCommands } from "../../src/contracts/dictation-commands.ts";
+import { diffCommands } from "../../src/contracts/diff-commands.ts";
+import { engineCommands } from "../../src/contracts/engine-commands.ts";
+import { projectCommands } from "../../src/contracts/project-commands.ts";
+import { pullRequestCommands } from "../../src/contracts/pull-request-commands.ts";
+import { remoteCommands } from "../../src/contracts/remote-commands.ts";
+import { reviewCommands, runControlCommands } from "../../src/contracts/run-commands.ts";
+import { simulatorCommands } from "../../src/contracts/simulator-commands.ts";
+import { sideChatCommands, taskCommands } from "../../src/contracts/task-commands.ts";
+import { terminalCommands } from "../../src/contracts/terminal-commands.ts";
+import { usageCommands } from "../../src/contracts/usage-commands.ts";
+import { viewCommands } from "../../src/contracts/view-commands.ts";
+import { worktreeCommands } from "../../src/contracts/worktree-commands.ts";
 
 test("the view can send provider commands, attachments, and presentation reports", () => {
   const inputs: WorkspaceViewInput[] = [
@@ -111,16 +130,11 @@ test("image and commit actions validate their targets at the view boundary", () 
   assert.equal(isWorkspaceViewInput({ type: "diff.set-range", range: { kind: "commit", commit: "HEAD;touch x" } }), false);
 });
 
-test("every command the application declares has exactly one declaration", async () => {
-  const commands = await readFile(new URL("../../src/contracts/commands.ts", import.meta.url), "utf8");
-  const shapes = await readFile(new URL("../../src/contracts/workspace-view-input.ts", import.meta.url), "utf8");
-  const table = shapes.slice(shapes.indexOf("const commands = {"), shapes.indexOf("const events = {"));
-  const declared = new Set([...commands.matchAll(/\{ type: "([\w.-]+)"/g)].map(([, type]) => type));
-  assert.ok(declared.size > 100, `found ${declared.size} command types`);
-  for (const type of declared) {
-    const entries = [...table.matchAll(new RegExp(`^ {2}"${type.replace(/\./g, "\\.")}":`, "gm"))];
-    assert.equal(entries.length, 1, `${type} has ${entries.length} declarations`);
-  }
+test("every command is declared by exactly one feature", () => {
+  const tables = [externalAppCommands, annotationCommands, fileCommands, imageCommands, imageViewCommands, pasteCommands, automationCommands, browserCommands, browserImportCommands, cliCommands, computerCommands, computerUseCommands, dictationCommands, diffCommands, engineCommands, projectCommands, pullRequestCommands, remoteCommands, reviewCommands, runControlCommands, simulatorCommands, sideChatCommands, taskCommands, terminalCommands, usageCommands, viewCommands, worktreeCommands];
+  const declared = tables.flatMap((table) => Object.keys(table));
+  assert.equal(new Set(declared).size, declared.length);
+  assert.deepEqual(new Set(declared), new Set(workspaceCommandDefinitions().map(({ type }) => type)));
 });
 
 test("every command declares where it is carried out, and events are not commands", () => {

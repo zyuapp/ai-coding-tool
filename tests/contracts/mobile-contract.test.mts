@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "vitest";
 import { isMobileClientMessage, isMobileRequest, isMobileResponse, MOBILE_PROTOCOL_VERSION, OLDEST_PHONE_PROTOCOL_VERSION, type MobileCommand } from "../../src/contracts/mobile.ts";
-import { MAX_PHONE_IMAGE_LENGTH } from "../../src/contracts/phone-commands.ts";
+import { MAX_PHONE_IMAGE_LENGTH } from "../../src/contracts/task-commands.ts";
 import { isPhoneCommand } from "../../src/contracts/workspace-view-input.ts";
 import {
   addressOrigin,
