@@ -1,9 +1,9 @@
 import { LuCommand as Command, LuMessagesSquare as MessagesSquare, LuSparkles as Sparkles } from "react-icons/lu";
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { AvailableCommand } from "../../contracts/ipc";
 import type { AgentEngine } from "../../domain/agent-engine";
 import { handleTokenAt, rankThreadHandles, type ThreadHandleOption } from "../../domain/thread-handles";
 import { useDismissibleLayer } from "../focus";
+import { useAgentCommands } from "../use-agent-commands";
 import type { ComposerCaret } from "./composer-caret";
 import { Chip } from "../ui/Chip";
 import "../ui/glass.css";
@@ -75,9 +75,7 @@ export function useComposerMenus({ prompt, caret, actions, threads, workspaceId,
   const { textareaRef, inputFocused, setInputFocused, dismissedPrompt, setDismissedPrompt, setCaret, moveCaret } = caret;
   const commandMenuRef = useRef<HTMLDivElement>(null);
   const threadMenuRef = useRef<HTMLDivElement>(null);
-  const [commands, setCommands] = useState<AvailableCommand[]>([]);
-  const [commandsLoading, setCommandsLoading] = useState(true);
-  const [commandsToken, setCommandsToken] = useState(0);
+  const { commands, loading: commandsLoading } = useAgentCommands(workspaceId, engine);
   const [selectedCommand, setSelectedCommand] = useState(0);
   const [selectedThread, setSelectedThread] = useState(0);
   const dismiss = () => setDismissedPrompt(prompt);
@@ -126,29 +124,6 @@ export function useComposerMenus({ prompt, caret, actions, threads, workspaceId,
     setInputFocused(true);
     moveCaret(threadToken.start + inserted.length);
   }
-
-  useEffect(() => {
-    let cancelled = false;
-    setCommandsLoading(true);
-    void (async () => {
-      try {
-        const id = workspaceId ?? (await window.desktop.projectlessWorkspace()).id;
-        const result = await window.desktop.commands(id, engine);
-        if (!cancelled) setCommands(result.status === "available" ? result.commands : []);
-      } catch {
-        if (!cancelled) setCommands([]);
-      } finally {
-        if (!cancelled) setCommandsLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [workspaceId, engine, commandsToken]);
-
-  useEffect(() => {
-    const reload = () => setCommandsToken((token) => token + 1);
-    window.addEventListener("focus", reload);
-    return () => window.removeEventListener("focus", reload);
-  }, []);
 
   useEffect(() => setSelectedCommand(0), [prompt, commands]);
 

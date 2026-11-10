@@ -13,6 +13,7 @@ vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => impor
 
 const { App } = await import("../../src/renderer/App.tsx");
 const { ImageAnnotator } = await import("../../src/renderer/components/ImageAnnotator.tsx");
+const { BrowserPanel } = await import("../../src/renderer/components/BrowserPanel.tsx");
 
 function callNamed(calls: unknown[][], name: string): unknown[] {
   return item(calls.find((call) => call[0] === name));
@@ -76,6 +77,23 @@ test("the browser panel drives the page through the workspace and reports where 
 
   await view.unmount();
   assert.deepEqual(desktop.browserCalls.at(-1), ["bounds", null], "an unmounted panel leaves no page drawn over the app");
+});
+
+test("a request for the keyboard hands it to the page, or to the address when no page is open", async () => {
+  const desktop = fakeDesktop();
+  window.desktop = desktop;
+  const props = { approval: null, onOpen: () => {}, onGo: () => {}, onReload: () => {}, onDecide: () => {} };
+  const page = { id: "tab-1", url: "https://example.com/", title: "Example", loading: false, canGoBack: false, canGoForward: false };
+  const view = await mount(React.createElement(BrowserPanel, { ...props, tab: page, focusToken: 0 }));
+  assert.equal(desktop.browserCalls.some((call) => call[0] === "focus"), false, "a panel nobody asked to focus leaves the keys alone");
+  await view.render(React.createElement(BrowserPanel, { ...props, tab: page, focusToken: 1 }));
+  assert.deepEqual(desktop.browserCalls.filter((call) => call[0] === "focus"), [["focus", "tab-1"]]);
+  await view.unmount();
+
+  const blank = await mount(React.createElement(BrowserPanel, { ...props, tab: { ...page, id: "tab-2", url: "" }, focusToken: 1 }));
+  assert.equal(desktop.browserCalls.some((call) => call[1] === "tab-2" && call[0] === "focus"), false);
+  assert.equal(document.activeElement, query(blank.container, 'input[aria-label="Address"]'));
+  await blank.unmount();
 });
 
 test("anything the document draws over the page takes it off screen", async () => {

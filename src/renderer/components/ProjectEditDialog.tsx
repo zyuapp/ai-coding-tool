@@ -2,6 +2,7 @@ import { useId, useRef, useState } from "react";
 import { LuFolderOpen as FolderOpen } from "react-icons/lu";
 import type { ProjectEditorView } from "../../application/workspace-state";
 import { folderName } from "../../domain/project";
+import { pickFolder } from "../folder-picker";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import { FieldGroup, TextField } from "../ui/Field";
@@ -64,7 +65,7 @@ export function ProjectEditDialog({ editor, onSave, onClose }: ProjectEditDialog
           {/** The picker only fills the field; nothing moves until the folder is saved. */}
           <ChooseFolderButton disabled={saving} onClick={() => {
             setPickError(null);
-            window.desktop.openFolder().then(
+            pickFolder().then(
               (chosen) => { if (chosen) setRoot(chosen.root); },
               (reason: unknown) => setPickError(reason instanceof Error ? reason.message : "Couldn't open the folder picker."),
             );

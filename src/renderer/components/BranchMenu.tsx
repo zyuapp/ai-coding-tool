@@ -1,5 +1,5 @@
 import { LuPlus as Plus } from "react-icons/lu";
-import { Fragment, useEffect, useRef, useState, type RefObject } from "react";
+import { Fragment, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { BranchesResult } from "../../contracts/ipc";
 import { MenuGroup, MenuHeading, MenuItem, MenuNote, MenuOptions, MenuSearch, MenuSeparator, MenuSurface, useListKeys, useMenuAnchor } from "../ui/Menu";
@@ -24,23 +24,6 @@ export function matchBranches(branches: string[], query: string) {
   const matched = branches.filter((name) => name.toLowerCase().includes(needle));
   const exact = matched.indexOf(typed);
   return exact > 0 ? [typed, ...matched.slice(0, exact), ...matched.slice(exact + 1)] : matched;
-}
-
-/** The checkout's local branches, read again whenever the checkout changes or reading is turned on. */
-export function useBranches(workspaceId: string | undefined, enabled = true) {
-  const [result, setResult] = useState<BranchesResult | null>(null);
-
-  useEffect(() => {
-    setResult(null);
-    if (!workspaceId || !enabled) return;
-    let cancelled = false;
-    void window.desktop.branches(workspaceId)
-      .then((branches) => { if (!cancelled) setResult(branches); })
-      .catch((error) => { if (!cancelled) setResult({ status: "error", message: String(error) }); });
-    return () => { cancelled = true; };
-  }, [workspaceId, enabled]);
-
-  return result;
 }
 
 export type BranchMenuProps = {

@@ -6,6 +6,7 @@ import { MAX_ATTACHMENTS, type OutgoingAttachment, type StagedImage } from "../.
 import type { ScreenshotContext } from "../../domain/screenshot-context";
 import { ImageAnnotator, type Annotation } from "./ImageAnnotator";
 import { renderAnnotatedSource } from "../annotate/marks";
+import { attachmentContext, attachmentDataUrl } from "../attachment-reads";
 import "../ui/glass.css";
 
 type Attachment = {
@@ -17,11 +18,6 @@ type Attachment = {
   path?: string;
   context?: ScreenshotContext;
 };
-
-/** Reads a file this app already wrote into the attachments directory back out as a data URL. */
-async function dataUrlOf(path: string) {
-  return `data:image/png;base64,${await window.desktop.readAttachment(path)}`;
-}
 
 function readImage(file: File) {
   return new Promise<Attachment>((resolve, reject) => {
@@ -185,8 +181,8 @@ export function useComposerAttachments(scope: string, images: StagedImage[], out
       try {
         const read = await Promise.all(arriving.map(async (image) => {
           const [preview, context] = await Promise.all([
-            dataUrlOf(image.path),
-            window.desktop.readAttachmentContext(image.path).catch(() => null),
+            attachmentDataUrl(image.path),
+            attachmentContext(image.path).catch(() => null),
           ]);
           return { image, preview, context };
         }));

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LuArrowLeft as ArrowLeft, LuArrowRight as ArrowRight, LuGlobe as Globe, LuRotateCw as RotateCw, LuShieldAlert as ShieldAlert, LuX as X } from "react-icons/lu";
 import { browserTabTitle, type BrowserApproval, type BrowserTab } from "../../domain/browser";
+import { focusBrowserPage, placeBrowserPage } from "../browser-view";
 import { useDismissibleLayer } from "../focus";
 import { NativeSurface } from "./NativeSurface";
 import { SpinningIcon } from "./SpinningIcon";
@@ -47,7 +48,7 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
   /** A tab asked for is one to read; a tab with no page yet is one to type an address into. */
   useEffect(() => {
     if (!focusToken) return;
-    if (tab.url) void window.desktop.focusBrowserTab(tab.id);
+    if (tab.url) focusBrowserPage(tab.id);
     else addressInput.current?.focus({ preventScroll: true });
     /** Only a fresh request moves the keys, so the page this tab lands on later leaves them where they are. */
   }, [focusToken]);
@@ -110,7 +111,7 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
         </Notice>
       )}
 
-      <NativeSurface className="browser-viewport" report={(box) => void window.desktop.setBrowserBounds(box)}>
+      <NativeSurface className="browser-viewport" report={placeBrowserPage}>
         {!tab.url && (
           <EmptyState
             className="browser-empty"

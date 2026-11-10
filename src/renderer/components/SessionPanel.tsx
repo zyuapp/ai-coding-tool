@@ -5,7 +5,8 @@ import { orderSubagents, type BackgroundProcess, type Subagent, type SubagentGro
 import type { PullRequestAnswer, PullRequestRef, PullRequestState } from "../../domain/pull-request";
 import type { Workflow } from "../../domain/workflow";
 import { BackgroundProcessSection } from "./BackgroundProcessList";
-import { BranchMenu, useBranches } from "./BranchMenu";
+import { BranchMenu } from "./BranchMenu";
+import { useBranches } from "../use-branches";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { useDismissibleLayer } from "../focus";
 import { SubagentRow } from "./SubagentList";

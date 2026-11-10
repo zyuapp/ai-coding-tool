@@ -4,7 +4,8 @@ import type { ReviewPicker as ReviewPickerState } from "../../application/worksp
 import type { ReviewTarget } from "../../domain/review";
 import type { BranchesResult } from "../../contracts/ipc";
 import { moveListFocus, useDismissibleLayer } from "../focus";
-import { matchBranches, useBranches } from "./BranchMenu";
+import { matchBranches } from "./BranchMenu";
+import { useBranches } from "../use-branches";
 import { shortcutTip } from "./TooltipLayer";
 import { Button, IconButton } from "../ui/Button";
 import { SearchField, TextField } from "../ui/Field";

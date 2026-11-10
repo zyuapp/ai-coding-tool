@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type MouseEvent, type PointerEvent 
 import { LuCheck as Check, LuMic as Mic, LuX as X } from "react-icons/lu";
 import { DICTATION_TAP_MS, type DictationModel, type DictationPhase } from "../../domain/dictation";
 import type { ShortcutSetting } from "../../domain/shortcuts";
+import { useDictationLevel } from "../dictation-levels";
 import { shortcutTip } from "./TooltipLayer";
 import { Kbd } from "../ui/Kbd";
 
@@ -159,10 +160,9 @@ function loudness(level: number) {
 function useLevels(listening: boolean) {
   const [heard, setHeard] = useState(() => ({ levels: Array<number>(SAMPLES).fill(0), count: 0 }));
   useEffect(() => {
-    if (!listening) return;
-    setHeard({ levels: Array<number>(SAMPLES).fill(0), count: 0 });
-    return window.desktop.onDictationLevel((level) => setHeard((current) => ({ levels: [...current.levels.slice(1), level], count: current.count + 1 })));
+    if (listening) setHeard({ levels: Array<number>(SAMPLES).fill(0), count: 0 });
   }, [listening]);
+  useDictationLevel((level) => setHeard((current) => ({ levels: [...current.levels.slice(1), level], count: current.count + 1 })), listening);
   return heard;
 }
 
@@ -202,9 +202,7 @@ function useElapsed(running: boolean) {
  */
 function TalkHalo() {
   const ring = useRef<HTMLSpanElement>(null);
-  useEffect(() => window.desktop.onDictationLevel((level) => {
-    ring.current?.style.setProperty("--talk-level", String(loudness(level)));
-  }), []);
+  useDictationLevel((level) => ring.current?.style.setProperty("--talk-level", String(loudness(level))));
   return <span ref={ring} className="talk-halo" aria-hidden="true" />;
 }
 

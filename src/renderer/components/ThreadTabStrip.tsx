@@ -1,6 +1,7 @@
 import { useId, useRef, useState } from "react";
 import { LuAlarmClock as AlarmClock, LuChevronDown as ChevronDown, LuFileDiff as FileDiff, LuGitBranch as GitBranch, LuGitPullRequest as GitPullRequest, LuScrollText as ScrollText } from "react-icons/lu";
-import { BranchMenu, useBranches } from "./BranchMenu";
+import { BranchMenu } from "./BranchMenu";
+import { useBranches } from "../use-branches";
 import { CommandButton } from "./CommandControl";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { GITHUB_CLI_URL, PULL_REQUEST_ICONS } from "./SessionPanel";

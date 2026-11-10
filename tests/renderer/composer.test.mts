@@ -15,6 +15,7 @@ import type { AppCommand } from "../../src/contracts/commands.ts";
 import { CommandControlsProvider } from "../../src/renderer/components/CommandControl.tsx";
 
 const { ConversationComposer } = await import("../../src/renderer/components/ConversationComposer.tsx");
+const { DictationStrip } = await import("../../src/renderer/components/ComposerDictation.tsx");
 
 function renderConversationComposer(overrides: Partial<ConversationComposerProps>) {
   return React.createElement(ConversationComposer, {
@@ -735,6 +736,22 @@ test("Enter in the base branch search reviews the top match, in the reviewing en
   await act(async () => { search.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })); });
   assert.deepEqual(reviews, [{ type: "baseBranch", branch: "fix-loader" }]);
   assert.match(query(view.container, ".review-back").dataset.tip ?? "", /^Back \(Esc(ape)?\)$/);
+  await view.unmount();
+});
+
+test("the dictation strip draws the microphone's levels while listening, and stops hearing them once it writes", async () => {
+  const listeners = new Set<(level: number) => void>();
+  window.desktop = fakeDesktop({ onDictationLevel: (listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; } });
+  const strip = (phase: "recording" | "transcribing") => React.createElement(DictationStrip, { phase, away: false, handsFree: false });
+  const view = await mount(strip("recording"));
+  assert.equal(listeners.size, 1);
+  const wave = () => query(view.container, ".wave-line").getAttribute("d");
+  const quiet = wave();
+  await act(async () => { for (const listener of listeners) listener(0.9); });
+  assert.notEqual(wave(), quiet, "a loud reading moves the line");
+
+  await view.render(strip("transcribing"));
+  assert.equal(listeners.size, 0);
   await view.unmount();
 });
 
