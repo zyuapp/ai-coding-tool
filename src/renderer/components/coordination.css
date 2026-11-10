@@ -6,12 +6,12 @@
   top: 0;
   left: 0;
   right: 0;
-  padding: 10px clamp(20px, 4vw, 64px) 12px;
+  padding: 10px var(--page-inset) 12px;
   background: linear-gradient(var(--canvas) calc(100% - 12px), var(--canvas-fade));
   pointer-events: none;
 }
 .coordination-head > * { pointer-events: auto; }
-.workspace.summary-open .coordination-head { padding-right: calc(clamp(20px, 4vw, 64px) + 282px); }
+.workspace.summary-open .coordination-head { padding-right: calc(var(--page-inset) + 282px); }
 .work-area.coordination-bar-on .conversation { padding-top: 96px; }
 .work-area.coordination-brief-on .conversation { padding-top: 64px; }
 

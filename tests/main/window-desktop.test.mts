@@ -107,7 +107,7 @@ test("every call the window makes is relayed on one channel, refused from anyone
   const desktop = electron.exposed.get("desktop");
   assert.ok(desktop);
   assert.ok(electron.exposed.has("workspace"));
-  const relayed = Object.keys(desktop).filter((key) => key !== "platform" && key !== "pathForFile" && !/^on[A-Z]/.test(key));
+  const relayed = Object.keys(desktop).filter((key) => key !== "platform" && key !== "windowMaterial" && key !== "pathForFile" && !/^on[A-Z]/.test(key));
   assert.deepEqual(relayed.sort(), Object.keys(rows).sort(), "the preload relays exactly the calls main answers");
   for (const [name, row] of Object.entries(rows)) {
     await (desktop[name] as (...args: unknown[]) => Promise<unknown>)(...row.valid);

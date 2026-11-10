@@ -3,6 +3,7 @@ import { useRef, type ReactNode } from "react";
 import { DictationStrip, MicButton, useComposerTalk, type ComposerDictation } from "./ComposerDictation";
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "./QuestionPrompt";
+import { useComposerSpace } from "./use-composer-space";
 import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
 import type { Annotation, AttachedFile, PastedText, RecalledMessage, StagedImage } from "../../domain/conversation";
 import { AnnotationRow } from "./AnnotationRow";
@@ -257,6 +258,11 @@ export type ConversationComposerProps = {
   onGoalClear?: () => void;
 };
 
+/** The strip the composer stands in, which tells the workspace how tall it is when it is the main one. */
+function ComposerWrap({ surface, children }: { surface: ComposerSurface; children: ReactNode }) {
+  return <footer ref={useComposerSpace(surface === "main")} className={`composer-wrap ${surface}`}>{children}</footer>;
+}
+
 export function ConversationComposer({
   taskId,
   prompt,
@@ -351,7 +357,7 @@ export function ConversationComposer({
   }
 
   return (
-    <footer className={`composer-wrap ${surface}`}>
+    <ComposerWrap surface={surface}>
       {surface === "main" && goal && <GoalBar goal={goal} onClear={onGoalClear} />}
       {surface === "main" && <ReturnFocusContext.Provider value={caret.textareaRef}>{decisions}</ReturnFocusContext.Provider>}
       {question && <QuestionPrompt question={question} answer={question.answer ?? ""} disabled={disabled || waiting} onAnswerChange={(text) => onQuestionAnswerChange(question, text)} onSubmit={() => onAnswerQuestion(question)} />}
@@ -408,6 +414,6 @@ export function ConversationComposer({
         </div>
       </div>}
       <AttachmentAnnotator attachments={attachments} />
-    </footer>
+    </ComposerWrap>
   );
 }

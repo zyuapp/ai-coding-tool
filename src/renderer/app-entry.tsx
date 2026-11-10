@@ -7,7 +7,7 @@ import { applyWindowChrome } from "./platform";
 import { applyStoredTheme } from "./theme";
 import { applyStoredTypography } from "./typography";
 
-applyWindowChrome(window.desktop.platform);
+applyWindowChrome(window.desktop.platform, window.desktop.windowMaterial);
 applyStoredTheme();
 applyStoredTypography();
 

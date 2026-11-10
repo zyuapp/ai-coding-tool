@@ -1,6 +1,6 @@
 /** First, so every module after it is compiled through the cache. */
 import { persistCompileCache } from "./compile-cache.js";
-import { app, BrowserWindow, dialog, globalShortcut, nativeTheme, powerMonitor, powerSaveBlocker, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, nativeTheme, powerMonitor, powerSaveBlocker, session, shell, systemPreferences, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { mkdirSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -46,6 +46,7 @@ import { appProfile } from "./user-data.js";
 import { readAppLaunch } from "./app-launch.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
 import { windowFrameOptions } from "./platform-capabilities.js";
+import { loadWindowGlass, systemGlassTint, windowMaterial, windowMaterialOptions, WINDOW_MATERIAL_ARGUMENT } from "./window-backdrop.js";
 import { serveWindowDesktop } from "./window-desktop.js";
 import { recheckMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
 import * as browser from "./browser-host.js";
@@ -250,11 +251,15 @@ function grantAppWindowPermissions() {
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback, details) => callback(!isVisualFrameUrl(details.requestingUrl)));
 }
 
+const windowGlass = loadWindowGlass(app.isPackaged ? path.join(process.resourcesPath, "native") : path.join(app.getAppPath(), "dist", "native"));
+const material = windowMaterial(windowGlass);
+
 function applyWindowTheme(theme: WindowTheme) {
   windowTheme = theme;
   /** Following means leaving the platform to its own appearance, which is what the renderer is reading. */
   nativeTheme.themeSource = theme.follow ? "system" : theme.variant;
-  if (window && !window.isDestroyed()) window.setBackgroundColor(theme.canvas);
+  /** A window over a material stays clear, so the material shows through its frame. */
+  if (window && !window.isDestroyed() && material === "none") window.setBackgroundColor(theme.canvas);
 }
 
 /** Writes queue behind one another, since two overlapping ones leave the tail of the longer. */
@@ -357,15 +362,17 @@ async function createWindow() {
     minWidth: 820,
     minHeight: 620,
     fullscreen: placement.fullScreen,
-    backgroundColor: windowTheme.canvas,
+    ...windowMaterialOptions(material, windowTheme.canvas),
     icon,
     webPreferences: {
       preload: path.join(__dirname, "../preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      additionalArguments: [`${WINDOW_MATERIAL_ARGUMENT}${material}`],
     },
   });
+  windowGlass?.attach(window.getNativeWindowHandle());
   if (process.platform === "linux") {
     /** Keep native accelerators, but never reveal a menu strip (including on Alt). */
     window.setAutoHideMenuBar(false);
@@ -416,6 +423,8 @@ async function createWindow() {
     if (shown.isDestroyed()) return;
     workspaceRuntime.setViewInUse(shown.isFocused());
     shown.webContents.send("window:active", shown.isFocused());
+    /** The system redraws its glass when a window comes back into use, so that is when the page asks after it too. */
+    if (material === "glass") shown.webContents.send("window:glass-tint", systemGlassTint((key, type) => systemPreferences.getUserDefault(key, type)));
   };
   window.on("focus", active);
   window.on("blur", active);

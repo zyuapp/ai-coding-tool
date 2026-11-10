@@ -21,9 +21,15 @@ function pushed<Payload>(channel: string) {
 let windowActive: boolean | undefined;
 ipcRenderer.on("window:active", (_event, active: boolean) => { windowActive = active; });
 const onWindowActive = pushed<boolean>("window:active");
+let glassTint: number | undefined;
+ipcRenderer.on("window:glass-tint", (_event, amount: number) => { glassTint = amount; });
+const onGlassTint = pushed<number>("window:glass-tint");
+
+const materialArgument = process.argv.find((argument) => argument.startsWith("--window-material="))?.slice("--window-material=".length);
 
 const api: WindowDesktopAPI = {
   platform: process.platform === "darwin" ? "macos" : process.platform === "linux" ? "linux" : "other",
+  windowMaterial: materialArgument === "glass" || materialArgument === "vibrancy" ? materialArgument : "none",
   pathForFile: (file: File) => webUtils.getPathForFile(file),
   openFolder: relay("openFolder"),
   projectlessWorkspace: relay("projectlessWorkspace"),
@@ -53,6 +59,10 @@ const api: WindowDesktopAPI = {
   onWindowActive: (listener) => {
     if (windowActive !== undefined) listener(windowActive);
     return onWindowActive(listener);
+  },
+  onGlassTint: (listener) => {
+    if (glassTint !== undefined) listener(glassTint);
+    return onGlassTint(listener);
   },
 };
 

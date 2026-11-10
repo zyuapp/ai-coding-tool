@@ -233,9 +233,14 @@ export type AutomationResponse = {
 
 export type DesktopPlatform = "macos" | "linux" | "other";
 
+/** What the platform draws under the window's page: Liquid Glass, the older vibrancy blur, or nothing. */
+export type WindowMaterial = "glass" | "vibrancy" | "none";
+
 export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   /** Static renderer-facing platform identity; runtime capabilities still come from main. */
   readonly platform: DesktopPlatform;
+  /** Static for the window's life, so the first paint already leaves the material showing. */
+  readonly windowMaterial: WindowMaterial;
   openFolder(): Promise<WorkspaceRecord | null>;
   /** Opens a folder named by path rather than picked, refusing anything that is not one to work in. */
   registerProject(root: string): Promise<WorkspaceRecord>;
@@ -427,6 +432,8 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   onOpenThread(listener: (taskId: string) => void): () => void;
   /** Whether the window is the one in use, its browser panel included. */
   onWindowActive(listener: (active: boolean) => void): () => void;
+  /** How tinted the system draws its glass, 0 to 1, where the window sits on glass. */
+  onGlassTint(listener: (amount: number) => void): () => void;
 };
 
 /** The calls a window's own views make on the desktop, each relayed to main by name. */
@@ -438,8 +445,8 @@ export type WindowDesktopCall =
 
 /** What a window reaches directly: its calls, what main pushes at it, and what it answers itself. The rest is the runtime's. */
 export type WindowDesktopAPI = Pick<DesktopAPI, WindowDesktopCall
-  | "platform" | "pathForFile"
-  | "onTerminalData" | "onSimulatorFrame" | "onWindowScreenshot" | "onDesktopShortcutRefused" | "onShortcut" | "onShortcutCaptured" | "onOpenThread" | "onWindowActive" | "onDictationLevel"
+  | "platform" | "windowMaterial" | "pathForFile"
+  | "onTerminalData" | "onSimulatorFrame" | "onWindowScreenshot" | "onDesktopShortcutRefused" | "onShortcut" | "onShortcutCaptured" | "onOpenThread" | "onWindowActive" | "onGlassTint" | "onDictationLevel"
 >;
 
 /** Where the speech model stands, and why when it cannot be used. */

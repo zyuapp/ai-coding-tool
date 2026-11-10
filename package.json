@@ -12,7 +12,7 @@
   },
   "main": "dist/main/main/main.js",
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.main.json && node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/build-simulator-helper.mts && node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/build-dictation-helper.mts",
+    "build": "vite build && tsc -p tsconfig.main.json && node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/build-simulator-helper.mts && node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/build-glass-addon.mts && node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/build-dictation-helper.mts",
     "check": "npm run check:licenses && npm run check:ios-themes && tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.test.json && npm run lint",
     "check:licenses": "node scripts/generate-legal-notices.mjs --check",
     "check:ios-themes": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-ios-themes.mts --check",

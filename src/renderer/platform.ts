@@ -1,4 +1,4 @@
-import type { DesktopPlatform } from "../contracts/ipc";
+import type { DesktopPlatform, WindowMaterial } from "../contracts/ipc";
 
 /** Whether the window is drawn on macOS, which is the only thing shortcut text needs to know. */
 export const MAC = typeof navigator !== "undefined" && /mac/i.test(navigator.platform || navigator.userAgent);
@@ -10,7 +10,12 @@ export function windowChrome(platform: DesktopPlatform): WindowChrome {
   return platform === "macos" ? "inset" : "native";
 }
 
-/** One renderer marker owns every spacing decision that follows the shape of the native frame. */
-export function applyWindowChrome(platform: DesktopPlatform, root: Pick<HTMLElement, "dataset"> = document.documentElement) {
+/**
+ * One renderer marker owns every spacing decision that follows the shape of the native frame, and
+ * one more says whether the platform draws a material under the page for the chrome to show.
+ */
+export function applyWindowChrome(platform: DesktopPlatform, material: WindowMaterial = "none", root: Pick<HTMLElement, "dataset"> = document.documentElement) {
   root.dataset.windowChrome = windowChrome(platform);
+  if (material === "none") delete root.dataset.windowMaterial;
+  else root.dataset.windowMaterial = material;
 }

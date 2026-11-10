@@ -5,7 +5,7 @@ import { DICTATION_TAP_MS } from "../../domain/dictation";
 import { displayShortcut, keystrokeOf, resolveShortcuts, shortcutFor } from "../../domain/shortcuts";
 import { MAC } from "../platform";
 import { installFocusAppearance } from "../focus-appearance";
-import { installWindowActivity, WINDOW_ACTIVITY_EVENT, windowInUse } from "../window-activity";
+import { installGlassTint, installWindowActivity, WINDOW_ACTIVITY_EVENT, windowInUse } from "../window-activity";
 import { onTerminalFindResults, onTerminalResize } from "./terminal-views";
 
 export type SubscriptionHost = {
@@ -18,6 +18,7 @@ export type SubscriptionHost = {
 export function useWorkspaceSubscriptions(host: SubscriptionHost) {
   useEffect(installFocusAppearance, []);
   useEffect(installWindowActivity, []);
+  useEffect(installGlassTint, []);
   /** Main hears the dictation keystroke but leaves it to the page, so its character is never typed. */
   useEffect(() => {
     function swallow(event: KeyboardEvent) {

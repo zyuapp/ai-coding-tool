@@ -22,6 +22,7 @@ test("desktop initialization waits for restoration and applies current runtime p
     onWindowScreenshot: () => () => {},
     onOpenThread: () => () => {},
     onWindowActive: () => () => {},
+    onGlassTint: () => () => {},
     setShortcuts: (value: Parameters<DesktopAPI["setShortcuts"]>[0]) => {
       assert.ok(refusal, "the refusal listener must precede claiming shortcuts");
       shortcuts.push(value);
@@ -86,7 +87,7 @@ test("layout defaults use the supplied window width while stored choices remain 
 test("reopened views report both focused and unfocused initial DOM state", async () => {
   window.desktop = {
     onShortcut: () => () => {}, onShortcutCaptured: () => () => {}, onDesktopShortcutRefused: () => () => {},
-    onWindowScreenshot: () => () => {}, onOpenThread: () => () => {}, onWindowActive: () => () => {},
+    onWindowScreenshot: () => () => {}, onOpenThread: () => () => {}, onWindowActive: () => () => {}, onGlassTint: () => () => {},
   } as unknown as DesktopAPI;
   for (const focused of [true, false]) {
     const focus = vi.spyOn(document, "hasFocus").mockReturnValue(focused);

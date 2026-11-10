@@ -27,8 +27,27 @@
   --row-hover: var(--p-row-hover, var(--p-bg-6));
   --row-selected: var(--p-row-selected, color-mix(in srgb, var(--p-bg-6) 93%, var(--p-fg-0)));
   --surface-input: color-mix(in srgb, var(--p-bg-0) 50%, var(--p-bg-2));
-  --surface-glass: rgb(from var(--p-bg-4) r g b / 0.94); /* blurred float over the transcript */
-  --surface-glass-hover: rgb(from var(--p-bg-6) r g b / 0.96);
+  /**
+   * A menu's fill where it opens over the frame. What is behind it there is only half there, and a
+   * backdrop filter cannot hide it, so the fill stays close to solid.
+   */
+  --surface-glass: rgb(from var(--p-bg-4) r g b / 0.95);
+  /* A float that only ever sits over the page, which is solid enough to blur: the find bar, the way back to the newest message */
+  --surface-lens: rgb(from var(--p-bg-5) r g b / 0.62);
+  --surface-lens-hover: rgb(from var(--p-bg-6) r g b / 0.8);
+  /**
+   * The frame is the ground the sidebar and the gap around the page share. Where the platform draws
+   * a material under the window it thins to a tint, and the fills that sit on it thin to washes of ink.
+   */
+  --frame: var(--sidebar);
+  --page: var(--canvas); /* the sheet the work sits on, solid so the glass over it has something whole to blur */
+  --frame-control: var(--control);
+  --frame-control-hover: var(--control-hover);
+  --frame-row-hover: var(--row-hover);
+  --frame-row-selected: var(--row-selected);
+  --frame-field: var(--surface-input);
+  --frame-meta: var(--quiet);
+  --frame-label: var(--quiet-soft);
   --surface-inverse: var(--p-contrast); /* the one high-contrast fill: primary buttons */
   --surface-inverse-soft: color-mix(in srgb, var(--p-contrast) 85%, var(--p-bg-6));
   --surface-inverse-off: color-mix(in srgb, var(--p-bg-6) 80%, var(--p-fg-5)); /* an inverse fill with nothing to do */
@@ -198,15 +217,40 @@
   --syntax-attribute: var(--p-syntax-attribute, var(--p-ansi-yellow));
   --syntax-punctuation: var(--p-syntax-punctuation);
 
-  /* Shadows and scrims. Light themes carry the same geometry at a lower --p-shadow-scale. */
-  --shadow-menu: 0 12px 30px rgb(var(--p-shadow) / calc(0.38 * var(--p-shadow-scale)));
-  --shadow-popover: 0 16px 40px rgb(var(--p-shadow) / calc(0.42 * var(--p-shadow-scale)));
-  --shadow-panel: 0 22px 60px rgb(var(--p-shadow) / calc(0.45 * var(--p-shadow-scale)));
-  --shadow-composer: 0 15px 45px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale)));
+  /**
+   * Shadows and scrims. Light themes carry the same geometry at a lower --p-shadow-scale. Anything
+   * raised is lit from above: --glint is the light its top edge catches, the same in every theme,
+   * and each shadow pairs a close contact shadow with a wide soft one.
+   */
+  --glint: inset 0 1px 0 rgb(255 255 255 / 0.075);
+  /**
+   * Glass, the material every float and raised control is cut from: a fill thin enough to show what
+   * moves under it, a sheen that is brightest at the top, a blur that keeps what is under it from
+   * reading as words, and a rim lit from above. --glass-menu is the same pane, thick enough to read a list on.
+   */
+  --glass-sheen: linear-gradient(to bottom, rgb(255 255 255 / 0.11), rgb(255 255 255 / 0.035));
+  /**
+   * How thick the glass is, 0 to 1. Over the system's own glass it is the tint the person set
+   * there, so the window's panes clear and cloud with the rest of their desktop.
+   */
+  --glass-tint: 0.6;
+  --glass: var(--glass-sheen), rgb(from var(--surface) r g b / calc(0.26 + 0.4 * var(--glass-tint)));
+  --glass-menu: var(--glass-sheen), rgb(from var(--p-bg-4) r g b / calc(0.54 + 0.3 * var(--glass-tint)));
+  --glass-blur: blur(26px) saturate(180%);
+  --glass-rim: inset 0 1px 0 rgb(255 255 255 / 0.2), inset 0 0 0 1px rgb(255 255 255 / 0.055), inset 0 -1px 0 rgb(0 0 0 / 0.14);
+  /* A control cut from it: a wash of ink under the same sheen. */
+  --glass-control: var(--glass-sheen), var(--wash);
+  --glass-control-hover: var(--glass-sheen), var(--surface-hover);
+  --shadow-menu: var(--glint), 0 2px 6px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale))), 0 14px 36px rgb(var(--p-shadow) / calc(0.34 * var(--p-shadow-scale)));
+  --shadow-popover: var(--glint), 0 2px 8px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale))), 0 18px 46px rgb(var(--p-shadow) / calc(0.38 * var(--p-shadow-scale)));
+  --shadow-panel: var(--glint), 0 3px 10px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale))), 0 24px 64px rgb(var(--p-shadow) / calc(0.42 * var(--p-shadow-scale)));
+  --shadow-composer: var(--glint), 0 1px 2px rgb(var(--p-shadow) / calc(0.14 * var(--p-shadow-scale))), 0 15px 45px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale)));
   /* The floating surfaces carry a close contact shadow instead of a border. */
-  --shadow-float: 0 1px 2px rgb(var(--p-shadow) / calc(0.16 * var(--p-shadow-scale))), 0 6px 16px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale)));
-  --shadow-float-lift: 0 1px 3px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale))), 0 10px 26px rgb(var(--p-shadow) / calc(0.28 * var(--p-shadow-scale)));
-  --shadow-overlay: 0 30px 80px rgb(var(--p-shadow) / calc(0.55 * var(--p-shadow-scale)));
+  --shadow-float: var(--glint), 0 1px 2px rgb(var(--p-shadow) / calc(0.16 * var(--p-shadow-scale))), 0 6px 16px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale)));
+  --shadow-float-lift: var(--glint), 0 1px 3px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale))), 0 10px 26px rgb(var(--p-shadow) / calc(0.28 * var(--p-shadow-scale)));
+  --shadow-overlay: var(--glint), 0 4px 14px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale))), 0 30px 80px rgb(var(--p-shadow) / calc(0.5 * var(--p-shadow-scale)));
+  /* The page: the one solid sheet in the window, resting on the frame. */
+  --shadow-page: 0 0 0 1px var(--line-glass), 0 1px 3px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale))), 0 8px 28px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale)));
   --shadow-sidebar: 20px 0 60px rgb(var(--p-shadow) / calc(0.45 * var(--p-shadow-scale)));
   --shadow-tooltip: 0 12px 32px rgb(var(--p-shadow) / calc(0.32 * var(--p-shadow-scale)));
   --shadow-thumb: 0 1px 2px rgb(var(--p-shadow) / calc(0.4 * var(--p-shadow-scale))), 0 4px 10px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale)));
@@ -243,6 +287,11 @@
    * button add up to this instead.
    */
   --chrome-head: 72px;
+  /** The frame showing around the page, and the corner the page turns inside it. */
+  --frame-gap: 8px;
+  --page-radius: 11px;
+  /** The room either side of the conversation, less what the frame already took, so its column is as wide as the window allows. */
+  --page-inset: clamp(20px, calc(4vw - var(--frame-gap)), 64px);
   /** The sidebar toolbar remains useful below a native frame; on macOS its left side also houses the traffic lights. */
   --window-strip: 40px;
   --window-controls-inset: 0px;
@@ -252,6 +301,34 @@
   --ui-font: var(--system-ui-font);
   --mono: var(--system-mono-font);
 }
+
+/**
+ * A material under the window shows through the frame, tinted by the theme. Someone who asked the
+ * system for less transparency keeps the solid frame.
+ */
+@media (prefers-reduced-transparency: no-preference) {
+  :root[data-window-material] {
+    --frame: rgb(from var(--sidebar) r g b / calc(0.16 + 0.5 * var(--glass-tint)));
+    --frame-control: rgb(from var(--p-fg-0) r g b / 0.08);
+    --frame-control-hover: rgb(from var(--p-fg-0) r g b / 0.13);
+    --frame-row-hover: rgb(from var(--p-fg-0) r g b / 0.065);
+    --frame-row-selected: rgb(from var(--p-fg-0) r g b / 0.13);
+    --frame-field: rgb(from var(--p-bg-0) r g b / 0.32);
+    --frame-meta: var(--quiet-strong);
+    --frame-label: var(--quiet);
+  }
+}
+/** And keeps solid panes in place of glass ones. */
+@media (prefers-reduced-transparency: reduce) {
+  :root, [data-theme] {
+    --glass: var(--surface);
+    --glass-menu: var(--surface-menu);
+    --glass-blur: none;
+    --surface-lens: var(--p-bg-5);
+    --surface-lens-hover: var(--p-bg-6);
+  }
+}
+:root[data-window-material] { background: none; }
 
 /** Only macOS overlays inset window controls on renderer content. */
 :root[data-window-chrome="inset"] {
@@ -335,7 +412,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
    * carrying the sidebar, the topbar and the conversation off the left edge with it.
    */
   overflow: clip;
-  background: var(--canvas);
+  background: var(--frame);
 }
 
 .sidebar {
@@ -345,9 +422,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   max-width: 50vw;
   overflow: visible;
   flex: 0 0 auto;
-  padding: 0 10px 10px;
-  background: var(--sidebar);
-  border-right: 1px solid var(--line);
+  padding: 0 3px 10px 10px;
   display: flex;
   flex-direction: column;
   transition: margin-left var(--panel-slide-time) var(--panel-slide-ease);
@@ -362,7 +437,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   position: absolute;
   z-index: 5;
   top: 0;
-  right: -5px;
+  right: -9px;
   bottom: 0;
   width: 10px;
   cursor: col-resize;
@@ -428,14 +503,15 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   gap: 7px;
   padding: 0 10px;
   border-radius: 8px;
-  background: var(--control);
+  background: var(--frame-control);
+  box-shadow: var(--glass-rim);
   color: var(--ink-dim);
   font: inherit;
   font-size: var(--text-control);
   font-weight: 500;
   transition: background var(--touch-time) var(--touch-ease), transform var(--touch-time) var(--touch-ease);
 }
-.new-task-button:hover { background: var(--control-hover); }
+.new-task-button:hover { background: var(--frame-control-hover); }
 .new-task-label { position: relative; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-search {
   flex: none;
@@ -447,17 +523,18 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   padding: 0 9px;
   border: 0;
   border-radius: 8px;
-  background: var(--control);
+  background: var(--frame-control);
+  box-shadow: var(--glass-rim);
   color: var(--muted-strong);
   cursor: pointer;
   transition: background 0.15s ease;
 }
-.sidebar-search:hover { background: var(--control-hover); }
-.task-row:hover { background: var(--row-hover); }
+.sidebar-search:hover { background: var(--frame-control-hover); }
+.task-row:hover { background: var(--frame-row-hover); }
 
 .section-label {
   padding: 24px 11px 8px;
-  color: var(--quiet-soft);
+  color: var(--frame-label);
   font-size: var(--text-meta);
   font-weight: 600;
 }
@@ -481,7 +558,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   padding: 0 7px 0 8px;
   border: 0;
   border-radius: 7px;
-  background: var(--surface-raised);
+  background: var(--frame-control);
   color: var(--muted);
   font: inherit;
   font-size: var(--text-meta);
@@ -490,7 +567,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .activity-filter-trigger > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .activity-filter-trigger > svg { flex: none; }
 .activity-filter-trigger > svg { color: var(--quiet); }
-.activity-filter-trigger:hover, .activity-filter-trigger[aria-expanded="true"] { background: var(--control); color: var(--muted-strong); }
+.activity-filter-trigger:hover, .activity-filter-trigger[aria-expanded="true"] { background: var(--frame-control-hover); color: var(--muted-strong); }
 .activity-filter-trigger.narrowed { background: var(--accent-chip); color: var(--ink-dim); }
 .activity-filter-host { color: var(--quiet); }
 .activity-filter:has(.activity-filter-clear) { display: flex; align-items: center; gap: 2px; }
@@ -576,7 +653,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .task-row-text .host-mark > svg { margin-right: 4px; vertical-align: -2px; }
 /**
  * Every floating menu in the app, whether a trigger or a right-click opened it. Shaped after a menu
- * on this platform: translucent, hairline bordered, tight rows, and a full-width highlight held in
+ * on this platform: a pane of glass with a lit top edge, tight rows, and a rounded highlight held in
  * from the edges. Every colour comes from the theme, so the shape is all that is borrowed.
  */
 .menu-popover {
@@ -591,14 +668,17 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   min-width: 168px;
   max-width: 320px;
   border: 1px solid var(--line-glass);
-  border-radius: 6px;
-  padding: 4px 0;
-  background: var(--surface-glass);
-  backdrop-filter: blur(28px) saturate(180%);
-  box-shadow: var(--shadow-menu);
+  border-radius: 10px;
+  padding: 5px;
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-rim), var(--shadow-menu);
   font-size: var(--text-menu);
   outline: none;
 }
+/** A menu the frame opened sits over it, where there is too little behind it to blur. */
+:root[data-window-material] :is(.sidebar, .settings-sidebar) .menu-popover,
+:root[data-window-material] body:has(:is(.sidebar, .settings-sidebar) :is([data-menu-target], [aria-expanded="true"])) > .menu-popover { background: var(--surface-glass); }
 /** A floating surface fades in where it stands; a menu measures itself to find its place, so it never moves or grows on the way. */
 @keyframes surface-in { from { opacity: 0; } }
 .menu-popover, .picker-popover { animation: surface-in var(--touch-time) var(--touch-ease); }
@@ -607,10 +687,9 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   align-items: center;
   gap: 6px;
   height: 28px;
-  margin: 0 5px;
   border: 0;
-  border-radius: 4px;
-  padding: 0 7px;
+  border-radius: 6px;
+  padding: 0 8px;
   background: transparent;
   color: var(--ink-dim);
   text-align: left;
@@ -637,9 +716,9 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .menu-chevron { color: var(--muted); }
 .menu-popover button:is(:hover, [aria-expanded="true"]):not([aria-disabled="true"]) :is(.menu-shortcut, .menu-chevron),
 .menu-popover button:focus-visible:not([aria-disabled="true"]):where(:root:not([data-focus-appearance="quiet"]) *) :is(.menu-shortcut, .menu-chevron) { color: currentColor; }
-.menu-separator { height: 1px; margin: 5px 0; background: var(--line-glass); }
+.menu-separator { height: 1px; margin: 5px 8px; background: var(--line-glass); }
 /** A searchable menu's field stays put while its items scroll under it. */
-.menu-search { position: sticky; top: -4px; z-index: 1; margin-top: -4px; padding: 6px 6px 4px; background: var(--surface-glass); backdrop-filter: blur(28px) saturate(180%); }
+.menu-search { position: sticky; top: -5px; z-index: 1; margin: -5px -5px 0; border-radius: 9px 9px 0 0; padding: 6px 6px 4px; background: var(--surface-glass); backdrop-filter: var(--glass-blur); }
 .menu-search-field { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border: 1px solid var(--line-input); border-radius: 5px; background: var(--surface-input); color: var(--quiet); cursor: text; }
 .menu-search-field > svg { flex: none; }
 .menu-search-field:focus-within { border-color: var(--focus-ring); box-shadow: 0 0 0 1px var(--focus-ring); }
@@ -647,7 +726,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .menu-search input::placeholder { color: var(--quiet); }
 .menu-search input::-webkit-search-cancel-button { opacity: 0.4; cursor: pointer; }
 .menu-search input::-webkit-search-cancel-button:hover { opacity: 0.75; }
-.menu-empty { margin: 4px 0; padding: 4px 12px; color: var(--quiet); font-size: var(--text-menu); }
+.menu-empty { margin: 4px 0; padding: 4px 8px; color: var(--quiet); font-size: var(--text-menu); }
 /**
  * A list an item opened, just clear of its parent's edge. It sits inside the blurred parent, where a
  * backdrop filter only samples the parent, so it is painted solid in the parent's own colour instead.
@@ -766,11 +845,11 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   border-radius: 8px;
   color: var(--ink-faint);
 }
-.task-row.active { background: var(--row-selected); color: var(--ink); }
+.task-row.active { background: var(--frame-row-selected); box-shadow: var(--glass-rim); color: var(--ink); }
 .task-row-text { min-width: 0; }
 .task-row-text > span, .task-row-text > small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-row-text > span { font-size: var(--text-control); line-height: 1.3; }
-.task-row-text > small { margin-top: 3px; color: var(--quiet); font-size: var(--text-meta); }
+.task-row-text > small { margin-top: 3px; color: var(--frame-meta); font-size: var(--text-meta); }
 /** A row carrying news for the user is set a weight above the rows already read, so the list is scanned by its type before its marks. */
 .task-row:has(.task-attention) .task-row-text > span { color: var(--ink); font-weight: 560; }
 .task-row:hover:not(.offline) .task-row-text > small { color: var(--quiet-strong); }
@@ -793,7 +872,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   cursor: pointer;
 }
 .sidebar-settings:hover { background: var(--wash); color: var(--ink-faint); }
-.sidebar-settings.active { background: var(--row-selected); color: var(--ink); }
+.sidebar-settings.active { background: var(--frame-row-selected); color: var(--ink); }
 
 .sidebar-footer {
   flex: 0 0 auto;
@@ -886,8 +965,10 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
    * beside it is centred, so a track that eased would carry the whole conversation sideways with it.
    */
   grid-template-columns: minmax(0, 1fr) 0;
-  background: var(--canvas);
+  margin: 0 var(--frame-gap) var(--frame-gap);
 }
+/** The page lies under everything but the top bar, which stays on the frame with the sidebar. It comes first, so the rest paints over it. */
+.workspace::before { content: ""; grid-column: 1; grid-row: 2 / -1; border-radius: var(--page-radius); background: var(--page); box-shadow: var(--shadow-page); }
 .topbar {
   position: relative;
   z-index: 3;
@@ -897,7 +978,6 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   justify-content: space-between;
   gap: 24px;
   padding: 12px 22px 10px;
-  border-bottom: 1px solid var(--line);
   -webkit-app-region: drag;
   grid-column: 1;
   grid-row: 1;
@@ -940,7 +1020,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   -webkit-app-region: no-drag;
 }
 .session-toggle:hover { background: var(--surface-hover); color: var(--muted-strong); }
-.session-toggle.active { background: var(--wash); color: var(--ink-dim); }
+.session-toggle.active { background: var(--glass-control); box-shadow: var(--glass-rim); color: var(--ink-dim); }
 .session-toggle:is(:disabled, [aria-disabled="true"]) { opacity: 0.6; cursor: default; }
 .session-toggle:is(:disabled, [aria-disabled="true"]):hover { background: transparent; color: var(--quiet); }
 .session-toggle > span {
@@ -1031,7 +1111,8 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   border-radius: 8px;
   padding: 0 11px 0 9px;
   overflow: hidden;
-  background: var(--wash);
+  background: var(--glass-control);
+  box-shadow: var(--glass-rim);
   color: var(--muted-strong);
   font: inherit;
   font-size: var(--text-menu);
@@ -1048,23 +1129,27 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .work-area { position: relative; min-height: 0; display: flex; grid-column: 1; grid-row: 2; }
 .workspace.dock-open { grid-template-columns: minmax(0, 1fr) var(--dock-width); }
 .workspace.summary-open :is(.composer-wrap, .draft-recents) { margin-right: 282px; }
-.workspace.summary-open .conversation { padding-right: calc(clamp(20px, 4vw, 64px) + 282px); }
+.workspace.summary-open .conversation { padding-right: calc(var(--page-inset) + 282px); }
+/** The transcript runs on under the composer, which is glass, and rests its last line above it. */
+.workspace:not(.drafting) > .work-area > .conversation { margin-bottom: calc(-1 * var(--composer-space, 0px)); padding-bottom: calc(24px + var(--composer-space, 0px)); }
 /** The dock stands over its own track rather than in it, so sliding it moves nothing but itself. */
 .right-dock {
   position: absolute;
   z-index: 10;
-  top: 0;
+  top: var(--frame-gap);
   right: 0;
   bottom: 0;
   min-width: 0;
-  width: var(--dock-width);
+  /** A second sheet beside the page, with the frame showing between them. */
+  width: calc(var(--dock-width) - var(--frame-gap));
   display: grid;
-  grid-template-rows: var(--chrome-head) minmax(0, 1fr);
-  /** Clipped rather than hidden, with room for the resize handle to straddle the dock's own edge. */
+  grid-template-rows: calc(var(--chrome-head) - var(--frame-gap)) minmax(0, 1fr);
+  /** Clipped rather than hidden, with room for the resize handle to stand in the gap beside the dock. */
   overflow: clip;
-  overflow-clip-margin: 8px;
-  border-left: 1px solid var(--line);
+  overflow-clip-margin: 12px;
+  border-radius: var(--page-radius);
   background: var(--sunken);
+  box-shadow: var(--shadow-page);
   transition: transform var(--panel-slide-time) var(--panel-slide-ease), visibility 0s;
 }
 /** Hiding slides the dock off the right edge at its own width, so its contents never reflow. */
@@ -1079,7 +1164,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
  * restoring costs no reflow and the transcript comes back where it was left.
  */
 .workspace.dock-full > :not(.right-dock) { visibility: hidden; }
-.workspace.dock-full .right-dock { position: absolute; inset: 0; width: auto; grid-column: 1 / -1; z-index: 4; }
+.workspace.dock-full .right-dock { position: absolute; inset: var(--frame-gap) 0 0; width: auto; grid-column: 1 / -1; z-index: 4; }
 .workspace.dock-full .right-dock-resizer { display: none; }
 /** The dock now owns the window's top edge, so its tab strip drags the window and clears the traffic lights. */
 .workspace.dock-full .right-dock-tabs { -webkit-app-region: drag; }
@@ -1090,7 +1175,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   position: absolute;
   z-index: 5;
   top: 0;
-  left: -8px;
+  left: -12px;
   bottom: 0;
   width: 16px;
   cursor: col-resize;
@@ -1334,11 +1419,11 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
  * searches — and takes no height of its own, so opening and closing find moves nothing.
  */
 .find-slot { position: relative; z-index: 12; height: 0; }
-.find-slot > .find-bar { position: absolute; top: 10px; right: 12px; width: min(340px, calc(100% - 24px)); border: 1px solid var(--line); border-radius: 11px; padding: 6px 8px; background: var(--surface-glass); backdrop-filter: blur(12px); box-shadow: var(--shadow-menu); }
+.find-slot > .find-bar { position: absolute; top: 10px; right: 12px; width: min(340px, calc(100% - 24px)); border: 1px solid var(--line-glass); border-radius: 11px; padding: 6px 8px; background: var(--surface-lens); backdrop-filter: blur(20px) saturate(160%); box-shadow: var(--shadow-menu); }
 
 /* The transcript has no header of its own, so its bar floats from the top of the whole area. */
 .work-area > .find-slot { position: absolute; top: 0; right: 0; left: 0; }
-.work-area > .find-slot > .find-bar { top: 12px; right: clamp(20px, 4vw, 64px); width: min(420px, calc(100% - 40px)); }
+.work-area > .find-slot > .find-bar { top: 12px; right: var(--page-inset); width: min(420px, calc(100% - 40px)); }
 
 /**
  * The page is a native view main draws over the panel, so its bar cannot float: it would sit under
@@ -1348,7 +1433,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .browser-panel > .find-slot > .find-bar { position: static; width: auto; border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; padding: 7px 10px; background: var(--surface); backdrop-filter: none; box-shadow: none; }
 
 /** The session panel holds the same corner, so the bar takes the space beside it rather than under it. */
-.workspace.summary-open .work-area > .find-slot > .find-bar { right: calc(clamp(20px, 4vw, 64px) + 282px); }
+.workspace.summary-open .work-area > .find-slot > .find-bar { right: calc(var(--page-inset) + 282px); }
 
 .agents-panel-heading { min-height: var(--chrome-head); display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line-soft); padding: 0 22px; }
 .agents-panel-heading h2 { margin: 0; color: var(--ink-soft); font-size: var(--text-heading); font-weight: 580; }
@@ -1425,7 +1510,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   overflow: auto;
   /** The transcript anchors its own view; the browser adjusting scrollTop here reads as a reader's move. */
   overflow-anchor: none;
-  padding: 54px clamp(20px, 4vw, 64px) 24px;
+  padding: 54px var(--page-inset) 24px;
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) transparent;
 }
@@ -1728,7 +1813,8 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   max-width: 100%;
   border-radius: 18px;
   padding: 11px 16px;
-  background: var(--surface-raised);
+  background: var(--glass-control);
+  box-shadow: var(--glass-rim);
   color: var(--ink-soft);
   line-height: 1.5;
 }
@@ -2054,14 +2140,14 @@ pre {
   height: 34px;
   border: 1px solid var(--line-glass);
   border-radius: 50%;
-  background: var(--surface-glass);
-  backdrop-filter: blur(10px);
+  background: var(--surface-lens);
+  backdrop-filter: blur(16px) saturate(160%);
   box-shadow: var(--shadow-float);
   color: var(--ink-dim);
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
 }
-.scroll-to-end:hover { background: var(--surface-glass-hover); color: var(--ink); }
+.scroll-to-end:hover { background: var(--surface-lens-hover); color: var(--ink); }
 .thinking-row { position: relative; display: flex; align-items: center; gap: 5px; padding: 2px 0 28px; }
 .thinking-row i { width: 5px; height: 5px; border-radius: 50%; background: var(--muted-soft); animation: bounce 1.1s infinite steps(7); }
 .thinking-row i:nth-child(2) { animation-delay: 0.15s; }
@@ -2179,17 +2265,20 @@ pre {
   inset: 0;
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
-  background: var(--canvas);
+  background: var(--sidebar);
 }
+/** Over a material the frame under this view already carries the tint, so the window behind it steps out of the way instead. */
+/** The frame above the page drags the window, as the top of any window does. */
+.settings-view::before { content: ""; position: absolute; inset: 0 0 auto 260px; height: var(--frame-gap); -webkit-app-region: drag; }
+:root[data-window-material] .settings-view { background: none; }
+:root[data-window-material] .app-shell:has(> .settings-view) > :not(.settings-view) { opacity: 0; }
 /** The way back and the title stay put; only the list of pages scrolls, so a short window never buries them. */
 .settings-sidebar {
   min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-right: 1px solid var(--line);
-  padding: 0 12px 18px;
-  background: var(--sidebar);
+  padding: 0 4px 18px 12px;
 }
 .settings-traffic-space { height: max(12px, var(--settings-titlebar-inset)); flex: 0 0 auto; -webkit-app-region: drag; }
 .settings-back {
@@ -2219,7 +2308,7 @@ pre {
   border: 1px solid var(--line-input);
   border-radius: 9px;
   padding: 0 10px;
-  background: var(--sunken);
+  background: var(--frame-field);
   color: var(--quiet-strong);
   -webkit-app-region: no-drag;
 }
@@ -2253,13 +2342,17 @@ pre {
   text-align: left;
   cursor: pointer;
 }
-.settings-sidebar :is(nav, .settings-search-results, .settings-search-empty) button:hover { background: var(--surface-active); color: var(--ink-dim); }
-.settings-sidebar :is(nav, .settings-search-results) button.active { position: relative; background: var(--row-selected); color: var(--ink); font-weight: 560; }
+.settings-sidebar :is(nav, .settings-search-results, .settings-search-empty) button:hover { background: var(--frame-row-hover); color: var(--ink-dim); }
+.settings-sidebar :is(nav, .settings-search-results) button.active { position: relative; background: var(--frame-row-selected); color: var(--ink); font-weight: 560; }
 .settings-sidebar :is(nav, .settings-search-results) button.active > svg { color: var(--accent); }
 .settings-main {
   min-width: 0;
   overflow: auto;
-  padding: clamp(72px, 11vh, 112px) clamp(32px, 7vw, 96px);
+  margin: var(--frame-gap);
+  border-radius: var(--page-radius);
+  padding: clamp(64px, 10vh, 104px) clamp(32px, 7vw, 96px);
+  background: var(--page);
+  box-shadow: var(--shadow-page);
 }
 .settings-main > * { max-width: 780px; margin-inline: auto; }
 /** The heading is where the page is dragged from; a drag region over the rest would eat its scroll. */
@@ -2331,7 +2424,8 @@ pre {
   border: 1px solid var(--line-strong);
   border-radius: 9px;
   padding: 8px 11px;
-  background: var(--control-soft);
+  background: var(--glass-sheen), var(--control-soft);
+  box-shadow: var(--glint);
   color: var(--ink);
   font-size: var(--text-control);
   cursor: pointer;
@@ -2379,7 +2473,7 @@ pre {
   transition: background 120ms ease, color 120ms ease;
 }
 .segmented button:hover { color: var(--ink-dim); }
-.segmented button.chosen { background: var(--surface-menu-hover); color: var(--ink); box-shadow: var(--shadow-thumb); }
+.segmented button.chosen { background: var(--glass-sheen), var(--surface-menu-hover); color: var(--ink); box-shadow: var(--glass-rim), var(--shadow-thumb); }
 .segmented button.chosen svg { color: var(--accent); }
 .segmented button svg { flex: none; }
 
@@ -2435,7 +2529,8 @@ pre {
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   padding: 7px 11px;
-  background: var(--control);
+  background: var(--glass-sheen), var(--control);
+  box-shadow: var(--glint);
   color: var(--ink-dim);
   font-size: var(--text-control);
   text-align: left;
@@ -2581,8 +2676,8 @@ pre {
 .setting-row-action { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
 .setting-row-action em { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--text-meta); font-style: normal; font-variant-numeric: tabular-nums; }
 .setting-row-action em.granted { color: var(--success-soft); }
-.setting-row-action button, .settings-restart button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 11px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
-.setting-row-action button:hover:not(:disabled), .settings-restart button:hover { border-color: var(--line-bright); background: var(--control-hover); }
+.setting-row-action button, .settings-restart button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 11px; background: var(--glass-sheen), var(--control); box-shadow: var(--glint); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
+.setting-row-action button:hover:not(:disabled), .settings-restart button:hover { border-color: var(--line-bright); background: var(--glass-sheen), var(--control-hover); }
 
 .computer-title { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; min-width: 0; }
 .computer-title strong { cursor: text; text-decoration: underline dotted transparent; text-underline-offset: 4px; transition: text-decoration-color 120ms ease; }
@@ -2709,13 +2804,18 @@ pre {
   position: relative;
   z-index: 2;
   container-type: inline-size;
-  padding: 12px clamp(20px, 4vw, 64px) 20px;
-  background: linear-gradient(to bottom, var(--canvas-fade), var(--canvas) 12px);
+  padding: 12px var(--page-inset) 20px;
+  /** Words leaving the foot of the composer fade out before the page ends. */
+  border-radius: 0 0 var(--page-radius) var(--page-radius);
+  background: linear-gradient(to top, var(--canvas) 20px, var(--canvas-fade) 60px);
   grid-column: 1;
   grid-row: 3;
+  /** Only what stands in this strip takes the pointer; the transcript beside it still does. */
+  pointer-events: none;
 }
+.composer-wrap > * { pointer-events: auto; }
 /** The threads last active where a new thread starts, in the composer's own column under it. */
-.draft-recents { grid-column: 1; grid-row: 4; min-height: 0; overflow: hidden; padding: 0 clamp(20px, 4vw, 64px); }
+.draft-recents { grid-column: 1; grid-row: 4; min-height: 0; overflow: hidden; padding: 0 var(--page-inset); }
 .draft-recents > div { max-width: 860px; margin: 0 auto; padding: 6px 4px 0; display: grid; animation: draft-recents-in var(--glide-time) var(--glide-ease) both; }
 .draft-recents h3 { margin: 0; padding: 0 12px 6px; color: var(--quiet-strong); font-size: var(--text-meta); font-weight: 560; }
 .draft-recents button {
@@ -2964,23 +3064,27 @@ pre {
   max-height: calc(100% - 110px);
   overflow: auto;
   border-radius: 12px;
-  box-shadow: 0 0 0 1px var(--line-glass), 0 4px 14px rgb(var(--p-shadow) / calc(0.12 * var(--p-shadow-scale)));
+  box-shadow: 0 0 0 1px var(--line-glass), var(--glint), 0 4px 14px rgb(var(--p-shadow) / calc(0.12 * var(--p-shadow-scale)));
   animation: panel-in 150ms ease-out;
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) transparent;
 }
 .session-card {
+  position: relative;
+  isolation: isolate;
   overflow: hidden;
   border-radius: 12px;
-  background: var(--surface);
 }
+.session-card::before { content: ""; position: absolute; z-index: -1; inset: 0; border-radius: inherit; background: var(--glass); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-rim); }
 .subagent-inspector {
   min-width: 0;
   display: grid;
-  grid-template-rows: var(--chrome-head) minmax(0, 1fr);
+  grid-template-rows: calc(var(--chrome-head) - var(--frame-gap)) minmax(0, 1fr);
   overflow: hidden;
-  border-left: 1px solid var(--line);
+  margin: var(--frame-gap) 0 0 var(--frame-gap);
+  border-radius: var(--page-radius);
   background: var(--sunken);
+  box-shadow: var(--shadow-page);
   grid-column: 2;
   grid-row: 1 / -1;
   animation: inspector-in 160ms ease-out;
@@ -3579,9 +3683,11 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
   margin: 0 auto;
   overflow: visible;
   border-radius: 17px;
-  background: var(--surface);
+  /** The pane is a layer of its own behind the controls, so nothing inside the composer is positioned or blurred against it. */
+  isolation: isolate;
   box-shadow: 0 0 0 1px var(--line-glass), var(--shadow-composer);
 }
+.composer::before { content: ""; position: absolute; z-index: -1; inset: 0; border-radius: inherit; background: var(--glass); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-rim); }
 .command-menu {
   position: absolute;
   z-index: 40;
@@ -3592,10 +3698,11 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--line-mid);
+  border: 1px solid var(--line-glass);
   border-radius: 15px;
-  background: var(--surface-menu);
-  box-shadow: var(--shadow-panel);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-rim), var(--shadow-panel);
   animation: command-menu-in 110ms ease-out;
 }
 .command-menu-heading {
@@ -4469,7 +4576,8 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   padding: 0 10px 0 8px;
   border: 0;
   border-radius: 15px;
-  background: var(--wash);
+  background: var(--glass-control);
+  box-shadow: var(--glass-rim);
   color: var(--muted);
   font-size: var(--text-meta);
   font-weight: 560;
@@ -4490,8 +4598,8 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   list-style: none;
 }
 .setting-menu > summary::-webkit-details-marker { display: none; }
-.setting-menu > summary { background: var(--wash); }
-.setting-menu > summary:hover { background: var(--surface-hover); }
+.setting-menu > summary { background: var(--glass-control); box-shadow: var(--glass-rim); }
+.setting-menu > summary:hover { background: var(--glass-control-hover); }
 .setting-menu[open] > summary { background: var(--surface-active); }
 /** The axis is named so the value beside it needs no decoding. */
 .setting-axis { color: var(--quiet-strong); font-size: var(--text-meta); white-space: nowrap; }
@@ -4517,11 +4625,12 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) transparent;
-  border: 1px solid var(--line-mid);
+  border: 1px solid var(--line-glass);
   border-radius: 14px;
   padding: 13px;
-  background: var(--surface-menu);
-  box-shadow: var(--shadow-panel);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-rim), var(--shadow-panel);
 }
 .setting-heading { padding: 2px 9px 10px; color: var(--quiet-strong); font-size: var(--text-control); }
 .setting-option {
@@ -4677,6 +4786,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   border: 0;
   border-radius: 50%;
   background: var(--surface-inverse);
+  box-shadow: var(--glint);
   color: var(--ink-inverse);
   cursor: pointer;
   font-size: 17px;
@@ -4744,7 +4854,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   .message.user .message-text { max-width: 85%; }
   .workspace.summary-open .composer-wrap { margin-right: 272px; }
   .workspace.summary-open .conversation { padding-right: 300px; }
-  .workspace.summary-open .work-area > .find-slot > .find-bar { right: calc(clamp(20px, 4vw, 64px) + 272px); }
+  .workspace.summary-open .work-area > .find-slot > .find-bar { right: calc(var(--page-inset) + 272px); }
   .session-panel { width: 260px; right: 12px; }
 }
 
@@ -4753,6 +4863,8 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
     position: absolute;
     z-index: 20;
     inset: 0 auto 0 0;
+    padding-right: 10px;
+    background: var(--sidebar);
     width: min(280px, calc(100% - 40px));
     max-width: none;
     box-shadow: var(--shadow-sidebar);
@@ -4787,7 +4899,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   .conversation { padding: 36px 18px 20px; }
   .workspace.summary-open .conversation { padding-right: 18px; }
   /** The panel takes the whole width here, so the bar sits over it instead of beside it. */
-  .workspace.summary-open .work-area > .find-slot > .find-bar { right: clamp(20px, 4vw, 64px); }
+  .workspace.summary-open .work-area > .find-slot > .find-bar { right: var(--page-inset); }
   .composer-wrap { padding: 10px 14px 14px; }
   .command-menu { max-height: min(330px, calc(100vh - 220px)); border-radius: 13px; }
   .command-option { grid-template-columns: 32px minmax(0, 1fr); }
@@ -5122,9 +5234,9 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line-glass);
-  border-radius: 12px;
-  background: var(--surface-menu);
-  box-shadow: var(--shadow-overlay);
+  border-radius: 14px;
+  background: var(--glass-sheen), var(--surface-menu);
+  box-shadow: var(--glass-rim), var(--shadow-overlay);
   overflow: hidden;
   animation: palette-in 160ms var(--panel-slide-ease);
 }

@@ -6,6 +6,16 @@ export function windowInUse() {
   return !document.documentElement.hasAttribute("data-window-inactive");
 }
 
+/** Hands the stylesheet the system's glass tint, which every pane of glass in the window thins or thickens by. */
+export function installGlassTint() {
+  const root = document.documentElement;
+  const stop = window.desktop.onGlassTint((amount) => root.style.setProperty("--glass-tint", String(amount)));
+  return () => {
+    stop();
+    root.style.removeProperty("--glass-tint");
+  };
+}
+
 /**
  * Marks the root while the window is not the one in use. Working indicators rest then, since each
  * one that moves makes Chromium draw the window on every display refresh. Main reports it, because
