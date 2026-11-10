@@ -2542,36 +2542,41 @@ pre {
 .segmented button svg { flex: none; }
 
 /** One size as `− 15 +`, where the number is a field a size can be typed straight into. */
-.size-stepper { position: relative; display: flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--control-soft); }
+.size-stepper { position: relative; display: flex; align-items: center; gap: 4px; border-radius: 999px; padding: 3px; background: var(--glass-sheen), var(--control-soft); box-shadow: var(--glass-rim); }
+/** The two steps are round keys set into the capsule, each a little raised from it. */
 .size-stepper button {
   display: flex;
   align-items: center;
   border: 0;
   justify-content: center;
-  min-width: 32px;
-  min-height: 32px;
-  border-radius: 7px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
   padding: 0;
-  background: transparent;
-  color: var(--muted-strong);
+  background: var(--control);
+  color: var(--ink-dim);
   cursor: pointer;
+  transition: background var(--touch-time) var(--touch-ease), transform var(--touch-time) var(--touch-ease);
 }
-.size-stepper button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-dim); }
-.size-stepper button:disabled { color: var(--quiet); cursor: default; }
+.size-stepper button:hover:not(:disabled) { background: var(--control-hover); color: var(--ink); }
+.size-stepper button:active:not(:disabled) { transform: scale(0.92); }
+.size-stepper button:disabled { background: transparent; color: var(--quiet); cursor: default; }
+/** As wide as the number in it, so the number and its unit sit centred between the keys as one word. */
 .size-stepper input {
-  width: 30px;
+  field-sizing: content;
+  min-width: 1ch;
   border: 0;
   padding: 0;
   background: transparent;
-  color: var(--ink-dim);
-  font-size: var(--text-meta);
-  font-weight: 560;
+  color: var(--ink);
+  font-size: var(--text-menu);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  text-align: center;
 }
 .size-stepper input:focus { outline: none; color: var(--ink); }
-.size-value { display: flex; align-items: center; height: 26px; border-radius: 6px; padding-left: 4px; background: transparent; cursor: text; }
-.size-value > span { padding: 0 6px 0 2px; color: var(--quiet-strong); font-size: var(--text-meta); }
+.size-value { display: flex; align-items: baseline; justify-content: center; min-width: 58px; padding: 0 4px; background: transparent; cursor: text; }
+.size-value > span { padding-left: 3px; color: var(--quiet-strong); font-size: var(--text-meta); }
 
 /** Drawn from the same tokens the choice sets, so the sample is the size it is offering. */
 .setting-row p.size-sample { margin-top: 9px; color: var(--ink-soft); font-size: var(--text-content); line-height: 1.5; }
@@ -2810,8 +2815,9 @@ pre {
 :is(.setting-row-action, .settings-group-action) .segmented button.chosen,
 :is(.setting-row-action, .settings-group-action) .segmented button.chosen:hover:not(:disabled) { background: var(--surface-menu-hover); }
 :is(.setting-row-action, .settings-group-action) :is(.size-stepper button, .segmented button:not(.chosen)) { box-shadow: none; }
-:is(.setting-row-action, .settings-group-action) .size-stepper button { padding: 0; }
-:is(.setting-row-action, .settings-group-action) .size-stepper button:hover:not(:disabled) { background: var(--surface-hover); }
+:is(.setting-row-action, .settings-group-action) .size-stepper button { border-radius: 50%; padding: 0; background: var(--control); }
+:is(.setting-row-action, .settings-group-action) .size-stepper button:hover:not(:disabled) { background: var(--control-hover); }
+:is(.setting-row-action, .settings-group-action) .size-stepper button:disabled { background: transparent; }
 .phone-check { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 13px; border-top: 1px solid var(--line); padding: 13px 0; }
 .phone-check-link { border: 0; border-radius: 8px; padding: 7px 11px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; text-decoration: none; }
 .phone-check-link:hover { background: var(--control-hover); }
