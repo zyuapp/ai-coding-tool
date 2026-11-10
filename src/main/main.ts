@@ -432,6 +432,7 @@ async function createWindow() {
     /** The glass layer is part of the window, so the window is in use while the layer has the keyboard. */
     const inUse = shown.isFocused() || Boolean(glassLayer?.focused());
     workspaceRuntime.setViewInUse(inUse);
+    glassLayer?.setInUse(inUse);
     shown.webContents.send("window:active", inUse);
     /** The system redraws its glass when a window comes back into use, so that is when the page asks after it too. */
     if (material === "glass") shown.webContents.send("window:glass-tint", systemGlassTint((key, type) => systemPreferences.getUserDefault(key, type)));
@@ -445,6 +446,7 @@ async function createWindow() {
   window.webContents.on("did-create-window", (layer, details) => {
     if (!windowGlass || glassLayer || details.frameName !== GLASS_LAYER_FRAME) return layer.destroy();
     glassLayer = startGlassLayer(shown, layer, windowGlass);
+    glassLayer.setInUse(shown.isFocused());
     layer.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     layer.webContents.on("before-input-event", (event, input) => {
       if (keyboard.handleKey(input, "any")) event.preventDefault();

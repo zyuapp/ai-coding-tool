@@ -90,6 +90,8 @@ static napi_value Regions(napi_env env, napi_callback_info info) {
     NSView *pane = index < panes.count ? panes[index] : nil;
     if (!pane) {
       pane = [[glass alloc] initWithFrame:frame];
+      /** The clear style: what is behind a pane reads through it, as through the system's own floating bars. */
+      [pane setValue:@1 forKey:@"style"];
       pane.identifier = kRegionIdentifier;
       [root addSubview:pane positioned:NSWindowBelow relativeTo:nil];
       [panes addObject:pane];
@@ -97,6 +99,29 @@ static napi_value Regions(napi_env env, napi_callback_info info) {
     pane.frame = frame;
     [pane setValue:@(values[4]) forKey:@"cornerRadius"];
   }
+  napi_get_boolean(env, true, &applied);
+  return applied;
+}
+
+/**
+ * Whether a window draws as the one in use. AppKit frosts clear glass in any window that is not the
+ * key one, and has no public way to say a panel is part of the window under it, so this asks the
+ * window itself where it still answers.
+ */
+static napi_value Active(napi_env env, napi_callback_info info) {
+  size_t argc = 2;
+  napi_value argv[2];
+  napi_value applied;
+  napi_get_boolean(env, false, &applied);
+  if (napi_get_cb_info(env, info, &argc, argv, NULL, NULL) != napi_ok || argc < 2) return applied;
+  void *data = NULL;
+  size_t length = 0;
+  bool active = false;
+  if (napi_get_buffer_info(env, argv[0], &data, &length) != napi_ok || length < sizeof(void *) || napi_get_value_bool(env, argv[1], &active) != napi_ok) return applied;
+  NSWindow *window = ((__bridge NSView *)(*(void **)data)).window;
+  SEL force = NSSelectorFromString(@"_setForceMainAppearance:");
+  if (![window respondsToSelector:force]) return applied;
+  ((void (*)(id, SEL, BOOL))[window methodForSelector:force])(window, force, active ? YES : NO);
   napi_get_boolean(env, true, &applied);
   return applied;
 }
@@ -111,5 +136,8 @@ NAPI_MODULE_INIT() {
   napi_set_named_property(env, exports, "available", available);
   napi_set_named_property(env, exports, "attach", attach);
   napi_set_named_property(env, exports, "regions", regions);
+  napi_value active;
+  napi_create_function(env, "active", NAPI_AUTO_LENGTH, Active, NULL, &active);
+  napi_set_named_property(env, exports, "active", active);
   return exports;
 }

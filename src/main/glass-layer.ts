@@ -15,6 +15,8 @@ export type GlassLayer = {
   setInteractive(interactive: boolean): void;
   focus(): void;
   focused(): boolean;
+  /** Whether the layer's glass is drawn as in use, which follows the window under it rather than the layer's own turn at the keyboard. */
+  setInUse(inUse: boolean): void;
 };
 
 /**
@@ -59,5 +61,8 @@ export function startGlassLayer(parent: BrowserWindow, layer: BrowserWindow, gla
       if (!layer.isDestroyed()) layer.focus();
     },
     focused: () => !layer.isDestroyed() && layer.isFocused(),
+    setInUse: (inUse) => {
+      if (!layer.isDestroyed()) glass.active(layer.getNativeWindowHandle(), inUse);
+    },
   };
 }

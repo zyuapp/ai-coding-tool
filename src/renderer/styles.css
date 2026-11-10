@@ -3702,6 +3702,10 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
 .glass-host[data-covered] { visibility: hidden; }
 .glass-host.composer-wrap { border-radius: 0; padding-block: 0; background: none; }
 .glass-slot, [data-glass-region]:is(*, :focus-within, :has(*)) { box-shadow: none; }
+/** Clear glass shows what is behind it almost as it is, so a thin wash of the page keeps what is written on it readable. */
+[data-glass-region] { background: rgb(from var(--canvas) r g b / calc(0.24 + 0.36 * var(--glass-tint))); }
+/** The transcript runs on under real glass to its foot, and fades only in the strip below the composer. */
+.composer-wrap:has(> .glass-slot) { background: linear-gradient(to top, var(--canvas) 6px, var(--canvas-fade) 20px); }
 :is(.glass-slot, [data-glass-region])::before { content: none; }
 /** Nothing is behind a menu in the layer for it to blur, so it is solid there. */
 :root[data-glass-layer] { --glass-menu: var(--glass-sheen), var(--surface-menu); --glass-menu-blur: none; }

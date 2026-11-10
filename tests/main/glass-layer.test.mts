@@ -24,7 +24,7 @@ test("the glass layer stays over its window's page and lets the pointer through 
   const parent = fakeWindow();
   const layer = fakeWindow();
   const glassed: unknown[] = [];
-  const started = startGlassLayer(parent.window, layer.window, { attach: () => true, regions: (_handle, regions) => { glassed.push(regions); return true; } });
+  const started = startGlassLayer(parent.window, layer.window, { attach: () => true, active: () => true, regions: (_handle, regions) => { glassed.push(regions); return true; } });
   assert.deepEqual(layer.calls, [["setIgnoreMouseEvents", true, { forward: true }], ["setBounds", parent.window.content], ["showInactive"]]);
 
   parent.window.content = { x: 10, y: 20, width: 1200, height: 700 };

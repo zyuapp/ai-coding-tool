@@ -10,9 +10,11 @@ export type WindowGlass = {
   attach(handle: Buffer): boolean;
   /** Lays one pane of glass per region under a see-through window's page, in that window's own coordinates. */
   regions(handle: Buffer, regions: readonly GlassRegion[]): boolean;
+  /** Has a window draw its glass as the window in use does, or as one out of use. */
+  active(handle: Buffer, active: boolean): boolean;
 };
 
-type GlassAddon = { available(): boolean; attach(handle: Buffer): boolean; regions(handle: Buffer, flat: number[]): boolean };
+type GlassAddon = { available(): boolean; attach(handle: Buffer): boolean; regions(handle: Buffer, flat: number[]): boolean; active(handle: Buffer, active: boolean): boolean };
 
 /**
  * Glass needs the addon and a macOS that has it. A build without the addon, or one that will not
@@ -26,6 +28,7 @@ export function loadWindowGlass(nativeDirectory: string, platform: NodeJS.Platfo
     return {
       attach: (handle) => addon.attach(handle),
       regions: (handle, regions) => addon.regions(handle, regions.flatMap(({ x, y, width, height, radius }) => [x, y, width, height, radius])),
+      active: (handle, active) => addon.active(handle, active),
     };
   } catch {
     return null;
