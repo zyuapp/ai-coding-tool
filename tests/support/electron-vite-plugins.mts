@@ -50,7 +50,7 @@ export function fakePlugins(computerUse: boolean, updater = false): Plugin[] {
     name: "fake-engine-services",
     enforce: "pre",
     resolveId(id, importer) {
-      if (id === "./agent/engine-services.mjs" && ["/src/main/main.ts", "/src/main/runtime-desktop.ts", "/src/main/computer-queries.ts"].some((path) => importer?.endsWith(path))) return "\0fake-engine-services";
+      if (id === "./engines.mjs" && ["/src/main/main.ts", "/src/main/runtime-desktop.ts", "/src/main/computer-queries.ts"].some((path) => importer?.endsWith(path))) return "\0fake-engine-services";
     },
     load(id) {
       if (id === "\0fake-engine-services") return ENGINE_SERVICES_MODULE;

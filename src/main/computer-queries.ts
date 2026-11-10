@@ -162,7 +162,7 @@ const reads: { [K in Kind]: Read<K> } = {
   commands: {
     here: async (query, host) => {
       const workspace = await resolved(host, query.workspaceId);
-      const { engineServices } = await import("./agent/engine-services.mjs");
+      const { engineServices } = await import("./engines.mjs");
       return { status: "available", commands: await engineServices[query.engine].commands({ workspaceRoot: workspace.root, projectless: workspace.kind === "projectless" }) };
     },
     received: (value) => {

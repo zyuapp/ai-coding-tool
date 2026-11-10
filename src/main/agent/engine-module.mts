@@ -1,10 +1,6 @@
-import { AGENT_ENGINES, type AgentEngine } from "../../domain/agent-engine.js";
-import { claudeEngine } from "../claude/claude-engine.mjs";
-import { codexEngine } from "../codex/codex-engine.mjs";
-import { openCodeEngine } from "../opencode/opencode-engine.mjs";
 import type { ToolHost } from "../tools/mcp-http-host.mjs";
-import type { EngineServices } from "./engine-services.mjs";
 import type { EngineProvider } from "./engine-router.mjs";
+import type { EngineServices } from "./engine-services.mjs";
 import type { SessionPool } from "./session-pool.mjs";
 
 /** The command an engine is installed as, the npm package it is published as, and how to install it. */
@@ -26,15 +22,3 @@ export type EngineModule = {
   services: EngineServices;
   createProvider(context: ProviderContext): Promise<EngineProvider>;
 };
-
-export const ENGINE_MODULES: Record<AgentEngine, EngineModule> = {
-  claude: claudeEngine,
-  codex: codexEngine,
-  opencode: openCodeEngine,
-};
-
-/** One provider per engine, built for one channel. */
-export async function engineProviders(context: ProviderContext): Promise<Record<AgentEngine, EngineProvider>> {
-  const built = await Promise.all(AGENT_ENGINES.map(async (engine) => [engine, await ENGINE_MODULES[engine].createProvider(context)] as const));
-  return Object.fromEntries(built) as Record<AgentEngine, EngineProvider>;
-}

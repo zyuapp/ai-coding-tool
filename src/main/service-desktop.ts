@@ -114,7 +114,7 @@ function storeDesktop(host: ServiceDesktopHost) {
     enableComputerUse: (permission) => host.computerUse.enable(permission),
     planUsage: async (engine: AgentEngine): Promise<PlanUsage> => {
       try {
-        const { engineServices } = await import("./agent/engine-services.mjs");
+        const { engineServices } = await import("./engines.mjs");
         return await engineServices[engine].planUsage();
       } catch (cause) {
         return { status: "unavailable", message: failed(cause) };
@@ -136,7 +136,7 @@ function storeDesktop(host: ServiceDesktopHost) {
       const images = attachments.map((item) => savedAttachmentPath(item)).filter((file): file is string => file !== null);
       if (!text.trim() && images.length === 0) return null;
       try {
-        const { engineServices } = await import("./agent/engine-services.mjs");
+        const { engineServices } = await import("./engines.mjs");
         return await engineServices[engine].suggestTitle(text, images, model);
       } catch {
         return null;
@@ -150,7 +150,7 @@ function storeDesktop(host: ServiceDesktopHost) {
     searchThreadMessages: (search, taskIds) => host.taskDatabase().searchThreadMessages(search, taskIds),
     persistTaskStore: (delta) => host.taskDatabase().persist(delta),
     loadSubagentActivity: (taskId, subagentId) => host.taskDatabase().subagentActivity(taskId, subagentId),
-    loadSubagentMetadata: async (engine, subagentId, sessionId) => (await import("./agent/engine-services.mjs")).engineServices[engine].subagentMetadata?.(subagentId, sessionId) ?? {},
+    loadSubagentMetadata: async (engine, subagentId, sessionId) => (await import("./engines.mjs")).engineServices[engine].subagentMetadata?.(subagentId, sessionId) ?? {},
     onThreadRequest: (listener) => events.on("thread:request", listener),
     answerThreadRequest: (response) => host.runs.answerThread(response),
   } satisfies Partial<RuntimeDesktop>;

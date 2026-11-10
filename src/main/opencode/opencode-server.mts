@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { engineBinaryPath } from "../agent/engine-binary.mjs";
 import { isRecord } from "../agent/session-common.mjs";
+import { openCodeBinary } from "./opencode-binary.mjs";
 
 /** Long enough for a cold start that loads the model catalogue, short enough that a stuck one is noticed. */
 const START_TIMEOUT_MS = 30_000;
@@ -93,7 +94,7 @@ export const WATCHED_SERVE = [
  * behind the password it makes up for itself, and connects to it.
  */
 export const startOpenCodeServer: OpenCodeConnect = async (options) => {
-  const child = spawn("/bin/sh", ["-c", WATCHED_SERVE, engineBinaryPath("opencode") ?? "opencode"], {
+  const child = spawn("/bin/sh", ["-c", WATCHED_SERVE, engineBinaryPath(openCodeBinary) ?? "opencode"], {
     cwd: options.cwd,
     env: { ...process.env, ...(options.config ? { OPENCODE_CONFIG_CONTENT: JSON.stringify(options.config) } : {}) },
     stdio: ["pipe", "pipe", "pipe"],

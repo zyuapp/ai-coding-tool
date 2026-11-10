@@ -6,7 +6,9 @@ import path from "node:path";
 import { test } from "vitest";
 import { compareVersions, isOlderThan, readVersion } from "../../../src/domain/engine-version.ts";
 import type { EngineReadiness } from "../../../src/domain/agent-engine.ts";
-import { engineBinaryPath, installCommand, installedEngine } from "../../../src/main/agent/engine-binary.mts";
+import { engineBinaryPath, installedEngine } from "../../../src/main/agent/engine-binary.mts";
+import { claudeBinary } from "../../../src/main/claude/claude-binary.mts";
+import { codexBinary } from "../../../src/main/codex/codex-binary.mts";
 import { readinessStubs } from "../../support/engines.mts";
 
 /** A stand-in command that prints a version, so no real engine is spawned. */
@@ -45,18 +47,16 @@ test("versions compare part by part, and a missing part counts as zero", () => {
 
 test("an engine is the command on the user's path, read for its version", async () => {
   const { folder, executable } = await fakeEngine("codex", "0.150.1");
-  const found = await onPath(folder, () => installedEngine("codex"));
+  const found = await onPath(folder, () => installedEngine(codexBinary));
   assert.equal(found?.path, executable);
   assert.equal(found?.version, "0.150.1");
   assert.equal(found?.update?.command, "codex update", "an install the path does not place anywhere known is left to the engine's own updater");
 });
 
-test("an engine that is nowhere on the path is absent, and the app can say how to install it", async () => {
+test("an engine that is nowhere on the path is absent", async () => {
   const empty = await temporaryDirectory(path.join(os.tmpdir(), "engine-empty-"));
-  assert.equal(await onPath(empty, async () => engineBinaryPath("claude")), undefined);
-  assert.equal(await onPath(empty, () => installedEngine("claude")), undefined);
-  assert.equal(installCommand("codex"), "brew install --cask codex");
-  assert.equal(installCommand("claude"), "curl -fsSL https://claude.ai/install.sh | bash");
+  assert.equal(await onPath(empty, async () => engineBinaryPath(claudeBinary)), undefined);
+  assert.equal(await onPath(empty, () => installedEngine(claudeBinary)), undefined);
 });
 
 test("the upgrade command follows the launcher to the real file, so a cask upgrades through Homebrew", async () => {
@@ -70,7 +70,7 @@ test("the upgrade command follows the launcher to the real file, so a cask upgra
   await mkdir(bin, { recursive: true });
   await symlink(real, path.join(bin, "codex"));
 
-  const found = await onPath(bin, () => installedEngine("codex"));
+  const found = await onPath(bin, () => installedEngine(codexBinary));
   assert.deepEqual(found?.update, { command: "brew upgrade --cask codex", file: "brew", args: ["upgrade", "--cask", "codex"] });
   assert.deepEqual(found?.keg, { kind: "cask", name: "codex", prefix: root });
 });
@@ -89,7 +89,7 @@ test("a global npm install upgrades through the npm of its own prefix, and a ver
   await writeFile(path.join(bin, "npm"), "#!/bin/sh\n");
   await chmod(path.join(bin, "npm"), 0o755);
   const prefix = path.join(root, "node");
-  const found = await onPath(bin, () => installedEngine("codex"));
+  const found = await onPath(bin, () => installedEngine(codexBinary));
   assert.deepEqual(found?.update, {
     command: "npm install -g @openai/codex@latest",
     file: path.join(bin, "npm"),
@@ -100,7 +100,7 @@ test("a global npm install upgrades through the npm of its own prefix, and a ver
   await mkdir(mise, { recursive: true });
   await writeFile(path.join(mise, "claude"), "#!/bin/sh\necho '2.1.0 (Claude Code)'\n");
   await chmod(path.join(mise, "claude"), 0o755);
-  const managed = await onPath(mise, () => installedEngine("claude"));
+  const managed = await onPath(mise, () => installedEngine(claudeBinary));
   assert.equal(managed?.version, "2.1.0");
   assert.equal(managed?.update, null);
 
@@ -108,7 +108,7 @@ test("a global npm install upgrades through the npm of its own prefix, and a ver
   await mkdir(local, { recursive: true });
   await writeFile(path.join(local, "claude"), '#!/bin/bash\nmise use -g --quiet "claude" || exit 1\nexec mise x "claude" -- "claude" "$@"\n');
   await chmod(path.join(local, "claude"), 0o755);
-  assert.equal((await onPath(local, () => installedEngine("claude")))?.update, null, "a mise launcher where the native install would be is still mise's");
+  assert.equal((await onPath(local, () => installedEngine(claudeBinary)))?.update, null, "a mise launcher where the native install would be is still mise's");
 });
 
 test("an answer with every engine in place is kept, and one with an engine missing is read again", async () => {
@@ -200,11 +200,11 @@ test("the newest release is read from npm once an hour, and an answer that canno
   }) as typeof fetch;
   try {
     const installed = { path: "/bin/codex", version: "0.160.1", update: null, keg: null };
-    assert.equal(await latestEngineVersion("codex", installed), "0.161.0");
-    assert.equal(await latestEngineVersion("codex", installed), "0.161.0");
+    assert.equal(await latestEngineVersion(codexBinary, installed), "0.161.0");
+    assert.equal(await latestEngineVersion(codexBinary, installed), "0.161.0");
     assert.deepEqual(asked, ["https://registry.npmjs.org/%40openai%2Fcodex/latest"], "the second ask is answered from the last hour's");
     reply = { version: "2.2.0-beta.1" };
-    assert.equal(await latestEngineVersion("claude", { ...installed, version: "2.1.0" }), null, "a prerelease is not offered");
+    assert.equal(await latestEngineVersion(claudeBinary, { ...installed, version: "2.1.0" }), null, "a prerelease is not offered");
   } finally {
     globalThis.fetch = original;
   }

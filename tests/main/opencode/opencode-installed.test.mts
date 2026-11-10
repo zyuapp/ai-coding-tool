@@ -4,12 +4,13 @@ import os from "node:os";
 import { test } from "vitest";
 import { engineBinaryPath } from "../../../src/main/agent/engine-binary.mts";
 import { isOlderThan, readVersion } from "../../../src/domain/engine-version.ts";
+import { openCodeBinary } from "../../../src/main/opencode/opencode-binary.mts";
 import { startOpenCodeServer } from "../../../src/main/opencode/opencode-server.mts";
 import { OPENCODE_BASELINE_VERSION } from "../../../src/main/opencode/opencode-services.mts";
 
 /** The OpenCode on this machine, when it is one the app speaks to; the test that needs it is skipped otherwise. */
 function installed() {
-  const binary = engineBinaryPath("opencode");
+  const binary = engineBinaryPath(openCodeBinary);
   if (!binary) return null;
   try {
     const version = readVersion(execFileSync(binary, ["--version"], { encoding: "utf8", timeout: 10_000 }));

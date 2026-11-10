@@ -2,7 +2,7 @@ import { isAutomationResponse, isInternalRunCommand, isThreadResponse, type Agen
 import type { ThreadRequest } from "../contracts/threads.js";
 import { AutomationChannel } from "./agent/automation-channel.mjs";
 import { EngineRouter } from "./agent/engine-router.mjs";
-import { engineProviders } from "./agent/engines.mjs";
+import { engineProviders } from "./engines.mjs";
 import { SessionPool } from "./agent/session-pool.mjs";
 import { ThreadChannel } from "./agent/thread-channel.mjs";
 import { RunCoordinator } from "./agent/run-coordinator.mjs";

@@ -4,11 +4,10 @@ import { AGENT_ENGINES, BUILT_IN_MODELS, capabilitiesFor, defaultEffortFor, defa
 import { POLICY_CHOICES, type ExecutionPolicy } from "../../../src/domain/run.ts";
 import { describeToolCall, toolFamily } from "../../../src/domain/tool-call.ts";
 import type { ProviderResult } from "../../../src/main/agent/agent-provider.mts";
-import { installCommand } from "../../../src/main/agent/engine-binary.mts";
-import { ENGINE_MODULES, engineProviders } from "../../../src/main/agent/engines.mts";
 import { SessionPool, type PooledSession, type SessionHooks } from "../../../src/main/agent/session-pool.mts";
 import { claudePermissionMode } from "../../../src/main/claude/claude-session.mts";
 import { codexPolicy } from "../../../src/main/codex/codex-policy.mts";
+import { ENGINE_MODULES, engineProviders } from "../../../src/main/engines.mts";
 import { agentFor, permissionRules } from "../../../src/main/opencode/opencode-policy.mts";
 import { FakeToolHost, input } from "../../support/codex-client.mjs";
 
@@ -48,7 +47,6 @@ describe.each(AGENT_ENGINES)("the %s engine", (engine) => {
   test("describes its command, its services and how its provider is built", () => {
     const { binary, services, createProvider } = ENGINE_MODULES[engine];
     for (const field of [binary.command, binary.packageName, binary.install]) assert.ok(typeof field === "string" && field.trim().length > 0);
-    assert.equal(installCommand(engine), binary.install);
     assert.equal(binary.isNative("/nowhere/bin/unrelated"), false);
     for (const service of [services.commands, services.suggestTitle, services.planUsage, services.readiness]) assert.equal(typeof service, "function");
     assert.equal(typeof createProvider, "function");

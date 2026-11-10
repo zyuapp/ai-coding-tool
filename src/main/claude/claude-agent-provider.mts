@@ -3,6 +3,7 @@ import { BUILT_IN_MODELS, claudeEffort, modelTakesEffort, modelsFor, type AgentM
 import { engineBinaryPath } from "../agent/engine-binary.mjs";
 import { continuationOf, type AgentProvider, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { withheldTools } from "../agent/channel-tools.mjs";
+import { claudeBinary } from "./claude-binary.mjs";
 import { claudeMcpServer } from "./claude-mcp-host.mjs";
 import { claudePermissionMode, ClaudeSession } from "./claude-session.mjs";
 import { grantsTool } from "../agent/approval-grant.mjs";
@@ -62,7 +63,7 @@ export async function discoverClaudeCommands(workspaceRoot: string, projectless:
  * without an explicit path the SDK looks for that copy and refuses to start when it is not there.
  */
 export function claudeExecutable() {
-  return engineBinaryPath("claude");
+  return engineBinaryPath(claudeBinary);
 }
 
 /** How every Claude process is started: the command, this app's name on its requests in place of any inherited one, and no Artifact skills, which the app cannot show. */

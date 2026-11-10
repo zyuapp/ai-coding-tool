@@ -115,7 +115,7 @@ test("a server outlives nothing: when the app dies without closing it, it stops 
 test("the server the app asks outside a run stops when the app closes its engine services", async () => {
   const fake = await fakeOpenCode();
   try {
-    const { engineServices, closeEngineServices } = await import("../../../src/main/agent/engine-services.mts");
+    const { engineServices, closeEngineServices } = await import("../../../src/main/engines.mts");
     await engineServices.opencode.commands({ workspaceRoot: fake.directory, projectless: false });
     const pid = await fake.pid();
     assert.ok(alive(pid), "the services server stays up between questions");

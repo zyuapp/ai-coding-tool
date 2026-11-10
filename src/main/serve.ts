@@ -175,7 +175,7 @@ export async function startServe(options: {
     worktrees: () => worktrees,
     taskDatabase: () => taskDatabase,
     scheduler: () => scheduler!,
-    engineAccess: () => engineAccess ??= import("./agent/engine-services.mjs").then(({ EngineAccessHost }) => new EngineAccessHost()),
+    engineAccess: () => engineAccess ??= import("./engines.mjs").then(({ EngineAccessHost, engineServices }) => new EngineAccessHost(engineServices)),
     worktreesRoots: () => [worktreesRoot, ...legacyRoots],
     mobile: () => mobile,
     say,
@@ -244,7 +244,7 @@ export async function startServe(options: {
       scheduler?.stop();
       runs.clearPendingStarts();
       runs.killAgent();
-      await (await import("./agent/engine-services.mjs")).closeEngineServices().catch(() => undefined);
+      await (await import("./engines.mjs")).closeEngineServices().catch(() => undefined);
       await stopPairingSocket().catch(() => undefined);
       await mobile.stopMobileHost();
       await publisher.flush().catch(() => undefined);

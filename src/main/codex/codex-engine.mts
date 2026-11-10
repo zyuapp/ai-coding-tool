@@ -1,12 +1,8 @@
-import type { EngineModule } from "../agent/engines.mjs";
+import type { EngineModule } from "../agent/engine-module.mjs";
+import { codexBinary } from "./codex-binary.mjs";
 
 export const codexEngine: EngineModule = {
-  binary: {
-    command: "codex",
-    packageName: "@openai/codex",
-    install: "brew install --cask codex",
-    isNative: (realPath) => realPath.includes("/packages/standalone/"),
-  },
+  binary: codexBinary,
   services: {
     commands: async (workspace) => {
       const { discoverCodexCommands } = await import("./codex-skills.mjs");
@@ -18,7 +14,7 @@ export const codexEngine: EngineModule = {
     suggestTitle: async (text, images) => (await import("./codex-title-writer.mjs")).suggestCodexTitle(text, images),
     planUsage: async () => (await import("./codex-plan-usage.mjs")).readCodexPlanUsage(),
     readiness: async () => (await import("./codex-readiness.mjs")).readCodexReadiness(),
-    update: async () => (await import("../agent/engine-binary.mjs")).upgradeEngine("codex"),
+    update: async () => (await import("../agent/engine-binary.mjs")).upgradeEngine(codexBinary),
     signIn: async (openUrl) => (await import("./codex-account.mjs")).signInToCodex(openUrl),
     subagentMetadata: async (id) => (await import("./codex-subagent-metadata.mjs")).readCodexSubagentMetadata(id),
   },

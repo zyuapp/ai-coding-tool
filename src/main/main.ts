@@ -155,12 +155,12 @@ let engineAccess: Promise<EngineAccessHost> | null = null;
 
 /** Made on first ask, since an engine it asks is a process of its own. */
 function engineAccessHost() {
-  return engineAccess ??= import("./agent/engine-services.mjs").then(({ EngineAccessHost }) => new EngineAccessHost());
+  return engineAccess ??= import("./engines.mjs").then(({ EngineAccessHost, engineServices }) => new EngineAccessHost(engineServices));
 }
 
 /** Stops what the engines started to answer outside a run, such as OpenCode's services server. */
 async function stopEngineServices() {
-  await (await import("./agent/engine-services.mjs")).closeEngineServices().catch((error) => console.error("Could not stop engine services:", error));
+  await (await import("./engines.mjs")).closeEngineServices().catch((error) => console.error("Could not stop engine services:", error));
 }
 
 /** What this computer calls itself until the user picks a name: the machine's own. */

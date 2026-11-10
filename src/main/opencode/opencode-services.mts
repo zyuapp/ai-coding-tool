@@ -4,6 +4,7 @@ import type { AgentModel, EngineReadiness } from "../../domain/agent-engine.js";
 import type { PlanUsage, UsageWindow } from "../../domain/plan-usage.js";
 import { appSkillsRoot, unqualifiedSkillName } from "../app-plugin.mjs";
 import { TITLE_INSTRUCTIONS, titleOf, titleQuestion } from "../agent/title-text.mjs";
+import { openCodeBinary } from "./opencode-binary.mjs";
 import { modelRef, openCodeCatalog, type OpenCodeModel, type OpenCodeProvider } from "./opencode-catalog.mjs";
 import { readLoaded, startOpenCodeServer, type OpenCodeClient, type OpenCodeConnect } from "./opencode-server.mjs";
 
@@ -132,11 +133,11 @@ export async function closeOpenCodeServices() {
  * was installed. A ready install names the models its connected providers offer.
  */
 export async function readOpenCodeReadiness(): Promise<EngineReadiness> {
-  const { installCommand, installedEngine } = await import("../agent/engine-binary.mjs");
+  const { installedEngine } = await import("../agent/engine-binary.mjs");
   const { versionReadiness } = await import("../agent/engine-readiness.mjs");
-  const installed = await installedEngine("opencode");
-  if (!installed) return { access: "missing", fix: installCommand("opencode") };
-  const version = await versionReadiness("opencode", installed, OPENCODE_BASELINE_VERSION);
+  const installed = await installedEngine(openCodeBinary);
+  if (!installed) return { access: "missing", fix: openCodeBinary.install };
+  const version = await versionReadiness(openCodeBinary, installed, OPENCODE_BASELINE_VERSION);
   if (version.required) return { access: "outdated", ...version };
   try {
     const catalog = await openCodeServices().catalog();

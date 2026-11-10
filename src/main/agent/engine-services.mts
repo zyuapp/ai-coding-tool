@@ -2,7 +2,6 @@ import type { AvailableCommand } from "../../contracts/ipc.js";
 import { AGENT_ENGINES, engineNeedsAttention, type AgentEngine, type AgentModel, type EngineAccess, type EngineReadiness, type EngineStatus } from "../../domain/agent-engine.js";
 import type { PlanUsage } from "../../domain/plan-usage.js";
 import type { SubagentMetadata } from "../../domain/run.js";
-import { ENGINE_MODULES } from "./engines.mjs";
 
 type Workspace = { workspaceRoot: string; projectless: boolean };
 
@@ -26,13 +25,6 @@ export type EngineServices = {
   close?(): Promise<void>;
 };
 
-export const engineServices = Object.fromEntries(AGENT_ENGINES.map((engine) => [engine, ENGINE_MODULES[engine].services])) as Record<AgentEngine, EngineServices>;
-
-/** Stops whatever an engine keeps running to answer outside a run. */
-export async function closeEngineServices() {
-  await Promise.all(AGENT_ENGINES.map((engine) => engineServices[engine].close?.()));
-}
-
 /** Reads the user's shell again, so a command installed after the app started is on the search path. */
 async function readSearchPathAgain() {
   await (await import("../login-path.js")).adoptLoginShellPath();
@@ -50,7 +42,7 @@ export class EngineAccessHost {
   private updating = new Map<AgentEngine, Promise<EngineStatus>>();
 
   constructor(
-    private readonly engines: Record<AgentEngine, Pick<EngineServices, "readiness" | "signIn" | "update">> = engineServices,
+    private readonly engines: Record<AgentEngine, Pick<EngineServices, "readiness" | "signIn" | "update">>,
     private readonly searchPathAgain: () => Promise<void> = readSearchPathAgain,
   ) {}
 

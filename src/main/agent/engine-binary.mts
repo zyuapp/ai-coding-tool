@@ -2,9 +2,8 @@ import { execFile } from "node:child_process";
 import { accessSync, constants, readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { AgentEngine } from "../../domain/agent-engine.js";
 import { readVersion } from "../../domain/engine-version.js";
-import { ENGINE_MODULES } from "./engines.mjs";
+import type { EngineCommand } from "./engine-module.mjs";
 
 const run = promisify(execFile);
 
@@ -33,8 +32,7 @@ function isExecutable(candidate: string) {
  * has already given this process the search path the user's own shell has, so this finds what they
  * would get by typing the name.
  */
-export function engineBinaryPath(engine: AgentEngine): string | undefined {
-  const { command } = ENGINE_MODULES[engine].binary;
+export function engineBinaryPath({ command }: EngineCommand): string | undefined {
   for (const folder of (process.env.PATH ?? "").split(path.delimiter)) {
     if (!folder) continue;
     const candidate = path.join(folder, command);
@@ -97,8 +95,7 @@ function besideOrOnPath(prefix: string, tool: string) {
  * a copy it did not find. The engine's own updater covers its native install, and any other the path
  * does not place inside a package manager or a version manager.
  */
-function updaterFor(engine: AgentEngine, binaryPath: string, realPath: string): EngineUpdater | null {
-  const { command, packageName, isNative } = ENGINE_MODULES[engine].binary;
+function updaterFor({ command, packageName, isNative }: EngineCommand, binaryPath: string, realPath: string): EngineUpdater | null {
   const native = { command: `${command} update`, file: binaryPath, args: ["update"] };
   /** A mise launcher can sit where the native install would, so it is ruled out first. */
   if (isMiseLauncher(realPath)) return null;
@@ -128,8 +125,8 @@ export type InstalledEngine = {
 };
 
 /** What the app would run for an engine, with the version it reports. */
-export async function installedEngine(engine: AgentEngine): Promise<InstalledEngine | undefined> {
-  const binaryPath = engineBinaryPath(engine);
+export async function installedEngine(binary: EngineCommand): Promise<InstalledEngine | undefined> {
+  const binaryPath = engineBinaryPath(binary);
   if (!binaryPath) return undefined;
   let realPath = binaryPath;
   try {
@@ -138,12 +135,7 @@ export async function installedEngine(engine: AgentEngine): Promise<InstalledEng
   const version = await run(binaryPath, ["--version"], { timeout: VERSION_TIMEOUT_MS })
     .then(({ stdout }) => readVersion(stdout))
     .catch(() => null);
-  return { path: binaryPath, version, update: updaterFor(engine, binaryPath, realPath), keg: homebrewKeg(realPath) };
-}
-
-/** What to tell a user who has no such command at all. */
-export function installCommand(engine: AgentEngine): string {
-  return ENGINE_MODULES[engine].binary.install;
+  return { path: binaryPath, version, update: updaterFor(binary, binaryPath, realPath), keg: homebrewKeg(realPath) };
 }
 
 const STABLE_VERSION = /^\d+\.\d+\.\d+$/;
@@ -180,10 +172,9 @@ async function homebrewLatest(keg: HomebrewKeg): Promise<string | null> {
  * The newest release this install could move to, or null when it cannot be read. Homebrew lags npm
  * by hours, so a Homebrew install is compared with what `brew upgrade` can deliver.
  */
-export function latestEngineVersion(engine: AgentEngine, installed: InstalledEngine): Promise<string | null> {
+export function latestEngineVersion({ packageName }: EngineCommand, installed: InstalledEngine): Promise<string | null> {
   const { keg } = installed;
   if (keg) return cachedLatest(`brew:${keg.name}`, () => homebrewLatest(keg));
-  const { packageName } = ENGINE_MODULES[engine].binary;
   return cachedLatest(`npm:${packageName}`, () => npmLatest(packageName));
 }
 
@@ -191,9 +182,9 @@ export function latestEngineVersion(engine: AgentEngine, installed: InstalledEng
  * Brings an installed engine up to date the way the user installed it. Throws with what the command
  * said when it fails, and the command to run by hand; the caller names the engine.
  */
-export async function upgradeEngine(engine: AgentEngine): Promise<void> {
-  const installed = await installedEngine(engine);
-  if (!installed) throw new Error(`${ENGINE_MODULES[engine].binary.command} is not installed.`);
+export async function upgradeEngine(binary: EngineCommand): Promise<void> {
+  const installed = await installedEngine(binary);
+  if (!installed) throw new Error(`${binary.command} is not installed.`);
   if (!installed.update) throw new Error("The app cannot tell how it was installed. Update it the way you installed it.");
   try {
     await run(installed.update.file, installed.update.args, { timeout: UPGRADE_TIMEOUT_MS });
