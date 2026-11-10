@@ -134,6 +134,16 @@ function effortSteps(catalog: ModelCatalog, engine: AgentEngine, model: AgentMod
   return { steps: [...effortsFor(catalog, engine, model, role)].reverse(), value: effortForModel(catalog, engine, model, effort.value, role) };
 }
 
+/** Cuts the rail at every effort between the ends, so the track reads as one segment per step up. */
+function notches(last: number): CSSProperties | undefined {
+  if (last < 2) return undefined;
+  const cuts = Array.from({ length: last - 1 }, (_, step) => {
+    const x = `calc(var(--effort-travel) * ${(step + 1) / last} + var(--effort-knob) / 2`;
+    return `linear-gradient(to right, #000 ${x} - var(--effort-notch) / 2), transparent 0 ${x} + var(--effort-notch) / 2), #000 0)`;
+  });
+  return { maskImage: cuts.join(", "), maskComposite: "intersect" };
+}
+
 /** The efforts on a track the knob slides along freely while dragged, settling on the nearest effort when let go. */
 function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]; value: AgentEffort; onChange: (effort: AgentEffort) => void }) {
   const rail = useRef<HTMLDivElement>(null);
@@ -197,10 +207,10 @@ function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]
       onPointerLeave={() => setHovered(-1)}
     >
       <div className="effort-rail" ref={rail}>
-        <div className="effort-fill" />
+        <div className="effort-groove" style={notches(last)}><div className="effort-fill" /></div>
         {steps.map((spec, step) => <span
           key={spec.id}
-          className={`effort-tick${at(step) < (drag ?? at(index)) ? " passed" : ""}${step === hovered ? " hovered" : ""}`}
+          className={`effort-tick${step === hovered ? " hovered" : ""}`}
           data-label={spec.label}
           style={{ "--effort-tick": at(step) } as CSSProperties}
         />)}
