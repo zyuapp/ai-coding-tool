@@ -2,14 +2,13 @@ import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { chmod, mkdtemp, readdir, rename, rm } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
 import { NO_APP_UPDATE, type AppUpdate } from "../domain/app-update.js";
 import { compareVersions } from "../domain/engine-version.js";
-import { repairAppImageLaunchers } from "./appimage-update.js";
 
 const RELEASES = "https://github.com/zyuapp/ai-coding-tool/releases";
 const CHECK_INTERVAL = 60 * 60 * 1000;
@@ -68,20 +67,20 @@ function releaseFile(manifest: ReleaseManifest, target: UpdateTarget) {
 const run = promisify(execFile);
 
 /** Accepts only a bundle signed by whoever signed the one it replaces, as Squirrel does for the desktop app. */
-async function verifyBundle(current: string, next: string) {
-  const { stdout } = await run("/usr/bin/codesign", ["-d", "-r-", current]);
+async function verifyBundle(current: string, next: string, signal: AbortSignal) {
+  const { stdout } = await run("/usr/bin/codesign", ["-d", "-r-", current], { signal });
   const requirement = /^designated => (.+)$/m.exec(stdout)?.[1];
   if (!requirement) throw new Error("The installed app has no signature to check the update against.");
-  await run("/usr/bin/codesign", ["--verify", "--deep", "--strict", "-R", `=${requirement}`, next]);
+  await run("/usr/bin/codesign", ["--verify", "--deep", "--strict", "-R", `=${requirement}`, next], { signal });
 }
 
-type Staged = { version: string; path: string; file: ReleaseFile; cleanup: string };
+type Staged = { version: string; path: string; cleanup: string };
 
-/** Where releases are fetched from, and what checks a macOS bundle before it is used. */
-type Source = { releases: string; get: typeof fetch; verify: (current: string, next: string) => Promise<void> };
+/** Where releases are fetched from, what checks a macOS bundle before it is used, and what cancels a download. */
+type Source = { releases: string; get: typeof fetch; verify: (current: string, next: string, signal: AbortSignal) => Promise<void>; signal: AbortSignal };
 
 async function fetchOk(source: Source, url: string) {
-  const response = await source.get(url);
+  const response = await source.get(url, { signal: source.signal });
   if (!response.ok) throw new Error(`${url} answered ${response.status}.`);
   return response;
 }
@@ -107,7 +106,7 @@ async function fetchFile(source: Source, manifest: ReleaseManifest, file: Releas
       done(null, chunk);
     },
   });
-  await pipeline(Readable.fromWeb(response.body as import("node:stream/web").ReadableStream), counter, createWriteStream(destination, { flags: "wx", mode: 0o755 }));
+  await pipeline(Readable.fromWeb(response.body as import("node:stream/web").ReadableStream), counter, createWriteStream(destination, { flags: "wx", mode: 0o755 }), { signal: source.signal });
   if (received !== file.size || hash.digest("base64") !== file.sha512) throw new Error(`${file.url} did not match its checksum.`);
 }
 
@@ -123,18 +122,18 @@ async function stage(source: Source, target: UpdateTarget, manifest: ReleaseMani
       await rm(destination, { force: true });
       throw error;
     }
-    return { version: manifest.version, path: destination, file, cleanup: destination };
+    return { version: manifest.version, path: destination, cleanup: destination };
   }
   const download = await mkdtemp(path.join(tmpdir(), "aic-update-"));
   const unpacked = path.join(path.dirname(target.bundle), `.${path.basename(target.bundle)}.${randomUUID()}.update`);
   try {
     const archive = path.join(download, "update.zip");
     await fetchFile(source, manifest, file, archive, progress);
-    await run("/usr/bin/ditto", ["-x", "-k", archive, unpacked]);
+    await run("/usr/bin/ditto", ["-x", "-k", archive, unpacked], { signal: source.signal });
     const bundle = (await readdir(unpacked)).find((entry) => entry.endsWith(".app"));
     if (!bundle) throw new Error(`${file.url} holds no app.`);
-    await source.verify(target.bundle, path.join(unpacked, bundle));
-    return { version: manifest.version, path: path.join(unpacked, bundle), file, cleanup: unpacked };
+    await source.verify(target.bundle, path.join(unpacked, bundle), source.signal);
+    return { version: manifest.version, path: path.join(unpacked, bundle), cleanup: unpacked };
   } catch (error) {
     await rm(unpacked, { recursive: true, force: true });
     throw error;
@@ -143,16 +142,10 @@ async function stage(source: Source, target: UpdateTarget, manifest: ReleaseMani
   }
 }
 
-/** Puts the new build where the old one was. An image whose name carries its version takes the new one's name. */
-async function swap(target: UpdateTarget, current: string, update: Staged) {
+/** Puts the new build at the path the old one held, which the `aic` script and desktop entry name. */
+async function swap(target: UpdateTarget, update: Staged) {
   if (target.kind === "appimage") {
-    const name = path.basename(target.image);
-    const destination = name.includes(current) ? path.join(path.dirname(target.image), path.basename(update.file.url)) : target.image;
-    await rename(update.path, destination);
-    if (destination !== target.image) {
-      await rm(target.image, { force: true });
-      repairAppImageLaunchers({ appImage: target.image, home: homedir(), ...(process.env.XDG_DATA_HOME ? { dataHome: process.env.XDG_DATA_HOME } : {}) }, destination);
-    }
+    await rename(update.path, target.image);
     return;
   }
   const previous = path.join(update.cleanup, "previous.app");
@@ -179,19 +172,29 @@ export function createServeUpdater(options: {
   arch?: string;
   releases?: string;
   fetch?: typeof fetch;
-  verifyBundle?: (current: string, next: string) => Promise<void>;
+  verifyBundle?: (current: string, next: string, signal: AbortSignal) => Promise<void>;
   onState: (update: AppUpdate) => void;
   restart: () => void;
   say: (line: string) => void;
 }) {
   const { target, say } = options;
-  const source: Source = { releases: options.releases ?? RELEASES, get: options.fetch ?? fetch, verify: options.verifyBundle ?? verifyBundle };
+  const stopping = new AbortController();
+  const source: Source = { releases: options.releases ?? RELEASES, get: options.fetch ?? fetch, verify: options.verifyBundle ?? verifyBundle, signal: stopping.signal };
   const manifestFile = manifestName(options.platform ?? process.platform, options.arch ?? process.arch);
   let state: AppUpdate = NO_APP_UPDATE;
   let found: ReleaseManifest | null = null;
   let staged: Staged | null = null;
   let checking: Promise<void> | null = null;
   let installing = false;
+  let disposed = false;
+  /** Downloads and installs under way, which disposal waits out so it never removes what they are moving. */
+  const pending = new Set<Promise<void>>();
+
+  function track(task: Promise<void>) {
+    pending.add(task);
+    void task.finally(() => pending.delete(task));
+    return task;
+  }
 
   function setState(next: AppUpdate) {
     state = next;
@@ -222,9 +225,13 @@ export function createServeUpdater(options: {
     })();
   }
 
-  async function download() {
+  function download() {
+    return track(fetchBuild());
+  }
+
+  async function fetchBuild() {
     const manifest = found;
-    if (state.status !== "available" || !manifest) return;
+    if (state.status !== "available" || !manifest || disposed) return;
     setState({ status: "downloading", version: manifest.version, percent: 0 });
     say(`Downloading AI Coding Tool ${manifest.version}…`);
     try {
@@ -238,13 +245,17 @@ export function createServeUpdater(options: {
     }
   }
 
-  async function install() {
+  function install() {
+    return track(installBuild());
+  }
+
+  async function installBuild() {
     const update = staged;
-    if (state.status !== "ready" || !update || installing) return;
+    if (state.status !== "ready" || !update || installing || disposed) return;
     installing = true;
     try {
       say(`Installing AI Coding Tool ${update.version}…`);
-      await swap(target, options.version, update);
+      await swap(target, update);
       staged = null;
       say(`Installed ${update.version}. Restarting…`);
       options.restart();
@@ -266,8 +277,11 @@ export function createServeUpdater(options: {
     return () => clearInterval(timer);
   }
 
-  /** A download nobody installed is left for the next check to fetch again. */
+  /** Cancels a download and waits out an install. A build nobody installed is left for the next check to fetch again. */
   async function dispose() {
+    disposed = true;
+    stopping.abort();
+    await Promise.all(pending);
     const update = staged;
     staged = null;
     if (update) await rm(update.cleanup, { recursive: true, force: true }).catch(() => undefined);

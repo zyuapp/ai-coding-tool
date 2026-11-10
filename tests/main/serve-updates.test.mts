@@ -40,7 +40,7 @@ function updater(target: UpdateTarget, get: typeof globalThis.fetch, platform: N
   return { updates, states, restarts: () => restarts };
 }
 
-test("a server replaces its AppImage with the checked download, under the new version's name, then restarts", async (t) => {
+test("a server replaces its AppImage in place with the checked download, then restarts", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "aic-serve-update-"));
   t.onTestFinished(() => rm(root, { recursive: true, force: true }));
   const image = path.join(root, "AICodingTool-0.1.0-x86_64.AppImage");
@@ -58,8 +58,8 @@ test("a server replaces its AppImage with the checked download, under the new ve
   await updates.install();
 
   assert.equal(restarts(), 1);
-  assert.deepEqual(await readdir(root), ["AICodingTool-0.2.0-x86_64.AppImage"]);
-  assert.equal(await readFile(path.join(root, "AICodingTool-0.2.0-x86_64.AppImage"), "utf8"), "new build");
+  assert.deepEqual(await readdir(root), ["AICodingTool-0.1.0-x86_64.AppImage"]);
+  assert.equal(await readFile(image, "utf8"), "new build");
 });
 
 test("a download that does not match its checksum is thrown away and offered again", async (t) => {
@@ -76,6 +76,28 @@ test("a download that does not match its checksum is thrown away and offered aga
 
   assert.deepEqual(updates.state(), { status: "available", version: "0.2.0" });
   assert.equal(restarts(), 0);
+  assert.deepEqual(await readdir(root), ["AICodingTool.AppImage"]);
+  assert.equal(await readFile(image, "utf8"), "old build");
+});
+
+test("stopping cancels a download under way and leaves nothing behind", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "aic-serve-update-"));
+  t.onTestFinished(() => rm(root, { recursive: true, force: true }));
+  const image = path.join(root, "AICodingTool.AppImage");
+  await writeFile(image, "old build", { mode: 0o755 });
+  const { fetch: released } = release("AICodingTool-0.2.0-x86_64.AppImage", Buffer.from("new build"));
+  const stalled = (async (url: string | URL, init?: RequestInit) => {
+    if (String(url).endsWith(".yml")) return released(url, init);
+    return new Response(new ReadableStream({ start: (controller) => controller.enqueue(new Uint8Array([1])) }));
+  }) as typeof fetch;
+  const { updates } = updater({ kind: "appimage", image }, stalled, "linux");
+
+  await updates.check();
+  const downloading = updates.download();
+  while (updates.state().status !== "downloading") await new Promise((resolve) => setTimeout(resolve, 5));
+  await updates.dispose();
+  await downloading;
+
   assert.deepEqual(await readdir(root), ["AICodingTool.AppImage"]);
   assert.equal(await readFile(image, "utf8"), "old build");
 });
