@@ -2065,6 +2065,8 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 /* The same inset from every block's own top-right corner, so all three line up with their frames. */
 .copyable > .copy-affordance { position: absolute; z-index: 2; top: 6px; right: 6px; }
 .copyable-table > .copy-affordance { top: 5px; }
+/** On a code block the tile sits in the heading strip, centred in its height and clear of the line under it. */
+.copyable.code-block > .copy-affordance { top: 5px; right: 7px; width: 26px; height: 26px; }
 .copyable > .diagram-expand { position: absolute; z-index: 2; top: 6px; right: 38px; }
 /* Inert while hidden, so selecting a block's text is never caught by a button nobody can see. The newest
    row shows them as bare glyphs, so the answer just written says it can be copied without a hover. */
