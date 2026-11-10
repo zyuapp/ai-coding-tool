@@ -4,9 +4,11 @@
   max-width: 860px;
   padding: 12px 14px;
   margin: 0 auto 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
+  border: 1px solid var(--line-glass);
+  border-radius: 14px;
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-float);
   color: var(--ink);
   font-size: 13px;
   line-height: 1.5;

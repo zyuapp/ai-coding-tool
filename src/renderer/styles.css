@@ -256,8 +256,9 @@
   --shadow-tooltip: 0 12px 32px rgb(var(--p-shadow) / calc(0.32 * var(--p-shadow-scale)));
   --shadow-thumb: 0 1px 2px rgb(var(--p-shadow) / calc(0.4 * var(--p-shadow-scale))), 0 4px 10px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale)));
   --scrim: rgb(var(--p-scrim) / 0.85);
-  /* Behind a dialog: the window stays in sight, out of focus. */
+  /* Behind a dialog: the window stays in sight, out of focus. Behind a picture being looked at, it steps further back. */
   --veil: rgb(var(--p-scrim) / 0.46);
+  --veil-deep: rgb(var(--p-scrim) / 0.7);
   --veil-blur: blur(10px) saturate(140%);
   --scrim-soft: rgb(var(--p-shadow) / calc(0.38 * var(--p-shadow-scale)));
 
@@ -373,7 +374,10 @@
   }
   /** A float drawn in the page blurs what the page drew under it. */
   :root[data-glass-sheet] :is(.theme-select-popover, .font-select-popover, .toast, .usage-card, .thread-jump-panel, .tooltip, .annotation-card, .annotate-editor, .right-dock-add > div) { backdrop-filter: var(--glass-menu-blur); }
-  :root[data-glass-sheet] .composer-wrap { background: none; }
+  :root[data-glass-sheet] :is(.composer-wrap, .coordination-head) { background: none; }
+  /** A bar that stays put while its list scrolls under it has no ground to hide the list with, so it is a strip of glass. */
+  :root[data-glass-sheet] :is(.coordination-group-head, .coordination-group-heading, .diff-file-row) { background: var(--glass-menu); backdrop-filter: var(--glass-menu-blur); }
+  :root[data-glass-sheet] .coordination-group-heading > .coordination-group-head { background: none; backdrop-filter: none; }
   /** On one sheet nothing else parts the sidebar from the conversation, so a hairline does, where the sidebar is dragged wider. */
   :root[data-glass-sheet] .sidebar-resizer::before { content: ""; position: absolute; inset: 0 auto 0 calc(50% - 0.5px); width: 1px; background: var(--line-glass); }
   :root[data-glass-sheet] .settings-sidebar { box-shadow: 4px 0 0 -3px var(--line-glass); }
@@ -392,6 +396,7 @@
     --glass-blur: none;
     --glass-menu-blur: none;
     --veil: var(--scrim);
+    --veil-deep: var(--scrim);
     --veil-blur: none;
     --surface-lens: var(--p-bg-5);
     --surface-lens-hover: var(--p-bg-6);
@@ -2533,7 +2538,7 @@ pre {
 
 /** One axis of a two-axis choice: which ground, or which of a handful of named modes. */
 /** A recessed track the chosen segment sits raised in, so the choice reads before the label does. */
-.segmented { display: flex; gap: 2px; border-radius: 9px; padding: 2px; background: var(--control-soft); box-shadow: inset 0 0 0 1px var(--line); }
+.segmented { display: flex; gap: 2px; border-radius: 9px; padding: 2px; background: var(--glass-sheen), var(--control-soft); box-shadow: var(--glass-rim); }
 .segmented button {
   display: flex;
   align-items: center;
@@ -2928,7 +2933,7 @@ pre {
 .composer-unopenable { flex: 1; margin: 0; color: var(--muted); font-size: var(--text-control); }
 .composer-unopenable-update { flex: none; min-height: 30px; padding: 0 13px; border: 0; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-size: var(--text-control); font-weight: 600; cursor: pointer; }
 .composer-unopenable-update:hover:not(:disabled) { background: var(--accent-hover); }
-.composer-unopenable-check { flex: none; min-height: 30px; padding: 0 13px; border: 0; border-radius: 9px; background: var(--control); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--ink); font-size: var(--text-control); font-weight: 560; cursor: pointer; }
+.composer-unopenable-check { flex: none; min-height: 30px; padding: 0 13px; border: 0; border-radius: 9px; background: var(--glass-sheen), var(--control); box-shadow: var(--glass-rim); color: var(--ink); font-size: var(--text-control); font-weight: 560; cursor: pointer; }
 .composer-unopenable-check:hover:not(:disabled) { background: var(--control-hover); }
 /** A composer menu stands over the whole workspace, so the footer rises past the topbar while one is open. */
 .composer-wrap:has(.command-menu, .setting-menu[open], .thread-start .picker-popover) { z-index: 41; }
@@ -4399,7 +4404,7 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   display: grid;
   place-items: center;
   padding: 56px 32px 32px;
-  background: rgb(var(--p-scrim) / 0.7);
+  background: var(--veil-deep);
   backdrop-filter: var(--veil-blur);
   cursor: zoom-out;
 }
@@ -4505,7 +4510,7 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   display: grid;
   place-items: center;
   padding: 56px 28px 28px;
-  background: rgb(var(--p-scrim) / 0.7);
+  background: var(--veil-deep);
   backdrop-filter: var(--veil-blur);
 }
 .annotator-panel {
@@ -5674,9 +5679,13 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   .viewer-close, .viewer-download, .viewer-copy, .viewer-step, .annotator-tool.active, .annotator-action, .annotator-undo, .sidebar-empty-action, .thread-jump-empty button,
   .automation-actions button, .agent-activity-earlier, .subagent-view-all, .process-stop, .workflow-stop,
   .diff-mode-trigger, .diff-linked-commit, .diff-side-trigger, .diff-progress > button, .diff-status > button, .diff-error > button,
-  .model-provider-rail button[aria-pressed="true"], .model-row.selected
+  .model-provider-rail button[aria-pressed="true"], .model-row.selected,
+  .coordination-bar-lead button, .decision-from, .coordination-row-mark, .coordination-row-action, .coordination-stop > button, .coordination-note-actions button,
+  .coordination-worktree-actions button, .thread-tab-resolution, .thread-tab-chip, .thread-tab-mark, .decision-option, .question-option,
+  .worktree-delete-actions button, .worktree-move-disc, .settings-select select, .simulator-driving, .diff-comment-affordance, .attachment-remove
 ) { box-shadow: var(--glass-rim); }
 :where(
   .empty-state button, .approval-actions button, .question-answer button, .toast-action, .composer-unopenable-update,
-  button.primary, .terminal-new-shell.primary, .annotator-action.primary, .annotate-editor-save, .sidebar-update.ready
+  button.primary, .terminal-new-shell.primary, .annotator-action.primary, .annotate-editor-save, .sidebar-update.ready,
+  .coordination-bar-answer, .decision-foot button, button.suggestion-start
 ) { box-shadow: var(--glint); }

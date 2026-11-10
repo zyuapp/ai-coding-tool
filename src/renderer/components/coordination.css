@@ -27,12 +27,14 @@
 .coordination-bar {
   max-width: 860px;
   margin: 0 auto;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: var(--surface);
+  border: 1px solid var(--line-glass);
+  border-radius: 12px;
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-float);
   font-size: var(--text-menu);
 }
-.coordination-bar.asking { border-color: var(--accent-line); background: var(--accent-surface); }
+.coordination-bar.asking { border-color: var(--accent-line); background: var(--glass-sheen), color-mix(in srgb, var(--accent) 14%, rgb(from var(--p-bg-2) r g b / 0.62)); }
 .coordination-bar-line { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px 0 12px; }
 .coordination-bar-lead { color: var(--muted); }
 .coordination-bar-lead button, .decision-from {
@@ -70,8 +72,10 @@
   max-width: 860px;
   margin: 0 auto 8px;
   border: 1px solid var(--accent-line-strong);
-  border-radius: 13px;
-  background: var(--surface);
+  border-radius: 14px;
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-float);
   font-size: var(--text-menu);
   line-height: 1.5;
   overflow: hidden;
@@ -215,9 +219,10 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
   max-width: 100%;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-glass);
   border-radius: 12px;
-  background: var(--surface);
+  background: var(--glass-control);
+  box-shadow: var(--glass-rim);
   overflow: hidden;
   transition: border-color 0.15s ease;
 }
