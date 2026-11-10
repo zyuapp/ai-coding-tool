@@ -89,13 +89,13 @@ struct SheetConfirm: ToolbarContent {
     }
 }
 
-/// A row's background in a sheet: the palette's raised ground, translucent over iOS 26's glass.
+/// A row's background in a sheet: the palette's raised ground, or on iOS 26 a wash of ink that takes the glass's own tone.
 struct SheetRowGround: ViewModifier {
     @Environment(\.palette) private var palette
 
     func body(content: Content) -> some View {
         if #available(iOS 26, *) {
-            content.listRowBackground(palette.raised.opacity(0.55))
+            content.listRowBackground(palette.ink.opacity(palette.dark ? 0.06 : 0.05))
         } else {
             content.listRowBackground(palette.raised)
         }

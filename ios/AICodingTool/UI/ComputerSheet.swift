@@ -38,7 +38,7 @@ struct ComputerSheet: View {
                 }
                 Section {
                     Button(role: .destructive) { forgetting = true } label: {
-                        Text("Forget This Computer").frame(maxWidth: .infinity)
+                        Text("Forget This Computer").frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .foregroundStyle(palette.danger)
                     .sheetRow()
@@ -63,52 +63,43 @@ struct ComputerSheet: View {
     }
 }
 
-/// The app or an engine: its version, where it stands, and the one step it offers.
+/// The app or an engine: its version when it is current, otherwise where it stands and the one step it offers.
 private struct SoftwareRow: View {
     var model: PhoneModel
     var item: MobileUpkeepItem
     @Environment(\.palette) private var palette
 
+    /// Current and asking nothing, so the version alone says it.
+    private var settled: Bool { item.state.tone == "quiet" && item.version != nil && item.action == nil }
+
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(item.label).foregroundStyle(palette.ink)
-                    if let version = item.version {
-                        Text(version).font(.footnote.monospacedDigit()).foregroundStyle(palette.muted)
-                    }
+                Text(item.label).foregroundStyle(palette.ink)
+                if !settled {
+                    Text(item.state.text).font(.footnote).foregroundStyle(item.state.tone == "error" ? palette.danger : palette.muted)
                 }
-                Text(item.state.text).font(.footnote).foregroundStyle(tone)
             }
-            .accessibilityElement(children: .combine)
             Spacer(minLength: 8)
             if let action = item.action {
-                if action.label == "Update" {
-                    Button(action.label) { model.send(action.command) }
-                        .buttonStyle(.borderedProminent)
-                        .tint(palette.accent)
-                        .foregroundStyle(palette.accentInk)
-                        .controlSize(.small)
-                        .accessibilityLabel("Update \(item.label)")
-                } else {
-                    Button(action.label) { model.send(action.command) }
-                        .buttonStyle(.bordered)
-                        .tint(palette.inkDim)
-                        .controlSize(.small)
-                        .accessibilityLabel("\(action.label), \(item.label)")
+                let primary = action.label == "Update"
+                Button { model.send(action.command) } label: {
+                    Text(action.label)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(primary ? palette.accent : palette.inkDim)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(primary ? palette.accent.opacity(0.14) : palette.ink.opacity(0.08), in: Capsule())
                 }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("\(action.label) \(item.label)")
             } else if item.state.tone == "progress" {
                 Spinner(size: 16)
+            } else if settled, let version = item.version {
+                Text(version).font(.subheadline.monospacedDigit()).foregroundStyle(palette.muted)
             }
         }
-        .padding(.vertical, 4)
-    }
-
-    private var tone: Color {
-        switch item.state.tone {
-        case "error": palette.danger
-        case "offer", "progress": palette.inkDim
-        default: palette.muted
-        }
+        .padding(.vertical, settled ? 0 : 2)
+        .accessibilityElement(children: .contain)
     }
 }
