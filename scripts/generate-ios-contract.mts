@@ -62,6 +62,8 @@ const CONFIG: Config = {
   ],
   /** Fields of what the phone sends that it fills from its own constants. */
   filled: { "MobileClientMessage.version": "mobileProtocolVersion", "MobileClientMessage.oldestComputer": "oldestComputerProtocolVersion" },
+  /** Constant lists of literal records the phone offers as they are, by the Swift struct that holds them. */
+  tables: { SnoozeOption: { source: "src/domain/thread-snooze.ts", constant: "SNOOZE_OPTIONS" } },
 };
 
 /** Conformances beyond the generated ones, by Swift type name. */

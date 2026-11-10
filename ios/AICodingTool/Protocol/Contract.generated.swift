@@ -1032,6 +1032,20 @@ extension PhonePush {
     }
 }
 
+/// `SNOOZE_OPTIONS` in `src/domain/thread-snooze.ts`, row by row.
+struct SnoozeOption: Equatable, Sendable {
+    var label: String
+    var hours: Int
+
+    static let allCases: [SnoozeOption] = [
+        SnoozeOption(label: "1 hour", hours: 1),
+        SnoozeOption(label: "4 hours", hours: 4),
+        SnoozeOption(label: "1 day", hours: 24),
+        SnoozeOption(label: "3 days", hours: 72),
+        SnoozeOption(label: "1 week", hours: 168),
+    ]
+}
+
 enum WorktreeDestination: Equatable, Sendable {
     case local
     case new

@@ -1,5 +1,5 @@
 import path from "node:path";
-import { type Checker, type Project, SymbolFlags, type Symbol as TypeSymbol, type Type, TypeFlags } from "typescript/unstable/sync";
+import { type Checker, type Project, SymbolFlags, type Symbol as TypeSymbol, type Type, TypeFlags, type TypeReference } from "typescript/unstable/sync";
 import {
   type EntityName,
   getTextOfJSDocComment,
@@ -16,6 +16,7 @@ import {
   isTypeLiteralNode,
   isTypeReferenceNode,
   isUnionTypeNode,
+  isVariableStatement,
   type Node,
   type PropertySignatureDeclaration,
   SyntaxKind,
@@ -40,7 +41,9 @@ export type Struct = Placed & { kind: "struct"; fields: Field[]; nested: Struct[
 export type Case = { name: string; value: string; fields: Field[]; filled: Map<string, string> };
 export type Union = Placed & { kind: "union"; key: string; cases: Case[]; fallback?: string; frame?: { envelope: Field } };
 export type Enumeration = Placed & { kind: "enum"; values: string[] };
-export type Named = Struct | Union | Enumeration;
+/** A constant list of records, each value a literal, rendered as a Swift struct with every row. */
+export type Table = Placed & { kind: "table"; constant: string; columns: Array<{ name: string; swift: Swift }>; rows: Array<Array<string | number | boolean>> };
+export type Named = Struct | Union | Enumeration | Table;
 export type Command = { type: string; fields: Field[] };
 
 export type Config = {
@@ -62,6 +65,7 @@ export type Config = {
   ignored: string[];
   unsent: string[];
   filled: Record<string, string>;
+  tables: Record<string, { source: string; constant: string }>;
 };
 
 /** `read` and `sent` are the roots by their Swift names. */
@@ -124,7 +128,31 @@ export class Reader {
     const read = this.config.read.map((name) => this.named(this.declaration(name)));
     const sent = this.config.sent.map((name) => this.named(this.declaration(name)));
     const commands = this.commands(this.declaration(this.config.commands));
+    for (const [name, { source, constant }] of Object.entries(this.config.tables)) this.table(name, source, constant);
     return { types: this.types, commands, read, sent };
+  }
+
+  /** `as const` keeps every value a literal the checker can read without running the module. */
+  private table(name: string, source: string, constant: string): void {
+    const file = this.project.program.getSourceFile(path.join(this.root, source));
+    const variable = file?.statements.filter(isVariableStatement).flatMap((statement) => [...statement.declarationList.declarations]).find((declaration) => isIdentifier(declaration.name) && declaration.name.text === constant);
+    if (!variable) throw new ContractError(`TABLES.${name}: ${source} declares no ${constant}.`);
+    const type = this.checker.getTypeAtLocation(variable.name)!;
+    if (!this.checker.isTupleType(type)) throw new ContractError(`TABLES.${name}: ${constant} must be an \`as const\` array.`);
+    const table: Table = { kind: "table", ...this.placed(name, variable.parent.parent), constant, columns: [], rows: [] };
+    for (const row of this.checker.getTypeArguments(type as TypeReference)) {
+      const values: Array<string | number | boolean> = [];
+      for (const property of this.checker.getPropertiesOfType(row)) {
+        const value = this.checker.getTypeOfSymbol(property);
+        if (!value?.isLiteralType() || typeof value.value === "bigint") throw new ContractError(`TABLES.${name}: ${constant}.${property.name} is not a literal.`);
+        const swift: Swift = typeof value.value === "string" ? { kind: "string" } : typeof value.value === "boolean" ? { kind: "bool" } : Number.isInteger(value.value) ? { kind: "int" } : { kind: "double" };
+        if (table.rows.length === 0) table.columns.push({ name: property.name, swift });
+        else if (table.columns[values.length]?.name !== property.name) throw new ContractError(`TABLES.${name}: every row of ${constant} has the same fields.`);
+        values.push(value.value);
+      }
+      table.rows.push(values);
+    }
+    this.types.set(name, table);
   }
 
   private declaration(name: string): Declaration {

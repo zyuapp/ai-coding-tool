@@ -201,21 +201,8 @@ enum Format {
 }
 
 /// How long Snooze puts a thread away for, as the desktop's thread menu offers it.
-enum SnoozeOption: Int, CaseIterable, Identifiable {
-    case hour = 1, fourHours = 4, day = 24, threeDays = 72, week = 168
-
-    var id: Int { rawValue }
-    var hours: Int { rawValue }
-
-    var label: String {
-        switch self {
-        case .hour: "1 hour"
-        case .fourHours: "4 hours"
-        case .day: "1 day"
-        case .threeDays: "3 days"
-        case .week: "1 week"
-        }
-    }
+extension SnoozeOption: Identifiable {
+    var id: Int { hours }
 }
 
 /// How well a name answers a query: the name starts with it, a word starts with it, or it is in there.

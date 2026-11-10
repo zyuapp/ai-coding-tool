@@ -326,6 +326,20 @@ function renderEnum(enumeration: Named & { kind: "enum" }, uses: Uses): string[]
   ];
 }
 
+function renderTable(table: Named & { kind: "table" }): string[] {
+  const row = (values: Array<string | number | boolean>) => `${table.name}(${values.map((value, index) => `${table.columns[index]!.name}: ${JSON.stringify(value)}`).join(", ")})`;
+  return [
+    `/// \`${table.constant}\` in \`${table.file}\`, row by row.`,
+    `struct ${table.name}: Equatable, Sendable {`,
+    ...table.columns.map((column) => `    var ${identifier(column.name)}: ${typeName(column.swift)}`),
+    "",
+    `    static let allCases: [${table.name}] = [`,
+    ...table.rows.map((values) => `        ${row(values)},`),
+    "    ]",
+    "}",
+  ];
+}
+
 function renderStructJSON(struct: Struct): string[] {
   return [
     `extension ${struct.name} {`,
@@ -344,6 +358,7 @@ export function renderTypes(contract: Contract, uses: Uses): string[] {
     if (type.kind === "struct") blocks.push(renderStruct(type, "", uses), ...(uses.sent.has(type.name) && !type.patch ? [renderStructJSON(type)] : []));
     if (type.kind === "union") blocks.push(renderUnion(type, uses));
     if (type.kind === "enum") blocks.push(renderEnum(type, uses));
+    if (type.kind === "table") blocks.push(renderTable(type));
   }
   return blocks.flatMap((block) => ["", ...block]);
 }

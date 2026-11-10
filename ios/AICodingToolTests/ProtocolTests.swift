@@ -272,7 +272,7 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(next.activity.snoozed.first?.snoozedUntil, 1_800_000_000_000)
         XCTAssertEqual(next.applying(try JSONDecoder().decode(MobilePatch.self, from: Data(#"{"groups":[]}"#.utf8)))?.archived, 3)
 
-        let snooze = MobileClientMessage.command(requestId: "r", command: .snooze("a", hours: SnoozeOption.day.hours)).text
+        let snooze = MobileClientMessage.command(requestId: "r", command: .snooze("a", hours: 24)).text
         XCTAssertTrue(snooze.contains(#""hours":24"#), snooze)
         XCTAssertEqual(PhoneCommand.unsnooze("b").json, .object(["type": .string("task.unsnooze"), "taskId": .string("b")]))
         XCTAssertEqual(PhoneCommand.restore("c").json, .object(["type": .string("task.restore"), "taskId": .string("c")]))
