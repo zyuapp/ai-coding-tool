@@ -1,16 +1,17 @@
 import type { WorktreeCommand } from "../../contracts/commands.js";
-import { activeComputer } from "../state/computers.js";
-import type { WorkspaceState } from "../workspace-state.js";
-import { settled } from "./shared.js";
-import type { WorkspaceTransition } from "./types.js";
+import { activeComputer, type ComputersSliceState } from "../state/computers.js";
+import type { WorktreesState } from "../state/worktrees.js";
+import type { SliceTransition } from "./slice.js";
 
 export const WORKTREE_MENU_INPUTS = ["worktree.menu-open", "worktree.menu-search"] as const;
 
-export function reduceWorktreeMenu(state: WorkspaceState, input: Extract<WorktreeCommand, { type: (typeof WORKTREE_MENU_INPUTS)[number] }>): WorkspaceTransition {
+type MenuState = Pick<WorktreesState, "worktreeMenuSearch" | "worktreeManagementLoading" | "worktreeManagementError">;
+
+export function reduceWorktreeMenu(state: MenuState & ComputersSliceState, input: Extract<WorktreeCommand, { type: (typeof WORKTREE_MENU_INPUTS)[number] }>): SliceTransition<MenuState> {
   const query = input.type === "worktree.menu-search" ? input.query : "";
-  const next = { ...state, worktreeMenuSearch: { ...state.worktreeMenuSearch, [input.list]: query } };
-  if (input.type === "worktree.menu-search" || input.list === "threads" || state.worktreeManagementLoading) return settled(next);
+  const worktreeMenuSearch = { ...state.worktreeMenuSearch, [input.list]: query };
+  if (input.type === "worktree.menu-search" || input.list === "threads" || state.worktreeManagementLoading) return { patch: { worktreeMenuSearch } };
   /** The checkouts offered are the ones beside the thread on screen, which a paired computer lists itself. */
-  if (activeComputer(state)) return settled(next);
-  return settled({ ...next, worktreeManagementLoading: true, worktreeManagementError: null }, [{ type: "list-worktrees" }]);
+  if (activeComputer(state)) return { patch: { worktreeMenuSearch } };
+  return { patch: { worktreeMenuSearch, worktreeManagementLoading: true, worktreeManagementError: null }, effects: [{ type: "list-worktrees" }] };
 }

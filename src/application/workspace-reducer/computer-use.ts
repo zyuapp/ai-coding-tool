@@ -1,8 +1,8 @@
 /** What the platform lets the app see and operate, and what the settings page is doing about it. */
-import { settled } from "./shared.js";
-import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
+import type { SliceTransition } from "./slice.js";
+import type { WorkspaceInput } from "./types.js";
 import { sameComputerUsePermissions } from "../../domain/computer-use.js";
-import type { WorkspaceState } from "../workspace-state.js";
+import type { ComputerUseSliceState } from "../state/machine-access.js";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../domain/computer-use.js";
 
 export const COMPUTER_USE_INPUTS = [
@@ -20,21 +20,21 @@ export type ComputerUseEffect =
   | { type: "computer-use.enable"; permission: ComputerUsePermission }
   | { type: "computer-use.restart" };
 
-export function reduceComputerUse(state: WorkspaceState, input: ComputerUseInput): WorkspaceTransition {
+export function reduceComputerUse(state: ComputerUseSliceState, input: ComputerUseInput): SliceTransition<ComputerUseSliceState> {
   const access = state.computerUsePermissions;
   switch (input.type) {
     case "computer-use.read":
-      return settled(state, [{ type: "computer-use.read" }]);
+      return { effects: [{ type: "computer-use.read" }] };
 
     case "computer-use.restart":
-      return settled(state, [{ type: "computer-use.restart" }]);
+      return { effects: [{ type: "computer-use.restart" }] };
 
     /** The platform's own dialog answers for this one, so the row waits on it rather than on a poll. */
     case "computer-use.enable":
-      return settled(
-        { ...state, computerUsePermissions: { ...access, busy: input.permission, error: null, requested: true } },
-        [{ type: "computer-use.enable", permission: input.permission }],
-      );
+      return {
+        patch: { computerUsePermissions: { ...access, busy: input.permission, error: null, requested: true } },
+        effects: [{ type: "computer-use.enable", permission: input.permission }],
+      };
 
     case "computer-use.permissions": {
       /** A full set is only worth a restart to a window that sent the user off to grant one. */
@@ -44,19 +44,18 @@ export function reduceComputerUse(state: WorkspaceState, input: ComputerUseInput
         && sameComputerUsePermissions(access.permissions, input.permissions)
         && restartRequired === access.restartRequired
         && !(input.enabling && access.busy !== null);
-      if (unchanged) return settled(state);
-      return settled({
-        ...state,
+      if (unchanged) return {};
+      return { patch: {
         computerUsePermissions: {
           ...access,
           permissions: input.permissions,
           restartRequired,
           ...(input.enabling ? { busy: null } : {}),
         },
-      });
+      } };
     }
 
     case "computer-use.failed":
-      return settled({ ...state, computerUsePermissions: { ...access, error: input.message, ...(input.enabling ? { busy: null } : {}) } });
+      return { patch: { computerUsePermissions: { ...access, error: input.message, ...(input.enabling ? { busy: null } : {}) } } };
   }
 }

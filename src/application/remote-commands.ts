@@ -1,6 +1,7 @@
 import type { RemoteCommand } from "../contracts/commands.js";
 import type { MobileServerState } from "../domain/mobile.js";
-import type { WorkspaceState } from "./workspace-state.js";
+import type { RemoteState } from "./state/remote.js";
+import type { SliceTransition } from "./workspace-reducer/slice.js";
 
 /**
  * The bridge a phone reaches this Mac through. The socket, the paired tokens and Tailscale all live
@@ -14,16 +15,14 @@ export type RemoteEffect = RemoteCommand;
 
 export type RemoteInput = RemoteCommand | RemoteEvent;
 
-export type RemoteTransition = { state: WorkspaceState; effects: RemoteEffect[] };
-
 /** Everything about the bridge is named `remote.`, so one test sorts the whole family out of the way. */
 export function isRemoteInput(input: { type: string }): input is RemoteInput {
   return input.type.startsWith("remote.");
 }
 
-export function reduceRemote(state: WorkspaceState, input: RemoteInput): RemoteTransition {
-  if (input.type === "remote.changed") return { state: { ...state, remote: input.remote, remoteChecking: false }, effects: [] };
+export function reduceRemote(_state: RemoteState, input: RemoteInput): SliceTransition<RemoteState> {
+  if (input.type === "remote.changed") return { patch: { remote: input.remote, remoteChecking: false } };
   /** A read only waits on Tailscale, so it leaves whatever the window last said on screen. */
-  if (input.type === "remote.refresh") return { state: { ...state, remoteChecking: true }, effects: [input] };
-  return { state: { ...state, actionError: null }, effects: [input] };
+  if (input.type === "remote.refresh") return { patch: { remoteChecking: true }, effects: [input] };
+  return { clearsError: true, effects: [input] };
 }

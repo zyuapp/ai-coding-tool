@@ -34,6 +34,7 @@ import { reduceToasts } from "../toasts.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { cancelPause, resumeThread } from "../limit-pauses.js";
 import { settled } from "./shared.js";
+import { owned } from "./slice.js";
 import { APP_UPDATE_INPUTS, reduceAppUpdate } from "../app-updates.js";
 
 type Reducer<Type extends WorkspaceInput["type"]> = (state: WorkspaceState, input: Extract<WorkspaceInput, { type: Type }>) => WorkspaceTransition;
@@ -47,7 +48,7 @@ function claim<Type extends WorkspaceInput["type"]>(types: readonly Type[], redu
 
 /** Each input type is claimed by exactly one reducer. */
 export const CLAIMS = [
-  claim(WORKTREE_MENU_INPUTS, reduceWorktreeMenu),
+  claim(WORKTREE_MENU_INPUTS, owned(reduceWorktreeMenu)),
   claim(THREAD_COMMAND_INPUTS, reduceThreadCommands),
   claim(COORDINATION_INPUTS, reduceCoordination),
   claim(PROPOSAL_INPUTS, reduceProposals),
@@ -64,9 +65,9 @@ export const CLAIMS = [
   claim(AUTOMATION_INPUTS, reduceAutomations),
   claim(SIDE_CHAT_INPUTS, reduceSideChats),
   claim(PULL_REQUEST_INPUTS, reducePullRequests),
-  claim(COMPUTER_USE_INPUTS, reduceComputerUse),
-  claim(PLAN_USAGE_INPUTS, reducePlanUsage),
-  claim(CLI_INPUTS, reduceCli),
+  claim(COMPUTER_USE_INPUTS, owned(reduceComputerUse)),
+  claim(PLAN_USAGE_INPUTS, owned(reducePlanUsage)),
+  claim(CLI_INPUTS, owned(reduceCli)),
   claim(DIFF_INPUTS, reduceDiffs),
   claim(STORE_INPUTS, reduceStore),
   claim(COMPOSER_INPUTS, reduceComposer),
@@ -88,6 +89,8 @@ export const CLAIMS = [
 type ClaimedInput = Extract<WorkspaceInput, { type: (typeof CLAIMS)[number]["types"][number] }>;
 type ClaimedReducer = (state: WorkspaceState, input: ClaimedInput) => WorkspaceTransition;
 
+const remote = owned(reduceRemote);
+
 const REDUCERS = new Map<string, ClaimedReducer>(CLAIMS.flatMap(({ types, reducer }) => types.map((type) => [type, reducer as ClaimedReducer] as const)));
 
 /**
@@ -95,7 +98,7 @@ const REDUCERS = new Map<string, ClaimedReducer>(CLAIMS.flatMap(({ types, reduce
  * no reducer claims is not a type this accepts, so the compiler names it where {@link reduce} calls here.
  */
 export function apply(state: WorkspaceState, input: RemoteInput | ComputerInput | EngineInput | ClaimedInput): WorkspaceTransition {
-  if (isRemoteInput(input)) return reduceRemote(state, input);
+  if (isRemoteInput(input)) return remote(state, input);
   if (isComputerInput(input)) return reduceComputers(state, input);
   if (isEngineInput(input)) return reduceEngine(state, input);
   return REDUCERS.get(input.type)!(state, input);

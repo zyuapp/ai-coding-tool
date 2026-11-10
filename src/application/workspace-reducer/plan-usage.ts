@@ -1,7 +1,8 @@
 /** What each provider says about the plan the user is signed in on. */
-import { settled } from "./shared.js";
-import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import type { WorkspaceState } from "../workspace-state.js";
+import type { SliceTransition } from "./slice.js";
+import type { WorkspaceEffect, WorkspaceInput } from "./types.js";
+import type { PlanUsageSliceState } from "../state/machine-access.js";
+import type { ComputersSliceState } from "../state/computers.js";
 import { AGENT_ENGINES } from "../../domain/agent-engine.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AgentEngine } from "../../domain/agent-engine.js";
@@ -19,33 +20,32 @@ export type PlanUsageEffect = { type: "read-plan-usage"; engine: AgentEngine; re
  * Each connected computer is asked for its own limits, which arrive with its state. The ask goes
  * without `everywhere`, so a computer paired back to this one never asks it in return.
  */
-function askedElsewhere(state: WorkspaceState): WorkspaceEffect[] {
+function askedElsewhere(state: ComputersSliceState): WorkspaceEffect[] {
   return state.computers.paired
     .filter((computer) => computer.status === "connected" && supportsComputerCommand(computer.capabilities, { type: "usage.read" }))
     .map((computer) => ({ type: "computer.forward", id: computer.id, inputs: [{ type: "usage.read" }] }));
 }
 
-export function reducePlanUsage(state: WorkspaceState, input: PlanUsageInput): WorkspaceTransition {
+export function reducePlanUsage(state: PlanUsageSliceState & ComputersSliceState, input: PlanUsageInput): SliceTransition<PlanUsageSliceState> {
   if (input.type === "usage.read") {
     /** What was read before stays on the page while the next read runs, so only the marks move. */
     const read = state.planUsage.read + 1;
-    return settled(
-      { ...state, planUsage: { ...state.planUsage, read, reading: [...AGENT_ENGINES] } },
-      [...AGENT_ENGINES.map((engine) => ({ type: "read-plan-usage" as const, engine, read })), ...(input.everywhere ? askedElsewhere(state) : [])],
-    );
+    return {
+      patch: { planUsage: { ...state.planUsage, read, reading: [...AGENT_ENGINES] } },
+      effects: [...AGENT_ENGINES.map((engine) => ({ type: "read-plan-usage" as const, engine, read })), ...(input.everywhere ? askedElsewhere(state) : [])],
+    };
   }
   if (input.type === "usage.dismiss-warning") {
-    if (state.planUsage.dismissed.includes(input.warning)) return settled(state);
-    return settled({ ...state, planUsage: { ...state.planUsage, dismissed: [...state.planUsage.dismissed, input.warning] } });
+    if (state.planUsage.dismissed.includes(input.warning)) return {};
+    return { patch: { planUsage: { ...state.planUsage, dismissed: [...state.planUsage.dismissed, input.warning] } } };
   }
   /** Answers to a read the refresh button has already replaced are dropped wherever they arrive. */
-  if (input.read !== state.planUsage.read) return settled(state);
-  return settled({
-    ...state,
-    planUsage: {
+  if (input.read !== state.planUsage.read) return {};
+  return {
+    patch: { planUsage: {
       ...state.planUsage,
       reports: { ...state.planUsage.reports, [input.engine]: input.usage },
       reading: state.planUsage.reading.filter((engine) => engine !== input.engine),
-    },
-  });
+    } },
+  };
 }
