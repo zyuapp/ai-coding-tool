@@ -123,10 +123,10 @@ function openStream(emit: (event: ProviderEvent) => void, model?: AgentModel): S
 }
 
 /**
- * How many turn results a run is still owed. Folding a steered message in ends the turn it
- * interrupted and starts another for the message, so each one steered adds a turn to wait for.
+ * Whether a run is owed a turn past the one going. Steered messages end the turn they interrupt
+ * and are answered together in the one after it, so however many arrive, they add one turn to wait for.
  */
-type Owing = { owed: number };
+type Owing = { steered: boolean };
 
 /** One turn a run asked for: the stream that answers it, and the promise the answer settles. */
 type Turn = Owing & SessionTurn & { stream: Stream };
@@ -230,7 +230,7 @@ export class ClaudeSession {
     /** The run supersedes whatever the agent had going on its own, so that turn lets go of its own run. */
     this.endAgentTurn({ status: "cancelled" });
     return this.turns.take(input, {
-      open: (base) => ({ ...base, owed: 1, stream: openStream((event) => input.emit(event), input.model) }),
+      open: (base) => ({ ...base, steered: false, stream: openStream((event) => input.emit(event), input.model) }),
       begin: (turn) => { void this.begin(turn); },
       interrupt: () => { void query.interrupt?.()?.catch?.(() => {}); },
     });
@@ -300,7 +300,7 @@ export class ClaudeSession {
     for (let steer = await steering.next(); steer; steer = await steering.next()) {
       const owed = owing();
       if (!owed) return;
-      owed.owed += 1;
+      owed.steered = true;
       this.push({ message: userMessage(steer.prompt, "now"), delivered: () => emit({ type: "steered", messageId: steer.messageId }) });
     }
   }
@@ -311,8 +311,8 @@ export class ClaudeSession {
    */
   private absorbedSteering() {
     const owing: Owing | null = this.turn ?? this.agentTurn;
-    if (!owing || owing.owed <= 1) return false;
-    owing.owed -= 1;
+    if (!owing?.steered) return false;
+    owing.steered = false;
     return true;
   }
 
@@ -372,7 +372,7 @@ export class ClaudeSession {
     if (this.agentTurn) return this.agentTurn;
     const turn = this.beginAgentTurn();
     if (!turn) return null;
-    const open = { turn, owed: 1, stream: openStream((event) => turn.emit(event), this.model) };
+    const open = { turn, steered: false, stream: openStream((event) => turn.emit(event), this.model) };
     this.agentTurn = open;
     void this.drainSteering(turn.steering, (event) => turn.emit(event), () => this.agentTurn === open ? open : null);
     return this.agentTurn;
