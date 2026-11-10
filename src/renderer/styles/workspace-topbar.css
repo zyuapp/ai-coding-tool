@@ -1,0 +1,174 @@
+/**
+ * A part of the window that failed to draw holds its place, in the part's own box, with a line that
+ * says so and a way to try again centred in it.
+ */
+.part-fallback {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  padding: 12px 16px;
+  color: var(--ink-dim);
+  font-size: var(--text-content);
+  text-align: center;
+}
+.part-fallback p { display: inline-flex; align-items: center; gap: 7px; margin: 0; }
+.part-fallback p > svg { flex: none; color: var(--danger); }
+/** The header's fallback stands in the window's drag region, where only a no-drag control takes a click. */
+.part-fallback .btn { -webkit-app-region: no-drag; }
+
+.workspace {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+  --dock-width: min(var(--right-dock-width, clamp(380px, 40vw, 620px)), 100% - var(--page-min));
+  display: grid;
+  /**
+   * The last track is the room under a new thread's composer. A thread with a transcript gives it
+   * none, so the composer rests on the window's foot; the two states share a track list, which is
+   * what lets the composer glide between them.
+   */
+  grid-template-rows: var(--chrome-head) minmax(0, 1fr) auto minmax(0, 0fr);
+  transition: grid-template-rows var(--glide-time) var(--glide-ease);
+  /**
+   * The dock's track takes its width the moment the dock is asked for, and gives it back the moment
+   * it is dismissed — never over the half second the dock takes to slide. Everything in the column
+   * beside it is centred, so a track that eased would carry the whole conversation sideways with it.
+   */
+  grid-template-columns: minmax(0, 1fr) 0;
+  margin: 0 var(--frame-gap) var(--frame-gap);
+}
+/** The page lies under everything but the top bar, which stays on the frame with the sidebar. It comes first, so the rest paints over it. */
+.workspace::before { content: ""; grid-column: 1; grid-row: 2 / -1; border-radius: var(--page-radius); background: var(--page); box-shadow: var(--shadow-page); }
+.topbar {
+  position: relative;
+  z-index: 3;
+  transition: padding-left var(--panel-slide-time) var(--panel-slide-ease);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 22px 10px;
+  container: topbar / inline-size;
+  -webkit-app-region: drag;
+  grid-column: 1;
+  grid-row: 1;
+}
+/** Zen mode keeps the topbar's row empty, so the window still drags by its top edge. */
+.zen-titlebar { display: flex; align-items: center; justify-content: flex-end; padding: 0 22px; grid-column: 1; grid-row: 1; -webkit-app-region: drag; }
+/** The window drags by the bars; the controls on them take their own clicks. */
+:is(.topbar, .zen-titlebar) :is(.btn, .icon-btn) { -webkit-app-region: no-drag; }
+/** Without the sidebar the topbar owns the window edge, so it starts clear of the traffic lights. */
+.topbar.traffic-inset { padding-left: max(22px, var(--window-controls-inset)); }
+.workspace-controls { display: flex; align-items: center; gap: 4px; }
+.open-in { position: relative; display: flex; }
+/** The session panel sits above the topbar, so the topbar rises over it while its list is open. */
+.topbar:has(.open-in.open) { z-index: 40; }
+.open-in-popover { top: 42px; right: 0; min-width: 208px; max-height: 60vh; overflow-y: auto; -webkit-app-region: no-drag; }
+.session-summary-toggle { position: relative; }
+.toggle-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--canvas);
+  border-radius: 8px;
+  background: var(--info-badge);
+  color: var(--badge-ink);
+  font-size: var(--text-badge);
+  font-weight: 700;
+}
+.task-heading { min-width: 0; display: flex; align-items: center; gap: 12px; }
+.task-heading > div { min-width: 0; }
+.thread-heading-line { min-width: 0; display: flex; align-items: center; gap: 6px; }
+.thread-heading-menu { flex: none; -webkit-app-region: no-drag; }
+.thread-heading-menu > .menu-trigger {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.thread-heading-menu > .menu-trigger:hover,
+.thread-heading-menu > .menu-trigger:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *),
+.thread-heading-menu.open > .menu-trigger { background: var(--surface-hover); color: var(--muted-strong); }
+.task-rename.heading-rename { flex: 0 1 auto; field-sizing: content; width: auto; min-width: 12ch; max-width: 100%; height: 28px; font: inherit; -webkit-app-region: no-drag; }
+.task-heading h1 {
+  max-width: min(720px, 58vw);
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--text-heading);
+  font-weight: 590;
+  letter-spacing: -0.018em;
+  white-space: nowrap;
+}
+/* Both crumbs shrink, so a long project and a long title each give ground before the row clips. */
+.task-heading h1 > span { overflow: hidden; text-overflow: ellipsis; }
+.task-heading h1 > .heading-project { flex: 0 1 auto; min-width: calc-size(max-content, min(size, 6ch)); color: var(--muted); font-weight: 500; }
+/* Use the name's text baseline for the crumb, keeping the icon out of baseline calculation. */
+.task-heading h1 > .heading-host { flex: 0 1 auto; align-items: baseline; min-width: calc-size(max-content, min(size, 4ch)); font-size: inherit; font-weight: 500; color: var(--muted); }
+.task-heading h1 > .heading-host > svg { align-self: center; }
+/* Match the heading's visual weight and compensate for the font's lower optical center. */
+.task-heading h1 > .heading-host > svg,
+.thread-heading-menu > .menu-trigger > svg {
+  width: 18px;
+  height: 18px;
+  transform: translateY(1px);
+}
+.heading-separator { flex: none; margin-right: 2px; color: var(--quiet); font-weight: 400; }
+.heading-thread { flex: 0 1 auto; min-width: 6ch; }
+/** The title is a button, padded past its text so it is an easy target, with the padding pulled back out of the line. */
+.task-heading h1 > button.heading-thread { min-width: 4ch; height: 28px; margin: 0 -5px; border: 0; border-radius: 7px; padding: 0 5px; overflow: hidden; background: transparent; font: inherit; letter-spacing: inherit; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; -webkit-app-region: no-drag; transition: background 120ms ease, color 120ms ease; }
+.task-heading h1 > button.heading-thread:hover { background: var(--surface-hover); }
+/** An unreachable computer says so in words and offers the way back, beside its name. */
+.task-heading h1 > .heading-host-state { flex: none; align-self: center; margin: 0; letter-spacing: normal; }
+.task-heading h1 > span.heading-host-state { height: 28px; display: inline-flex; align-items: center; padding: 0 8px; color: var(--muted); font-size: var(--text-meta); font-weight: 560; }
+.heading-thread.renamable { display: inline-flex; align-items: center; gap: 7px; min-width: 6ch; color: inherit; cursor: text; }
+.heading-thread.renamable > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/** The pencil rests faint beside the title, so it reads as editable before the pointer arrives. */
+.heading-thread.renamable > svg { flex: none; color: var(--quiet-soft); transition: color 120ms ease; }
+.heading-thread.renamable:is(:hover, :focus-visible) > svg { color: var(--muted-strong); }
+.task-heading > div:has(> .heading-choose-folder) { display: flex; align-items: center; gap: 14px; }
+.heading-choose-folder { max-width: min(720px, 58vw); overflow: hidden; }
+/** The label gives way before the icon does: it shortens with an ellipsis, and in a narrow top bar the icon stands alone. */
+.heading-choose-folder { min-width: 0; flex: 0 1 auto; }
+.heading-choose-folder > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+@container topbar (max-width: 620px) {
+  .heading-choose-folder { width: 28px; padding: 0; }
+  .heading-choose-folder > span { display: none; }
+}
+/** A narrow top bar keeps the thread's own name: the project, then the secondary actions, give way first. */
+@container topbar (max-width: 480px) {
+  .heading-project, .heading-separator { display: none; }
+  .task-heading h1 > button.heading-thread, .heading-thread.renamable { min-width: 0; }
+  .heading-thread.renamable > svg { display: none; }
+}
+@container topbar (max-width: 400px) {
+  .workspace-controls > :is(.open-in, .zen-toggle) { display: none; }
+}
+.workspace.drafting { grid-template-rows: var(--chrome-head) minmax(0, 1fr) auto minmax(0, 1.5fr); }
+@media (prefers-reduced-motion: reduce) { .workspace { transition: none; } }
+.work-area { position: relative; min-height: 0; display: flex; grid-column: 1; grid-row: 2; }
+.workspace.dock-open { grid-template-columns: minmax(0, 1fr) var(--dock-width); }
+.workspace.summary-open :is(.composer-wrap, .draft-recents) { margin-right: 282px; }
+.workspace.summary-open .conversation { padding-right: calc(var(--page-inset) + 282px); }
+/** The transcript runs on under the composer, which is glass, and rests its last line above it. */
+.workspace:not(.drafting) > .work-area > .conversation { margin-bottom: calc(-1 * var(--composer-space, 0px)); padding-bottom: calc(24px + var(--composer-space, 0px)); }

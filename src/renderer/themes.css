@@ -1,5 +1,5 @@
 /**
- * A theme is one block of primitives. The semantic tokens in styles.css are derived from these
+ * A theme is one block of primitives. The semantic tokens in styles/tokens.css are derived from these
  * names and are never redefined, so a theme is only the values below.
  *
  * The ramps read by role, not by lightness: bg-0 is the furthest back and bg-6 the closest to the

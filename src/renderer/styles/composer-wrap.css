@@ -1,0 +1,77 @@
+.composer-wrap {
+  position: relative;
+  z-index: 2;
+  container-type: inline-size;
+  padding: 12px var(--page-inset) 20px;
+  /** Words leaving the foot of the composer fade out before the page ends. */
+  border-radius: 0 0 var(--page-radius) var(--page-radius);
+  background: linear-gradient(to top, var(--canvas) 20px, var(--canvas-fade) 60px);
+  grid-column: 1;
+  grid-row: 3;
+  /** Only what stands in this strip takes the pointer; the transcript beside it still does. */
+  pointer-events: none;
+}
+.composer-wrap > * { pointer-events: auto; }
+/** The threads last active where a new thread starts, in the composer's own column under it. */
+.draft-recents { grid-column: 1; grid-row: 4; min-height: 0; overflow: hidden; padding: 0 var(--page-inset); }
+.draft-recents > div { max-width: 860px; margin: 0 auto; padding: 6px 4px 0; display: grid; animation: draft-recents-in var(--glide-time) var(--glide-ease) both; }
+.draft-recents .list-row { min-height: 36px; }
+.draft-recents time { color: var(--quiet); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
+@keyframes draft-recents-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .draft-recents > div { animation: none; } }
+/** Where a thread this build can only read would take a message, one line says why, beside Stop while it runs. */
+.composer.unopenable { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 18px; }
+.composer-unopenable { flex: 1; margin: 0; color: var(--muted); font-size: var(--text-control); }
+/** A composer menu stands over the whole workspace, so the footer rises past the topbar while one is open. */
+.composer-wrap:has(.command-menu, .setting-menu[open], .thread-start .picker-popover) { z-index: 41; }
+
+.goal-bar { gap: 10px; margin-bottom: 8px; }
+.goal-bar > .notice-text { display: flex; align-items: center; gap: 10px; }
+.goal-target { display: grid; width: 16px; height: 16px; place-items: center; border: 1.5px solid var(--accent); border-radius: 50%; }
+.goal-target span { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
+.goal-copy { display: flex; flex: 1; min-width: 0; align-items: baseline; gap: 8px; }
+.goal-label { flex: none; color: var(--accent); font-size: var(--text-meta); font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
+.goal-objective { display: flex; min-width: 0; align-items: flex-start; gap: 6px; color: var(--ink); font-size: var(--text-control); }
+.goal-objective > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.goal-objective.toggles { margin: -2px -4px; padding: 2px 4px; border-radius: 6px; cursor: pointer; }
+.goal-objective.toggles:hover { background: var(--wash); }
+.goal-objective.open > span { max-height: 30vh; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.goal-objective > svg { flex: none; margin-top: 2px; color: var(--muted); transition: transform 120ms ease; }
+.goal-objective.toggles:hover > svg { color: var(--ink); }
+.goal-objective.open > svg { transform: rotate(180deg); }
+.goal-detail { color: var(--muted); font-size: var(--text-meta); white-space: nowrap; }
+.goal-actions { display: flex; gap: 6px; }
+.goal-bar.blocked .goal-target { border-color: var(--danger); }
+.goal-bar.blocked .goal-target span { background: var(--danger); }
+.goal-bar.blocked .goal-label { color: var(--danger); }
+
+.queued-row {
+  display: flex;
+  max-width: 860px;
+  margin: 0 auto 8px;
+  flex-direction: column;
+  gap: 4px;
+}
+.queued-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  --glass-radius: 12px;
+  padding: 6px 6px 6px 12px;
+  font-size: var(--text-control);
+}
+.queued-mark { flex: none; color: var(--muted); }
+.queued-body { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; flex: 1; gap: 5px; }
+.queued-body .attached-row { padding: 0; }
+.queued-text { display: flex; align-items: flex-start; gap: 6px; min-width: 0; color: var(--ink-dim); }
+.queued-text > p { flex: 1; min-width: 0; overflow: hidden; margin: 0; text-overflow: ellipsis; white-space: nowrap; }
+.queued-text.toggles { margin: -2px -4px; padding: 2px 4px; border-radius: 6px; cursor: pointer; }
+.queued-text.toggles:hover { background: var(--wash); color: var(--ink); }
+.queued-text.open > p { max-height: 40vh; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.queued-chevron { flex: none; box-sizing: content-box; margin: -1px 0; padding: 2px; border-radius: 5px; background: var(--wash); color: var(--ink-dim); transition: transform 120ms ease; }
+.queued-text.toggles:hover .queued-chevron { color: var(--ink); }
+.queued-text.open .queued-chevron { transform: rotate(180deg); }
+.queued-origin { overflow: hidden; margin: 0; color: var(--muted); font-size: var(--text-meta); text-overflow: ellipsis; white-space: nowrap; }
+.queued-state { flex: none; padding-right: 6px; color: var(--muted); font-size: var(--text-meta); }
+.queued-actions { display: flex; flex: none; align-items: center; gap: 2px; }
+.queued-steer { margin-right: 2px; }

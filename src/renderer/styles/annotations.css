@@ -1,0 +1,153 @@
+.annotation-pill-number {
+  display: grid;
+  min-width: 16px;
+  height: 16px;
+  flex: none;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--info-badge);
+  color: var(--badge-ink);
+  place-items: center;
+  font-size: var(--text-badge);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.annotation-pill-label { max-width: 190px; overflow: hidden; color: var(--ink-dim); text-overflow: ellipsis; white-space: nowrap; }
+.annotation-pill-quote { color: var(--muted); }
+.annotation-card {
+  position: absolute;
+  z-index: 60;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 320px;
+  overflow: hidden;
+  --glass-radius: 11px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(3px);
+  transition: opacity 110ms ease-out, transform 110ms ease-out;
+  text-align: left;
+}
+.message-stack .annotation-card { left: auto; right: 0; }
+.annotation-pill:hover > .annotation-card,
+.annotation-pill:has(> .annotation-pill-face:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *)) > .annotation-card { opacity: 1; pointer-events: auto; transform: translateY(0); }
+/** A row's transform holds the card in its own stacking context, below the markers outside it. */
+.timeline-row:has(.annotation-pill:hover),
+.timeline-row:has(.annotation-pill :focus-visible:where(:root:not([data-focus-appearance="quiet"]) *)) { z-index: 6; }
+.annotation-card-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--quiet);
+  font-size: var(--text-badge);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.annotation-card-body { display: grid; gap: 9px; padding: 11px 12px 12px; }
+.annotation-card-quote {
+  position: relative;
+  display: -webkit-box;
+  overflow: hidden;
+  padding-left: 10px;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+.annotation-card-quote::before { content: ""; position: absolute; top: 2px; bottom: 2px; left: 0; width: 2px; border-radius: 2px; background: var(--info-line); }
+.annotation-card-note { display: flex; gap: 7px; color: var(--ink); font-size: var(--text-control); line-height: 1.45; }
+.annotation-card-note svg { flex: none; margin-top: 3px; color: var(--info-soft); }
+.annotation-card-note > span { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.annotation-card-note.empty { display: block; color: var(--quiet-soft); font-size: var(--text-meta); font-style: italic; }
+.annotation-card-quote[data-clamped] { mask-image: linear-gradient(#000 calc(100% - 1.55em), transparent); }
+.annotation-card-note > span[data-clamped] { mask-image: linear-gradient(#000 calc(100% - 1.45em), transparent); }
+
+.paste-pill small { font-family: var(--mono); }
+
+/** What a surface says while a drag from the desktop is over it. */
+.workspace.dropping, .side-chat.dropping { outline: 2px dashed var(--line-bright); outline-offset: -6px; }
+.drop-hint {
+  position: absolute;
+  z-index: 20;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur) var(--glass-lens,);
+  box-shadow: var(--glass-float-rim), var(--shadow-float);
+  color: var(--ink-soft);
+  font-size: var(--text-meta);
+  pointer-events: none;
+}
+
+.paste-full {
+  max-width: min(880px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  margin: 0;
+  --glass-radius: 10px;
+  padding: 16px 18px;
+  color: var(--ink-soft);
+  font: var(--text-meta)/1.55 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+
+.annotation-marker {
+  position: absolute;
+  z-index: 5;
+  min-width: 20px;
+  height: 20px;
+  transform: translate(2px, -100%);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0 4px;
+  background: var(--info-badge);
+  color: var(--badge-ink);
+  font-size: var(--text-badge);
+  font-weight: 650;
+  line-height: 18px;
+  cursor: pointer;
+}
+.annotation-marker::after { content: ""; position: absolute; inset: -4px; border-radius: 999px; }
+.annotation-marker:hover { border-color: var(--info-line); background: color-mix(in srgb, var(--info-badge) 86%, var(--ink)); }
+.annotation-marker.flash { animation: annotation-marker-flash 900ms ease-out 2; }
+@keyframes annotation-marker-flash {
+  from { box-shadow: 0 0 0 0 var(--info); }
+  to { box-shadow: 0 0 0 10px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .annotation-marker.flash { animation: none; outline: 2px solid var(--info); outline-offset: 2px; }
+}
+
+/** What floats over a selection: a capsule of glass, with each thing it offers a pill set into it. */
+.annotate-popover,
+.annotate-editor {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  transform: translate(-50%, calc(-100% - 8px));
+  overflow: hidden;
+  animation: command-menu-in 110ms ease-out;
+}
+.annotate-popover { gap: 2px; padding: 3px; }
+.annotate-editor { align-items: center; gap: 2px; padding: 4px 5px 4px 14px; }
+.annotate-editor input {
+  width: 270px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--text-control);
+}
+.annotate-editor input::placeholder { color: var(--quiet); }
+.annotate-editor:has(input:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *) { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.annotate-editor-remove { position: relative; margin-left: 5px; }
+.annotate-editor-remove::before { content: ""; position: absolute; top: 5px; bottom: 5px; left: -4px; width: 1px; background: var(--line); }

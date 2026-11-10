@@ -1,0 +1,160 @@
+/** The dock stands over its own track rather than in it, so sliding it moves nothing but itself. */
+.right-dock {
+  position: absolute;
+  z-index: 10;
+  top: var(--frame-gap);
+  right: 0;
+  bottom: 0;
+  min-width: 0;
+  /** A second sheet beside the page, with the frame showing between them. */
+  width: calc(var(--dock-width) - var(--frame-gap));
+  display: grid;
+  grid-template-rows: calc(var(--chrome-head) - var(--frame-gap)) minmax(0, 1fr);
+  /** Clipped rather than hidden, with room for the resize handle to stand in the gap beside the dock. */
+  overflow: clip;
+  overflow-clip-margin: 12px;
+  border-radius: var(--page-radius);
+  background: var(--sunken);
+  box-shadow: var(--shadow-page);
+  transition: transform var(--panel-slide-time) var(--panel-slide-ease), visibility 0s;
+}
+/** Hiding slides the dock off the right edge at its own width, so its contents never reflow. */
+.right-dock[hidden] {
+  display: grid;
+  visibility: hidden;
+  transform: translateX(100%);
+  transition: transform var(--panel-slide-time) var(--panel-slide-ease), visibility 0s linear var(--panel-slide-time);
+}
+/**
+ * Expanded, the dock takes the window. The column it came from keeps its width underneath, so
+ * restoring costs no reflow and the transcript comes back where it was left.
+ */
+.workspace.dock-full > :not(.right-dock) { visibility: hidden; }
+.workspace.dock-full .right-dock { position: absolute; inset: var(--frame-gap) 0 0; width: auto; grid-column: 1 / -1; z-index: 4; }
+.workspace.dock-full .right-dock-resizer { display: none; }
+/** The dock now owns the window's top edge, so its tab strip drags the window and clears the traffic lights. */
+.workspace.dock-full .right-dock-tabs { -webkit-app-region: drag; }
+.workspace.dock-full .right-dock-tabs.traffic-inset { padding-left: max(8px, var(--window-controls-inset)); }
+.workspace.dock-full .right-dock-tabs > div, .workspace.dock-full .right-dock-tabs button { -webkit-app-region: no-drag; }
+/** A 16px grab strip centred on the dock's edge; the line it draws stays 2px so the seam looks unchanged. */
+.right-dock-resizer {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  left: -12px;
+  bottom: 0;
+  width: 16px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.right-dock-resizer:hover::after, .right-dock-resizer:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *)::after {
+  content: "";
+  position: absolute;
+  inset: 0 7px;
+  background: var(--line-input);
+}
+/** A grip on the edge, faint at rest and full while the pointer is over the dock, so the edge reads as one to drag. */
+.right-dock-resizer::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 6px;
+  width: 4px;
+  height: 32px;
+  margin-top: -16px;
+  border-radius: 2px;
+  background: var(--line-input);
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+.right-dock:hover > .right-dock-resizer::before, .right-dock-resizer:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *)::before { opacity: 1; }
+.right-dock-tabs { position: relative; z-index: 2; min-width: 0; display: flex; align-items: center; gap: 5px; border-bottom: 1px solid var(--line); padding: 0 8px; }
+/**
+ * The strip scrolls without a bar, so the edge with more tabs past it fades out. Driven by its own
+ * scroll position, and only while it has somewhere to scroll.
+ */
+@property --dock-fade-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --dock-fade-end { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes dock-tabs-fade {
+  from { --dock-fade-start: 0px; --dock-fade-end: 28px; }
+  4%, 96% { --dock-fade-start: 28px; --dock-fade-end: 28px; }
+  to { --dock-fade-start: 28px; --dock-fade-end: 0px; }
+}
+.right-dock-tabs > div:first-child {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(to right, transparent, #000 var(--dock-fade-start), #000 calc(100% - var(--dock-fade-end)), transparent);
+  animation: dock-tabs-fade linear both;
+  animation-timeline: scroll(self inline);
+}
+.right-dock-tabs > div::-webkit-scrollbar { display: none; }
+.right-dock-tabs [role="tab"], .right-dock-tab {
+  min-width: 0;
+  height: 40px;
+  flex: 0 1 150px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 8px 8px 0 0;
+  padding: 0 9px;
+  background: transparent;
+  color: var(--quiet-strong);
+}
+.right-dock-tabs [role="tab"] { cursor: pointer; }
+.right-dock-tabs [role="tab"]:hover, .right-dock-tab:hover { background: color-mix(in srgb, var(--surface-hover) 60%, transparent); color: var(--ink-faint); }
+/** The tab is one shape under the pointer: its label never takes a wash of its own over the tab's. */
+.right-dock-tabs .right-dock-tab > [role="tab"]:hover { background: transparent; }
+.right-dock-tab.active { color: var(--ink); }
+/** Drawn over the strip's own bottom border, so the tab reads as the head of the panel under it. */
+.right-dock-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--ink);
+}
+.right-dock-tabs [role="tab"] > span:first-of-type { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-control); }
+.right-dock-tabs [role="tab"] > .chip { flex: none; margin-left: auto; }
+.right-dock-tab.unread [role="tab"] > span:first-of-type, .right-dock-menu .unread .menu-label { color: var(--ink); font-weight: 620; }
+.right-dock-tabs [role="tab"] > .right-dock-tab-attention { flex: none; width: 8px; height: 8px; margin: 0 3px 0 auto; border-radius: 50%; background: var(--info); box-shadow: 0 0 0 3px var(--info-surface); }
+.right-dock-tab { position: relative; flex: 0 1 184px; min-width: 96px; padding: 0 4px 0 0; }
+.right-dock-tab > [role="tab"] { flex: 1; border: 0; border-radius: 8px 8px 0 0; padding-right: 2px; background: transparent; color: inherit; }
+.right-dock-add { position: relative; flex: 0 0 auto; }
+.right-dock-add > button { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 9px; background: transparent; color: var(--muted); cursor: pointer; }
+.right-dock-add > button:hover, .right-dock-add.open > button { background: var(--surface-hover); color: var(--ink-dim); }
+.right-dock-menu { z-index: 20; top: 40px; right: 0; width: 236px; }
+.right-dock-overflow > .right-dock-menu { width: max-content; min-width: 184px; max-width: 280px; --menu-max-height: min(420px, 70vh); }
+.right-dock-menu .menu-description { white-space: normal; }
+.right-dock-menu .right-dock-tab-attention { display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--info); box-shadow: 0 0 0 3px var(--info-surface); }
+/** xterm gives its scrollbar and decorations a z-index of their own; isolating the region keeps them
+ *  under the tab strip, whose menu hangs over it. */
+.right-dock-content { isolation: isolate; }
+.right-dock-content, .right-dock-content > div { min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
+/** The bar hangs from a row of no height, so a panel is the same size whether find is open or not. */
+.right-dock-content > .dock-panel { display: grid; grid-template-rows: minmax(0, 1fr); }
+.right-dock-content > .dock-panel:has(> .find-slot) { grid-template-rows: auto minmax(0, 1fr); }
+/** Under the panel's own header, which the panel measures for itself, so the bar covers none of it. */
+.dock-panel > .find-slot > .find-bar { top: calc(var(--find-head, 0px) + 10px); }
+.dock-panel-body { min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
+.right-dock-content > [hidden] { display: none; }
+.right-dock-picker { display: grid; place-content: center; gap: 24px; padding: 32px; }
+.right-dock-picker > header { text-align: center; }
+.right-dock-picker h2 { margin: 0; color: var(--ink-soft); font-size: var(--text-heading); font-weight: 580; }
+.right-dock-picker p { max-width: 330px; margin: 7px 0 0; color: var(--quiet); font-size: var(--text-control); line-height: 1.45; }
+.right-dock-picker > div { width: min(360px, 100%); display: grid; gap: 10px; }
+.right-dock-picker button { display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 13px; background: var(--control-soft); color: var(--link); text-align: left; cursor: pointer; }
+.right-dock-picker button:hover:not([aria-disabled="true"]) { border-color: var(--info-line); background: var(--surface-hover); }
+.right-dock-picker button[aria-disabled="true"] { opacity: 1; border-style: dashed; border-color: var(--line-strong); background: none; color: var(--quiet); cursor: default; }
+.right-dock-picker button[aria-disabled="true"] strong { color: var(--muted); }
+.right-dock-picker button > svg { justify-self: center; }
+.right-dock-picker button span { min-width: 0; display: grid; gap: 3px; }
+.right-dock-picker strong { color: var(--ink-soft); font-size: var(--text-control); font-weight: 580; }
+.right-dock-picker small { color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.35; }
+.right-dock .subagent-inspector { height: 100%; border-left: 0; }

@@ -1,0 +1,65 @@
+/** The banners under the header, each on a row of its own. Empty, it takes no clicks from what is under it. */
+.workspace-banners {
+  position: absolute;
+  z-index: 8;
+  top: 78px;
+  left: 22px;
+  right: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+}
+.workspace-banners > * { pointer-events: auto; }
+
+.workspace-banners > .notice { max-width: 100%; margin: 0; }
+.storage-error { align-self: stretch; }
+
+/** Threads a newer build wrote, which this one leaves on disk: sized to its words, so it holds one line at any width. */
+.storage-notice { width: max-content; }
+.storage-notice > .notice-text { flex: 0 1 auto; }
+.storage-notice > .notice-text > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/**
+ * Cards over everything but tooltips, under the top bar so its controls stay in reach. Each card opts
+ * out of the drag region it covers, such as a settings heading, which would otherwise take its clicks.
+ */
+.toasts {
+  position: fixed;
+  z-index: 1050;
+  top: calc(var(--chrome-head) + 10px);
+  right: 16px;
+  width: min(340px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 8px 11px 12px;
+  color: var(--ink);
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+  animation: toast-in 220ms cubic-bezier(0.2, 0.9, 0.3, 1.15);
+}
+.toast-icon { flex: none; margin-top: 1px; }
+.toast.update .toast-icon { color: var(--accent); }
+.toast.progress .toast-icon { color: var(--info); animation: spin 900ms steps(18) infinite; }
+.toast.success .toast-icon { color: var(--success); }
+.toast.error .toast-icon { color: var(--danger); }
+.toast-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.toast-text strong { font-size: var(--text-menu); font-weight: 600; line-height: 1.35; }
+.toast-text p { margin: 0; color: var(--muted-strong); font-size: var(--text-meta); line-height: 1.45; overflow-wrap: anywhere; }
+.toast-text code { border-radius: 4px; padding: 0 4px; background: var(--code-surface); color: var(--code-ink); font-family: var(--mono); font-size: 0.95em; }
+.toast-text code span { white-space: nowrap; }
+.toast-action { justify-self: start; margin-top: 7px; }
+.toast-close { margin: -6px -2px 0 0; }
+@keyframes toast-in { from { opacity: 0; transform: translateX(14px) scale(0.98); } }
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+  .toast.progress .toast-icon { animation: none; }
+}

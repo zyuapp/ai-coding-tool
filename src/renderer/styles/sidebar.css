@@ -1,0 +1,363 @@
+.sidebar {
+  position: relative;
+  width: var(--sidebar-width, 280px);
+  min-width: 270px;
+  max-width: 50vw;
+  overflow: visible;
+  flex: 0 0 auto;
+  padding: 0 3px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  transition: margin-left var(--panel-slide-time) var(--panel-slide-ease);
+}
+/** Hiding slides the sidebar off the left edge at its own width, so its contents never reflow. */
+.sidebar.hidden { margin-left: calc(-1 * var(--sidebar-width, 280px)); }
+.sidebar.hidden .sidebar-resizer { display: none; }
+.sidebar-backdrop { display: none; }
+/** A separator's thin seam is its focus indicator; its full-height hit area needs no box. */
+.sidebar-resizer, .right-dock-resizer { outline: none; }
+.sidebar-resizer {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  right: -9px;
+  bottom: 0;
+  width: 10px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.sidebar-resizer:hover::after, .sidebar-resizer:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *)::after {
+  content: "";
+  position: absolute;
+  inset: 0 4px;
+  background: var(--line-input);
+}
+.sidebar-resizer:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *)::after { inset: 0 3.5px; background: var(--accent); }
+
+.traffic-space {
+  height: var(--window-strip);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  /** The window's traffic lights own the left of this strip, so everything here stays clear of them, packed to the right. */
+  padding-left: max(0px, calc(var(--window-controls-inset) - 10px));
+  container: sidebar-strip / inline-size;
+  -webkit-app-region: drag;
+}
+.thread-nav { flex: none; display: flex; align-items: center; gap: 1px; -webkit-app-region: no-drag; }
+.computer-switch { -webkit-app-region: no-drag; }
+.computer-switch + .thread-nav::before { content: ""; width: 1px; height: 14px; margin: 0 5px 0 1px; background: var(--line); }
+/** A pressed header switch takes the accent, so a narrowed list is never mistaken for the default. */
+.computer-switch-trigger.active { background: var(--accent-chip); box-shadow: var(--glass-rim); color: var(--accent-soft); }
+.new-task-button,
+.task-row {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+/** The window strip above plus this bar come to --chrome-head, so its lower edge meets the top bar's line. */
+.new-task-bar { display: flex; gap: 6px; height: calc(var(--chrome-head) - var(--window-strip)); margin: 0 3px; }
+.new-task-button {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--frame-control);
+  box-shadow: var(--glass-rim);
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: var(--text-control);
+  font-weight: 500;
+  transition: background var(--touch-time) var(--touch-ease), transform var(--touch-time) var(--touch-ease);
+}
+.new-task-button:hover { background: var(--frame-control-hover); }
+.new-task-label { position: relative; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-search {
+  flex: none;
+  min-width: calc(var(--chrome-head) - var(--window-strip));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--frame-control);
+  box-shadow: var(--glass-rim);
+  color: var(--muted-strong);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.sidebar-search:hover { background: var(--frame-control-hover); }
+.task-row:hover { background: var(--frame-row-hover); }
+
+.section-label {
+  padding: 24px 11px 8px;
+  color: var(--frame-label);
+  font-size: var(--text-meta);
+  font-weight: 600;
+}
+.sidebar-scroll { min-height: 0; flex: 1; overflow-y: auto; overflow-x: hidden; padding-block: 6px 12px; scroll-padding-block: 16px; mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 12px), transparent); }
+.section-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(2, var(--row-slot));
+  align-items: center;
+  min-height: 34px;
+  padding: 0 var(--row-inset) 0 10px;
+  color: var(--muted);
+}
+/** Narrows the sidebar to one project. Quiet at rest, and filled while it narrows the lists. */
+.activity-filter { position: relative; margin: 8px var(--row-inset) 2px 3px; }
+.activity-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 7px 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--frame-control);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-meta);
+  cursor: pointer;
+}
+.activity-filter-trigger > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-filter-trigger > svg { flex: none; }
+.activity-filter-trigger > svg { color: var(--quiet); }
+.activity-filter-trigger:hover, .activity-filter-trigger[aria-expanded="true"] { background: var(--frame-control-hover); color: var(--muted-strong); }
+.activity-filter-trigger.narrowed { background: var(--accent-chip); color: var(--ink-dim); }
+.activity-filter-host { color: var(--quiet); }
+.activity-filter:has(.activity-filter-clear) { display: flex; align-items: center; gap: 2px; }
+.activity-filter:has(.activity-filter-clear) > .activity-filter-trigger { min-width: 0; }
+.activity-filter-clear { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 7px; padding: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.activity-filter-clear:hover { background: var(--wash); color: var(--ink-dim); }
+.activity-filter-menu { min-width: 220px; max-height: min(420px, var(--menu-room, 420px)); overflow-y: auto; }
+/** The sidebar's headings share one shape: label, fold, and at most one action. */
+.activity-heading { grid-template-columns: minmax(0, 1fr) var(--row-slot); min-height: 30px; }
+/** Group labels sit a rung below the rows they hold; the fold shows on hover, and always while folded. */
+.activity-heading > .section-toggle { gap: 7px; color: var(--quiet); font-size: 11px; font-weight: 620; letter-spacing: 0.06em; text-transform: uppercase; }
+.activity-heading > .section-toggle .section-chevron { width: 6px; height: 6px; opacity: 0; transition: transform 120ms ease, opacity 120ms ease; }
+.activity-heading:is(:hover, :focus-within) > .section-toggle .section-chevron,
+.activity-heading > .section-toggle[aria-expanded="false"] .section-chevron { opacity: 1; }
+/** Without an action, the toggle runs to the rows' edge, inset as far as on its left. */
+.activity-heading > .section-toggle:only-child { grid-column: 1 / -1; margin-right: calc(4px - var(--row-inset)); }
+.activity-group + .activity-group .activity-heading { margin-top: 12px; }
+.section-toggle,
+.section-action,
+.menu-trigger {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.section-toggle {
+  min-width: 0;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  text-align: left;
+  font-size: var(--text-control);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.section-chevron {
+  width: 9px;
+  height: 9px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 120ms ease;
+}
+.section-heading > .section-toggle { height: 30px; margin-left: -6px; padding: 0 6px; border-radius: 7px; }
+.section-heading > .section-toggle:hover { background: var(--wash); color: var(--ink-dim); }
+.section-toggle[aria-expanded="false"] .section-chevron { transform: rotate(-45deg); }
+/** A heading's action stays in view, centred on the rail slot below it with a wider target than the slot. */
+.section-action { width: 28px; height: 34px; margin: 0 -3px; padding: 0; display: grid; place-items: center; border-radius: 6px; color: var(--quiet); }
+.section-heading:hover .section-action { color: var(--muted-strong); }
+.section-action:hover { background: var(--wash); color: var(--ink-dim); }
+.empty-glyph path { fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+/** A computer, wherever it is named: a small screen ahead of the name. */
+.host-mark { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; vertical-align: -1px; color: var(--muted); font-size: var(--text-meta); font-weight: 500; }
+.host-mark > svg { flex: none; }
+.host-mark > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.host-mark.offline > svg { color: var(--warning); }
+.host-mark.reconnecting > svg { animation: host-reconnecting 1.4s steps(14) infinite; }
+@keyframes host-reconnecting { 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .host-mark.reconnecting > svg { animation: none; } }
+/** In a row's meta line the mark runs inline with the text, so the glyph sits on the same line as the words around it. */
+.task-row-text .host-mark { display: inline; font: inherit; color: inherit; vertical-align: baseline; }
+.task-row-text .host-mark > svg { margin-right: 4px; vertical-align: -2px; }
+.task-entry { position: relative; min-width: 0; border-radius: 10px; }
+/**
+ * A row's trailing rail: one set of slots with two layers over them, the marks a row carries and the
+ * actions it offers. Both fill from the right edge, so the slots line up down the list. At rest a
+ * rail is as wide as its own marks, so a title gives up only the room its own row needs; it widens
+ * to its actions only while they show. An action shows while the row is hovered, focused from the
+ * keyboard or has its menu open, and covers only the marks in its own slots: the menu sits on the
+ * engine, and in Priority dismiss takes the engine's slot and the menu the one beside it.
+ */
+.row-rail {
+  flex: none;
+  display: grid;
+  /** One track the rail's own width, so actions wider than a resting rail never push its marks off the row. */
+  grid-template-columns: minmax(0, 1fr);
+  width: calc(var(--rail-marks, 1) * var(--row-slot));
+  height: var(--row-slot);
+}
+.task-entry:hover .row-rail,
+.task-entry:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .row-rail,
+.row-rail:has(.row-actions :focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), .row-actions [aria-expanded="true"]) { width: calc(max(var(--rail-marks, 1), var(--rail-actions, 1)) * var(--row-slot)); }
+.row-rail:has(.row-marks > :nth-child(2)) { --rail-marks: 2; }
+.row-rail:has(.row-marks > :nth-child(3)) { --rail-marks: 3; }
+.row-rail:has(.row-marks > :nth-child(4)) { --rail-marks: 4; }
+.row-rail:has(.row-marks > :nth-child(5)) { --rail-marks: 5; }
+.row-rail:has(.row-marks > :nth-child(6)) { --rail-marks: 6; }
+.priority-list { --rail-actions: 2; }
+.row-layer { grid-area: 1 / 1; display: flex; align-items: center; justify-content: flex-end; }
+.row-actions { position: relative; z-index: 1; pointer-events: none; }
+.row-mark { width: var(--row-slot); height: var(--row-slot); display: grid; place-items: center; transition: opacity 90ms ease; }
+/** Hidden actions stay in the tab order, so the keyboard reveals them by reaching them. */
+.row-action { opacity: 0; pointer-events: auto; transition: opacity 90ms ease; }
+.task-entry:hover .row-action,
+.task-entry:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .row-action,
+.row-actions:has(:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), [aria-expanded="true"]) .row-action { opacity: 1; }
+.task-entry:hover .row-rail:has(.row-actions) .row-marks > :last-child,
+.task-entry:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .row-rail:has(.row-actions) .row-marks > :last-child,
+.row-rail:has(.row-actions :focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), .row-actions [aria-expanded="true"]) .row-marks > :last-child,
+.task-entry:hover .row-rail:has(.task-dismiss) .row-marks > :nth-last-child(2),
+.task-entry:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .row-rail:has(.task-dismiss) .row-marks > :nth-last-child(2),
+.row-rail:has(.row-actions :focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), .row-actions [aria-expanded="true"]):has(.task-dismiss) .row-marks > :nth-last-child(2) { opacity: 0; }
+/** A target wider and taller than the slot it covers, which its margins keep from moving the slots. */
+.row-action {
+  width: 28px;
+  height: 28px;
+  margin: -3px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-strong);
+  cursor: pointer;
+}
+.row-action:hover { background: var(--wash); color: var(--ink); }
+.task-dismiss:hover { color: var(--info); }
+.task-rename {
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  border: 1px solid var(--line-input);
+  border-radius: 6px;
+  padding: 0 6px;
+  background: var(--surface-input);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-control);
+}
+.task-rename.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+.task-rename.invalid::placeholder { color: var(--muted); }
+/** Looping indicators move in 50 ms steps: between steps nothing changes, so Chromium draws no frame. */
+.task-spinner { width: 14px; height: 14px; }
+.task-attention {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--info);
+}
+.task-attention.failed { background: var(--danger); }
+.task-attention.stopped { background: var(--muted-strong); }
+/** A failed run is a diamond, so it reads apart from a finished one without its colour. */
+.task-attention.failed { width: 7px; height: 7px; border-radius: 1.5px; transform: rotate(45deg); }
+/** An approval is a ring, so it never reads as a failed run's dot beside it. */
+.task-attention.approval { width: 10px; height: 10px; background: transparent; box-shadow: inset 0 0 0 2px var(--accent-text); }
+/** On the open thread's fill, each mark takes a step toward the ink so it holds its contrast. */
+.active .task-attention:not(.failed, .stopped, .approval) { background: color-mix(in srgb, var(--info) 75%, var(--ink)); }
+.active .task-attention.failed { background: color-mix(in srgb, var(--danger) 75%, var(--ink)); }
+.active .task-attention.approval { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent-text) 75%, var(--ink)); }
+.task-list { min-height: 8px; }
+.task-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 5px var(--row-inset) 5px 12px;
+  border-radius: 8px;
+  color: var(--ink-faint);
+}
+.task-row.active { background: var(--frame-row-selected); box-shadow: var(--glass-rim); color: var(--ink); }
+.task-row-text { min-width: 0; }
+.task-row-text > span, .task-row-text > small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-row-text > span { font-size: var(--text-control); line-height: 1.3; }
+.task-row-text > small { margin-top: 3px; color: var(--frame-meta); font-size: var(--text-meta); }
+/** A row carrying news for the user is set a weight above the rows already read, so the list is scanned by its type before its marks. */
+.task-row:has(.task-attention) .task-row-text > span { color: var(--ink); font-weight: 560; }
+.task-row:hover:not(.offline) .task-row-text > small { color: var(--quiet-strong); }
+.task-row.active .task-row-text > small, .task-row.active .host-mark { color: var(--muted-strong); }
+
+.sidebar-empty { margin: 4px 11px; color: var(--quiet); font-size: var(--text-control); line-height: 1.5; }
+.sidebar-settings {
+  width: 100%;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 9px;
+  padding: 7px 11px;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-control);
+  text-align: left;
+  cursor: pointer;
+}
+.sidebar-settings:hover { background: var(--wash); color: var(--ink-faint); }
+.sidebar-settings.active { background: var(--frame-row-selected); box-shadow: var(--glass-rim); color: var(--ink); }
+
+.sidebar-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sidebar-footer .sidebar-settings { flex: 1 1 auto; min-width: 0; }
+.sidebar-update { flex: 0 0 auto; animation: sidebar-update-in 220ms var(--panel-slide-ease, ease-out); }
+.sidebar-update:not(.btn) {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--accent-line);
+  border-radius: 50%;
+  padding: 0;
+  background: var(--accent-chip);
+  color: var(--accent-soft);
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+/** Offered and ready say what a click does; only the download in progress is a bare ring. */
+.sidebar-update.labelled { width: auto; display: flex; gap: 5px; border-radius: 999px; padding: 0 11px 0 9px; font-size: var(--text-meta); font-weight: 600; }
+.sidebar-update.labelled:not(.downloading):hover { border-color: var(--accent-line-strong); color: var(--accent-bright); }
+.sidebar-update.downloading { cursor: default; font-variant-numeric: tabular-nums; }
+.sidebar-update-ring { transform: rotate(-90deg); }
+.sidebar-update-ring circle { fill: none; stroke-width: 2; }
+.sidebar-update-ring-track { stroke: var(--accent-line); }
+.sidebar-update-ring-fill { stroke: var(--accent-soft); stroke-linecap: round; transition: stroke-dashoffset 300ms ease; }
+@keyframes sidebar-update-in { from { opacity: 0; transform: scale(0.92); } }
+@media (prefers-reduced-motion: reduce) { .sidebar-update { animation: none; } .sidebar-update-ring-fill { transition: none; } }

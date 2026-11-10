@@ -1,0 +1,21 @@
+/* The one tooltip, drawn wherever the pointer is resting. It is a small menu: same surface, same
+   line, same ink, so every theme carries it without a rule of its own. Clicks pass through it, except
+   a disabled control's reason, which the pointer may move onto to read. */
+.tooltip {
+  --glass-radius: 8px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1100;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 32px));
+  padding: 5px 9px;
+  color: var(--ink-soft);
+  font-size: var(--text-meta);
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  visibility: hidden;
+}
+.tooltip[data-placed] { visibility: visible; }
+.tooltip[data-hoverable="true"] { pointer-events: auto; }

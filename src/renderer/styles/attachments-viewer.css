@@ -1,0 +1,219 @@
+.attachment-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px 0; }
+.attachment-chip { position: relative; width: 62px; height: 62px; }
+.attachment-open {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line-mid);
+  border-radius: 10px;
+  padding: 0;
+  background: var(--control);
+  cursor: pointer;
+}
+.attachment-open:hover { border-color: var(--line-bright); }
+.attachment-open img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.attachment-edit {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--ink-dim);
+}
+.attachment-open:is(:hover, :focus-visible) .attachment-edit { background: var(--accent); box-shadow: none; color: var(--accent-ink); }
+.attachment-badge {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  min-width: 17px;
+  border-radius: 999px;
+  padding: 1px 5px;
+  background: var(--info-badge);
+  color: var(--badge-ink);
+  font-size: var(--text-badge);
+  font-weight: 600;
+  line-height: 15px;
+  text-align: center;
+}
+.attachment-remove {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  padding: 0;
+  background: var(--surface-active) padding-box;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+.attachment-remove:hover { background-color: var(--control-hover); color: var(--ink); }
+/** What a send or a dictation has to say, on a pane of glass over the composer. */
+.attachment-error { margin-bottom: 8px; }
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 100%;
+}
+.message-attachment {
+  display: block;
+  height: 92px;
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  padding: 0;
+  background: var(--canvas);
+  cursor: zoom-in;
+}
+.message-attachment:hover { border-color: var(--line-bright); }
+.message-attachment img { display: block; height: 100%; width: auto; max-width: 280px; object-fit: cover; }
+.viewer.paste { cursor: default; }
+.viewer img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  cursor: default;
+}
+.viewer-download, .viewer-copy { position: absolute; top: 58px; right: 58px; }
+.viewer-copy.copied { color: var(--success-soft); }
+/* Room either side for the step buttons, so a fitted picture never sits under them. */
+.viewer.gallery { padding-inline: 68px; }
+.viewer-step { position: absolute; top: 50%; margin-top: -15px; }
+.viewer-step.previous { left: 20px; }
+.viewer-step.next { right: 20px; }
+.viewer-count {
+  --glass-radius: 6px;
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+/* A zooming view brings its own scroller, which fills the shell rather than being centred as one fixed item. */
+.viewer.diagram, .viewer.image, .viewer.visual { display: block; }
+/* A visual draws on the conversation's own canvas, so the viewer lays one under it. */
+.viewer-visual { flex: none; width: min(1100px, 100%); margin: auto; border-radius: 12px; padding: 8px 20px; background: var(--canvas); cursor: default; }
+.viewer-stage { display: flex; width: 100%; height: 100%; overflow: auto; }
+/* Auto margins centre a view that fits without cutting off the start of one that does not. */
+.viewer-stage .mermaid-svg, .viewer-stage img { flex: none; margin: auto; cursor: default; }
+.viewer-zoom {
+  --glass-radius: 8px;
+  position: absolute;
+  top: 58px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+.viewer-zoom-level { min-width: 48px; }
+/* At the fitted size the readout is a plain label, with nothing to press. */
+.viewer-zoom-level:disabled { opacity: 1; background: none; box-shadow: none; color: var(--muted); font-weight: 400; }
+.viewer-zoom-level:disabled > svg { display: none; }
+/* Top padding clears the traffic lights; no-drag opts out of the topbar drag region this overlay covers. */
+.annotator {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  -webkit-app-region: no-drag;
+  display: grid;
+  place-items: center;
+  padding: 56px 28px 28px;
+  background: var(--veil-deep);
+  backdrop-filter: var(--veil-blur);
+}
+.annotator-panel {
+  width: min(1080px, 100%);
+  height: min(820px, 100%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.annotator-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 12px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.annotator-tools { display: flex; gap: 4px; }
+.annotator-close { margin-left: auto; }
+.annotator-stage { flex: 1; min-width: 0; min-height: 0; padding: 16px; }
+/* Measured for the image fit, so it must be the padding-free content box. */
+.annotator-fit { width: 100%; height: 100%; min-width: 0; min-height: 0; display: grid; place-items: center; }
+.annotator-frame { position: relative; }
+.annotator-frame canvas {
+  display: block;
+  border-radius: 4px;
+  touch-action: none;
+}
+.annotator-frame[data-tool="box"] canvas {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Cpath d='M2.5 17.5l1.1-3.8L13.2 4.1l2.7 2.7-9.6 9.6-3.8 1.1z' fill='%23ff453a' stroke='%23fff' stroke-width='1.1' stroke-linejoin='round'/%3E%3C/svg%3E") 2 18, crosshair;
+}
+.annotator-frame[data-tool="arrow"] canvas {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Cpath d='M3 17L13.4 6.6' stroke='%23fff' stroke-width='3.4' stroke-linecap='round'/%3E%3Cpath d='M3 17L13.4 6.6' stroke='%23ff453a' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M17.4 2.6l-1.7 6.6-4.9-4.9z' fill='%23ff453a' stroke='%23fff' stroke-width='1.1' stroke-linejoin='round'/%3E%3C/svg%3E") 3 17, crosshair;
+}
+.annotator-picked {
+  position: absolute;
+  z-index: 1;
+  display: none;
+  margin: -8px;
+  border: 2px solid var(--focus-ring);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 0 0 1px var(--surface-menu), inset 0 0 0 1px var(--surface-menu);
+  pointer-events: none;
+}
+.annotator-frame canvas:focus-visible ~ .annotator-picked { display: block; }
+.annotator-marktools {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  gap: 3px;
+  transform: translate(-50%, -50%);
+}
+/** The picked mark's tools stand forward; every other mark's sit back until pointed at. */
+.annotator-marktools:not(.picked) { z-index: 2; opacity: 0.8; transition: opacity 120ms ease; }
+.annotator-marktools:not(.picked):is(:hover, :focus-within) { z-index: 3; opacity: 1; }
+.annotator-marktools.picked .annotator-marktool { box-shadow: var(--glass-rim), var(--shadow-menu); }
+.annotator-marktool.remove:hover { border-color: var(--alert-line); background: var(--alert); color: var(--alert-ink); }
+.annotator-label {
+  position: absolute;
+  z-index: 2;
+  width: min(280px, 60vw);
+  border: 1px solid var(--alert);
+  border-radius: 8px;
+  padding: 7px 9px;
+  outline: 0;
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur) var(--glass-lens,);
+  color: var(--ink);
+  font-size: var(--text-control);
+  box-shadow: var(--glass-float-rim), var(--shadow-menu);
+}
+.annotator-label::placeholder { color: var(--quiet); }
+.annotator-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--line-soft);
+}
+.annotator-count { min-width: 0; margin-right: auto; color: var(--muted); font-size: var(--text-meta); }

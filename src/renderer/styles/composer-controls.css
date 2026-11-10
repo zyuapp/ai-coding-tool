@@ -1,0 +1,193 @@
+.composer textarea {
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  max-height: min(50vh, 440px);
+  resize: none;
+  border: 0;
+  outline: 0;
+  padding: 15px 16px 5px;
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--text-content);
+  line-height: 1.5;
+  field-sizing: content;
+}
+.composer textarea::placeholder { color: var(--quiet); }
+/** Files dragged over the window land in this composer, so it lights up as the target. */
+:is(.workspace.dropping > .composer-wrap, .side-chat.dropping) .composer { box-shadow: 0 0 0 2px var(--accent), var(--shadow-composer); }
+.composer:has(> textarea:focus):where(:root:not([data-focus-appearance="quiet"]) *) { box-shadow: 0 0 0 1px var(--line-input), var(--shadow-composer); }
+/** One row at every width: the settings give up their labels' ends before anything wraps; Send/Stop keeps its own space at the right. */
+.composer-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 9px 9px 8px; }
+.composer-settings { position: relative; flex: 1; min-width: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; }
+.composer-settings > .setting-menu { flex: 0 1 auto; min-width: 0; }
+.composer-settings > .setting-menu > .menu-opener { min-width: 0; }
+.composer-settings .setting-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fast-mode-toggle { min-height: 30px; gap: 4px; padding: 0 10px 0 8px; }
+.setting-menu { flex: none; font-size: var(--text-control); }
+/** The axis is named so the value beside it needs no decoding. */
+.setting-axis { color: var(--quiet-strong); font-size: var(--text-meta); white-space: nowrap; }
+.setting-value { white-space: nowrap; }
+.setting-detail { display: flex; gap: 6px; color: var(--muted); white-space: nowrap; }
+.setting-detail > span:first-child { color: var(--quiet-soft); }
+.setting-menu[open] .setting-detail, .setting-menu > .menu-opener:hover .setting-detail { color: var(--ink-faint); }
+.setting-detail .delegates { color: var(--accent-soft); }
+.setting-popover {
+  position: absolute;
+  z-index: 20;
+  /** Anchor above the whole settings group, including when its controls wrap. */
+  bottom: calc(100% + 9px);
+  left: -4px;
+  width: min(560px, calc(100cqw - 40px));
+  /** The list scrolls rather than growing past the top of the window on a long model roster. */
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  --glass-radius: 14px;
+}
+/** Bypass acts without asking, so its mark says so while it is the chosen mode. */
+.setting-popover .menu-item.danger[aria-selected="true"] :is(.menu-icon, .menu-tick) { color: var(--danger-soft); }
+.setting-hint { display: block; width: 100%; padding: 2px 9px 8px; font-size: var(--text-meta); text-align: left; }
+.setting-hint:not(.btn) { color: var(--quiet-strong); }
+.setting-readiness { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.setting-readiness code { font-family: var(--font-mono); font-size: var(--text-meta); color: var(--ink-faint); }
+.composer-actions { flex: none; display: flex; align-items: center; gap: 12px; }
+.context-usage { display: flex; align-items: center; gap: 6px; margin: 0 -4px; color: var(--muted); }
+.context-usage-gauge { position: relative; display: flex; }
+.context-usage-meter { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 4px; border-radius: 8px; }
+.context-usage-gauge:hover .context-usage-meter { background: var(--wash); }
+.context-usage-ring {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: conic-gradient(var(--context-fill, var(--ink-dim)) var(--context-progress), var(--line-input) 0);
+  mask: radial-gradient(circle, transparent 45%, #000 48%);
+}
+.context-usage.high { --context-fill: var(--accent-text); color: var(--accent-text); }
+.context-usage-value { font-size: var(--text-meta); font-weight: 600; font-variant-numeric: tabular-nums; }
+/** A meter's hover card, rising over the composer from its right edge. */
+.usage-card {
+  position: absolute;
+  z-index: 30;
+  right: -8px;
+  bottom: calc(100% + 14px);
+  width: 288px;
+  max-width: calc(100vw - 32px);
+  display: grid;
+  gap: 14px;
+  padding: 14px 16px 16px;
+  color: var(--ink);
+  font-size: var(--text-control);
+  line-height: 1.3;
+  text-align: left;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.usage-card-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.usage-card-heading strong { font-weight: 600; }
+.usage-card-heading span { color: var(--quiet-strong); font-size: var(--text-meta); }
+.usage-card-row { display: grid; gap: 7px; }
+.usage-card-label { display: flex; justify-content: space-between; gap: 12px; color: var(--ink-faint); font-size: var(--text-meta); }
+.usage-card-label span:first-child { color: var(--ink-dim); font-weight: 500; }
+.usage-card-detail { color: var(--quiet-strong); font-size: var(--text-meta); }
+.context-usage-gauge:hover .usage-card, .plan-usage:hover .usage-card,
+:is(.context-usage-meter, .plan-usage-meter):focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) + .usage-card,
+.context-usage-meter:focus + .usage-card, span.plan-usage-meter:focus + .usage-card { opacity: 1; transform: translateY(0); }
+
+.plan-usage { position: relative; display: flex; }
+.plan-usage-meter {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  margin-right: -4px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: default;
+}
+button.plan-usage-meter { cursor: pointer; }
+.plan-usage-meter:hover { background: var(--wash); color: var(--ink-dim); }
+button.plan-usage-meter:hover .plan-usage-share { text-decoration: underline; text-underline-offset: 2px; }
+.plan-usage-icon { flex: none; margin-right: 6px; color: var(--muted); }
+.plan-usage-meter:hover .plan-usage-icon { color: var(--ink-dim); }
+.plan-usage-parts { display: flex; align-items: baseline; gap: 8px; font-size: var(--text-meta); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.plan-usage-parts:has(> .plan-usage-part + .plan-usage-part) { gap: 12px; }
+.plan-usage-part { display: flex; align-items: baseline; }
+.plan-usage-span { margin-right: 5px; color: var(--muted); }
+.plan-usage-share { color: var(--ink-faint); font-weight: 560; }
+.plan-usage-meter:hover .plan-usage-share { color: var(--ink); }
+.plan-usage-part.near .plan-usage-share { color: var(--accent-text); }
+.plan-usage-warning .plan-usage-track { flex: none; width: 56px; }
+
+.plan-usage-warning { gap: 10px; margin-bottom: 8px; }
+.plan-usage-warning > .notice-text { display: flex; align-items: center; gap: 10px; }
+.plan-usage-warning strong { flex: none; font-weight: 560; }
+.plan-usage-warning-window { overflow: hidden; color: var(--ink-dim); text-overflow: ellipsis; white-space: nowrap; }
+.plan-usage-warning-reset { flex: 1; color: var(--quiet-strong); font-size: var(--text-meta); white-space: nowrap; }
+.plan-usage-warning-summary { display: flex; flex: 0 1 auto; align-items: center; gap: 10px; min-width: 0; min-height: 28px; margin: -2px 0 -2px -6px; padding: 0 6px; border: 0; border-radius: 7px; background: transparent; color: inherit; font: inherit; }
+button.plan-usage-warning-summary { cursor: pointer; }
+button.plan-usage-warning-summary:hover { background: var(--wash); }
+button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.send-button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-inverse);
+  box-shadow: var(--glint);
+  color: var(--ink-inverse);
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+  transition: background var(--touch-time) var(--touch-ease), color var(--touch-time) var(--touch-ease), transform var(--touch-time) var(--touch-ease);
+}
+/** A filled action gives a little under the pointer, so a press is felt before its result arrives. */
+.new-task-button:active:not(:disabled, [aria-disabled="true"]) { transform: scale(0.97); }
+.send-button:active:not(:disabled, [aria-disabled="true"]) { transform: scale(0.92); }
+.send-button:is(:disabled, [aria-disabled="true"]) { opacity: 1; background: var(--surface-inverse-off); color: var(--muted); cursor: default; }
+.send-button:focus-visible { outline-color: currentColor; }
+.send-button.busy:disabled { background: var(--surface-inverse); box-shadow: none; color: var(--ink-inverse); }
+.send-spinner { width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.9s steps(18) infinite; }
+.stop-glyph { width: 10px; height: 10px; border-radius: 2px; background: var(--ink-inverse); }
+.send-button + .send-button { margin-left: -6px; }
+
+/** Plan meters share the bar with the settings, so the axis names and the meter's icon go first, then the weekly part, then the meter. */
+@container (max-width: 720px) {
+  .composer:has(.plan-usage) :is(.setting-axis, .plan-usage-icon) { display: none; }
+}
+@container (max-width: 600px) {
+  .plan-usage-part + .plan-usage-part { display: none; }
+}
+@container (max-width: 470px) {
+  .plan-usage { display: none; }
+}
+/** The values still read on their own, so the axis names go before any control does. */
+@container (max-width: 470px) {
+  .setting-axis { display: none; }
+  .fast-mode-toggle { width: 30px; padding: 0; }
+  .fast-mode-toggle > span { display: none; }
+  .goal-bar:not(.blocked) .goal-detail { display: none; }
+  .goal-bar.blocked .goal-detail { max-width: 40cqw; overflow: hidden; text-overflow: ellipsis; }
+  .plan-usage-warning-reset { display: none; }
+  .composer-actions { gap: 8px; }
+  .context-usage-value, .plan-usage-icon { display: none; }
+}
+/** The effort reads in the model's menu, so it goes before the names of the mode and model shorten. */
+@container (max-width: 400px) {
+  .composer-settings .setting-detail { display: none; }
+}
+@container (max-width: 300px) {
+  .context-usage-value { display: none; }
+  .composer-settings { gap: 0; }
+  .composer-bar { gap: 6px; padding-left: 10px; }
+  .setting-menu > .menu-opener { padding-inline: 6px; }
+}

@@ -1,0 +1,7 @@
+.agents-panel-list { min-height: 0; overflow: auto; margin: 0; padding: 14px; display: block; }
+.agents-panel-list .agent-row { padding: 11px 10px; }
+.agents-panel-none { margin: 0; padding: 18px 22px; }
+.agents-filters { display: grid; gap: 9px; border-bottom: 1px solid var(--line-soft); padding: 12px 14px; }
+.subagent-rows { position: relative; width: 100%; }
+.subagent-row { position: absolute; top: 0; left: 0; width: 100%; padding-bottom: 5px; }
+.subagent-row.static, .agent-activity-row.static { position: static; }

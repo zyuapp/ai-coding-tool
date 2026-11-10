@@ -1,0 +1,30 @@
+::highlight(find-match) { background: var(--find-match); color: var(--ink); }
+::highlight(find-active) { background: var(--find-active); color: var(--accent-ink); }
+::highlight(annotation-mark) { background: var(--info-surface); color: var(--ink); }
+
+/** The strip: what the bar looks like where it must stay in the layout, over a page drawn on top of it. */
+.find-bar { display: flex; align-items: center; gap: 6px; }
+.find-bar > svg { flex: 0 0 auto; color: var(--quiet); }
+.find-bar > .text-field { flex: 1; }
+.find-count { flex: 0 0 auto; color: var(--quiet); font-size: var(--text-meta); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.find-count.empty { color: var(--danger-soft); }
+
+/**
+ * The slot keeps the bar's place in a view — under whatever header the view has, over what it
+ * searches — and takes no height of its own, so opening and closing find moves nothing.
+ */
+.find-slot { position: relative; z-index: 12; height: 0; }
+.find-slot:not([data-strip]) > .find-bar { position: absolute; top: 10px; right: 12px; width: min(340px, calc(100% - 24px)); padding: 6px 8px; }
+
+/* The transcript has no header of its own, so its bar floats from the top of the whole area. */
+.work-area > .find-slot { position: absolute; top: 0; right: 0; left: 0; }
+.work-area > .find-slot > .find-bar { top: 12px; right: var(--page-inset); width: min(420px, calc(100% - 40px)); }
+
+/**
+ * The page is a native view main draws over the panel, so its bar cannot float: it would sit under
+ * the page. It keeps the strip, and the panel gives it the room.
+ */
+.find-slot[data-strip] { height: auto; }
+
+/** The session panel holds the same corner, so the bar takes the space beside it rather than under it. */
+.workspace.summary-open .work-area > .find-slot > .find-bar { right: calc(var(--page-inset) + 282px); }

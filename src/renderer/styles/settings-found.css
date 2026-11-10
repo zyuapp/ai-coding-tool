@@ -1,0 +1,7 @@
+/* The control a search sent the user to, marked once so the eye lands on it and then let go. */
+.setting-row.found, .settings-group.found > .settings-group-heading { animation: setting-found 2.2s ease-out; }
+.setting-row[data-landed], .settings-group[data-landed] > .settings-group-heading { border-radius: 8px; outline: 2px solid var(--accent); outline-offset: 4px; }
+@keyframes setting-found {
+  0%, 60% { background: var(--accent-chip); }
+  100% { background: none; }
+}

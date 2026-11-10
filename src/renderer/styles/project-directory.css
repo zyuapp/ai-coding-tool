@@ -1,0 +1,6 @@
+.project-directory-options { max-height: 200px; overflow: auto; border: 1px solid var(--line-mid); border-radius: 8px; padding: 4px; }
+.project-directory-options button { display: block; width: 100%; padding: 6px 8px; text-align: left; overflow-wrap: anywhere; background: transparent; border: 0; border-radius: 4px; color: var(--ink-soft); font: inherit; font-size: var(--text-meta); }
+.project-directory-options button:hover { background: var(--wash); color: var(--ink); }
+.project-directory-options button[aria-selected="true"] { background: var(--row-selected); color: var(--ink); }
+.sidebar-project-empty { padding: 12px; color: var(--muted-strong); font-size: var(--text-menu); line-height: 1.45; overflow-wrap: anywhere; }
+.sidebar-project-empty p { margin: 0 0 10px; }

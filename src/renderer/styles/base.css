@@ -1,0 +1,60 @@
+:root {
+  font-family: var(--ui-font);
+  color: var(--ink);
+  background: var(--canvas);
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+/**
+ * A scrollbar is a capsule of glass floating clear of the edge, with no track. Chromium drops these
+ * rules for an element that sets scrollbar-width or scrollbar-color, so only `none` is ever set.
+ */
+::-webkit-scrollbar { width: 12px; height: 12px; background: transparent; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+/* Clear of a rounded container's corners. */
+::-webkit-scrollbar-track:vertical { margin-block: 8px; }
+::-webkit-scrollbar-track:horizontal { margin-inline: 8px; }
+::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  min-width: 32px;
+  border: 3.5px solid transparent;
+  border-radius: 999px;
+  background: linear-gradient(to right, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0)) padding-box, var(--scroll-thumb) padding-box;
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.1);
+}
+::-webkit-scrollbar-thumb:horizontal { background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0)); }
+/* Under the pointer it swells, as the system's own does. */
+::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { border-width: 2px; background-color: var(--line-bright); }
+html, body, #root { height: 100%; margin: 0; }
+body { overflow: hidden; font-size: var(--text-content); }
+button, textarea, select { font: inherit; }
+button, select { color: inherit; }
+::placeholder { color: var(--quiet); opacity: 1; }
+/** Suppress Chromium’s native outline too; the rules below supply keyboard focus appearance. */
+:root[data-focus-appearance="quiet"] :focus { outline: none; }
+:where(button, input, textarea, select, summary, a[href], [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) {
+  outline: 2px solid var(--focus-ring);
+  /** Keep the indicator inside rows and controls whose parents clip overflow. */
+  outline-offset: -2px;
+}
+/** One disabled look for every button; a button that draws its own off state overrides it. */
+:where(button:disabled, button[aria-disabled="true"]) {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+/** A command its computer cannot run loses its fill and colour, keeps a readable quiet label and takes a dashed edge. */
+button[data-unsupported][aria-disabled="true"]:is(*, :hover, :active) { opacity: 1; filter: grayscale(1); border-color: transparent; background: transparent; box-shadow: none; color: var(--quiet); }
+button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet); outline-offset: -1px; }
+
+.app-shell {
+  display: flex;
+  height: 100%;
+  /**
+   * Clipped rather than hidden. A panel parks outside this box, and `hidden` would leave the box
+   * scrollable: putting the caret in a parked panel then scrolls the window across to reveal it,
+   * carrying the sidebar, the topbar and the conversation off the left edge with it.
+   */
+  overflow: clip;
+  background: var(--frame);
+}

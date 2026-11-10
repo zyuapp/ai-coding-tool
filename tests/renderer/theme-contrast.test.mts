@@ -4,7 +4,7 @@ import { test } from "vitest";
 import { THEMES } from "../../src/domain/theme.ts";
 
 const themesCss = await readFile(new URL("../../src/renderer/themes.css", import.meta.url), "utf8");
-const stylesCss = await readFile(new URL("../../src/renderer/styles.css", import.meta.url), "utf8");
+const tokensCss = await readFile(new URL("../../src/renderer/styles/tokens.css", import.meta.url), "utf8");
 const buttonCss = await readFile(new URL("../../src/renderer/ui/button.css", import.meta.url), "utf8");
 
 function themeBlock(id: string) {
@@ -17,8 +17,8 @@ function primitives(id: string) {
   return new Map([...themeBlock(id).matchAll(/(--p-[a-z0-9-]+):\s*(#[0-9a-f]{6});/g)].map(([, name, value]) => [name, value]));
 }
 
-/** The semantic tokens styles.css derives, keyed by name, as their unresolved expressions. */
-const tokenBlock = /:root,\s*\[data-theme\] \{([\s\S]*?)\n\}/.exec(stylesCss)![1];
+/** The semantic tokens styles/tokens.css derives, keyed by name, as their unresolved expressions. */
+const tokenBlock = /:root,\s*\[data-theme\] \{([\s\S]*?)\n\}/.exec(tokensCss)![1];
 const tokens = new Map([...tokenBlock.matchAll(/^\s*(--[a-z0-9-]+):\s*([^;]+);/gm)].map(([, name, value]) => [name, value.trim()]));
 
 type Rgb = readonly [number, number, number];
@@ -282,7 +282,9 @@ test("a border under the pointer reads stronger than the one at rest", () => {
 });
 
 test("every size token a stylesheet names is declared", async () => {
-  const sheets = ["styles.css", "worktree-settings.css", "worktree-menu.css", "components/coordination.css", "components/question-prompt.css"];
+  const index = await readFile(new URL("../../src/renderer/styles.css", import.meta.url), "utf8");
+  const indexed = [...index.matchAll(/@import "\.\/([^"]+)";/g)].map(([, sheet]) => sheet);
+  const sheets = [...indexed, "worktree-menu.css", "components/coordination.css", "components/question-prompt.css"];
   const missing: string[] = [];
   for (const sheet of sheets) {
     const css = await readFile(new URL(`../../src/renderer/${sheet}`, import.meta.url), "utf8");

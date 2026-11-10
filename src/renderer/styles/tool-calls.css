@@ -1,0 +1,160 @@
+.message.tool { margin: 0; }
+/* A run of tool calls is one card, so the calls inside it need no divider of their own. */
+.work-steps > .work-row { border-radius: 8px; background: none; box-shadow: none; }
+.work-row > summary, .work-group > summary, .work-run > summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 33px;
+  border-radius: 8px;
+  padding: 0 8px;
+  color: var(--quiet-strong);
+  font-size: var(--text-meta);
+  cursor: pointer;
+  list-style: none;
+}
+.work-run > summary { min-height: 38px; padding: 0 11px; }
+.work-row > summary:hover, .work-group > summary:hover, .work-run > summary:hover { background: var(--surface-hover); }
+.work-row > summary::-webkit-details-marker, .work-group > summary::-webkit-details-marker, .work-run > summary::-webkit-details-marker { display: none; }
+.work-row > summary::after, .work-group > summary::after, .work-run > summary::after { content: ""; flex: none; width: 6px; height: 6px; margin: 0 3px 0 1px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); transition: transform 140ms ease; }
+.work-row > summary:hover::after, .work-group > summary:hover::after, .work-run > summary:hover::after { border-color: var(--ink-dim); }
+.work-row[open] > summary::after, .work-group[open] > summary::after, .work-run[open] > summary::after { transform: translateY(-2px) rotate(45deg); }
+.work-lead { color: var(--muted-soft); }
+/* A settled turn's fold and the earlier updates' fold are framed controls the width of what they say,
+   so neither reads as a caption. */
+:is(.settled-fold, .updates-fold) > summary { width: fit-content; max-width: 100%; min-height: 30px; background: var(--control); box-shadow: var(--glass-rim); padding: 0 9px 0 11px; }
+:is(.settled-fold, .updates-fold) > summary > .work-lead { color: var(--muted); }
+.settled-fold[open] > summary { margin-bottom: 14px; }
+.settled-fold > .work-steps { margin-left: 9px; padding: 2px 0 6px 20px; border-left: 2px solid var(--line); animation: fold-open 180ms var(--panel-slide-ease); }
+@keyframes fold-open { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .settled-fold > .work-steps { animation: none; } }
+.settled-fold > .work-steps .work-note { color: var(--muted-strong); }
+.settled-fold > .work-steps :is(.work-run, .work-row) { border-color: transparent; background: none; }
+.settled-fold > .work-steps .work-run > summary { min-height: 33px; padding: 0 8px; }
+.updates-fold-entries { display: flex; flex-direction: column; gap: 26px; padding: 16px 0 4px; }
+.timeline-row.user:has(> .thread-message) { padding-bottom: 26px; }
+/* Two lines of what a thread sent, so most messages read whole without opening. */
+.thread-message > summary { min-width: 0; align-items: baseline; padding-block: 7px; background: var(--glass-control); box-shadow: var(--glass-rim); }
+.thread-message > summary > .work-lead { flex: none; color: var(--ink-dim); }
+.thread-message-preview { flex: 1; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+.thread-message[open] .thread-message-preview { display: none; }
+.thread-message[open] > summary::after { margin-left: auto; }
+.thread-message-body { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 8px 4px; }
+.thread-message-text { color: var(--muted); font-size: var(--text-content); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Durations and counts sit in one right-aligned cluster, so a run's times read as a column. */
+.work-meta { flex: none; display: flex; align-items: center; gap: 9px; margin-left: auto; }
+.work-time { flex: none; color: var(--quiet-strong); font-variant-numeric: tabular-nums; }
+.work-summary { color: var(--quiet-strong); }
+.work-glyph {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--muted-soft);
+}
+.work-tool { flex: none; color: var(--muted-soft); }
+.work-arg {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--muted-strong);
+  font: var(--text-meta)/1.4 var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.work-sigil { margin-right: 6px; color: var(--quiet-soft); }
+.work-thread { margin-right: 8px; color: var(--ink); font-family: var(--ui-font); font-weight: 550; text-decoration: none; }
+a.work-thread:hover { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
+.message.turn { display: flex; flex-direction: column; gap: 17px; }
+.work-count { flex: none; }
+.work-steps { padding: 2px 0 10px 13px; border-left: 1px solid var(--line-soft); }
+.work-run > .work-steps { padding: 1px 5px 7px; border-left: 0; }
+.work-row > .copyable { margin: 1px 8px 9px; }
+.work-empty { margin: 0 8px 9px; padding: 4px 0; color: var(--quiet); font-size: var(--text-meta); }
+.work-row > .copyable > pre { margin: 0; }
+.work-steps > .work-row > .copyable > pre { background: var(--surface); }
+.work-note { padding: 9px 0; color: var(--muted-strong); }
+/** Text that has not formed a Markdown block yet, styled as the paragraph it is about to become. */
+.stream-word { animation: stream-word 180ms steps(3) both; }
+:root[data-window-inactive] .stream-word { animation: none; }
+@keyframes stream-word { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .stream-word { animation: none; } }
+pre {
+  margin: 0 0 14px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 11px;
+  background: var(--sunken);
+  color: var(--muted-strong);
+  font: var(--text-meta)/1.55 var(--mono);
+  white-space: pre-wrap;
+}
+/**
+ * A zero-height dock pinned to the foot of the scrollport. The button hangs off it, so it floats
+ * over the transcript at a fixed distance from the bottom without adding any height of its own.
+ */
+.scroll-to-end-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  height: 0;
+  display: flex;
+  justify-content: center;
+}
+.scroll-to-end { position: absolute; bottom: 10px; box-shadow: var(--glass-rim), var(--shadow-float); }
+/** A run's status is one capsule, set where the reply will begin. */
+.thinking-row, .compacting-row, .retrying-row, .waiting-row, .limit-row { margin-bottom: 28px; }
+.chip.waiting-row { padding-left: 10px; }
+.waiting-row > svg { flex: none; color: var(--muted-strong); }
+/** A marble of glass: the accent circles inside it as light, under a highlight that stays put. */
+.run-bead, .task-spinner {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  border-radius: 50%;
+  background: rgb(from var(--accent-text) r g b / 0.16);
+  box-shadow: var(--glass-rim), 0 0 7px rgb(from var(--accent-text) r g b / 0.28);
+}
+.run-bead { width: 14px; height: 14px; }
+:is(.run-bead, .task-spinner)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(from 0deg, transparent 20%, var(--accent-text) 78%, transparent);
+  animation: spin 1.5s steps(30) infinite;
+}
+:is(.run-bead, .task-spinner)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 26%, rgb(255 255 255 / 0.75), transparent 34%), radial-gradient(circle at 50% 50%, transparent 36%, rgb(0 0 0 / 0.22) 100%);
+}
+.run-bead.held { background: rgb(from var(--warning) r g b / 0.2); box-shadow: var(--glass-rim); }
+.run-bead.held::before { background: radial-gradient(circle at 62% 74%, var(--warning), rgb(from var(--warning) r g b / 0.35) 72%); animation: none; }
+/** The time sits past a hairline, as the capsule's second cell. */
+.thinking-elapsed { margin-left: 2px; border-left: 1px solid var(--line-soft); padding-left: 10px; color: var(--quiet-strong); font-variant-numeric: tabular-nums; line-height: 14px; }
+/* Stopping a run reads the same here as on a workflow or subagent. */
+/** A band of brighter ink travels across the letters, so a wait reads as motion in the word itself. */
+.text-sweep { position: relative; color: var(--muted); }
+/** The copy takes the label's padding and wrapping, so it lands on the same letters. */
+.sweep-band {
+  position: absolute;
+  inset: 0;
+  -webkit-mask-image: linear-gradient(90deg, transparent 20%, #000 50%, transparent 80%);
+  mask-image: linear-gradient(90deg, transparent 20%, #000 50%, transparent 80%);
+  padding: inherit;
+  white-space: inherit;
+  text-overflow: inherit;
+  pointer-events: none;
+  user-select: none;
+  animation: sweep-band 1.9s steps(38) infinite;
+}
+.sweep-band::before { content: attr(data-text); position: absolute; inset: 0; box-sizing: border-box; padding: inherit; overflow: hidden; text-overflow: inherit; color: var(--ink); animation: sweep-ink 1.9s steps(38) infinite; }
+@keyframes sweep-band { from { transform: translateX(-130%); } to { transform: translateX(130%); } }
+@keyframes sweep-ink { from { transform: translateX(130%); } to { transform: translateX(-130%); } }
+@media (prefers-reduced-motion: reduce) { .sweep-band { display: none; } }

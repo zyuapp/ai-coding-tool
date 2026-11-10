@@ -1,0 +1,451 @@
+/**
+ * Every colour in these stylesheets comes from a token below, and every token below comes from a theme
+ * primitive in themes.css. A theme redefines the primitives; nothing here changes. Add a token
+ * rather than a literal, and derive it from a primitive rather than picking a hex.
+ *
+ * A custom property inherits already substituted, so the tokens are redeclared under any element
+ * carrying a theme rather than on the root alone. That is what lets a preview tile paint itself.
+ */
+:root,
+[data-theme] {
+  /* Surfaces */
+  --canvas: var(--p-bg-0);
+  --canvas-fade: rgb(from var(--p-bg-0) r g b / 0); /* --canvas at zero alpha, for gradients that fade into it */
+  --sunken: var(--p-bg-1); /* panes set below the canvas: docks, inspectors, modals */
+  --sidebar: var(--p-bg-3);
+  --surface: var(--p-bg-2); /* cards and the composer */
+  --surface-raised: var(--p-bg-4); /* bubbles and chips sitting on a surface */
+  --surface-menu: var(--p-bg-3); /* popovers and floating menus */
+  --surface-menu-hover: var(--p-bg-6);
+  --surface-hover: var(--p-bg-4);
+  --surface-active: var(--p-bg-5); /* the row, tab, or option in effect */
+  /* A list row under the pointer, and the open one a clear step past it, so both read without an accent bar */
+  --row-hover: var(--p-row-hover, var(--p-bg-6));
+  --row-selected: var(--p-row-selected, color-mix(in srgb, var(--p-bg-6) 93%, var(--p-fg-0)));
+  --surface-input: color-mix(in srgb, var(--p-bg-0) 50%, var(--p-bg-2));
+  /**
+   * A menu's fill where it opens over the frame. What is behind it there is only half there, and a
+   * backdrop filter cannot hide it, so the fill stays close to solid.
+   */
+  --surface-glass: rgb(from var(--p-bg-4) r g b / 0.95);
+  /**
+   * The frame is the ground the sidebar and the gap around the page share. Where the platform draws
+   * a material under the window it thins to a tint, and the fills that sit on it thin to washes of ink.
+   */
+  --frame: var(--sidebar);
+  --page: var(--canvas); /* the sheet the work sits on, solid so the glass over it has something whole to blur */
+  --frame-control: var(--control);
+  --frame-control-hover: var(--control-hover);
+  --frame-row-hover: var(--row-hover);
+  --frame-row-selected: var(--row-selected);
+  --frame-field: var(--surface-input);
+  --frame-meta: var(--quiet);
+  --frame-label: var(--quiet-soft);
+  --surface-inverse: var(--p-contrast); /* the one high-contrast fill: primary buttons */
+  --surface-inverse-soft: color-mix(in srgb, var(--p-contrast) 85%, var(--p-bg-6));
+  --surface-inverse-off: color-mix(in srgb, var(--p-bg-6) 80%, var(--p-fg-5)); /* an inverse fill with nothing to do */
+  --control: var(--p-bg-5);
+  --control-soft: var(--p-bg-3);
+  --control-hover: color-mix(in srgb, var(--p-bg-5) 40%, var(--p-bg-6));
+  --chip: color-mix(in srgb, var(--p-bg-6) 60%, var(--p-bg-5)); /* counts and short labels, under --muted text at 4.5:1 */
+  --wash: rgb(from var(--p-fg-0) r g b / var(--p-wash-alpha)); /* hover on an otherwise transparent control */
+  --code-surface: var(--p-bg-4);
+  --code-ink: var(--p-ansi-white);
+  --meter-fill: var(--p-fg-4);
+  --meter-track: color-mix(in srgb, var(--p-bg-5) 60%, var(--p-bg-6));
+
+  /* Lines */
+  --line: var(--p-line-1);
+  --line-soft: var(--p-line-0); /* a divider within one surface */
+  --line-mid: color-mix(in srgb, var(--p-line-1) 50%, var(--p-line-2));
+  --line-strong: var(--p-line-3); /* a button's edge and grab handles; a text field takes --line-input */
+  --line-bright: color-mix(in srgb, var(--p-line-3) 65%, var(--p-fg-4)); /* a border under the pointer */
+  --line-glass: rgb(from var(--p-fg-0) r g b / 0.11);
+  /* A control's edge and the scroll thumb, at 3:1 or better on bg-0 through bg-5 */
+  --line-input: color-mix(in srgb, var(--p-fg-4) 75%, var(--p-line-2));
+  --line-control: color-mix(in srgb, var(--p-line-2) 50%, var(--p-line-3)); /* a button or pill edge; its label names it, so the edge stays quiet */
+  --scroll-thumb: var(--line-input);
+
+  /**
+   * Text sits on four rungs, each a visible step from the next: ink, ink-dim, muted and quiet. A
+   * -soft or -strong name sits between two rungs. Ink through quiet read at 4.5:1 on bg-0 through
+   * bg-5; a placeholder takes --quiet. --quiet-soft is for glyphs and off states, never for words,
+   * and reads at 3:1. A disabled control fades by --disabled-opacity rather than taking a
+   * quieter colour.
+   */
+  --ink: var(--p-fg-0);
+  --ink-soft: color-mix(in srgb, var(--p-fg-0) 50%, var(--p-fg-1));
+  --ink-dim: var(--p-fg-1);
+  --ink-faint: color-mix(in srgb, var(--p-fg-1) 50%, var(--p-fg-2));
+  --muted-strong: color-mix(in srgb, var(--p-fg-1) 25%, var(--p-fg-2));
+  --muted: var(--p-fg-2);
+  --muted-soft: color-mix(in srgb, var(--p-fg-2) 50%, var(--p-fg-3));
+  --quiet-strong: var(--p-fg-3);
+  --quiet: var(--p-fg-4);
+  --quiet-soft: color-mix(in srgb, var(--p-fg-4) 75%, var(--p-fg-5));
+  --disabled-opacity: var(--p-disabled-opacity);
+  --ink-inverse: var(--p-contrast-ink); /* text on --surface-inverse */
+  --ink-inverse-soft: color-mix(in srgb, var(--p-contrast-ink) 65%, var(--p-contrast));
+
+  /* Accent */
+  --accent: var(--p-accent); /* the theme author's own accent, as a fill under --accent-ink */
+  --accent-text: var(--p-accent-text, var(--p-accent)); /* the accent as text, an icon, a ring or a bar, at 4.5:1 */
+  --accent-hover: var(--p-accent-hover, color-mix(in srgb, var(--p-accent) 82%, var(--p-fg-0)));
+  --accent-bright: var(--p-accent-bright);
+  --accent-soft: color-mix(in srgb, var(--accent-text) 70%, var(--p-fg-0));
+  --accent-ink: var(--p-accent-ink); /* text on --accent */
+  --accent-surface: color-mix(in srgb, var(--p-accent) 9%, var(--p-bg-0));
+  --accent-chip: color-mix(in srgb, var(--p-accent) 17%, var(--p-bg-1));
+  --accent-line: color-mix(in srgb, var(--p-accent) 32%, var(--p-bg-5));
+  --accent-line-strong: color-mix(in srgb, var(--p-accent) 42%, var(--p-bg-5));
+  --accent-line-soft: color-mix(in srgb, var(--p-accent) 15%, var(--p-bg-5));
+
+  /* Info */
+  --info: var(--p-info-text, var(--p-info)); /* the author's hue as text, at 4.5:1; fills and tints mix from --p-info */
+  --info-soft: color-mix(in srgb, var(--info) 70%, var(--p-fg-2));
+  --info-surface: color-mix(in srgb, var(--p-info) 16%, var(--p-bg-1));
+  --info-surface-soft: color-mix(in srgb, var(--p-info) 9%, var(--p-bg-1));
+  --info-line: color-mix(in srgb, var(--p-info) 28%, var(--p-bg-5));
+  --info-badge: var(--p-info-strong);
+  --info-ink: var(--p-info-ink); /* text on --info */
+  --badge-ink: var(--p-on-hue); /* text on --info-badge */
+  --focus-ring: var(--accent-text);
+  --link: var(--p-link-text, var(--p-link));
+  --link-hover: color-mix(in srgb, var(--link) 70%, var(--p-on-hue));
+
+  /**
+   * The six colours a checkout's mark takes, mixed to the same weight as --info-soft so none of them
+   * shouts louder than the marks beside it. Red is left out: on a row it reads as a failure.
+   */
+  --worktree-0: color-mix(in srgb, var(--p-ansi-blue) 70%, var(--p-fg-2));
+  --worktree-1: color-mix(in srgb, var(--p-ansi-green) 70%, var(--p-fg-2));
+  --worktree-2: color-mix(in srgb, var(--p-ansi-magenta) 70%, var(--p-fg-2));
+  --worktree-3: color-mix(in srgb, var(--p-ansi-yellow) 70%, var(--p-fg-2));
+  --worktree-4: color-mix(in srgb, var(--p-ansi-cyan) 70%, var(--p-fg-2));
+  --worktree-5: color-mix(in srgb, var(--p-ansi-bright-blue) 70%, var(--p-fg-2));
+
+  /** One colour per role a thread can play, pulled toward the text colour until its mark clears 3:1 on a selected row. */
+  --role-coordinator: color-mix(in srgb, var(--p-ansi-magenta) 55%, var(--p-fg-0));
+  --role-implementer: color-mix(in srgb, var(--p-ansi-blue) 75%, var(--p-fg-0));
+  --role-reviewer: color-mix(in srgb, var(--p-ansi-yellow) 55%, var(--p-fg-0));
+  --role-researcher: color-mix(in srgb, var(--p-ansi-cyan) 55%, var(--p-fg-0));
+
+  --link-line: color-mix(in srgb, var(--p-link) 45%, var(--p-bg-5));
+
+  /* Success */
+  --success: var(--p-success-text, var(--p-success));
+  --success-soft: color-mix(in srgb, var(--success) 75%, var(--p-fg-3));
+  --success-surface: color-mix(in srgb, var(--p-success) 18%, var(--p-bg-1));
+  --success-line: color-mix(in srgb, var(--p-success) 50%, var(--p-bg-5));
+  --success-ink: color-mix(in srgb, var(--p-success) 10%, var(--p-bg-0));
+
+  /* Danger */
+  --danger: var(--p-danger-text, var(--p-danger));
+  --danger-ink: var(--p-danger-ink, var(--p-accent-ink)); /* text on --danger */
+  --danger-soft: color-mix(in srgb, var(--danger) 78%, var(--p-fg-2));
+  --danger-surface: color-mix(in srgb, var(--p-danger) 10%, var(--p-bg-1));
+  --danger-chip: color-mix(in srgb, var(--p-danger) 18%, var(--p-bg-1));
+  --danger-line: color-mix(in srgb, var(--p-danger) 32%, var(--p-bg-5));
+  --danger-line-hover: color-mix(in srgb, var(--p-danger) 45%, var(--p-bg-5));
+
+  /* Warning: needs attention soon, but nothing has failed */
+  --warning: var(--p-warning-text, var(--p-warning));
+
+  /* Merged, which no other state borrows: a pull request nobody has to look at again */
+  --pr-merged: var(--p-pr-merged);
+
+  /* Alert, for marks drawn over an image */
+  --alert: var(--p-alert);
+  --alert-hover: color-mix(in srgb, var(--p-alert) 82%, var(--p-on-hue));
+  --alert-line: color-mix(in srgb, var(--p-alert) 65%, var(--p-on-hue));
+  --alert-ink: var(--p-alert-ink);
+
+  /* Terminal: the sixteen colours a shell addresses by name, plus what it draws behind them */
+  --terminal-selection: color-mix(in srgb, var(--p-info) 25%, var(--p-bg-5));
+  --find-match: color-mix(in srgb, var(--p-ansi-yellow) 25%, var(--p-bg-0)); /* every match find is showing */
+  --find-active: var(--p-accent); /* the one being read */
+  --ansi-black: var(--p-ansi-black);
+  --ansi-red: var(--p-ansi-red);
+  --ansi-green: var(--p-ansi-green);
+  --ansi-yellow: var(--p-ansi-yellow);
+  --ansi-blue: var(--p-ansi-blue);
+  --ansi-magenta: var(--p-ansi-magenta);
+  --ansi-cyan: var(--p-ansi-cyan);
+  --ansi-white: var(--p-ansi-white);
+  --ansi-bright-black: var(--p-ansi-bright-black);
+  --ansi-bright-red: var(--p-ansi-bright-red);
+  --ansi-bright-green: var(--p-ansi-bright-green);
+  --ansi-bright-yellow: var(--p-ansi-bright-yellow);
+  --ansi-bright-blue: var(--p-ansi-bright-blue);
+  --ansi-bright-magenta: var(--p-ansi-bright-magenta);
+  --ansi-bright-cyan: var(--p-ansi-bright-cyan);
+  --ansi-bright-white: var(--p-ansi-bright-white);
+
+  /* Diff: full-bleed fills behind body text, so lower in chroma than the chips they resemble */
+  --diff-add-surface: color-mix(in srgb, var(--p-success) 12%, var(--p-bg-0));
+  --diff-add-line: color-mix(in srgb, var(--p-success) 30%, var(--p-bg-1));
+  --diff-add-gutter: color-mix(in srgb, var(--p-success) 18%, var(--p-bg-1));
+  --diff-del-surface: color-mix(in srgb, var(--p-danger) 12%, var(--p-bg-0));
+  --diff-del-line: color-mix(in srgb, var(--p-danger) 30%, var(--p-bg-1));
+  --diff-del-gutter: color-mix(in srgb, var(--p-danger) 18%, var(--p-bg-1));
+  --diff-hunk-surface: color-mix(in srgb, var(--p-fg-0) 3%, var(--p-bg-1));
+  --diff-hunk-ink: var(--p-fg-4);
+  --diff-gutter-ink: var(--quiet-soft);
+  --diff-absent: color-mix(in srgb, var(--p-bg-1) 80%, var(--p-bg-2)); /* the side a two-column row has nothing on */
+  --diff-selected: color-mix(in srgb, var(--p-info) 15%, var(--p-bg-3));
+  --diff-selected-line: color-mix(in srgb, var(--p-info) 30%, var(--p-bg-5));
+
+  /* Syntax, for the diff and anything else that draws code. Eight of these are an ansi slot, so a
+     terminal scheme reaches the code viewer too. */
+  --syntax-comment: var(--p-syntax-comment);
+  --syntax-string: var(--p-syntax-string);
+  --syntax-number: var(--p-syntax-number, var(--p-ansi-yellow));
+  --syntax-constant: var(--p-syntax-constant, var(--p-ansi-yellow));
+  --syntax-keyword: var(--p-syntax-keyword, var(--p-ansi-magenta));
+  --syntax-operator: var(--p-link);
+  --syntax-function: var(--p-syntax-function, var(--p-ansi-blue));
+  --syntax-type: var(--p-syntax-type, var(--p-ansi-cyan));
+  --syntax-variable: var(--p-ansi-white);
+  --syntax-tag: var(--p-syntax-tag, var(--p-ansi-red));
+  --syntax-attribute: var(--p-syntax-attribute, var(--p-ansi-yellow));
+  --syntax-punctuation: var(--p-syntax-punctuation);
+
+  /**
+   * Shadows and scrims. Light themes carry the same geometry at a lower --p-shadow-scale. Anything
+   * raised is lit from above: --glint is the light its top edge catches, the same in every theme,
+   * and each shadow pairs a close contact shadow with a wide soft one.
+   */
+  --glint: inset 0 1px 0 rgb(255 255 255 / 0.075);
+  /**
+   * Glass, the material every float and raised control is cut from: a fill that lets the colour of
+   * what moves under it through, a sheen that is brightest at the top, a light blur, and a rim lit
+   * from the top left. --glass-menu is the same pane over the raised ground, for a list to be read
+   * on; --glass-clear is thinner, for a capsule or round key with a word or two on it.
+   */
+  --glass-sheen: linear-gradient(to bottom, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.02));
+  /**
+   * How thick the glass is, 0 to 1. Over the system's own glass it is the tint the person set
+   * there, so the window's panes clear and cloud with the rest of their desktop.
+   */
+  --glass-tint: 0.6;
+  --glass: var(--glass-sheen), rgb(from var(--p-bg-2) r g b / calc(0.6 + 0.35 * var(--glass-tint)));
+  --glass-menu: var(--glass-sheen), rgb(from var(--p-bg-4) r g b / calc(0.6 + 0.35 * var(--glass-tint)));
+  --glass-clear: var(--glass-sheen), rgb(from var(--p-bg-4) r g b / calc(0.31 + 0.5 * var(--glass-tint)));
+  --glass-blur: blur(calc(7px + 16px * var(--glass-tint))) saturate(170%);
+  --glass-menu-blur: var(--glass-blur);
+  /* A bar pinned over a scrolling list: flat, with no sheen, so it reads as the page going out of focus under it. */
+  --glass-strip: rgb(from var(--canvas) r g b / calc(0.78 + 0.16 * var(--glass-tint)));
+  /* The rim: a hairline of light all round, caught along the top edge and faintly along the bottom. */
+  --glass-rim:
+    inset 0 0 0 0.5px light-dark(rgb(255 255 255 / 0.15), rgb(255 255 255 / 0.03)),
+    inset 0 1.5px 1px -1px light-dark(rgb(255 255 255 / 0.25), rgb(255 255 255 / 0.1)),
+    inset 0 -1.5px 1px -1px light-dark(rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.03));
+  /* A float's rim, with the glow of the glass's thickness inside it and a dark hairline outside. */
+  --glass-float-rim:
+    var(--glass-rim),
+    inset 0 0 14px light-dark(rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.015)),
+    0 0 0 0.5px light-dark(rgb(0 0 0 / 0.12), rgb(0 0 0 / 0.35));
+  /**
+   * The light a float's 1px edge catches, brightest at the top-left corner and again at the
+   * bottom-right. It is the first background layer, clipped to the border area.
+   */
+  --glass-edge: conic-gradient(
+    rgb(255 255 255 / 0.05) 0deg, rgb(255 255 255 / 0.01) 60deg, rgb(255 255 255 / 0.02) 100deg,
+    rgb(255 255 255 / 0.08) 140deg, rgb(255 255 255 / 0.01) 185deg, rgb(255 255 255 / 0.005) 225deg,
+    rgb(255 255 255 / 0.03) 280deg, rgb(255 255 255 / 0.15) 315deg, rgb(255 255 255 / 0.05) 360deg);
+  /* A control cut from it: a wash of ink under the same sheen. */
+  --glass-control: var(--glass-sheen), var(--wash);
+  --glass-control-hover: var(--glass-sheen), var(--surface-hover);
+  /* The row a menu is about to take: the accent thinned to a pane, under the same sheen. */
+  --glass-pick: var(--glass-sheen), rgb(from var(--accent) r g b / 0.26);
+  --glass-pick-danger: var(--glass-sheen), rgb(from var(--danger) r g b / 0.22);
+  --shadow-menu: var(--glint), 0 2px 6px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale))), 0 14px 36px rgb(var(--p-shadow) / calc(0.34 * var(--p-shadow-scale)));
+  --shadow-popover: var(--glint), 0 2px 8px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale))), 0 18px 46px rgb(var(--p-shadow) / calc(0.38 * var(--p-shadow-scale)));
+  --shadow-panel: var(--glint), 0 3px 10px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale))), 0 24px 64px rgb(var(--p-shadow) / calc(0.42 * var(--p-shadow-scale)));
+  --shadow-composer: var(--glint), 0 1px 2px rgb(var(--p-shadow) / calc(0.14 * var(--p-shadow-scale))), 0 15px 45px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale)));
+  /* The floating surfaces carry a close contact shadow instead of a border. */
+  --shadow-float: var(--glint), 0 1px 2px rgb(var(--p-shadow) / calc(0.16 * var(--p-shadow-scale))), 0 6px 16px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale)));
+  --shadow-float-lift: var(--glint), 0 1px 3px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale))), 0 10px 26px rgb(var(--p-shadow) / calc(0.28 * var(--p-shadow-scale)));
+  --shadow-overlay: var(--glint), 0 4px 14px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale))), 0 30px 80px rgb(var(--p-shadow) / calc(0.5 * var(--p-shadow-scale)));
+  /* The page: the one solid sheet in the window, resting on the frame. */
+  --shadow-page: 0 0 0 1px var(--line-glass), 0 1px 3px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale))), 0 8px 28px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale)));
+  --shadow-sidebar: 20px 0 60px rgb(var(--p-shadow) / calc(0.45 * var(--p-shadow-scale)));
+  --shadow-thumb: 0 1px 2px rgb(var(--p-shadow) / calc(0.4 * var(--p-shadow-scale))), 0 4px 10px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale)));
+  --scrim: rgb(var(--p-scrim) / 0.85);
+  /* Behind a dialog: the window stays in sight, out of focus. Behind a picture being looked at, it steps further back. */
+  --veil: rgb(var(--p-scrim) / 0.46);
+  --veil-deep: rgb(var(--p-scrim) / 0.7);
+  --veil-blur: blur(10px) saturate(140%);
+  --scrim-soft: rgb(var(--p-shadow) / calc(0.38 * var(--p-shadow-scale)));
+
+  /* Motion. Every panel that slides in from a window edge shares this duration and curve. */
+  --panel-slide-time: 300ms;
+  --panel-slide-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* Layout on the move: the composer changing place, a list folding. */
+  --glide-time: 360ms;
+  --glide-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* A control answering the pointer, and a surface arriving under it. */
+  --touch-time: 140ms;
+  --touch-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Type and metrics */
+  --text-meta: 12px;
+  --text-menu: 13px;
+  --text-control: 14px;
+  --text-content: 15px;
+  --text-heading: 17px;
+  --text-display: 21px;
+  --text-hero: 25px;
+  --text-badge: var(--text-meta);
+  --text-tiny: var(--text-badge);
+  --terminal-text: 12px;
+  --row-slot: 22px;
+  --hit-target: 24px;
+  --row-inset: 8px;
+  /**
+   * The height every pane's top strip takes, so the line each one draws under it lands on the same
+   * row across the window. The sidebar has no line of its own, so its window strip and its new task
+   * button add up to this instead.
+   */
+  --chrome-head: 72px;
+  /** The frame showing around the page, and the corner the page turns inside it. */
+  --frame-gap: 8px;
+  --page-radius: 11px;
+  /** The narrowest the conversation goes with the right panel beside it; past that the panel gives way, then the sidebar. */
+  --page-min: 480px;
+  /** The room either side of the conversation, less what the frame already took, so its column is as wide as the window allows. */
+  --page-inset: clamp(20px, calc(4vw - var(--frame-gap)), 64px);
+  /** The sidebar toolbar remains useful below a native frame; on macOS its left side also houses the traffic lights. */
+  --window-strip: 40px;
+  --window-controls-inset: 0px;
+  --settings-titlebar-inset: 0px;
+  --system-ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  --system-mono-font: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --ui-font: var(--system-ui-font);
+  --mono: var(--system-mono-font);
+}
+
+/**
+ * A material under the window shows through the frame, tinted by the theme. Someone who asked the
+ * system for less transparency keeps the solid frame.
+ */
+@media (prefers-reduced-transparency: no-preference) {
+  :root[data-window-material] {
+    --frame: rgb(from var(--sidebar) r g b / calc(0.16 + 0.5 * var(--glass-tint)));
+    --frame-control: rgb(from var(--p-fg-0) r g b / 0.08);
+    --frame-control-hover: rgb(from var(--p-fg-0) r g b / 0.13);
+    --frame-row-hover: rgb(from var(--p-fg-0) r g b / 0.065);
+    --frame-row-selected: rgb(from var(--p-fg-0) r g b / 0.13);
+    --frame-field: rgb(from var(--p-bg-0) r g b / 0.32);
+    --frame-meta: var(--quiet-strong);
+    --frame-label: var(--quiet);
+  }
+}
+/**
+ * Over Liquid Glass the window is one sheet: the page takes the frame's own tint and loses its edge,
+ * and the sidebar and the conversation are the same colour.
+ */
+@media (prefers-reduced-transparency: no-preference) {
+  :root[data-glass-sheet] {
+    --frame: rgb(from var(--canvas) r g b / calc(0.7 + 0.24 * var(--glass-tint)));
+    --page: transparent;
+    --shadow-page: none;
+    /**
+     * Nothing on the sheet is a solid slab of the theme's ground any more. A raised thing is a wash
+     * of ink, lighter the higher it stands; a sunk one is a wash of the ground; a float is a pane
+     * thick enough to read on, which blurs what is under it.
+     */
+    --surface: rgb(from var(--p-fg-0) r g b / 0.045);
+    --surface-raised: rgb(from var(--p-fg-0) r g b / 0.075);
+    --surface-hover: rgb(from var(--p-fg-0) r g b / 0.1);
+    --surface-active: rgb(from var(--p-fg-0) r g b / 0.13);
+    --surface-input: rgb(from var(--p-bg-0) r g b / 0.3);
+    --surface-menu: rgb(from var(--p-bg-3) r g b / calc(0.82 + 0.14 * var(--glass-tint)));
+    --surface-menu-hover: rgb(from var(--p-fg-0) r g b / 0.12);
+    --sunken: rgb(from var(--p-bg-0) r g b / 0.28);
+    --control: rgb(from var(--p-fg-0) r g b / 0.1);
+    --control-soft: rgb(from var(--p-fg-0) r g b / 0.06);
+    --control-hover: rgb(from var(--p-fg-0) r g b / 0.15);
+    --chip: rgb(from var(--p-fg-0) r g b / 0.12);
+    --code-surface: rgb(from var(--p-fg-0) r g b / 0.07);
+    --row-hover: rgb(from var(--p-fg-0) r g b / 0.065);
+    --row-selected: rgb(from var(--p-fg-0) r g b / 0.13);
+    --meter-track: rgb(from var(--p-fg-0) r g b / 0.14);
+    /* A line is ink thinned, never a darker ground, so it reads the same over whatever shows through. */
+    --line: rgb(from var(--p-fg-0) r g b / 0.1);
+    --line-soft: rgb(from var(--p-fg-0) r g b / 0.065);
+    --line-mid: rgb(from var(--p-fg-0) r g b / 0.13);
+    --line-strong: rgb(from var(--p-fg-0) r g b / 0.19);
+    --line-control: rgb(from var(--p-fg-0) r g b / 0.15);
+    --line-bright: rgb(from var(--p-fg-0) r g b / 0.32);
+    /* A diff's fills are washes of its own hues for the same reason. */
+    --diff-add-surface: rgb(from var(--p-success) r g b / 0.1);
+    --diff-add-line: rgb(from var(--p-success) r g b / 0.26);
+    --diff-add-gutter: rgb(from var(--p-success) r g b / 0.15);
+    --diff-del-surface: rgb(from var(--p-danger) r g b / 0.1);
+    --diff-del-line: rgb(from var(--p-danger) r g b / 0.26);
+    --diff-del-gutter: rgb(from var(--p-danger) r g b / 0.15);
+    /* A tint is its hue thinned, so a state's fill is a pane of that colour and never a slab of ground. */
+    --accent-surface: rgb(from var(--p-accent) r g b / 0.1);
+    --accent-chip: rgb(from var(--p-accent) r g b / 0.18);
+    --accent-line: rgb(from var(--p-accent) r g b / 0.32);
+    --info-surface: rgb(from var(--p-info) r g b / 0.17);
+    --info-surface-soft: rgb(from var(--p-info) r g b / 0.1);
+    --info-line: rgb(from var(--p-info) r g b / 0.28);
+    --success-surface: rgb(from var(--p-success) r g b / 0.18);
+    --danger-surface: rgb(from var(--p-danger) r g b / 0.11);
+    --danger-chip: rgb(from var(--p-danger) r g b / 0.18);
+    --danger-line: rgb(from var(--p-danger) r g b / 0.32);
+    --diff-hunk-surface: rgb(from var(--p-fg-0) r g b / 0.05);
+    --diff-absent: rgb(from var(--p-fg-0) r g b / 0.025);
+    --diff-selected: rgb(from var(--p-info) r g b / 0.18);
+    --diff-selected-line: rgb(from var(--p-info) r g b / 0.32);
+  }
+  :root[data-glass-sheet] :is(.composer-wrap, .coordination-head) { background: none; }
+  /** With no ground to fade into, the transcript itself fades out in the strip under the composer. */
+  :root[data-glass-sheet] .workspace:not(.drafting) > .work-area > .conversation { mask-image: linear-gradient(to top, transparent 6px, #000 26px); }
+  /** On one sheet nothing else parts the sidebar from the conversation, so a hairline does, where the sidebar is dragged wider. */
+  :root[data-glass-sheet] .sidebar-resizer::before { content: ""; position: absolute; inset: 0 auto 0 calc(50% - 0.5px); width: 1px; background: var(--line-glass); }
+  :root[data-glass-sheet] .settings-sidebar { box-shadow: 4px 0 0 -3px var(--line-glass); }
+  /** The dock and the inspector are part of the same sheet: no ground of their own, and a hairline where they begin. */
+  :root[data-glass-sheet] :is(.right-dock, .subagent-inspector) { --sunken: transparent; border-radius: 0; background: none; box-shadow: none; }
+  :root[data-glass-sheet] .right-dock { top: 0; grid-template-rows: var(--chrome-head) minmax(0, 1fr); }
+  :root[data-glass-sheet] .workspace.dock-full .right-dock { inset: 0; }
+  :root[data-glass-sheet] .subagent-inspector { --panel-header-height: var(--chrome-head); margin: 0 0 0 var(--frame-gap); grid-template-rows: var(--chrome-head) minmax(0, 1fr); }
+  :root[data-glass-sheet] :is(.right-dock, .subagent-inspector)::before { content: ""; position: absolute; z-index: 6; inset: 0 auto 0 calc(var(--frame-gap) / -2); width: 1px; background: var(--line-glass); pointer-events: none; }
+}
+/** And keeps solid panes in place of glass ones. */
+@media (prefers-reduced-transparency: reduce) {
+  :root, [data-theme] {
+    --glass: var(--surface);
+    --glass-menu: var(--surface-menu);
+    --glass-clear: var(--surface-menu);
+    --glass-blur: none;
+    --glass-menu-blur: none;
+    --veil: var(--scrim);
+    --veil-deep: var(--scrim);
+    --veil-blur: none;
+  }
+}
+:root[data-window-material] { background: none; }
+
+/** Only macOS overlays inset window controls on renderer content. */
+:root[data-window-chrome="inset"] {
+  --window-controls-inset: 84px;
+  --settings-titlebar-inset: 48px;
+}
+
+/**
+ * The families the app bundles a face for. The two sizes the user is allowed to move are written
+ * straight onto the root instead, since they are px rather than a rung with a name; the chrome
+ * sizes above stay put, so a bigger conversation leaves every row, tab, and badge where it was.
+ * A card carrying one of these attributes paints itself in that choice, which is how a picker
+ * shows the face it is offering.
+ */
+[data-ui-font="inter"] { --ui-font: "Inter Variable", var(--system-ui-font); }
+[data-ui-font="plex-sans"] { --ui-font: "IBM Plex Sans Variable", var(--system-ui-font); }
+[data-ui-font="geist"] { --ui-font: "Geist Variable", var(--system-ui-font); }
+
+[data-mono-font="jetbrains-mono"] { --mono: "JetBrains Mono Variable", var(--system-mono-font); }
+[data-mono-font="fira-code"] { --mono: "Fira Code Variable", var(--system-mono-font); }
+[data-mono-font="source-code-pro"] { --mono: "Source Code Pro Variable", var(--system-mono-font); }

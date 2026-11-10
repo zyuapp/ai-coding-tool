@@ -1,0 +1,14 @@
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinning { animation: spin 0.9s steps(18) infinite; }
+@keyframes command-menu-in { from { opacity: 0; transform: translateY(5px); } }
+@keyframes working-pulse { 50% { opacity: 0.35; } }
+/** Indicators that loop for as long as work runs rest while another app is in front. */
+:root[data-window-inactive] :is(.spinning, .send-spinner, .toast.progress .toast-icon, :is(.run-bead, .task-spinner)::before, .agent-working-icon, .workflow-lane-track > i.run.running, .host-mark.reconnecting > svg, .worktree-safety-dot) { animation-name: none !important; }
+:root[data-window-inactive] .sweep-band { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  /** A mask that follows the scroll position is not motion, and is the only sign a strip has more past its edge. */
+  :where(:not(.right-dock-tabs > div:first-child, .message-image-previews)) { animation: none !important; }
+  * { scroll-behavior: auto !important; transition: none !important; }
+  /** Work in progress still shows it is moving, by a slow fade in place of a turn. */
+  .spinning, .toast.progress .toast-icon { animation: working-pulse 1.8s steps(18) infinite !important; }
+}

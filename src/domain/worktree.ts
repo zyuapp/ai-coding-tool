@@ -118,7 +118,7 @@ function finiteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-/** How many colours the marks cycle through. One per `--worktree-N` token in styles.css. */
+/** How many colours the marks cycle through. One per `--worktree-N` token in styles/tokens.css. */
 export const WORKTREE_HUES = 6;
 
 /**

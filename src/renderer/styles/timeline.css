@@ -1,0 +1,44 @@
+.timeline { position: relative; max-width: 860px; margin: 0 auto; }
+.timeline-items { position: relative; width: 100%; }
+.timeline-row { position: absolute; top: 0; left: 0; width: 100%; padding-bottom: 26px; }
+.timeline-row.user { padding-bottom: 36px; }
+.timeline-row.turn { padding-bottom: 26px; }
+.message { margin: 0; }
+.message.user { display: flex; flex-direction: column; align-items: flex-end; }
+.message-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 0; max-width: min(72%, 680px); }
+.message.user .message-text {
+  max-width: 100%;
+  border-radius: 18px;
+  padding: 11px 16px;
+  background: var(--glass-control);
+  box-shadow: var(--glass-rim);
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.message.assistant .message-text {
+  color: var(--ink-soft);
+  font-size: var(--text-content);
+  line-height: 1.7;
+}
+/** A notice is a pane of glass as wide as its words, and an error tints the pane. */
+.message.system {
+  --glass-radius: 14px;
+  position: relative;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: 100%;
+  padding: 6px 13px 6px 10px;
+  color: var(--ink-dim);
+}
+.message.system .message-text { font-size: var(--text-menu); line-height: 18px; }
+.message.system.error { padding: 7px 40px 7px 10px; color: var(--danger); }
+.message.system.error .message-detail { color: var(--muted); }
+.message.system.error > .copy-affordance { position: absolute; top: 2px; right: 4px; opacity: 1; pointer-events: auto; }
+.message.system.error > .copy-affordance:not(:hover, .copied, .failed) { border-color: transparent; background: transparent; box-shadow: none; backdrop-filter: none; color: var(--muted); }
+.notice-icon { width: 14px; height: 14px; margin-right: 7px; vertical-align: -3px; }
+.message.system:not(.error) .notice-icon { color: var(--info); }
+.message-origin { color: var(--quiet-strong); font-size: var(--text-meta); overflow-wrap: anywhere; }
+.chip.message-origin-link { display: inline-flex; align-items: center; min-height: 28px; font-size: var(--text-meta); }
+.process-stop-slot { flex: none; display: inline-flex; align-items: center; gap: 4px; }
+.message-detail { margin-top: 3px; color: var(--quiet-strong); font-size: var(--text-meta); white-space: pre-wrap; overflow-wrap: anywhere; }
+.message-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-content); }

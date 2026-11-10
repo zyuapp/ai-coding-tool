@@ -1,0 +1,76 @@
+.model-library { width: min(620px, calc(100cqw - 40px)); padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.model-search { position: relative; flex-shrink: 0; }
+.model-search .search-field-box { padding-right: 48px; }
+.model-search > .icon-btn { position: absolute; top: 10px; right: 10px; }
+.model-library-body { display: grid; grid-template-columns: 150px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); max-height: 330px; min-height: 0; }
+.model-provider-rail { padding: 10px 7px; border-right: 1px solid var(--line-soft); overflow-y: auto; }
+.model-provider-glyph { flex-shrink: 0; width: 16px; }
+.model-results { padding: 14px 10px; overflow-y: auto; overscroll-behavior: contain; }
+.model-results-heading { display: flex; justify-content: space-between; gap: 10px; padding: 0 8px 10px; color: var(--quiet-strong); font-size: var(--text-meta); }
+.model-results-heading > span:last-child { color: var(--quiet-soft); }
+.model-row { display: flex; align-items: center; gap: 2px; }
+.model-row > .model-choice { flex: 1; min-width: 0; }
+.model-favorite[aria-pressed="true"] { color: var(--accent); }
+.model-empty { margin: 12px 0; }
+.model-library-footer { display: flex; justify-content: space-between; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line-soft); color: var(--quiet); font-size: var(--text-badge); flex-shrink: 0; }
+.model-library-footer span { display: flex; align-items: center; gap: 6px; }
+.effort-strip { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 12px; padding: 8px 16px; border-top: 1px solid var(--line-soft); flex-shrink: 0; }
+.effort-strip-axis { display: flex; align-items: baseline; gap: 5px; min-width: 0; padding-top: 5px; color: var(--quiet-strong); font-size: var(--text-meta); }
+.effort-strip-axis small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-size: var(--text-meta); }
+.effort-strip-axis small::before { content: "· "; }
+.effort-strip-none { grid-column: 2 / -1; padding: 12px 8px; color: var(--quiet); font-size: var(--text-meta); }
+/** A thick track whose fill runs to the knob's middle; the knob tracks the pointer while dragged and glides to an effort otherwise. */
+.effort-slider { --effort-at: 0; --effort-knob: 30px; --effort-travel: calc(100% - var(--effort-knob)); padding: 10px 0 2px; border-radius: 14px; outline: none; cursor: grab; touch-action: none; user-select: none; }
+.effort-slider.dragging { cursor: grabbing; }
+.effort-slider:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .effort-knob { box-shadow: 0 0 0 2px var(--focus-ring), var(--shadow-thumb); }
+/** A groove cut into the glass, a bar of light lying in it, and a bead of glass riding on top. */
+.effort-rail { position: relative; height: 6px; border-radius: 999px; background: var(--meter-track); box-shadow: inset 0 1px 2px rgb(var(--p-shadow) / calc(0.32 * var(--p-shadow-scale))), inset 0 0 0 1px var(--line-glass); }
+.effort-fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--effort-travel) * var(--effort-at) + var(--effort-knob) / 2); border-radius: 999px; background: var(--glass-sheen), var(--ink-faint); transition: width 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background 200ms; }
+/** Each effort's name sits under its stop; the ends hug the rail's ends so the names stay inside it. */
+.effort-stops { position: relative; height: 16px; margin-top: 10px; }
+.effort-stop { position: absolute; left: calc(var(--effort-travel) * var(--effort-stop) + var(--effort-knob) / 2); color: var(--quiet); font-size: 11px; line-height: 16px; white-space: nowrap; transform: translateX(-50%); transition: color 140ms ease; }
+.effort-stop:first-child { left: 0; transform: none; }
+.effort-stop:last-child:not(:first-child) { left: auto; right: 0; transform: none; }
+.effort-stop:hover { color: var(--ink-soft); }
+.effort-stop.current { color: var(--ink); font-weight: 560; }
+.effort-slider.delegates .effort-stop.current { color: var(--accent-bright); }
+.effort-knob {
+  position: absolute;
+  top: -7px;
+  left: calc(var(--effort-travel) * var(--effort-at));
+  width: var(--effort-knob);
+  height: 20px;
+  border-radius: 999px;
+  background: linear-gradient(to bottom, rgb(255 255 255 / 0.28), rgb(255 255 255 / 0)), var(--surface-inverse);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), inset 0 0 0 1px rgb(255 255 255 / 0.12), 0 0 0 0.5px rgb(var(--p-shadow) / 0.2), 0 1px 2px rgb(var(--p-shadow) / calc(0.4 * var(--p-shadow-scale))), 0 4px 10px rgb(var(--p-shadow) / calc(0.28 * var(--p-shadow-scale)));
+  transition: left 180ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background 160ms ease;
+}
+/** Held, the bead goes clear and swells, so the groove and the bar read through it as through a lens. */
+.effort-slider.dragging .effort-knob {
+  background: linear-gradient(to bottom, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.04)), rgb(from var(--surface-inverse) r g b / 0.14);
+  backdrop-filter: blur(1.5px) saturate(190%) brightness(1.12);
+  transform: scale(1.22, 1.34);
+}
+.effort-slider:hover:not(.dragging) .effort-knob { transform: scale(1.06); }
+.effort-slider.dragging .effort-fill, .effort-slider.dragging .effort-knob { transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background 160ms ease; }
+.effort-slider.delegates .effort-fill { background: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .effort-fill, .effort-knob, .effort-stop { transition: none; } }
+@container (max-width: 540px) {
+  .model-library-body { grid-template-columns: 116px minmax(0, 1fr); }
+  .model-provider-rail .nav-item { gap: 6px; padding-inline: 5px; }
+  .model-choice .menu-icon { display: none; }
+  .model-library-footer span { display: none; }
+  .effort-strip { grid-template-columns: minmax(0, 1fr); }
+  .effort-strip-axis { display: none; }
+  .effort-strip-none { grid-column: 1 / -1; }
+}
+/** At composer widths that wrap controls, give the models the full menu width. */
+@container (max-width: 300px) {
+  .model-library { width: calc(100cqw - 16px); }
+  .model-library-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .model-provider-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-right: 0; border-bottom: 1px solid var(--line-soft); }
+  .model-provider-rail .nav-item { gap: 4px; padding-inline: 3px; }
+  .model-provider-rail :is(.nav-item-count, .nav-separator) { display: none; }
+  .model-results { padding-inline: 6px; }
+  .effort-stop:not(.current) { visibility: hidden; }
+}

@@ -17,13 +17,13 @@ import {
   uiFontOrDefault,
 } from "../../src/domain/typography.ts";
 
-const stylesCss = await readFile(new URL("../../src/renderer/styles.css", import.meta.url), "utf8");
+const tokensCss = await readFile(new URL("../../src/renderer/styles/tokens.css", import.meta.url), "utf8");
 
 /** The tokens one attribute block declares, keyed by the value in its selector. */
 function blocks(attribute: string) {
   const found = new Map<string, Map<string, string>>();
   const pattern = new RegExp(`\\[${attribute}="([a-z-]+)"\\] \\{([^}]*)\\}`, "g");
-  for (const [, value, body] of stylesCss.matchAll(pattern)) {
+  for (const [, value, body] of tokensCss.matchAll(pattern)) {
     const tokens = new Map<string, string>();
     for (const [, name, declared] of body.matchAll(/(--[a-z0-9-]+):\s*([^;]+);/g)) tokens.set(name, declared.trim());
     found.set(value, tokens);
@@ -66,7 +66,7 @@ test("every family the stylesheet names is one the app bundles a face for", asyn
 
 test("the token each range writes over is the one the stylesheet already declares in px", () => {
   for (const [range, token] of [[READING_SIZE, "--text-content"], [TERMINAL_SIZE, "--terminal-text"]] as const) {
-    const declared = Number.parseFloat(new RegExp(`${token}:\\s*(\\d+)px`).exec(stylesCss)![1]);
+    const declared = Number.parseFloat(new RegExp(`${token}:\\s*(\\d+)px`).exec(tokensCss)![1]);
     assert.equal(declared, range.default, `${token}`);
   }
 });

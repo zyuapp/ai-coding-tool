@@ -1,0 +1,17 @@
+/** Another browser's sites, picked before their sign-ins are copied into the panel. */
+.browser-import-notice { margin: 0; border-top: 1px solid var(--line); padding: 13px 0; color: var(--success-soft); font-size: var(--text-control); }
+.browser-import-picker { display: grid; gap: 10px; padding: 0 0 19px 35px; }
+.browser-import-sites { max-height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
+.browser-import-sites label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+.browser-import-sites label:hover:not(:has(input:disabled)) { background: var(--control-hover); }
+.browser-import-sites label:has(input:disabled) { cursor: default; }
+.browser-import-sites label:has(input:disabled) span { color: var(--quiet-strong); }
+.browser-import-sites input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.browser-import-sites span { overflow: hidden; color: var(--ink-dim); font-size: var(--text-control); text-overflow: ellipsis; white-space: nowrap; }
+.browser-import-sites em { color: var(--quiet-strong); font-size: var(--text-meta); font-style: normal; }
+.browser-import-sites .browser-import-quiet { padding: 6px 8px; }
+.browser-import-sites label.browser-import-every { margin-bottom: 4px; border-bottom: 1px solid var(--line); border-radius: 6px 6px 0 0; padding-block: 8px; }
+.browser-import-sites .browser-import-every span { color: var(--ink); font-weight: 560; }
+.browser-import-sites .browser-import-every em { font-variant-numeric: tabular-nums; }
+.browser-import-quiet { margin: 0; color: var(--quiet-strong); font-size: var(--text-meta); }
+.browser-import-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }

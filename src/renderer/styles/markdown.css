@@ -1,0 +1,133 @@
+.markdown-body { min-width: 0; white-space: normal; overflow-wrap: break-word; }
+.markdown-body > :first-child { margin-top: 0; }
+.markdown-body > :last-child { margin-bottom: 0; }
+.message-image-previews { display: flex; gap: 12px; max-width: 100%; overflow-x: auto; padding: 2px 0 8px; margin-top: 16px; }
+/* A strip wider than the answer fades at whichever edge still has previews past it. */
+@property --preview-fade-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --preview-fade-end { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes preview-fade {
+  from { --preview-fade-start: 0px; --preview-fade-end: 28px; }
+  4%, 96% { --preview-fade-start: 28px; --preview-fade-end: 28px; }
+  to { --preview-fade-start: 28px; --preview-fade-end: 0px; }
+}
+.message-image-previews {
+  mask-image: linear-gradient(to right, transparent, #000 var(--preview-fade-start), #000 calc(100% - var(--preview-fade-end)), transparent);
+  animation: preview-fade linear both;
+  animation-timeline: scroll(self inline);
+}
+.message-image-preview { flex: 0 0 auto; max-width: 100%; }
+.message-image-preview > button:not(.message-image-unavailable) { display: flex; align-items: center; justify-content: center; width: 320px; height: 180px; max-width: 100%; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--sunken); cursor: zoom-in; }
+.message-image-preview > button:not(.message-image-unavailable):hover { border-color: var(--line-strong); }
+.message-image-preview img { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; }
+.message-image-unavailable { display: block; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: none; box-shadow: var(--glass-rim); color: var(--muted); font: inherit; font-size: 0.85em; text-align: left; }
+button.message-image-unavailable { display: flex; align-items: center; gap: 6px; min-height: 36px; border-color: var(--line-strong); color: var(--ink-dim); cursor: pointer; }
+button.message-image-unavailable:hover { background: var(--surface-hover); color: var(--ink); }
+.message-commit { display: inline; padding: 0; border: 0; background: none; font: inherit; cursor: pointer; }
+/* Underlined like a link, which is what sets a hash that opens apart from one that is only code. */
+.markdown-body .message-commit code { color: var(--link); text-decoration: underline var(--link-line); text-underline-offset: 3px; }
+.message-commit:hover code { color: var(--link-hover); text-decoration-color: currentColor; }
+.markdown-body p { margin: 0 0 15px; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4, .markdown-body h5, .markdown-body h6 {
+  margin: 28px 0 12px;
+  color: var(--ink);
+  font-weight: 620;
+  line-height: 1.28;
+  letter-spacing: -0.018em;
+}
+.markdown-body h1 { font-size: 1.6em; }
+.markdown-body h2 { font-size: 1.33em; }
+.markdown-body h3 { font-size: 1.13em; }
+.markdown-body h4, .markdown-body h5, .markdown-body h6 { font-size: 1em; }
+.markdown-body strong { color: var(--ink); font-weight: 650; }
+.markdown-body a { color: var(--accent-text); text-decoration-color: color-mix(in srgb, var(--accent-text) 40%, transparent); text-underline-offset: 3px; }
+.markdown-body a:hover { color: var(--accent-soft); text-decoration-color: currentColor; }
+/* A link into the app or the checkout carries a glyph, so it reads apart from a web address. */
+.message-link-glyph { width: 0.85em; height: 0.85em; vertical-align: -0.08em; }
+.message-link-file > .message-link-glyph { margin-right: 0.2em; }
+.message-link-thread > .message-link-glyph { margin-left: 0.25em; opacity: 0.8; }
+.message-link-thread:hover > .message-link-glyph { opacity: 1; }
+.markdown-body ul, .markdown-body ol { margin: 0 0 16px; padding-left: 25px; }
+.markdown-body li { margin: 5px 0; padding-left: 2px; }
+.markdown-body li > ul, .markdown-body li > ol { margin: 5px 0 0; }
+.markdown-body li.task-list-item { list-style: none; }
+.markdown-body ul.contains-task-list { padding-left: 3px; }
+.markdown-body input[type="checkbox"] { margin: 0 8px 0 0; accent-color: var(--info-soft); opacity: 1; }
+.markdown-body blockquote { margin: 17px 0; border-left: 3px solid var(--line-strong); padding: 2px 0 2px 15px; color: var(--muted-strong); }
+.markdown-body blockquote p { margin: 0; }
+.markdown-body hr { margin: 26px 0; border: 0; border-top: 1px solid var(--line); }
+.markdown-body code { border-radius: 5px; padding: 2px 5px; background: color-mix(in srgb, var(--code-surface) 70%, var(--canvas)); color: var(--code-ink); font: 0.85em/1.5 var(--mono); }
+.markdown-body pre { margin: 17px 0; border-color: transparent; border-radius: 10px; padding: 13px 16px; background: var(--surface); color: var(--code-ink); line-height: 1.65; white-space: pre; }
+.markdown-body pre code { padding: 0; background: transparent; color: inherit; font-size: inherit; }
+/** A table is one rounded sheet ruled between its rows only, under a quiet header, so the cells read before the grid does. */
+.markdown-body table { display: block; width: max-content; max-width: 100%; margin: 17px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; border-spacing: 0; border-collapse: separate; }
+.markdown-body th, .markdown-body td { border-bottom: 1px solid var(--line-soft); padding: 8px 14px; text-align: left; }
+.markdown-body th { border-bottom-color: var(--line); background: var(--surface); color: var(--muted-strong); font-size: 0.87em; font-weight: 600; }
+.markdown-body tbody tr:last-child td { border-bottom: 0; }
+/* A block that can be copied out on its own. The wrapper carries the block's margin so the button,
+   pinned to the wrapper, stays put while the block scrolls under it. */
+.copyable { position: relative; margin: 17px 0; }
+.markdown-body .copyable > pre, .markdown-body .copyable > table, .copyable > .mermaid-block { margin: 0; }
+/** A fenced block that names its language carries it in a strip along its top, where the copy button sits. */
+.copyable.code-block { overflow: hidden; border-radius: 10px; background: var(--surface); }
+.code-block-head { display: flex; align-items: center; height: 36px; padding: 0 16px; border-bottom: 1px solid var(--line-soft); color: var(--quiet); font: 11px/1 var(--mono); letter-spacing: 0.02em; user-select: none; }
+.markdown-body .copyable.code-block > pre { border-radius: 0; background: transparent; }
+/* The wrapper hugs a narrow table so its button sits at the table's edge, not the column's. */
+.copyable-table { width: max-content; max-width: 100%; }
+/* The heading's last cell keeps room for the button, so it never covers a column's name. */
+.copyable-table th:last-child { padding-right: 44px; }
+/* The same inset from every block's own top-right corner, so all three line up with their frames. */
+.copyable > .copy-affordance { position: absolute; z-index: 2; top: 6px; right: 6px; }
+.copyable-table > .copy-affordance { top: 5px; }
+/** On a code block the tile sits in the heading strip, centred in its height and clear of the line under it. */
+.copyable.code-block > .copy-affordance { top: 5px; right: 7px; width: 26px; height: 26px; }
+.copyable > .diagram-expand { position: absolute; z-index: 2; top: 6px; right: 38px; }
+/* Inert while hidden, so selecting a block's text is never caught by a button nobody can see. The newest
+   row shows them as bare glyphs, so the answer just written says it can be copied without a hover. */
+.copyable > :is(.copy-affordance, .diagram-expand) { opacity: 0; pointer-events: none; }
+.copyable:is(:hover, :focus-within) > :is(.copy-affordance, .diagram-expand),
+.copyable > :is(.copy-affordance, .diagram-expand):is(.copied, .failed),
+.timeline-row.newest .copyable > :is(.copy-affordance, .diagram-expand) { opacity: 1; pointer-events: auto; }
+.timeline-row.newest .copyable:not(:hover, :focus-within) > :is(.copy-affordance, .diagram-expand):not(.copied, .failed) { border-color: transparent; background: transparent; box-shadow: none; backdrop-filter: none; color: var(--quiet); }
+.copyable:is(:hover, :focus-within) > :is(.copy-affordance, .diagram-expand):not(.copied, .failed, :hover) { border-color: var(--line-strong); color: var(--ink-dim); }
+.copy-affordance.copied { border-color: var(--success-line); color: var(--success-soft); }
+.copy-affordance.failed { border-color: var(--danger); color: var(--danger-soft); }
+/* Reserved height, so a message never shifts when its buttons fade in. Shown on the newest row, and on
+   any row under the pointer or holding focus. */
+/* The inset matches a block's own button, so every button in an answer stands in one column. */
+.message-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 28px; padding-right: 7px; opacity: 0; pointer-events: none; transition: opacity 110ms ease-out; }
+.timeline-row:is(.newest, :hover, :focus-within) .message-actions { opacity: 1; pointer-events: auto; }
+.message.turn > .message-actions { margin-top: 9px; }
+/* A message the user sent keeps its time and copy under its right edge, as an answer does, hung in
+   the row's own bottom padding so they add no height. */
+.message.user > .message-actions { order: 1; margin: 4px 0 -32px; }
+/* Drawn from its attribute and out of any selection, so neither a search nor a copy of the message carries the time. */
+.message-time { color: var(--quiet-strong); font-size: var(--text-meta); font-variant-numeric: tabular-nums; white-space: nowrap; user-select: none; }
+.message-time::before { content: attr(data-clock); }
+/* At rest on the newest row the copy is a bare glyph; its tile comes up with the pointer or focus. */
+.timeline-row:not(:hover, :focus-within) .message-actions > .copy-affordance:not(.copied, .failed) { border-color: transparent; background: transparent; box-shadow: none; backdrop-filter: none; }
+@media (prefers-reduced-motion: reduce) { .copy-affordance, .message-actions { transition: none; } }
+.mermaid-block { min-height: 76px; margin: 17px 0; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 15px; background: var(--sunken); }
+.mermaid-block:has(.mermaid-open:hover), .copyable:has(> .diagram-expand:is(:hover, :focus-visible)) > .mermaid-block { border-color: var(--line-bright); }
+.mermaid-loading { display: block; padding: 16px; color: var(--muted); text-align: center; font-size: var(--text-meta); }
+/* max-content wraps a diagram wider than the block so all of it stays clickable; the full width centres a narrow one. */
+.mermaid-open { display: block; width: max-content; min-width: 100%; border: 0; padding: 0; background: none; cursor: zoom-in; }
+/* Auto margins centre a diagram that fits without cutting off the left of one that does not. */
+.mermaid-svg { display: flex; }
+/* The fallbacks are what markup with no viewBox to measure keeps: the width Mermaid itself asked for. */
+.mermaid-svg svg { flex: none; margin: auto; width: var(--diagram-width, 100%); height: var(--diagram-height, auto); }
+.mermaid-block > .block-error { margin-top: 0; }
+.block-error-message { margin: 8px 0; color: var(--muted); font-size: var(--text-meta); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* A visual is unframed: it sits on the conversation like prose and draws its own surfaces. */
+.visual-block { position: relative; margin: 17px 0; }
+.visual-loading-over { position: absolute; inset: 0 0 auto; height: var(--visual-height, 160px); pointer-events: none; }
+.visual-frame { display: block; width: 100%; height: var(--visual-height, 160px); border: 0; background: transparent; opacity: 0; transition: opacity 180ms ease; }
+.visual-frame[data-ready] { opacity: 1; }
+.visual-block:has(> .block-error) > .visual-frame:not([data-ready]) { height: 0; }
+.visual-loading { display: flex; align-items: center; justify-content: center; height: var(--visual-height, 120px); border-radius: 10px; background: var(--sunken); box-shadow: var(--glass-rim); color: var(--muted); font-size: var(--text-meta); }
+/* A diagram or visual that failed: the first line of what went wrong stays in view under its title. */
+.block-error { display: flex; align-items: flex-start; gap: 10px; margin-top: 6px; font-size: var(--text-meta); }
+.block-error > details { flex: 1; min-width: 0; }
+.block-error summary { padding: 6px 0; color: var(--danger-soft); cursor: pointer; }
+.block-error-reason { display: block; margin: 3px 0 0 20px; color: var(--muted); overflow-wrap: anywhere; }
+.block-error pre { margin-bottom: 0; }
+.block-error > .block-error-retry { flex: none; }

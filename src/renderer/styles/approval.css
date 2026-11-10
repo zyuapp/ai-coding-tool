@@ -1,0 +1,32 @@
+/* Held at the foot of the transcript while the reader is further up, since the run waits on it. */
+.approval-card {
+  position: sticky;
+  bottom: 12px;
+  z-index: 3;
+  max-width: 860px;
+  margin: 10px auto 0;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px;
+}
+.approval-icon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: var(--accent-chip); color: var(--accent-soft); font-weight: 750; }
+.approval-card strong { font-size: var(--text-control); font-weight: 600; }
+.approval-card p { margin: 6px 0 11px; color: var(--muted); font-size: var(--text-control); line-height: 1.45; }
+/** The action an approval asks about, drawn the same on the thread's own card and on a coordinator's. */
+.approval-command, .approval-change, .approval-raw { margin: 8px 0 0; border: 1px solid var(--accent-line-soft); border-radius: 8px; overflow: hidden; background: var(--frame-field); }
+.approval-command, .approval-change > pre, .approval-raw > pre { color: var(--code-ink); font: var(--text-meta)/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.approval-command { max-height: 168px; padding: 8px 10px; overflow: auto; }
+.approval-change > p { margin: 0; border-bottom: 1px solid var(--line-soft); padding: 7px 10px; color: var(--muted-strong); font: var(--text-meta)/1.4 var(--mono); overflow-wrap: anywhere; }
+.approval-change > pre { max-height: 200px; margin: 0; border: 0; border-radius: 0; padding: 8px 10px; overflow: auto; background: none; }
+/** An edit's lines run edge to edge, each behind the mark that says which way it goes. */
+.approval-change > pre:has(> span) { padding-inline: 0; }
+.approval-change :is(.removed, .added) { position: relative; display: block; min-height: 1.55em; padding: 0 10px 0 26px; }
+.approval-change :is(.removed, .added)::before { position: absolute; left: 10px; }
+.approval-change .removed { background: var(--diff-del-surface); }
+.approval-change .removed::before { content: "\2212"; color: var(--danger); }
+.approval-change .added { background: var(--diff-add-surface); }
+.approval-change .added::before { content: "+"; color: var(--success); }
+.approval-raw > summary { padding: 8px 10px; color: var(--muted-strong); font: var(--text-meta)/1.3 var(--mono); cursor: pointer; }
+.approval-raw > pre { max-height: 200px; margin: 0; border: 0; border-top: 1px solid var(--line-soft); border-radius: 0; padding: 8px 10px; overflow: auto; background: none; }
+.approval-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 11px; }

@@ -1,0 +1,101 @@
+.composer {
+  max-width: 860px;
+  margin: 0 auto;
+  overflow: visible;
+  border-radius: 17px;
+  box-shadow: var(--shadow-composer);
+}
+
+.command-menu {
+  position: absolute;
+  z-index: 40;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 9px);
+  max-height: min(390px, calc(100vh - 250px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  --glass-radius: 15px;
+}
+.command-menu-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 13px 9px;
+  border-bottom: 1px solid var(--line);
+  color: var(--quiet);
+  font-size: var(--text-meta);
+  font-weight: 500;
+}
+.command-menu-list { overflow-y: auto; padding: 6px; }
+.command-option {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  border: 0;
+  border-radius: 10px;
+  padding: 7px 10px;
+  background: transparent;
+  color: var(--ink-soft);
+  text-align: left;
+  cursor: pointer;
+}
+.command-option.selected, .review-option:focus { background: var(--glass-pick); box-shadow: var(--glass-rim); }
+.command-option.selected .command-copy strong { color: var(--ink); }
+.command-option.selected .command-copy small { color: var(--ink-dim); }
+.command-mark {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-mid);
+  border-radius: 9px;
+  background: var(--control);
+  color: var(--muted);
+}
+.command-mark.app { border-color: var(--accent-line); background: var(--accent-chip); color: var(--accent-soft); }
+.command-copy { min-width: 0; display: grid; gap: 3px; }
+.command-copy strong { overflow: hidden; color: var(--ink-soft); font: 550 var(--text-control)/1.25 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.command-copy strong em { color: var(--quiet-strong); font-style: normal; font-weight: 450; }
+.command-copy small { overflow: hidden; color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.command-mark.thread { border-color: var(--line-mid); background: var(--control); color: var(--quiet-strong); }
+.command-mark.thread.running { border-color: var(--accent-line); color: var(--accent-soft); }
+/** A thread's title reads as prose; its handle below it is the token the draft carries. */
+.thread-menu .command-copy strong { font-family: inherit; }
+.thread-menu .command-copy small { font-family: var(--mono); }
+.thread-menu .thread-running { color: var(--accent-text); font-family: inherit; font-weight: 550; }
+/** Where the list leaves this project, so rows from elsewhere read as a second group. */
+.thread-menu .command-option.elsewhere { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 12px; }
+.command-empty { margin: 0; padding: 18px 12px; color: var(--quiet); font-size: var(--text-control); text-align: center; }
+.command-menu-status { padding: 8px 13px 10px; border-top: 1px solid var(--line); color: var(--quiet); font-size: var(--text-meta); }
+.review-heading { min-height: 39px; padding-block: 5px; padding-right: 6px; }
+.review-heading:has(.review-back) { padding-left: 6px; }
+.review-heading > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-heading > span code { color: var(--ink-soft); font: 550 var(--text-meta)/1 var(--mono); letter-spacing: 0; }
+.review-targets .command-copy strong { font-family: inherit; }
+.review-option:focus .command-copy strong { color: var(--ink); }
+.review-branch-stage { min-height: 180px; display: flex; flex-direction: column; overflow: hidden; }
+.review-search { flex: none; margin: 8px 8px 4px; }
+.review-branch-list { overflow-y: auto; padding: 4px 8px 8px; }
+.review-branch-list > button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: transparent;
+  color: var(--ink-soft);
+  text-align: left;
+  cursor: pointer;
+}
+.review-branch-list > button.active { background: var(--glass-pick); box-shadow: var(--glass-rim); color: var(--ink); }
+.review-branch-list code { overflow: hidden; font: var(--text-control)/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.review-error { margin: 0; padding: 18px 12px; color: var(--danger-soft); font-size: var(--text-control); text-align: center; }
+.review-form { display: grid; gap: 14px; padding: 14px; }
+.review-form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }

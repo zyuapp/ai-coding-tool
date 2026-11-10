@@ -1,0 +1,45 @@
+/* Holding to talk: the voice is drawn as a wave flowing into the held microphone, whose ring swells with it. */
+.mic-button { position: relative; display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; touch-action: none; user-select: none; transition: transform 160ms ease, background-color 160ms ease, color 160ms ease; }
+.mic-button:hover:not(:disabled) { background: var(--wash); color: var(--ink); }
+.mic-button:disabled { cursor: default; }
+.mic-button.talking { background: var(--accent); color: var(--accent-ink); transform: scale(1.08); }
+.mic-button.talking > svg { position: relative; }
+.talk-halo { position: absolute; inset: -5px; border-radius: 50%; background: var(--accent); opacity: 0.22; transform: scale(calc(0.86 + var(--talk-level, 0) * 0.5)); transition: transform 90ms linear; pointer-events: none; }
+.talk-halo::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 1px solid var(--accent); opacity: calc(0.15 + var(--talk-level, 0) * 0.5); transform: scale(calc(0.9 + var(--talk-level, 0) * 0.35)); transition: transform 90ms linear, opacity 90ms linear; }
+.mic-button.talking.away { background: var(--danger-surface); color: var(--danger); transform: none; box-shadow: inset 0 0 0 1px var(--danger-line); }
+.mic-button.talking.away .talk-halo { opacity: 0; }
+/** Hands-free, the button is a key of glass tinted with the accent. */
+.mic-button.hands-free { background: var(--glass-sheen), rgb(from var(--accent) r g b / 0.28); box-shadow: var(--glass-float-rim), 0 0 14px rgb(from var(--accent) r g b / 0.25); color: var(--accent-soft); }
+.mic-button.hands-free:hover:not(:disabled) { background: var(--glass-sheen), rgb(from var(--accent) r g b / 0.38); color: var(--accent-soft); }
+.composer:has(.composer-bar.dictating) { box-shadow: 0 0 0 1px var(--accent-line), var(--shadow-composer); }
+.composer:has(.dictation-strip.away) { box-shadow: 0 0 0 1px var(--danger-line), var(--shadow-composer); }
+.composer-bar.dictating > :is(.composer-attach, .composer-settings), .composer-bar.dictating .composer-actions > :not(.mic-button, .send-button) { display: none; }
+/* Send keeps its place so the held microphone never moves out from under the pointer. Hands-free, it adds the words and sends, also while a run is going. */
+.composer-bar.dictating:not(.hands-free) .composer-actions > .send-button, .composer-bar.dictating .composer-actions > .send-button.running { visibility: hidden; }
+.dictation-strip { display: flex; flex: 1; align-items: center; gap: 14px; min-width: 0; height: 32px; padding-left: 8px; }
+.dictation-time { flex: none; min-width: 3.2ch; color: var(--accent-text); font-size: var(--text-control); font-variant-numeric: tabular-nums; font-weight: 560; }
+.dictation-wave { flex: 1; min-width: 40px; height: 26px; overflow: visible; -webkit-mask-image: linear-gradient(to right, transparent, #000 35%); mask-image: linear-gradient(to right, transparent, #000 35%); }
+.dictation-wave path { fill: none; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.wave-line { stroke-width: 2; }
+.wave-glow { stroke: var(--accent-text); stroke-width: 6; opacity: 0.25; filter: blur(4px); }
+.wave-body { stop-color: var(--accent-text); }
+.wave-head { stop-color: color-mix(in srgb, var(--accent-text) 30%, white); }
+.dictation-hint { display: flex; flex: none; align-items: center; gap: 12px; color: var(--ink-dim); font-size: var(--text-meta); white-space: nowrap; }
+.dictation-escape { display: flex; align-items: center; gap: 12px; color: var(--muted); }
+.dictation-escape > span { display: flex; align-items: center; gap: 5px; }
+.dictation-strip.away :is(.dictation-time, .dictation-hint) { color: var(--danger); }
+.dictation-strip.away :is(.wave-body, .wave-head) { stop-color: var(--danger); }
+.dictation-strip.away .wave-glow { stroke: var(--danger); }
+.dictation-strip.transcribing .dictation-time { color: var(--muted); }
+.dictation-strip.hands-free .dictation-time::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--accent-text); vertical-align: 1px; animation: hands-free-pulse 1.2s ease-in-out infinite; }
+@keyframes hands-free-pulse { 50% { opacity: 0.3; } }
+.dictation-strip.transcribing :is(.wave-body, .wave-head) { stop-color: var(--muted); }
+.dictation-strip.transcribing .wave-glow { stroke: var(--muted); }
+.dictation-strip.transcribing .dictation-wave { animation: talk-sweep 1.4s ease-in-out infinite; }
+@keyframes talk-sweep { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+@container (max-width: 520px) { .dictation-escape { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .mic-button.talking { transform: none; }
+  .talk-halo, .talk-halo::after { transition: none; }
+  .dictation-strip.transcribing .dictation-wave, .dictation-strip.hands-free .dictation-time::before { animation: none; }
+}

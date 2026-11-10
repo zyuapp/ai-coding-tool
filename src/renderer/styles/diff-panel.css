@@ -1,0 +1,131 @@
+/* Diff panel */
+.diff-panel { display: flex; flex-direction: column; min-height: 0; height: 100%; container: diff-panel / inline-size; }
+.diff-toolbar { display: flex; flex-direction: column; flex: none; gap: 5px; padding: 7px 10px 8px; border-bottom: 1px solid var(--line-soft); }
+/** With the review's progress under it, the toolbar and that line read as one header, divided from the files by the meter. */
+.diff-toolbar:has(+ .diff-progress) { padding-bottom: 4px; border-bottom: 0; }
+.diff-toolbar-main { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
+@container diff-panel (min-width: 560px) {
+  .diff-toolbar:has(> .diff-compare) { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+  .diff-toolbar:has(> .diff-compare) > .diff-toolbar-main { display: contents; }
+  .diff-toolbar:has(> .diff-compare) .diff-toolbar-lead { grid-column: 1; grid-row: 1; }
+  .diff-toolbar:has(> .diff-compare) > .diff-compare { grid-column: 2; grid-row: 1; }
+  .diff-toolbar:has(> .diff-compare) .diff-toolbar-actions { grid-column: 3; grid-row: 1; }
+}
+.diff-toolbar-lead { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.diff-mode-trigger { flex: none; display: flex; align-items: center; gap: 5px; min-height: 28px; border: 0; border-radius: 7px; padding: 3px 7px 3px 9px; background: var(--control-soft); color: var(--ink-dim); font: inherit; font-size: var(--text-menu); cursor: pointer; }
+.diff-mode-trigger svg { color: var(--quiet-strong); }
+.diff-mode-trigger > small { color: var(--muted); font-size: var(--text-meta); font-weight: 560; }
+.diff-mode-trigger:hover:not([aria-disabled="true"]), .diff-mode-trigger[aria-expanded="true"] { background: var(--surface-hover); color: var(--ink); }
+.diff-mode-trigger[aria-disabled="true"], .diff-side-trigger[aria-disabled="true"] { background: none; color: var(--quiet); cursor: default; }
+.diff-linked-commit { min-width: 0; display: flex; align-items: center; gap: 5px; min-height: 28px; border: 0; border-radius: 7px; padding: 3px 8px 3px 7px; background: var(--control-soft); color: var(--ink-dim); cursor: pointer; }
+.diff-linked-commit > code { font: var(--text-meta) var(--mono); }
+.diff-linked-commit > svg { flex: none; color: var(--quiet-strong); }
+.diff-linked-commit:hover { background: var(--surface-hover); color: var(--ink-dim); }
+.diff-linked-commit.copied > svg { color: var(--success); }
+/** Current work points toward the target; both retain the existing branch comparison choices. */
+.diff-compare { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.diff-side { position: relative; flex: 0 1 auto; min-width: 0; }
+.diff-compare > .diff-side:first-child { flex-shrink: 4; }
+.diff-side-trigger { display: flex; align-items: center; gap: 5px; width: 100%; min-height: 28px; padding: 4px 8px; border: 0; border-radius: 7px; background: var(--control-soft); color: var(--ink-dim); font: inherit; font-size: var(--text-meta); text-align: left; cursor: pointer; }
+.diff-side-trigger:hover:not([aria-disabled="true"]), .diff-side-trigger[aria-expanded="true"] { background: var(--surface-hover); color: var(--ink); }
+.diff-side-trigger > small { flex: none; color: var(--muted); font-size: var(--text-meta); font-weight: 560; }
+.diff-side-trigger > span { display: flex; min-width: 0; white-space: pre; }
+.diff-side-trigger > span > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.diff-side-trigger > span > span + span { flex: none; }
+.diff-side-trigger > svg { flex: none; color: var(--quiet-strong); }
+.diff-range-arrow { flex: none; color: var(--muted); }
+
+.diff-toolbar-actions { display: flex; gap: 2px; }
+
+.diff-progress { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding: 0 12px 7px 7px; color: var(--quiet-strong); font-size: var(--text-meta); }
+.diff-progress > span:first-child { padding: 3px 5px; }
+.diff-progress > .diff-progress-done { display: inline-flex; align-items: center; gap: 4px; color: var(--success); font-weight: 560; }
+.diff-progress-meter { position: absolute; left: 12px; right: 12px; bottom: 0; }
+.diff-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 8px 12px; color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.4; }
+.diff-status .task-spinner { flex: none; width: 12px; height: 12px; }
+.diff-error { margin: 6px 10px; }
+
+.diff-scroll { position: relative; display: flex; flex: 1; min-height: 0; flex-direction: column; }
+/** One scroller for the whole review, so files read top to bottom instead of each scrolling inside itself. */
+.diff-files { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; background: var(--code-surface); font-family: var(--mono); font-size: var(--text-meta); line-height: 20px; }
+.diff-files:not(:empty)::after { content: ""; display: block; height: 24px; }
+.diff-window { position: relative; width: 100%; }
+.diff-window-row { position: absolute; top: 0; left: 0; width: 100%; }
+/** The row of the file being read, held at the top edge. A long review is drawn a screenful at a
+    time, out of flow, so the browser cannot hold the row there and the review draws it again. */
+.diff-file-pinned { position: absolute; top: 0; left: 0; right: 0; z-index: 2; }
+
+.diff-file-row { display: grid; grid-template-columns: minmax(0, 1fr) 28px auto; align-items: center; gap: 2px; padding: 4px 8px 4px 2px; border-top: 1px solid var(--line); background: var(--sunken); }
+.diff-file-row.viewed .diff-file-name, .diff-file-row.viewed .diff-file-name em { color: var(--quiet); }
+.diff-file-row:hover { background: var(--surface-hover); }
+.diff-file-open { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 5px 4px; border: 0; background: none; color: var(--ink-dim); font: inherit; font-size: var(--text-meta); text-align: left; cursor: pointer; }
+.diff-file-caret { display: grid; place-items: center; color: var(--quiet-strong); }
+.diff-file-icon { display: grid; place-items: center; color: var(--quiet-strong); }
+/** The folder gives way and the filename stays: truncating the other way round hides what matters. */
+.diff-file-name { display: flex; flex: 1; min-width: 0; white-space: nowrap; font-family: var(--mono); }
+.diff-file-name em { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-style: normal; color: var(--quiet); }
+.diff-file-name span { flex: 0 0 auto; overflow: hidden; text-overflow: ellipsis; }
+.diff-file-editor { opacity: 0; }
+.diff-file-row:hover .diff-file-editor, .diff-file-editor:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) { opacity: 1; }
+.diff-note { margin: 0; padding: 6px 12px 6px 30px; color: var(--quiet); font-size: var(--text-meta); font-family: inherit; }
+
+.diff-line { position: relative; display: flex; align-items: flex-start; min-height: 20px; }
+.diff-line.hunk { padding: 2px 10px; background: var(--diff-hunk-surface); color: var(--diff-hunk-ink); }
+.diff-line.add { background: var(--diff-add-surface); }
+.diff-line.delete { background: var(--diff-del-surface); }
+.diff-line.selected { background: var(--diff-selected); }
+/** A wrapped line is taller than one row, so the number sits on its first visual line rather than its middle. */
+.diff-gutter { position: relative; display: flex; flex: none; align-self: stretch; align-items: flex-start; gap: 0; padding: 0 0 0 20px; border: 0; background: none; color: var(--diff-gutter-ink); font: inherit; text-align: right; cursor: pointer; user-select: none; }
+.diff-gutter span { display: block; width: 38px; padding-right: 8px; }
+.diff-gutter .diff-comment-affordance { position: absolute; z-index: 2; top: 2px; left: 2px; display: grid; width: 16px; height: 16px; padding: 0; place-items: center; border: 1px solid var(--info-line); border-radius: 999px; background: var(--info-surface); box-shadow: var(--glass-rim); color: var(--info-soft); opacity: 0; }
+.diff-line:hover .diff-comment-affordance, .diff-split-cell:hover .diff-comment-affordance, .diff-gutter:focus-visible .diff-comment-affordance { opacity: 1; }
+.diff-line.commented .diff-comment-affordance, .diff-split-cell.commented .diff-comment-affordance { display: none; }
+.diff-gutter:hover { color: var(--ink-dim); }
+.diff-line.add .diff-gutter { background: var(--diff-add-gutter); }
+.diff-line.delete .diff-gutter { background: var(--diff-del-gutter); }
+/** A changed line's number sits on a tinted gutter, so it takes a stronger ink than an unchanged one's. */
+:is(.diff-line, .diff-split-cell):is(.add, .delete) .diff-gutter { color: var(--quiet-strong); }
+.diff-marker { flex: none; width: 14px; text-align: center; color: var(--diff-gutter-ink); white-space: pre; }
+.diff-line:is(.add, .delete) .diff-marker { color: var(--muted); }
+/** Lines always wrap, hanging under their first line, so nothing is read sideways and every row measures its own height. */
+.diff-line code { flex: 1; min-width: 0; padding-right: 12px; padding-left: 2ch; text-indent: -2ch; color: var(--code-ink); font-family: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.diff-split-row { display: grid; grid-template-columns: 1fr 1fr; }
+.diff-split-cell { position: relative; display: flex; align-items: flex-start; min-height: 20px; }
+.diff-split-cell:first-child { border-right: 1px solid var(--line-soft); }
+.diff-split-cell.add { background: var(--diff-add-surface); }
+.diff-split-cell.delete { background: var(--diff-del-surface); }
+.diff-split-cell.empty { background: repeating-linear-gradient(-45deg, transparent 0 6px, rgb(from var(--p-fg-0) r g b / 0.03) 6px 7px), var(--diff-absent); }
+.diff-split-cell.selected { background: var(--diff-selected); }
+.diff-split-cell code { flex: 1; min-width: 0; padding-right: 8px; padding-left: 2ch; text-indent: -2ch; color: var(--code-ink); font-family: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-gutter.static { padding-left: 18px; }
+.diff-gutter.static span { width: 36px; padding-right: 6px; }
+.diff-split-cell.add .diff-gutter { background: var(--diff-add-gutter); }
+.diff-split-cell.delete .diff-gutter { background: var(--diff-del-gutter); }
+
+.diff-line.commented .diff-gutter, .diff-split-cell.commented .diff-gutter { background: var(--info-surface-soft); box-shadow: inset 2px 0 var(--info-line); color: var(--muted); }
+.diff-inline-comment-markers { position: absolute; z-index: 3; top: 1px; left: 1px; display: flex; gap: 2px; }
+.diff-inline-comment-markers button { position: relative; display: grid; min-width: 18px; height: 18px; place-items: center; border: 0; border-radius: 999px; padding: 0 5px; background: var(--info-badge); color: var(--badge-ink); font: 650 var(--text-badge)/18px var(--ui-font); cursor: pointer; }
+/** The pill fits a 20px line; its press reaches 3px past it on every side. */
+.diff-inline-comment-markers button::before { content: ""; position: absolute; inset: -3px; }
+.diff-inline-comment-markers button:hover { box-shadow: 0 0 0 2px var(--info-line); }
+
+/**
+ * The gutter carries the selection. It comes after the add and delete fills because it has to beat
+ * them: a tint on the row alone is lost under the colour the row already has.
+ */
+.diff-line.selected .diff-gutter, .diff-split-cell.selected .diff-gutter { background: var(--diff-selected-line); color: var(--ink); }
+
+/**
+ * Drawn under the run it is about, inset from the gutter so it reads as a note on those lines, and
+ * shaped like the composer it feeds: the lines it names, somewhere to write, and one way to send.
+ */
+.diff-comment { margin: 8px 12px 10px 44px; border: 0; border-radius: 14px; background: var(--glass-control); box-shadow: var(--glass-rim), var(--shadow-composer); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; }
+.diff-comment header { display: flex; align-items: center; gap: 6px; padding: 8px 8px 0 12px; color: var(--quiet-strong); }
+.diff-comment-range { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-family: var(--mono); font-size: var(--text-meta); }
+.diff-comment textarea { display: block; width: 100%; min-height: 34px; max-height: 180px; resize: none; padding: 6px 12px 2px; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--text-control); line-height: 1.5; field-sizing: content; }
+.diff-comment textarea::placeholder { color: var(--quiet-soft); }
+.diff-comment:has(textarea:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *) { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.diff-comment footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px 8px 12px; }
+.diff-comment-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet-strong); font-size: var(--text-meta); }
+.diff-comment .send-button { display: grid; place-items: center; padding: 0; flex: none; width: 28px; height: 28px; }
