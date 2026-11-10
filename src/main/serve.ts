@@ -1,13 +1,16 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { SERVE_RESTART_EXIT, SERVE_RESTARTS_ENV } from "../domain/cli.js";
 import { emptyTailscaleState, type MobilePairingOffer, type MobileServerState } from "../domain/mobile.js";
 import { createRuntimePublisher } from "../host/runtime-publisher.js";
 import { createWorkspaceRuntime } from "../host/workspace-runtime.js";
 import { forkAgentProcessNode } from "./agent-process-node.js";
+import { readAppLaunch } from "./app-launch.js";
 import { appPluginPath } from "./app-plugin-path.js";
 import { attachmentsDirectory, useAttachmentsDirectory } from "./attachment-store.js";
+import { refreshCli } from "./cli-install.js";
 import { createDesktopEvents } from "./desktop-events.js";
 import { claimServeLock } from "./instance-lock.js";
 import { createJsonStorage, WINDOW_STORAGE_FILE } from "./json-storage.js";
@@ -15,6 +18,7 @@ import { useMessageImageStore } from "./message-image-store.js";
 import { startRunHost } from "./run-host.js";
 import { attachmentNames, ORPHAN_ATTACHMENT_MIN_AGE_MS, sweepOrphanAttachments } from "./user-data-sweep.js";
 import { createServeDesktop } from "./serve-desktop.js";
+import { createServeUpdater, updateTarget } from "./serve-updates.js";
 import { createComputerBridge } from "./computer-bridge.js";
 import { createComputerReads } from "./computer-queries.js";
 import { appProfile } from "./user-data.js";
@@ -81,7 +85,27 @@ const NO_TAILSCALE = {
   stop: async () => ({ ok: true as const }),
 };
 
-export async function startServe(options: { userData: string; packaged: boolean; installed?: boolean; resources: string | null; port?: number; local?: boolean; say: (line: string) => void }) {
+/** The version in the app's own package, or null when it cannot be read. */
+function appVersion(appPath: string): string | null {
+  try {
+    const { version } = JSON.parse(readFileSync(path.join(appPath, "package.json"), "utf8")) as { version?: unknown };
+    return typeof version === "string" ? version : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function startServe(options: {
+  userData: string;
+  packaged: boolean;
+  installed?: boolean;
+  resources: string | null;
+  port?: number;
+  local?: boolean;
+  say: (line: string) => void;
+  /** Given when whatever started this server starts it again after it stops for an update. */
+  restart?: () => void;
+}) {
   const { userData, say } = options;
   mkdirSync(userData, { recursive: true });
   const release = claimServeLock(userData);
@@ -106,6 +130,11 @@ export async function startServe(options: { userData: string; packaged: boolean;
   });
 
   const events = createDesktopEvents();
+  const version = appVersion(appPath);
+  const target = options.resources && options.restart ? updateTarget(process.platform, process.execPath, process.env) : null;
+  const updates = target && version && options.restart
+    ? createServeUpdater({ version, target, onState: (update) => events.emit("update:changed", update), restart: options.restart, say })
+    : null;
   const terminal = await import("./terminal-host.js");
   terminal.startTerminalHost({ onData: () => {}, onUpdate: (update) => { events.emit("terminal:event", update); } });
   let running = true;
@@ -144,11 +173,15 @@ export async function startServe(options: { userData: string; packaged: boolean;
     worktreesRoots: () => [worktreesRoot, ...legacyRoots],
     mobile: () => mobile,
     say,
+    build: version ? { version, selfUpdating: updates !== null } : null,
+    updates,
+    launchedUpdate: version && options.resources ? readAppLaunch(userData, version) : null,
     dictation: new DictationHost({ helper: dictationHelper(options.resources ? path.join(options.resources, "native") : path.resolve(__dirname, "..", "..", "native"), Boolean(options.resources)) }),
   });
   const runtime = createWorkspaceRuntime({ desktop, storage: createJsonStorage(path.join(userData, WINDOW_STORAGE_FILE)) });
   const publisher = createRuntimePublisher(runtime);
   await runtime.start();
+  const stopUpdateChecks = updates?.start();
   /** Browser and computer-use surfaces need a desktop; shells can be viewed from a paired computer. */
   await runtime.dispatch({ type: "view.set-browser-tools", enabled: false });
   await runtime.dispatch({ type: "view.set-computer-use", enabled: false });
@@ -198,6 +231,8 @@ export async function startServe(options: { userData: string; packaged: boolean;
     port: () => mobile.mobileState().port,
     stop: () => stopping ??= (async () => {
       running = false;
+      stopUpdateChecks?.();
+      await updates?.dispose();
       terminal.stopTerminalHost();
       await publisher.flush().catch((error) => say(`Could not save the workspace: ${error instanceof Error ? error.message : String(error)}`));
       scheduler?.stop();
@@ -228,16 +263,33 @@ async function main() {
     console.log(pairingLine(offer));
     return;
   }
-  const served = await startServe({ userData, packaged, installed: arguments_.installed, resources: packagedResources(), port: arguments_.port, local: arguments_.local, say: (line) => console.log(line) });
+  const resources = packagedResources();
+  const restarts = process.env[SERVE_RESTARTS_ENV] === "1";
+  /** Kept from the agents and shells this server starts. */
+  delete process.env[SERVE_RESTARTS_ENV];
+  const served = await startServe({
+    userData,
+    packaged,
+    installed: arguments_.installed,
+    resources,
+    port: arguments_.port,
+    local: arguments_.local,
+    say: (line) => console.log(line),
+    ...(restarts ? { restart: () => stop("update", SERVE_RESTART_EXIT) } : {}),
+  });
   console.log(`AI Coding Tool is serving from ${userData}. Press Ctrl+C to stop.`);
-  const stop = (signal: string) => {
-    console.log(`Stopping (${signal})…`);
-    served.stop().then(() => process.exit(0), (error) => {
+  function stop(reason: string, code = 0) {
+    console.log(`Stopping (${reason})…`);
+    served.stop().then(() => process.exit(code), (error) => {
       console.error(error);
       process.exit(1);
     });
-  };
+  }
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.once(signal, () => stop(signal));
+  if (resources) {
+    const cli = await refreshCli().catch(() => null);
+    if (!restarts && cli?.state === "installed" && cli.current) console.log("Start `aic serve` again to let this server update itself.");
+  }
 }
 
 /** The command as a process: what stops it is said plainly and becomes the exit code. */

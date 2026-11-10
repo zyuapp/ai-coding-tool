@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -13,6 +13,8 @@ import {
   projectPathFromArgv,
   projectPathFromUrl,
   SERVE_BOOTSTRAP,
+  SERVE_RESTART_EXIT,
+  SERVE_RESTARTS_ENV,
 } from "../../src/domain/cli.ts";
 
 const CLI_SCRIPT = macCliScript("/Applications/AI Coding Tool.app/Contents/MacOS/AI Coding Tool");
@@ -100,22 +102,54 @@ test("CLI platform configuration preserves macOS and rejects unsupported systems
   assert.equal(cliConfiguration("linux", "relative/home"), null);
 });
 
-test("the command hands serve and pair to the app running as Node, with the arguments intact", { skip: process.platform === "win32" }, async (t) => {
+test("the command hands serve and pair to the app running as Node, and starts serve again when it stops for an update", { skip: process.platform === "win32" }, async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "aic-serve-script-"));
   t.onTestFinished(() => rm(root, { recursive: true, force: true }));
   const app = path.join(root, "app '$(false)");
   const command = path.join(root, "aic");
   const seen = path.join(root, "seen");
-  await writeFile(app, `#!/bin/sh\nprintf '%s\\n' "$ELECTRON_RUN_AS_NODE" "$@" > "${seen}"\n`, { mode: 0o755 });
+  const restarted = path.join(root, "restarted");
+  await writeFile(app, [
+    "#!/bin/sh",
+    `printf '%s|' "$ELECTRON_RUN_AS_NODE" "$${SERVE_RESTARTS_ENV}" "$@" >> "${seen}"; echo >> "${seen}"`,
+    `[ -e "${restarted}" ] && exit 3`,
+    `: > "${restarted}"; exit ${SERVE_RESTART_EXIT}`,
+    "",
+  ].join("\n"), { mode: 0o755 });
   await writeFile(command, linuxCliScript(app), { mode: 0o755 });
-  const result = spawnSync(command, ["serve", "--port", "0"], { encoding: "utf8" });
-  assert.ifError(result.error);
-  assert.equal(result.status, 0, result.stderr);
-  const lines = (await readFile(seen, "utf8")).trimEnd().split("\n");
-  assert.equal(lines[0], "1");
-  assert.equal(lines[1], "-e");
-  assert.match(lines[2] ?? "", /app\.asar/);
-  assert.deepEqual(lines.slice(3), ["--", "serve", "--port", "0"]);
+  const runs = async () => (await readFile(seen, "utf8")).trimEnd().split("\n").map((line) => line.split("|").filter((_, index) => index !== 3));
+
+  const served = spawnSync(command, ["serve", "--port", "0"], { encoding: "utf8" });
+  assert.ifError(served.error);
+  assert.equal(served.status, 3, served.stderr);
+  const serve = ["1", "1", "-e", "--", "serve", "--port", "0", ""];
+  assert.deepEqual(await runs(), [serve, serve]);
+
+  await Promise.all([rm(seen), rm(restarted)]);
+  const paired = spawnSync(command, ["pair", "--dev"], { encoding: "utf8" });
+  assert.equal(paired.status, SERVE_RESTART_EXIT, "pair is never started again");
+  assert.deepEqual(await runs(), [["1", "", "-e", "--", "pair", "--dev", ""]]);
+});
+
+test("stopping the command stops the server it started", { skip: process.platform === "win32" }, async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "aic-serve-signal-"));
+  t.onTestFinished(() => rm(root, { recursive: true, force: true }));
+  const app = path.join(root, "app");
+  const command = path.join(root, "aic");
+  const seen = path.join(root, "seen");
+  await writeFile(app, `#!/bin/sh\ntrap 'echo stopped > "${seen}"; exit 0' TERM\necho started > "${seen}"\nwhile :; do sleep 0.05; done\n`, { mode: 0o755 });
+  await writeFile(command, linuxCliScript(app), { mode: 0o755 });
+  const child = spawn(command, ["serve"], { stdio: "ignore" });
+  t.onTestFinished(() => { child.kill("SIGKILL"); });
+  const exited = new Promise<number | null>((resolve) => child.on("exit", (code) => resolve(code)));
+  const deadline = Date.now() + 5_000;
+  while ((await readFile(seen, "utf8").catch(() => "")).trim() !== "started") {
+    assert.ok(Date.now() < deadline, "the server started");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  child.kill("SIGTERM");
+  assert.equal(await exited, 0);
+  assert.equal((await readFile(seen, "utf8")).trim(), "stopped");
 });
 
 test("the bootstrap finds the serve entry beside the app binary and starts it as the command", async (t) => {

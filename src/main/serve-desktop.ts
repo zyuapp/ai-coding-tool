@@ -1,9 +1,10 @@
-import { NO_APP_UPDATE } from "../domain/app-update.js";
+import { NO_APP_UPDATE, type AppBuild } from "../domain/app-update.js";
 import { noComputers } from "../host/no-computers.js";
 import type { RuntimeDesktop } from "../host/runtime-desktop.js";
 import type * as MobileHost from "./mobile/mobile-host.mjs" with { "resolution-mode": "import" };
 import { serviceDesktop, type ServiceDesktopHost } from "./service-desktop.js";
 import { dictationDesktop, type DictationHost } from "./dictation-host.js";
+import type { ServeUpdater } from "./serve-updates.js";
 
 /** What a headless host adds to the services: the phone bridge it runs itself, and a place to say things. */
 export type ServeDesktopHost = Omit<ServiceDesktopHost, "openUrl" | "computerUse"> & {
@@ -11,6 +12,11 @@ export type ServeDesktopHost = Omit<ServiceDesktopHost, "openUrl" | "computerUse
   say: (line: string) => void;
   /** Transcribes a phone's recordings; there is no microphone to hold here. */
   dictation: DictationHost;
+  build: AppBuild | null;
+  /** Absent where this server cannot replace its own app. */
+  updates: ServeUpdater | null;
+  /** The version this start updated the app to, or null when it is not the first since one. */
+  launchedUpdate: string | null;
 };
 
 function needsDesktop(what: string) {
@@ -22,18 +28,24 @@ function headlessDesktop(host: ServeDesktopHost) {
   const { events } = host;
   const nothing = () => {};
   const unsubscribed = () => () => {};
+  const { updates } = host;
+  let launchedUpdate = host.launchedUpdate;
   return {
     openFolder: needsDesktop("Picking a folder"),
     revealWorktree: needsDesktop("Revealing a checkout"),
     restartForComputerUse: nothing,
     downloadImage: needsDesktop("Saving an image"),
-    checkForUpdates: nothing,
-    appUpdate: async () => NO_APP_UPDATE,
-    appBuild: async () => null,
-    launchedUpdate: async () => null,
-    onAppUpdate: unsubscribed,
-    downloadUpdate: nothing,
-    installUpdate: nothing,
+    checkForUpdates: () => { void updates?.check(); },
+    appUpdate: async () => updates?.state() ?? NO_APP_UPDATE,
+    appBuild: async () => host.build,
+    launchedUpdate: async () => {
+      const version = launchedUpdate;
+      launchedUpdate = null;
+      return version;
+    },
+    onAppUpdate: (listener) => events.on("update:changed", listener),
+    downloadUpdate: () => { void updates?.download(); },
+    installUpdate: () => { void updates?.install(); },
     openSourceLicenses: needsDesktop("The licenses page"),
     mobileState: async () => host.mobile().mobileState(),
     setMobileEnabled: (enabled) => host.mobile().setMobileEnabled(enabled),

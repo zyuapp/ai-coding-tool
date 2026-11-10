@@ -5,7 +5,7 @@ export const CLI_INSTALL_PATH = "/usr/local/bin/aic";
 export const CLI_URL_SCHEME = "aicodingtool";
 
 /** Stamped into the script so an install can tell its own file from someone else's `aic`. Older stamps still count as ours. */
-export const CLI_SCRIPT_MARKER = "# aic-cli v2";
+export const CLI_SCRIPT_MARKER = "# aic-cli v3";
 const CLI_SCRIPT_STAMP = "# aic-cli v";
 
 export type CliStatus = {
@@ -18,6 +18,11 @@ export type CliStatus = {
   current?: boolean;
 };
 
+/** `aic serve` exits with this to be started again by the script, which then runs whatever build is installed. */
+export const SERVE_RESTART_EXIT = 75;
+/** Set by a script that starts `aic serve` again on {@link SERVE_RESTART_EXIT}; a server without it cannot update itself. */
+export const SERVE_RESTARTS_ENV = "AIC_SERVE_RESTARTS";
+
 /**
  * Runs the app's own Node against the headless entry inside its package, on either platform's
  * layout. The script has no way to name a file inside an AppImage, so the binary finds it itself.
@@ -29,10 +34,35 @@ function shellQuote(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
-/** What `aic serve` and `aic pair` run: the app itself as Node, or a refusal from an install that knows no app. */
+function refusal() {
+  return [`    printf '${CLI_COMMAND}: this install cannot serve. Install the command again from AI Coding Tool.\\n' >&2`, "    exit 1"];
+}
+
+function appAsNode(executable: string) {
+  return `${shellQuote(executable)} -e ${shellQuote(SERVE_BOOTSTRAP)} -- "$@"`;
+}
+
+/**
+ * `aic serve` runs as a child so the script can start it again after it installs an update, re-reading
+ * the script in case the update moved the app. Termination is passed on; Ctrl+C reaches the child itself.
+ */
 function serveLines(executable: string | null) {
-  if (!executable) return [`    printf '${CLI_COMMAND}: this install cannot serve. Install the command again from AI Coding Tool.\\n' >&2`, "    exit 1"];
-  return [`    exec env ELECTRON_RUN_AS_NODE=1 ${shellQuote(executable)} -e ${shellQuote(SERVE_BOOTSTRAP)} -- "$@"`];
+  if (!executable) return refusal();
+  return [
+    `    env ${SERVE_RESTARTS_ENV}=1 ELECTRON_RUN_AS_NODE=1 ${appAsNode(executable)} <&0 &`,
+    "    child=$!",
+    "    trap : INT",
+    `    trap 'kill -TERM "$child" 2>/dev/null' TERM HUP`,
+    '    wait "$child"; status=$?',
+    '    while kill -0 "$child" 2>/dev/null; do wait "$child"; status=$?; done',
+    `    [ "$status" -eq ${SERVE_RESTART_EXIT} ] && exec "$0" "$@"`,
+    '    exit "$status"',
+  ];
+}
+
+function pairLines(executable: string | null) {
+  if (!executable) return refusal();
+  return [`    exec env ELECTRON_RUN_AS_NODE=1 ${appAsNode(executable)}`];
 }
 
 function cliScript(opener: readonly string[], executable: string | null) {
@@ -41,8 +71,11 @@ function cliScript(opener: readonly string[], executable: string | null) {
     CLI_SCRIPT_MARKER,
     "# Opens a folder as an AI Coding Tool project, or serves the app headless. Installed from AI Coding Tool settings.",
     'case "$1" in',
-    "  serve|pair)",
+    "  serve)",
     ...serveLines(executable),
+    "    ;;",
+    "  pair)",
+    ...pairLines(executable),
     "    ;;",
     "esac",
     "target=$1",
