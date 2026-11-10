@@ -19,6 +19,7 @@ import {
 import { reduce, shortcutCommands, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, dockFor, dockOwner, emptyWorkspaceState, THREAD_START_PROJECT_MENU, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { Thread } from "../../src/domain/thread.ts";
+import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 
 function input(code: string, { key = "", meta = false, control = false, alt = false, shift = false }: Partial<Omit<KeyInput, "code">> = {}): KeyInput {
   return { key, code, meta, control, alt, shift };
@@ -145,6 +146,13 @@ test("a new thread can open on its project picker, which closes once the thread 
   const focused = reduce(picking, { type: "view.shortcut", action: "composer.focus", surface: "any" }).state;
   assert.equal(focused.openMenu, null, "asking for the composer leaves the picker");
   assert.equal(focused.composerFocus, picking.composerFocus + 1);
+
+  const remote = workspace({ projects: [{ id: "far", root: "/linux/app" }], threads: [thread("r", { projectId: "far" })], currentId: "r" });
+  const link = { id: "linux", name: "linux", host: "linux.tail.ts.net", status: "connected" as const, error: null, pairedAt: 1, capabilities: COMPUTER_CAPABILITIES, state: remote };
+  const elsewhere = { ...state, computers: { ...state.computers, paired: [link], active: "linux" } };
+  const pickingThere = reduce(elsewhere, { type: "view.shortcut", action: "thread.new-pick-project", surface: "any" }).state;
+  assert.equal(pickingThere.composerFocus, elsewhere.composerFocus + 1, "a thread started on another computer still opens the picker afresh here");
+  assert.equal(pickingThere.openMenu, THREAD_START_PROJECT_MENU);
 });
 
 test("going back with a keystroke moves the cursor rather than recording a visit", () => {

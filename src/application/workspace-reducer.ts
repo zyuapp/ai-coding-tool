@@ -199,7 +199,8 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "app.check-for-updates": return [{ type: "app.check-for-updates" }];
     case "app.open-source-licenses": return [{ type: "app.open-source-licenses" }];
     case "thread.new": return [...leaving, newThread];
-    case "thread.new-pick-project": return [...leaving, newThread, { type: "view.set-menu", menu: THREAD_START_PROJECT_MENU }];
+    /** A thread started on a paired computer moves no caret here, so each press asks for it, which also opens the picker afresh. */
+    case "thread.new-pick-project": return [...leaving, newThread, { type: "view.focus-composer" }, { type: "view.set-menu", menu: THREAD_START_PROJECT_MENU }];
     case "run.cancel": return [{ type: "run.cancel" }];
     case "run.allow":
     case "run.deny": {
