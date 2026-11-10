@@ -2790,8 +2790,8 @@ pre {
 .setting-row-action { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
 .setting-row-action em { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--text-meta); font-style: normal; font-variant-numeric: tabular-nums; }
 .setting-row-action em.granted { color: var(--success-soft); }
-.setting-row-action button, .settings-restart button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 11px; background: var(--glass-sheen), var(--control); box-shadow: var(--glint); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
-.setting-row-action button:hover:not(:disabled), .settings-restart button:hover { border-color: var(--line-bright); background: var(--glass-sheen), var(--control-hover); }
+:is(.setting-row-action, .computer-address, .computer-code-actions) button, .settings-restart button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 11px; background: var(--glass-sheen), var(--control); box-shadow: var(--glint); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
+:is(.setting-row-action, .computer-address, .computer-code-actions) button:hover:not(:disabled), .settings-restart button:hover { border-color: var(--line-bright); background: var(--glass-sheen), var(--control-hover); }
 
 .computer-title { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; min-width: 0; }
 .computer-title strong { cursor: text; text-decoration: underline dotted transparent; text-underline-offset: 4px; transition: text-decoration-color 120ms ease; }
@@ -5599,9 +5599,6 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .computer-address label { display: grid; gap: 7px; }
 .computer-address .settings-error { flex-basis: 100%; border: 0; padding: 0; }
 .computer-address input[aria-invalid="true"] { border-color: var(--danger-line); }
-/** A pairing form's own action is a key of glass, as tall as the field beside it. */
-:is(.computer-address, .computer-code-actions) button { display: inline-flex; align-items: center; gap: 6px; min-height: 31px; border: 1px solid var(--line-glass); border-radius: 8px; padding: 0 14px; background: var(--glass-control); box-shadow: var(--glass-rim); color: var(--ink-dim); font: 560 var(--text-control)/1 var(--ui-font); cursor: pointer; }
-:is(.computer-address, .computer-code-actions) button:hover:not(:disabled) { border-color: var(--line-glass); background: var(--glass-control-hover); color: var(--ink); }
 .computer-address input { width: 28ch; border: 1px solid var(--line-input); border-radius: 7px; padding: 5px 9px; background: var(--wash); color: var(--ink); font: var(--text-control)/1.4 var(--mono); }
 .computer-name { display: flex; align-items: end; gap: 10px; }
 .computer-name label { display: grid; gap: 7px; }
