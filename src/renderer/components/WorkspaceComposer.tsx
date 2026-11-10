@@ -84,6 +84,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
           projectHosts={workspace.projectHosts}
           projectId={workspace.currentProject?.id ?? null}
           projectsOpen={workspace.openMenu === THREAD_START_PROJECT_MENU}
+          projectsToken={workspace.composerFocus}
           onSetProjectsOpen={(open) => void workspace.dispatch({ type: "view.set-menu", menu: open ? THREAD_START_PROJECT_MENU : null })}
           recentProjectIds={workspace.recentProjects}
           {...(workspace.currentProject?.workspaceId ? { workspaceId: workspace.currentProject.workspaceId } : {})}
@@ -92,8 +93,9 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
           {...(workspace.draftWorktreeName ? { startsInWorktree: workspace.draftWorktreeName } : {})}
           onSelectProject={(projectId) => {
             if (projectId) void workspace.dispatch({ type: "view.remember-project", projectId });
-            if ((projectId ?? null) === (workspace.currentProject?.id ?? null)) void workspace.dispatch({ type: "view.focus-composer" });
-            else void workspace.actions.newThread(projectId);
+            if ((projectId ?? null) !== (workspace.currentProject?.id ?? null)) void workspace.actions.newThread(projectId);
+            /** A thread started on another computer moves no caret here, so the composer is asked for either way. */
+            void workspace.dispatch({ type: "view.focus-composer" });
           }}
           onAddProject={workspace.actions.openFolder}
           onSelectBranch={workspace.actions.setBranch}

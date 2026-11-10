@@ -208,7 +208,7 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
       const approval = active ? state.approvals[active.runId] : undefined;
       return approval ? [{ type: "run.decide", taskId: approval.taskId, runId: approval.runId, approvalId: approval.approvalId, allow: action === "run.allow" }] : [];
     }
-    case "composer.focus": return [{ type: "view.focus-composer" }];
+    case "composer.focus": return [...(state.openMenu === null ? [] : [{ type: "view.set-menu", menu: null } as AppCommand]), { type: "view.focus-composer" }];
     case "effort.increase":
     case "effort.decrease": {
       /**

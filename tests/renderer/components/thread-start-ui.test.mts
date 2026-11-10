@@ -103,6 +103,38 @@ test("the start options say where a thread begins, and searching narrows the bra
   await view.unmount();
 });
 
+test("asking for the project list again while it is open starts its search afresh", async () => {
+  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  window.desktop = fakeDesktop();
+  const options = (projectsToken: number) => React.createElement(ThreadStartOptions, {
+    projects: [{ id: "project-a", root: "/repo/ai-coding-tool" }, { id: "project-b", root: "/repo/just-speak" }],
+    projectId: "project-a",
+    projectsOpen: true,
+    projectsToken,
+    onSetProjectsOpen() {},
+    branch: null,
+    worktree: false,
+    onSelectProject() {},
+    onAddProject() {},
+    onSelectBranch() {},
+    onSetWorktree() {},
+    coordinator: false,
+    onSetCoordinator() {},
+  });
+  const view = await mount(options(1));
+  const search = () => query<HTMLInputElement>(view.container, 'input[aria-label="Search projects"]');
+  await act(async () => {
+    item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set!.call(search(), "speak");
+    search().dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+  });
+  await act(async () => { item(view.container.querySelector<HTMLButtonElement>('[role="option"]')).focus(); });
+
+  await view.render(options(2));
+  assert.equal(search().value, "");
+  assert.equal(document.activeElement, search());
+  await view.unmount();
+});
+
 test("no project makes a chat, which is left only with whether it coordinates", async () => {
   const ThreadStartOptions = await heldStartOptions();
   window.desktop = fakeDesktop();

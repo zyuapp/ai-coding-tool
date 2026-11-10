@@ -21,9 +21,9 @@ export function useComposerCaret(focusToken: number): ComposerCaret {
   const [pendingCaret, setPendingCaret] = useState<number | null>(null);
   const [dismissedPrompt, setDismissedPrompt] = useState<string | null>(null);
 
-  /** A menu that took the keys as it opened keeps them. */
+  /** A picker that takes the keys as it opens keeps them. */
   useEffect(() => {
-    if (focusToken && !document.activeElement?.closest("[data-popover-menu]")) textareaRef.current?.focus({ preventScroll: true });
+    if (focusToken && !document.activeElement?.closest("[data-keeps-keys]")) textareaRef.current?.focus({ preventScroll: true });
   }, [focusToken]);
 
   useLayoutEffect(() => {

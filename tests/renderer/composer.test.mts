@@ -67,9 +67,9 @@ test("context usage stays within 100% when the window shrinks below the used tok
   await view.unmount();
 });
 
-test("asking for the composer leaves the keys in a menu that took them as it opened", async () => {
+test("asking for the composer leaves the keys in a picker that took them as it opened, and only there", async () => {
   window.desktop = fakeDesktop();
-  const picker = (open: boolean) => open && React.createElement("div", { "data-popover-menu": true }, React.createElement("input", { "aria-label": "Search projects", autoFocus: true }));
+  const picker = (open: boolean, keeps = true) => open && React.createElement("div", { "data-popover-menu": true, ...(keeps ? { "data-keeps-keys": true } : {}) }, React.createElement("input", { "aria-label": "Search projects", autoFocus: true }));
   const view = await mount(renderConversationComposer({ focusToken: 0, startOptions: picker(false) }));
   const field = query<HTMLTextAreaElement>(view.container, "textarea");
 
@@ -78,6 +78,9 @@ test("asking for the composer leaves the keys in a menu that took them as it ope
 
   await view.render(renderConversationComposer({ focusToken: 2, startOptions: picker(false) }));
   assert.equal(dom.window.document.activeElement, field, "once the menu is gone the composer takes them");
+
+  await view.render(renderConversationComposer({ focusToken: 3, startOptions: picker(true, false) }));
+  assert.equal(dom.window.document.activeElement, field, "any other menu gives them up");
   await view.unmount();
 });
 

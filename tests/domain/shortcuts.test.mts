@@ -142,6 +142,9 @@ test("a new thread can open on its project picker, which closes once the thread 
   assert.equal(picking.openMenu, THREAD_START_PROJECT_MENU);
   assert.equal(reduce(picking, { type: "task.select", taskId: "b" }).state.openMenu, null);
   assert.equal(reduce(picking, { type: "task.new" }).state.openMenu, null);
+  const focused = reduce(picking, { type: "view.shortcut", action: "composer.focus", surface: "any" }).state;
+  assert.equal(focused.openMenu, null, "asking for the composer leaves the picker");
+  assert.equal(focused.composerFocus, picking.composerFocus + 1);
 });
 
 test("going back with a keystroke moves the cursor rather than recording a visit", () => {

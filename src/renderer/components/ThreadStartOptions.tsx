@@ -62,6 +62,8 @@ export type ThreadStartOptionsProps = {
   projectHosts?: ReadonlyMap<string, ThreadHost>;
   projectId: string | null;
   projectsOpen: boolean;
+  /** Each new value opens the project list afresh, with an empty search holding the keys. */
+  projectsToken?: number;
   onSetProjectsOpen: (open: boolean) => void;
   /** Project ids last picked here, newest first. Ids with no project are skipped. */
   recentProjectIds?: readonly string[];
@@ -170,7 +172,7 @@ function ProjectPicker({ projects, projectHosts, projectId, recentProjectIds, on
     );
   };
   return (
-    <PickerPopover className="thread-start-popover">
+    <PickerPopover className="thread-start-popover" data-keeps-keys>
       <PickerSearch label="Search projects" value={query} onChange={setQuery} />
       <div role="listbox" aria-label="Projects">
         {/** Leaving the project behind is how a chat is started, so it leads the list rather than hiding in it. */}
@@ -205,7 +207,7 @@ function ProjectPicker({ projects, projectHosts, projectId, recentProjectIds, on
  * from, and whether it gets a checkout of its own. No project makes it a chat. Nothing here touches
  * disk — the first message does that.
  */
-export function ThreadStartOptions({ projects, projectHosts, projectId, projectsOpen, onSetProjectsOpen, recentProjectIds = [], workspaceId, branch, worktree, startsInWorktree, onSelectProject, onAddProject, onSelectBranch, onSetWorktree, worktreeChoices = NO_CHOICES, onStartInWorktree, coordinator, onSetCoordinator }: ThreadStartOptionsProps) {
+export function ThreadStartOptions({ projects, projectHosts, projectId, projectsOpen, projectsToken, onSetProjectsOpen, recentProjectIds = [], workspaceId, branch, worktree, startsInWorktree, onSelectProject, onAddProject, onSelectBranch, onSetWorktree, worktreeChoices = NO_CHOICES, onStartInWorktree, coordinator, onSetCoordinator }: ThreadStartOptionsProps) {
   const [branchesOpen, setBranchesOpen] = useState(false);
   const projectRef = useRef<HTMLDivElement>(null);
   const projectTrigger = useRef<HTMLButtonElement>(null);
@@ -250,6 +252,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, projects
           <ChevronDown size={14} />
         </button>
         {projectsOpen && <ProjectPicker
+          key={projectsToken}
           projects={projects}
           projectHosts={projectHosts}
           projectId={project?.id ?? null}
