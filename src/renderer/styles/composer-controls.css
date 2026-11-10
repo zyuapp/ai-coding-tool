@@ -25,6 +25,9 @@
 .composer-settings .setting-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .fast-mode-toggle { min-height: 30px; gap: 4px; padding: 0 10px 0 8px; }
 .setting-menu { flex: none; font-size: var(--text-control); }
+/** Plain words on the composer, washed only on hover or while open. */
+.setting-menu > .menu-opener { min-height: 30px; gap: 6px; padding: 0 8px; color: var(--ink-faint); font-size: var(--text-control); font-weight: 400; line-height: 20px; }
+.setting-menu > .menu-opener > .menu-opener-chevron { color: var(--quiet); }
 /** The axis is named so the value beside it needs no decoding. */
 .setting-axis { color: var(--quiet-strong); font-size: var(--text-meta); white-space: nowrap; }
 .setting-value { white-space: nowrap; }
@@ -32,6 +35,9 @@
 .setting-detail > span:first-child { color: var(--quiet-soft); }
 .setting-detail > .setting-dot { color: var(--quiet-soft); }
 .setting-mode { display: flex; align-items: center; gap: 4px; }
+/** On a chip that carries the mode beside the model, only the mode takes the danger hue. */
+.setting-menu.danger > .menu-opener:has(.setting-mode) { color: var(--ink-faint); }
+.setting-menu.danger > .menu-opener:has(.setting-mode):is(:hover, [open] > *) { color: var(--ink-soft); }
 .setting-menu.danger .setting-mode { color: var(--danger-soft); }
 .setting-menu[open] .setting-detail, .setting-menu > .menu-opener:hover .setting-detail { color: var(--ink-faint); }
 .setting-detail .delegates { color: var(--accent-soft); }
@@ -184,9 +190,9 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   .composer-actions { gap: 8px; }
   .context-usage-value, .plan-usage-icon { display: none; }
 }
-/** The effort reads in the model's menu, so it goes before the names of the mode and model shorten. */
+/** The effort reads in the model's menu, so it goes before the names of the mode and model shorten; the mode stays in sight. */
 @container (max-width: 400px) {
-  .composer-settings .setting-detail { display: none; }
+  .composer-settings .setting-detail > :is(.setting-effort, .setting-dot) { display: none; }
 }
 @container (max-width: 300px) {
   .context-usage-value { display: none; }

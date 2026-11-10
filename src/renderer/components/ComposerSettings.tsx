@@ -90,7 +90,7 @@ function SettingMenu({ label, axis, heading, value, detail, danger = false, onOp
   useDismissibleLayer(open, [details], close, summary);
 
   return <details ref={details} className={`setting-menu${danger ? " danger" : ""}`} onToggle={(event) => { setOpen(event.currentTarget.open); if (event.currentTarget.open) onOpen?.(); }}>
-    <MenuTrigger as="summary" ref={summary} aria-label={label} tone={danger ? "danger" : undefined}>
+    <MenuTrigger as="summary" variant="ghost" ref={summary} aria-label={label} tone={danger ? "danger" : undefined}>
       {axis && <span className="setting-axis">{axis}</span>}
       <span className="setting-value" {...(typeof value === "string" ? { "data-tip": value, "data-tip-overflow": true } : {})}>{value}</span>
       {detail !== undefined && <span className="setting-detail"><span aria-hidden="true">·</span>{detail}</span>}
@@ -367,7 +367,7 @@ export function ModelMenu({ onOpen, ...props }: ModelLibraryProps & { onOpen: ()
     value={modelLabel}
     danger={modeChoice?.danger}
     detail={effortLabel || mode ? <>
-      {effortLabel && <span className={shown?.delegates ? "delegates" : undefined}>{effortLabel}</span>}
+      {effortLabel && <span className={`setting-effort${shown?.delegates ? " delegates" : ""}`}>{effortLabel}</span>}
       {effortLabel && mode && <span className="setting-dot" aria-hidden="true">·</span>}
       {mode && <span className="setting-mode">{ModeIcon && <ModeIcon size={12} aria-hidden="true" />}{modeLabel}</span>}
     </> : undefined}
