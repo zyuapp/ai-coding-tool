@@ -1,11 +1,10 @@
 import type { Annotation, AttachedFile, PastedText } from "../../domain/conversation.js";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine.js";
-import type { MessageOrigin } from "../../domain/message-origin.js";
+import { isUsersOwn, type MessageOrigin } from "../../domain/message-origin.js";
 import type { ReviewTarget } from "../../domain/review.js";
 import type { AgentEffort, BackgroundProcess, ExecutionPolicy, Subagent } from "../../domain/run.js";
 import type { ThreadRole } from "../../domain/thread-role.js";
 import type { HeldMessage } from "../../domain/usage-limit.js";
-import { isUsersOwn } from "../../domain/message-origin.js";
 import type { Workflow } from "../../domain/workflow.js";
 import type { CoordinationSend } from "../coordination-messages.js";
 import type { QuietSession } from "../outstanding-stops.js";

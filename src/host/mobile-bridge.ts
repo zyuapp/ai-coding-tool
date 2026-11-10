@@ -13,8 +13,7 @@ import { threadWorkspaceId, threadWorkspaceRoot } from "../application/thread-lo
 import { messageImagePath } from "../domain/message-artifacts.js";
 import { attachmentSendFor } from "../application/composer-attachments.js";
 import { drainingQueued } from "../application/workspace-reducer/run-queue.js";
-import { editableQueued } from "../application/state/runs.js";
-import { QUEUED_SENT } from "../application/state/runs.js";
+import { editableQueued, QUEUED_SENT } from "../application/state/runs.js";
 import { REMOTE_UNSUPPORTED } from "../contracts/computer-capabilities.js";
 import { errorMessage } from "./errors.js";
 import type { EffectHandlers, EffectHost } from "./effect-host.js";
