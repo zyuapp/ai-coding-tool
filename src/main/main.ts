@@ -45,7 +45,7 @@ import { startUpdateChecks, type UpdateHost } from "./updates.js";
 import { appProfile } from "./user-data.js";
 import { readAppLaunch } from "./app-launch.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
-import { windowFrameOptions } from "./platform-capabilities.js";
+import { hidesWindowMenuBar, keepsLockedMachineAwake, quitsWithLastWindow, runningAppImage, windowFrameOptions } from "./platform-capabilities.js";
 import { glassRegionsInPoints, loadWindowGlass, systemGlassTint, windowMaterial, windowMaterialOptions, WINDOW_MATERIAL_ARGUMENT } from "./window-backdrop.js";
 import { serveWindowDesktop } from "./window-desktop.js";
 import { recheckMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
@@ -374,7 +374,7 @@ async function createWindow() {
     },
   });
   windowGlass?.attach(window.getNativeWindowHandle());
-  if (process.platform === "linux") {
+  if (hidesWindowMenuBar()) {
     /** Keep native accelerators, but never reveal a menu strip (including on Alt). */
     window.setAutoHideMenuBar(false);
     window.setMenuBarVisibility(false);
@@ -467,7 +467,7 @@ const startup = app.whenReady().then(async () => {
   if (app.isPackaged) {
     void refreshCli().catch((error) => console.error("Could not refresh the aic command:", error));
   }
-  if (process.platform === "darwin") lockAwake = startLockAwake(powerMonitor, powerSaveBlocker, workAhead);
+  if (keepsLockedMachineAwake()) lockAwake = startLockAwake(powerMonitor, powerSaveBlocker, workAhead);
   /** Started before the app spawns anything, and awaited before the first thing that needs it. */
   const searchPath = adoptLoginShellPath();
   const userData = app.getPath("userData");
@@ -475,8 +475,9 @@ const startup = app.whenReady().then(async () => {
   process.env[PRIVATE_CODEX_HOME_ENV] = path.join(userData, "codex-private");
   const { setAppPluginRoot } = await import("./app-plugin.mjs");
   setAppPluginRoot(appPluginPath(app.isPackaged, process.resourcesPath, app.getAppPath()));
-  if (process.platform === "linux" && app.isPackaged && process.env.APPIMAGE) {
-    void registerAppImageProtocol({ appImage: process.env.APPIMAGE, home: homedir(), iconSource: icon, dataHome: process.env.XDG_DATA_HOME })
+  const appImage = runningAppImage();
+  if (app.isPackaged && appImage) {
+    void registerAppImageProtocol({ appImage, home: homedir(), iconSource: icon, dataHome: process.env.XDG_DATA_HOME })
       .catch((error) => console.error("Could not register the AppImage URL handler:", error));
   }
   grantAppWindowPermissions();
@@ -551,7 +552,7 @@ startup.catch((error: unknown) => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  if (quitsWithLastWindow()) app.quit();
 });
 
 /**
@@ -603,7 +604,7 @@ async function finishShutdown() {
     if (servicesStopped) {
       computerLinks?.start();
       resumeComputerUse();
-      if (process.platform === "darwin") lockAwake = startLockAwake(powerMonitor, powerSaveBlocker, workAhead);
+      if (keepsLockedMachineAwake()) lockAwake = startLockAwake(powerMonitor, powerSaveBlocker, workAhead);
       await automationScheduler?.start().catch((failure) => console.error("Could not restart schedules:", failure));
       await startPhoneBridge();
     }

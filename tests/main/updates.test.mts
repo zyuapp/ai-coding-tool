@@ -25,7 +25,7 @@ vi.mock("electron", () => ({
   },
 }));
 vi.mock("electron-updater", () => ({ default: { get autoUpdater() { return stub.updater; } } }));
-vi.mock("../../src/main/platform-capabilities.ts", () => ({ automaticUpdatesAvailable: () => true, manualUpdateRecovery: () => "Open downloads." }));
+vi.mock("../../src/main/platform-capabilities.ts", () => ({ automaticUpdatesAvailable: () => true, manualUpdateRecovery: () => "Open downloads.", runningAppImage: () => undefined }));
 
 beforeEach(() => {
   vi.resetModules();

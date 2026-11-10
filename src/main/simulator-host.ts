@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import { app } from "electron";
 import { ORIENTATION_CODES, untilted, type SimulatorAvailability, type SimulatorDevice, type SimulatorDeviceState, type SimulatorElement, type SimulatorFrame, type SimulatorInput, type SimulatorOrientation, type SimulatorShot, type SimulatorSnapshot } from "../domain/simulator.js";
+import { simulatorSupported } from "./platform-capabilities.js";
 import { FrameReader, type HelperMessage } from "./simulator-frames.js";
 import type { WindowCapability } from "./window-capability.js";
 
@@ -54,7 +55,7 @@ function xcode() {
 }
 
 export async function simulatorAvailability(): Promise<SimulatorAvailability> {
-  if (process.platform !== "darwin") return { status: "unsupported", reason: "The simulator is only on macOS." };
+  if (!simulatorSupported()) return { status: "unsupported", reason: "The simulator is only on macOS." };
   if (unavailable) return { status: "unsupported", reason: unavailable };
   if (!existsSync(helperPath())) return { status: "unsupported", reason: "This build of the app has no simulator helper." };
   if (!await xcode()) return { status: "unsupported", reason: "Install Xcode to use the simulator." };

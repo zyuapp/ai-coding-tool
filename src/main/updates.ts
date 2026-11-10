@@ -3,7 +3,7 @@ import type { AppUpdater } from "electron-updater";
 import { homedir } from "node:os";
 import { NO_APP_UPDATE, type AppBuild, type AppUpdate } from "../domain/app-update.js";
 import { registerAppImageUpdateRepair } from "./appimage-update.js";
-import { automaticUpdatesAvailable, manualUpdateRecovery } from "./platform-capabilities.js";
+import { automaticUpdatesAvailable, manualUpdateRecovery, runningAppImage } from "./platform-capabilities.js";
 
 const RELEASES_URL = "https://github.com/zyuapp/ai-coding-tool/releases/latest";
 const CHECK_INTERVAL = 60 * 60 * 1000;
@@ -32,8 +32,9 @@ let unattendedInstall: string | null = null;
 async function updaterFor(host: UpdateHost) {
   if (updater) return updater;
   const { autoUpdater } = (await import("electron-updater")).default;
-  if (process.platform === "linux" && process.env.APPIMAGE) {
-    registerAppImageUpdateRepair(autoUpdater, { appImage: process.env.APPIMAGE, home: homedir(), dataHome: process.env.XDG_DATA_HOME });
+  const appImage = runningAppImage();
+  if (appImage) {
+    registerAppImageUpdateRepair(autoUpdater, { appImage, home: homedir(), dataHome: process.env.XDG_DATA_HOME });
   }
   autoUpdater.autoDownload = false;
   autoUpdater.on("error", (error) => {

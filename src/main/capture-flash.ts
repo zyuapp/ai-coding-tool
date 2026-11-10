@@ -1,4 +1,5 @@
 import { BrowserWindow } from "electron";
+import { flashesCapturedWindows } from "./platform-capabilities.js";
 
 /** A window's place on screen, in the screen points both CoreGraphics and Electron count in. */
 export type WindowFrame = { x: number; y: number; width: number; height: number };
@@ -19,7 +20,7 @@ div { height: 100%; background: #fff; animation: flash ${FLASH_MS}ms ease-out fo
  * showing a window of our own activates this app whatever the window is told about focus.
  */
 export function flashWindow(frame: WindowFrame) {
-  if (process.platform !== "darwin") return;
+  if (!flashesCapturedWindows()) return;
   if (frame.width < 1 || frame.height < 1) return;
   const overlay = new BrowserWindow({
     x: Math.round(frame.x),

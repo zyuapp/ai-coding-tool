@@ -1,6 +1,7 @@
 import { app, systemPreferences } from "electron";
 import path from "node:path";
 import { DictationHost, dictationHelper } from "./dictation-host.js";
+import { asksMicrophoneAccess } from "./platform-capabilities.js";
 import type { WindowCapability } from "./window-capability.js";
 
 /** A source build can point at another model folder, to try the download without touching the shared one. */
@@ -15,7 +16,7 @@ export function desktopDictation(): DictationHost {
     ...(models ? { models } : {}),
     helper: dictationHelper(app.isPackaged ? path.join(process.resourcesPath, "native") : path.join(app.getAppPath(), "dist", "native"), app.isPackaged),
     microphone: async () => {
-      if (process.platform !== "darwin") return true;
+      if (!asksMicrophoneAccess()) return true;
       const access = systemPreferences.getMediaAccessStatus("microphone");
       if (access === "granted") return true;
       if (access === "not-determined") return systemPreferences.askForMediaAccess("microphone");

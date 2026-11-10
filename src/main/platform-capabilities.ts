@@ -24,6 +24,41 @@ export function windowFrameOptions(platform: NodeJS.Platform = process.platform)
   return platform === "darwin" ? { titleBarStyle: "hiddenInset" } : {};
 }
 
+/** Linux keeps the window's menu accelerators but never shows its menu strip, Alt included. */
+export function hidesWindowMenuBar(platform: NodeJS.Platform = process.platform) {
+  return platform === "linux";
+}
+
+/** macOS keeps the app running with no window, so the last window closing does not quit it. */
+export function quitsWithLastWindow(platform: NodeJS.Platform = process.platform) {
+  return platform !== "darwin";
+}
+
+/** macOS can keep a locked machine awake while work is ahead. */
+export function keepsLockedMachineAwake(platform: NodeJS.Platform = process.platform) {
+  return platform === "darwin";
+}
+
+/** The AppImage this process runs from, on Linux. */
+export function runningAppImage(platform: NodeJS.Platform = process.platform, environment: NodeJS.ProcessEnv = process.env) {
+  return platform === "linux" ? environment.APPIMAGE || undefined : undefined;
+}
+
+/** iOS simulators run only on macOS. */
+export function simulatorSupported(platform: NodeJS.Platform = process.platform) {
+  return platform === "darwin";
+}
+
+/** macOS asks the user before an app may use the microphone. */
+export function asksMicrophoneAccess(platform: NodeJS.Platform = process.platform) {
+  return platform === "darwin";
+}
+
+/** macOS brings the app forward for any window it shows, so a capture can be marked with a flash. */
+export function flashesCapturedWindows(platform: NodeJS.Platform = process.platform) {
+  return platform === "darwin";
+}
+
 /**
  * An interactive Linux shell may open /dev/tty while discovering its job-control state. Give that
  * short-lived probe a session of its own so a terminal-launched app cannot receive SIGTTIN with it.
