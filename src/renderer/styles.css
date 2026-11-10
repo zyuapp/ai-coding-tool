@@ -370,6 +370,17 @@
     --diff-del-surface: rgb(from var(--p-danger) r g b / 0.1);
     --diff-del-line: rgb(from var(--p-danger) r g b / 0.26);
     --diff-del-gutter: rgb(from var(--p-danger) r g b / 0.15);
+    /* A tint is its hue thinned, so a state's fill is a pane of that colour and never a slab of ground. */
+    --accent-surface: rgb(from var(--p-accent) r g b / 0.1);
+    --accent-chip: rgb(from var(--p-accent) r g b / 0.18);
+    --accent-line: rgb(from var(--p-accent) r g b / 0.32);
+    --info-surface: rgb(from var(--p-info) r g b / 0.17);
+    --info-surface-soft: rgb(from var(--p-info) r g b / 0.1);
+    --info-line: rgb(from var(--p-info) r g b / 0.28);
+    --success-surface: rgb(from var(--p-success) r g b / 0.18);
+    --danger-surface: rgb(from var(--p-danger) r g b / 0.11);
+    --danger-chip: rgb(from var(--p-danger) r g b / 0.18);
+    --danger-line: rgb(from var(--p-danger) r g b / 0.32);
     --diff-hunk-surface: rgb(from var(--p-fg-0) r g b / 0.05);
     --diff-absent: rgb(from var(--p-fg-0) r g b / 0.025);
     --diff-selected: rgb(from var(--p-info) r g b / 0.18);
@@ -898,14 +909,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .task-rename.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
 .task-rename.invalid::placeholder { color: var(--muted); }
 /** Looping indicators move in 50 ms steps: between steps nothing changes, so Chromium draws no frame. */
-.task-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--line-bright);
-  border-right-color: var(--muted-strong);
-  border-radius: 50%;
-  animation: spin 900ms steps(18) infinite;
-}
+.task-spinner { width: 14px; height: 14px; }
 .task-attention {
   flex: none;
   width: 8px;
@@ -1629,8 +1633,8 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   display: grid;
   place-items: center;
   border-radius: 16px;
-  background: linear-gradient(180deg, var(--surface-raised), var(--surface));
-  box-shadow: inset 0 0 0 1px var(--line-glass), var(--shadow-float);
+  background: var(--glass-control);
+  box-shadow: var(--glass-rim), var(--shadow-float);
   color: var(--muted);
 }
 .conversation > .empty-state .empty-glyph svg { width: 24px; height: 24px; }
@@ -1924,17 +1928,24 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   font-size: var(--text-content);
   line-height: 1.7;
 }
+/** A notice is a pane of glass as wide as its words, and an error tints the pane. */
 .message.system {
-  border-left: 2px solid var(--line-control);
-  padding: 2px 0 2px 13px;
-  color: var(--muted);
+  position: relative;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 14px;
+  padding: 6px 13px 6px 10px;
+  background: var(--glass-control);
+  box-shadow: var(--glass-rim);
+  color: var(--ink-dim);
 }
-.message.system.error { position: relative; border-left-color: var(--danger); border-radius: 0 8px 8px 0; padding: 7px 40px 7px 13px; background: var(--danger-surface); color: var(--danger); }
+.message.system .message-text { font-size: var(--text-menu); line-height: 18px; }
+.message.system.error { padding: 7px 40px 7px 10px; background: var(--glass-sheen), rgb(from var(--danger) r g b / 0.12); color: var(--danger); }
 .message.system.error .message-detail { color: var(--muted); }
 .message.system.error > .copy-affordance { position: absolute; top: 5px; right: 6px; opacity: 1; pointer-events: auto; }
 .message.system.error > .copy-affordance:not(:hover, .copied, .failed) { border-color: transparent; background: transparent; color: var(--muted); }
-.notice-icon { width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; }
-.message.system:not(.error) { color: var(--ink-dim); }
+.notice-icon { width: 14px; height: 14px; margin-right: 7px; vertical-align: -3px; }
 .message.system:not(.error) .notice-icon { color: var(--info); }
 .message-origin { color: var(--quiet-strong); font-size: var(--text-meta); overflow-wrap: anywhere; }
 /* Drawn as the same chip as a decision's sender, so it reads as a way to that thread. */
@@ -2121,8 +2132,8 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 .block-error > .limit-action { flex: none; margin: 0; }
 .message.tool { margin: 0; }
 /* A run of tool calls is one card, so the calls inside it need no divider of their own. */
-.work-run, .work-row { border: 1px solid var(--line); border-radius: 10px; background: var(--sunken); }
-.work-steps > .work-row { border: 0; border-radius: 8px; background: none; }
+.work-run, .work-row { border-radius: 10px; background: var(--glass-control); box-shadow: var(--glass-rim); }
+.work-steps > .work-row { border-radius: 8px; background: none; box-shadow: none; }
 .work-row > summary, .work-group > summary, .work-run > summary {
   display: flex;
   align-items: center;
@@ -2156,7 +2167,7 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 .updates-fold-entries { display: flex; flex-direction: column; gap: 26px; padding: 16px 0 4px; }
 .timeline-row.user:has(> .thread-message) { padding-bottom: 26px; }
 /* Two lines of what a thread sent, so most messages read whole without opening. */
-.thread-message > summary { min-width: 0; align-items: baseline; padding-block: 7px; }
+.thread-message > summary { min-width: 0; align-items: baseline; padding-block: 7px; background: var(--glass-control); }
 .thread-message > summary > .work-lead { flex: none; color: var(--ink-dim); }
 .thread-message-preview { flex: 1; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
 .thread-message[open] .thread-message-preview { display: none; }
@@ -2277,24 +2288,23 @@ pre {
 .waiting-row { padding-left: 10px; }
 .waiting-row > svg { width: 14px; height: 14px; flex: none; color: var(--muted-strong); stroke-width: 1.8; }
 /** A marble of glass: the accent circles inside it as light, under a highlight that stays put. */
-.run-bead {
+.run-bead, .task-spinner {
   position: relative;
   flex: none;
-  width: 14px;
-  height: 14px;
   overflow: hidden;
   border-radius: 50%;
   background: rgb(from var(--accent-text) r g b / 0.16);
-  box-shadow: var(--glass-rim), 0 0 8px rgb(from var(--accent-text) r g b / 0.28);
+  box-shadow: var(--glass-rim), 0 0 7px rgb(from var(--accent-text) r g b / 0.28);
 }
-.run-bead::before {
+.run-bead { width: 14px; height: 14px; }
+:is(.run-bead, .task-spinner)::before {
   content: "";
   position: absolute;
   inset: 0;
   background: conic-gradient(from 0deg, transparent 20%, var(--accent-text) 78%, transparent);
   animation: spin 1.5s steps(30) infinite;
 }
-.run-bead::after {
+:is(.run-bead, .task-spinner)::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -2311,9 +2321,9 @@ pre {
   align-items: center;
   gap: 8px;
   margin-bottom: 28px;
-  border-radius: 10px;
+  border-radius: 14px;
   padding: 6px 6px 6px 12px;
-  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  background: var(--glass-sheen), rgb(from var(--warning) r g b / 0.1);
   color: var(--ink-dim);
   font-size: var(--text-content);
 }
@@ -2351,10 +2361,6 @@ pre {
 @keyframes sweep-band { from { transform: translateX(-130%); } to { transform: translateX(130%); } }
 @keyframes sweep-ink { from { transform: translateX(130%); } to { transform: translateX(-130%); } }
 @media (prefers-reduced-motion: reduce) { .sweep-band { display: none; } }
-.activity-dots { display: inline-flex; gap: 3px; margin-left: 1px; }
-.activity-dots i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; animation: bounce 1.1s infinite steps(7); }
-.activity-dots i:nth-child(2) { animation-delay: 0.15s; }
-.activity-dots i:nth-child(3) { animation-delay: 0.3s; }
 
 /* Held at the foot of the transcript while the reader is further up, since the run waits on it. */
 .approval-card {
@@ -2378,7 +2384,7 @@ pre {
 .approval-card strong { font-size: var(--text-control); }
 .approval-card p { margin: 6px 0 11px; color: var(--muted); font-size: var(--text-control); line-height: 1.45; }
 /** The action an approval asks about, drawn the same on the thread's own card and on a coordinator's. */
-.approval-command, .approval-change, .approval-raw { margin: 8px 0 0; border: 1px solid var(--accent-line-soft); border-radius: 8px; overflow: hidden; background: var(--canvas); }
+.approval-command, .approval-change, .approval-raw { margin: 8px 0 0; border: 1px solid var(--accent-line-soft); border-radius: 8px; overflow: hidden; background: var(--frame-field); }
 .approval-command, .approval-change > pre, .approval-raw > pre { color: var(--code-ink); font: var(--text-meta)/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .approval-command { max-height: 168px; padding: 8px 10px; overflow: auto; }
 .approval-change > p { margin: 0; border-bottom: 1px solid var(--line-soft); padding: 7px 10px; color: var(--muted-strong); font: var(--text-meta)/1.4 var(--mono); overflow-wrap: anywhere; }
@@ -2816,7 +2822,7 @@ pre {
   /** The UI font draws the modifier symbols on the same metrics as the letters, so the caps line up. */
   font: 570 14px/1 var(--ui-font);
 }
-.setting-row.shortcut-row.capturing { margin-inline: -12px; padding-inline: 12px; border-top-color: transparent; border-radius: 8px; background: var(--accent-surface); box-shadow: inset 3px 0 0 var(--accent); }
+.setting-row.shortcut-row.capturing { margin-inline: -12px; padding-inline: 12px; border-top-color: transparent; border-radius: 8px; background: var(--glass-sheen), var(--accent-surface); box-shadow: var(--glass-rim); }
 .setting-row.shortcut-row.capturing + .setting-row { border-top-color: transparent; }
 .setting-row-action em.shortcut-capture { color: var(--accent-soft); font-weight: 560; }
 .setting-row-action em.shortcut-capture::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
@@ -3490,22 +3496,6 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
 .automation-field > small.error { color: var(--danger); }
 .automation-field input[aria-invalid="true"] { border-color: var(--danger-line); }
 .automation-quiet-sentence { margin: 9px 0 0; color: var(--quiet); font-size: var(--text-meta); line-height: 1.5; }
-.automation-quiet {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 26px;
-  margin-top: 9px;
-  padding: 0 8px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--quiet-strong);
-  font-size: var(--text-control);
-}
-.automation-quiet:hover { border-color: var(--line-mid); color: var(--ink-soft); }
-.automation-quiet[aria-pressed="true"] { border-color: var(--info-line); color: var(--info-soft); }
-.automation-quiet svg { flex: none; }
 .automation-actions { display: flex; align-items: center; gap: 6px; margin-top: 9px; }
 .automation-actions button {
   min-height: 28px;
@@ -3627,10 +3617,10 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
 .process-stop:hover:not(:disabled) { background: var(--danger-chip); border-color: var(--danger-line-hover); }
 .process-stop:disabled { cursor: default; }
 .process-row > .agent-orb { border-radius: 8px; }
-.agent-orb { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--info-surface); color: var(--info); }
-.agent-orb.idle { background: var(--control); color: var(--quiet-strong); }
-.agent-orb.completed { background: var(--success-surface); color: var(--success); }
-.agent-orb.failed, .agent-orb.stopped { background: var(--danger-chip); color: var(--danger); }
+.agent-orb { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--glass-sheen), var(--info-surface); color: var(--info); }
+.agent-orb.idle { background: var(--glass-sheen), var(--control); color: var(--quiet-strong); }
+.agent-orb.completed { background: var(--glass-sheen), var(--success-surface); color: var(--success); }
+.agent-orb.failed, .agent-orb.stopped { background: var(--glass-sheen), var(--danger-chip); color: var(--danger); }
 .agent-working-icon { color: var(--info); animation: pulse 1.4s steps(14) infinite; }
 .session-back {
   display: flex;
@@ -3670,8 +3660,8 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
 .agent-tool[open] summary { border-bottom: 1px solid var(--line); }
 .agent-tool pre { margin: 0; border: 0; border-radius: 0; }
 
-.agent-orb.done { background: var(--success-surface); color: var(--success); }
-.agent-orb.error { background: var(--danger-chip); color: var(--danger); }
+.agent-orb.done { background: var(--glass-sheen), var(--success-surface); color: var(--success); }
+.agent-orb.error { background: var(--glass-sheen), var(--danger-chip); color: var(--danger); }
 .agent-orb.queued { background: var(--control); color: var(--quiet-strong); }
 
 /** A workflow row opens its panel, so the row itself is the button and the stop sits beside it. */
@@ -5013,13 +5003,12 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   .setting-menu > summary { padding-inline: 6px; }
 }
 
-@keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.35; } 30% { transform: translateY(-4px); opacity: 1; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinning { animation: spin 0.9s steps(18) infinite; }
 @keyframes command-menu-in { from { opacity: 0; transform: translateY(5px); } }
 @keyframes working-pulse { 50% { opacity: 0.35; } }
 /** Indicators that loop for as long as work runs rest while another app is in front. */
-:root[data-window-inactive] :is(.task-spinner, .spinning, .send-spinner, .toast.progress .toast-icon, .run-bead::before, .activity-dots i, .agent-working-icon, .workflow-lane-track > i.run.running, .host-mark.reconnecting > svg, .worktree-safety-dot) { animation-name: none !important; }
+:root[data-window-inactive] :is(.spinning, .send-spinner, .toast.progress .toast-icon, :is(.run-bead, .task-spinner)::before, .agent-working-icon, .workflow-lane-track > i.run.running, .host-mark.reconnecting > svg, .worktree-safety-dot) { animation-name: none !important; }
 :root[data-window-inactive] .sweep-band { display: none; }
 @media (prefers-reduced-motion: reduce) {
   /** A mask that follows the scroll position is not motion, and is the only sign a strip has more past its edge. */
@@ -5253,7 +5242,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
  * Drawn under the run it is about, inset from the gutter so it reads as a note on those lines, and
  * shaped like the composer it feeds: the lines it names, somewhere to write, and one way to send.
  */
-.diff-comment { margin: 8px 12px 10px 44px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-composer); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; }
+.diff-comment { margin: 8px 12px 10px 44px; border: 0; border-radius: 14px; background: var(--glass-control); box-shadow: var(--glass-rim), var(--shadow-composer); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; }
 .diff-comment header { display: flex; align-items: center; gap: 6px; padding: 8px 8px 0 12px; color: var(--quiet-strong); }
 .diff-comment-range { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-family: var(--mono); font-size: var(--text-meta); }
 .diff-comment textarea { display: block; width: 100%; min-height: 34px; max-height: 180px; resize: none; padding: 6px 12px 2px; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--text-control); line-height: 1.5; field-sizing: content; }
@@ -5722,7 +5711,14 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   .simulator-notice button, .terminal-new-shell, .agents-panel-none button, .agents-panel-empty button, .agent-status-strip button,
   .thread-start-toggle, .thread-start-worktree, .message-origin-link, .decision-pager button, .suggestion-dismiss-slot > button, .process-stop-slot > button,
   .settled-fold > summary, .updates-fold > summary, .limit-action, .part-fallback button,
-  .thinking-row, .compacting-row, .retrying-row, .waiting-row,
+  .thinking-row, .compacting-row, .retrying-row, .waiting-row, .limit-row, .thread-message > summary,
+  .work-glyph, .work-count, .agent-orb, .agent-tool, .section-count, .subagent-group-count, .right-dock-tabs [role="tab"] > em,
+  .attachment-error, .approval-icon, .decision-count, .decision-recommended, .suggestion-chip, .side-chat-fork,
+  .terminal-status em, .terminal-error, .diff-error, .diff-file-renamed, .thread-tab-note.failed,
+  .coordination-card-step, .coordination-card-pull-request, .workflow-badge, .command-source, .thread-start-field > button > small,
+  .settings-group-heading > span, .setting-pill, .settings-pill-jump, .usage-plan,
+  .worktree-safety, .worktree-setting-icon, .worktree-count, .worktree-delete-target, .worktree-bulk-list,
+  .message-image-unavailable, .visual-loading,
   .segmented, .settings-group-action button, .computer-software-action button, .phone-check-link, .browser-import-actions button,
   .goal-actions button, .queued-steer, .composer-unopenable-check, .context-usage-compact, .paste-pill, .file-pill, .attachment-open, .attachment-edit, .annotation-pill,
   .command-mark, .review-form-actions button, .project-edit-path button, .project-edit-actions button, .worktree-move-actions button,

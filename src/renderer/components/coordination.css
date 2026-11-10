@@ -104,7 +104,7 @@
 .decision-option-description { display: block; color: var(--muted); font-size: var(--text-meta); }
 .decision-recommended { border-radius: 5px; padding: 0 6px; background: var(--accent-chip); color: var(--accent); font-size: var(--text-badge); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .decision-foot { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line-soft); }
-.decision-foot input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--canvas); color: var(--ink); font: inherit; }
+.decision-foot input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--frame-field); color: var(--ink); font: inherit; }
 .decision-foot input:focus { border-color: var(--line-strong); }
 .decision-foot button { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; background: var(--surface-inverse); color: var(--ink-inverse); font-weight: 600; cursor: pointer; }
 .decision-foot button.secondary { background: transparent; color: var(--ink-dim); font-weight: 500; }
@@ -134,7 +134,7 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 .elsewhere-heading .host-mark { color: inherit; font-size: inherit; font-weight: inherit; }
 .elsewhere-place { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 8px 14px 10px; color: var(--muted); font-size: var(--text-meta); }
 .elsewhere-folder, .elsewhere-worktree { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
-.elsewhere-folder select { min-width: 0; max-width: 240px; border: 1px solid var(--line); border-radius: 7px; padding: 3px 6px; background: var(--canvas); color: var(--ink); font: inherit; }
+.elsewhere-folder select { min-width: 0; max-width: 240px; border: 1px solid var(--line); border-radius: 7px; padding: 3px 6px; background: var(--frame-field); color: var(--ink); font: inherit; }
 .elsewhere-folder select:focus { border-color: var(--line-strong); }
 .elsewhere-worktree { cursor: pointer; }
 .elsewhere-worktree input { margin: 0; accent-color: var(--accent); }
@@ -165,7 +165,7 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 .coordination-row:hover { background: var(--surface-hover); color: var(--ink-soft); }
 .coordination-row > span:nth-child(2) { min-width: 0; display: grid; gap: 2px; }
 .coordination-row-mark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--control); }
-.coordination-row-mark .task-spinner { width: 10px; height: 10px; border-width: 1.6px; }
+.coordination-row-mark .task-spinner { width: 10px; height: 10px; }
 .coordination-row-mark .coordination-dot { width: 7px; height: 7px; }
 /** A thread's card in its coordinator's conversation wears the marks and colours of its Overview row. */
 :is(.coordination-row, .coordination-card).working .coordination-row-mark { background: var(--info-surface); }
@@ -590,7 +590,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .thread-tab-mark > .coordination-dot { width: 9px; height: 9px; }
 .thread-tab-mark > .coordination-dot.review { box-shadow: inset 0 0 0 1.6px var(--success), 0 0 0 2.5px var(--sunken); }
 .thread-tab-mark > .coordination-dot.needs-work { box-shadow: inset 0 0 0 1.6px var(--danger), 0 0 0 2.5px var(--sunken); }
-.thread-tab-mark > .task-spinner { width: 11px; height: 11px; border-width: 1.8px; background: var(--sunken); }
+.thread-tab-mark > .task-spinner { width: 11px; height: 11px; }
 .thread-tab-mark.asking, .thread-tab-mark.approval { border-color: var(--accent-line); background: var(--accent-surface); }
 .side-chat-title .thread-tab-status.asking, .side-chat-title .thread-tab-status.approval { color: var(--accent-text); }
 .side-chat-title .thread-tab-status:is(.blocked, .failed, .needs-work) { color: var(--danger-soft); }
