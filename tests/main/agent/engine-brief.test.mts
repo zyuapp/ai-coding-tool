@@ -4,7 +4,12 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { afterEach, test } from "vitest";
 import { ClaudeAgentProvider } from "../../../src/main/claude/claude-agent-provider.mts";
-import type { AutomationBridge, BrowserBridge, CoordinationBridge, FindingBridge, ProviderRunInput, TerminalBridge, ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
+import type { ProviderRunInput } from "../../../src/main/agent/agent-provider.mts";
+import type { AutomationBridge, FindingBridge } from "../../../src/main/tools/automation.mts";
+import type { BrowserBridge } from "../../../src/main/tools/browser.mts";
+import type { CoordinationBridge } from "../../../src/main/tools/coordination.mts";
+import type { TerminalBridge } from "../../../src/main/tools/terminal.mts";
+import type { ThreadBridge } from "../../../src/main/tools/threads.mts";
 import { input as claudeInput, liveQueryFactory, queryFactory, turn as claudeTurn, type LiveQueryCapture, type QueryCapture } from "../../support/claude-session.mjs";
 import { harness, turn as codexTurn } from "../../support/codex-client.mjs";
 

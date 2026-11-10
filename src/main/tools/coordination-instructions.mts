@@ -1,5 +1,5 @@
 import type { CoordinationRole } from "../../domain/coordination.js";
-import type { BriefDialect } from "./run-brief.mjs";
+import type { BriefDialect } from "./tool-server.mjs";
 
 /** What a coordinator is told, around how its own engine lets it read, the one thing engines differ on. */
 const coordinatorInstructions = (reads: string) => [

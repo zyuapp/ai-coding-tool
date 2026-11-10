@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import type { AutomationBridge, BrowserBridge, FindingBridge, ProviderEvent, TerminalBridge, ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
+import type { ProviderEvent } from "../../../src/main/agent/agent-provider.mts";
+import type { AutomationBridge, FindingBridge } from "../../../src/main/tools/automation.mts";
+import type { BrowserBridge } from "../../../src/main/tools/browser.mts";
+import type { TerminalBridge } from "../../../src/main/tools/terminal.mts";
+import type { ThreadBridge } from "../../../src/main/tools/threads.mts";
 import { grantsTool, toolReach } from "../../../src/main/agent/approval-grant.mts";
 import { mcpToolName } from "../../../src/main/tools/tool-names.mts";
 import { runTools } from "../../../src/main/agent/run-tools.mts";

@@ -1,26 +1,10 @@
-import { AUTOMATION_SERVER_NAME } from "../tools/automation.mjs";
-import { BROWSER_SERVER_NAME } from "../tools/browser.mjs";
-import { SIMULATOR_SERVER_NAME } from "../tools/simulator.mjs";
-import { TERMINAL_SERVER_NAME } from "../tools/terminal.mjs";
-import { THREAD_SERVER_NAME } from "../tools/threads.mjs";
+import type { BriefDialect } from "../tools/tool-server.mjs";
+import { TOOL_SERVERS } from "../tools/tool-servers.mjs";
 import type { ProviderRunInput } from "./agent-provider.mjs";
-import { coordinationInstructions } from "./coordination-instructions.mjs";
 import { runTools, type ServedToolSet, type ToolSources } from "./run-tools.mjs";
 import { SIDE_CHAT_INSTRUCTIONS } from "./side-chat-instructions.mjs";
 
 export type BriefSources = ToolSources & Pick<ProviderRunInput, "workspaceRoot" | "projectRoot" | "projectless">;
-
-/** The few words an engine needs said its own way. */
-export type BriefDialect = {
-  /** The engine's own sessions and helpers, which an app thread ID never names. */
-  nativeWork: string;
-  /** The engine's own way to make a worktree, which the app would never hear about. */
-  nativeWorktree?: string;
-  /** How a coordinator reads on this engine, said so it is told only of tools it really has. */
-  coordinatorReads: string;
-  /** How a member in a checkout of its own commits there, for an engine whose sandbox keeps it from doing so as it does everything else. */
-  ownCheckoutCommits?: string;
-};
 
 /** What every engine tells a run beyond its prompt, the tools it offers, and what a warm session must agree on. */
 export type RunBrief = {
@@ -32,19 +16,11 @@ export type RunBrief = {
 
 const linkInstructions = `Only Markdown links are clickable in your output. Link web pages as [label](https://example.com), workspace files as [label](/absolute/path:line), pushed commits as [short hash](https://github.com/owner/repo/commit/<hash>) with their repository's real host and path, and other threads as [title](aicodingtool://thread/<id>). Omit the line when it is unavailable.`;
 const computerUseInstructions = `When a requested outcome lives in another application's interface, use the provided computer-use MCP tools. Never invoke a separately installed cua-driver through Bash. Observe the exact target before every action and verify the result afterward. Prefer accessibility targets, then screenshot coordinates, and use foreground delivery only after background delivery fails.`;
-const automationInstructions = `This task can schedule itself. When the user asks to repeat, babysit, poll, or watch something on a cadence, use the schedule tool instead of looping yourself or reaching for cron.`;
-const threadInstructions = (dialect: BriefDialect) => `Use the AICodingTool thread tools, such as start_thread, list_threads and read_thread, when the user's request requires creating, fetching or acting on another AICodingTool thread. App task IDs identify AICodingTool threads, not ${dialect.nativeWork}. Conversation history and app-supplied thread context are already available evidence; answering from them does not require a tool call.`;
-const worktreeInstructions = (dialect: BriefDialect, moves: boolean) => `When the user asks for work in a worktree, use the AICodingTool worktree tools so the app knows where each thread works. ${moves ? `To do the work in this thread, call move_to_worktree with "new" and the rest of the request as then; this thread moves into a new worktree when this turn ends and its next turn starts there on its own with then, so end the turn right after the call. Start a thread with start_thread and worktree only when the user wants the work in a separate thread.` : `Start a thread with start_thread and worktree to do it.`} Never make one yourself for that with git worktree${dialect.nativeWorktree ? ` or ${dialect.nativeWorktree}` : ""}.`;
-const browserInstructions = `The AICodingTool browser panel is a real browser sharing one session with the user, so every site they have signed into is signed in for you: use the browser panel tools, such as browser_open, browser_read and browser_screenshot, rather than curl or Bash for anything behind a login, and rather than guessing at a page you can read.`;
-const browserReadingInstructions = `The AICodingTool browser panel is a real browser sharing one session with the user: read the pages they have open there with browser_tabs, browser_read and browser_screenshot rather than guessing at them. Opening, clicking and typing in it are work for a thread.`;
-const simulatorInstructions = `To check an iOS app on a simulator, use the AICodingTool simulator tools: simulator_open starts a headless simulator in the Simulator panel and gives its UDID to build, install and launch on with xcodebuild and xcrun simctl; then simulator_read, simulator_tap, simulator_swipe, simulator_type and simulator_rotate drive it. Never open Simulator.app or drive it with computer use: the panel leaves the user's screen, mouse and focus alone.`;
-const simulatorReadingInstructions = `Read the iOS simulator in the AICodingTool Simulator panel with simulator_read rather than guessing at it. Starting and driving it are work for a thread.`;
-const terminalInstructions = `Use terminal_list and terminal_read to see what the user's terminals in the AICodingTool terminal panel have printed. Those shells are the user's; run your own commands in your own.`;
 const workflowInstructions = `For ordinary AICodingTool operations, prefer the AICodingTool tools. They are defaults, not restrictions on the user's workflow: follow the user's explicitly requested target and method, and verify the result in the requested target before reporting success.`;
 
-function offers(tools: readonly ServedToolSet[], server: string, name?: string) {
+function offers(tools: readonly ServedToolSet[], server: string) {
   const set = tools.find((candidate) => candidate.server === server);
-  return set !== undefined && (name === undefined || set.tools.some((tool) => tool.name === name));
+  return (name?: string) => set !== undefined && (name === undefined || set.tools.some((tool) => tool.name === name));
 }
 
 /** The brief every engine gives a run: the same words, gated on the same tools, whichever engine reads it. */
@@ -53,13 +29,7 @@ export function runBrief(input: BriefSources, dialect: BriefDialect): RunBrief {
   const instructions = [
     ...(input.computerUse.status === "unavailable" ? [] : [computerUseInstructions]),
     linkInstructions,
-    ...(offers(tools, AUTOMATION_SERVER_NAME, "schedule") ? [automationInstructions] : []),
-    ...(offers(tools, THREAD_SERVER_NAME) ? [threadInstructions(dialect)] : []),
-    ...(offers(tools, THREAD_SERVER_NAME, "start_thread") ? [worktreeInstructions(dialect, offers(tools, THREAD_SERVER_NAME, "move_to_worktree"))] : []),
-    ...coordinationInstructions(input.coordinationRole, input, dialect),
-    ...(offers(tools, BROWSER_SERVER_NAME) ? [offers(tools, BROWSER_SERVER_NAME, "browser_open") ? browserInstructions : browserReadingInstructions] : []),
-    ...(offers(tools, SIMULATOR_SERVER_NAME) ? [offers(tools, SIMULATOR_SERVER_NAME, "simulator_open") ? simulatorInstructions : simulatorReadingInstructions] : []),
-    ...(offers(tools, TERMINAL_SERVER_NAME) ? [terminalInstructions] : []),
+    ...TOOL_SERVERS.flatMap((server) => server.brief?.(offers(tools, server.name), dialect, input) ?? []),
     ...(tools.length ? [workflowInstructions] : []),
     ...(input.channel === "side" ? [SIDE_CHAT_INSTRUCTIONS] : []),
   ];

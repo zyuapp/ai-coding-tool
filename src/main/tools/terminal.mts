@@ -1,11 +1,16 @@
 import { z } from "zod";
 import { MAX_ID_LENGTH, MAX_SEARCH_TEXT } from "../../contracts/ipc.js";
-import type { TerminalReadResult } from "../../contracts/threads.js";
+import type { TerminalRead, TerminalReadResult } from "../../contracts/threads.js";
 import { describeTerminal, DEFAULT_TERMINAL_LINES, MAX_TERMINAL_LINES, type TerminalSnapshot } from "../../domain/terminal.js";
-import type { TerminalBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
+import type { ToolServer } from "./tool-server.mjs";
 
 export const TERMINAL_SERVER_NAME = "aicodingtool-terminal";
+
+/** The terminal panel, which a run may only read: the shell is the user's, and a run has Bash of its own. */
+export type TerminalBridge = {
+  read(read: TerminalRead): Promise<TerminalReadResult>;
+};
 
 const terminalField = z.string().max(MAX_ID_LENGTH).optional().describe("Which terminal to read. Defaults to the one this thread opened, else the one on screen.");
 
@@ -71,3 +76,13 @@ export const TERMINAL_TOOLS: readonly ToolDefinition<TerminalBridge>[] = [
 export function terminalTools(bridge: TerminalBridge) {
   return bindTools(bridge, TERMINAL_TOOLS);
 }
+
+const TERMINAL_INSTRUCTIONS = `Use terminal_list and terminal_read to see what the user's terminals in the AICodingTool terminal panel have printed. Those shells are the user's; run your own commands in your own.`;
+
+export const TERMINAL_SERVER: ToolServer<{ terminal?: TerminalBridge }> = {
+  name: TERMINAL_SERVER_NAME,
+  definitions: TERMINAL_TOOLS,
+  grants: "none",
+  serve: (run) => run.terminal ? terminalTools(run.terminal) : undefined,
+  brief: (offers) => offers() ? [TERMINAL_INSTRUCTIONS] : [],
+};

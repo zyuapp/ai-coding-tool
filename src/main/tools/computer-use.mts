@@ -1,4 +1,6 @@
+import type { ComputerUseRunConfig } from "../../contracts/ipc.js";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
+import type { ToolServer } from "./tool-server.mjs";
 
 export const COMPUTER_USE_SETUP_SERVER_NAME = "aicodingtool-computer-use";
 
@@ -22,3 +24,11 @@ export const COMPUTER_USE_SETUP_TOOLS: readonly ToolDefinition<ComputerUseSetupB
 export function computerUseSetupTools(bridge: ComputerUseSetupBridge) {
   return bindTools(bridge, COMPUTER_USE_SETUP_TOOLS);
 }
+
+/** Offered while the user still has to enable computer use, so the run can ask them to. */
+export const COMPUTER_USE_SETUP_SERVER: ToolServer<{ computerUse: ComputerUseRunConfig; emit: (event: { type: "computer-use.setup-required" }) => void }> = {
+  name: COMPUTER_USE_SETUP_SERVER_NAME,
+  definitions: COMPUTER_USE_SETUP_TOOLS,
+  grants: "read-only",
+  serve: (run) => run.computerUse.status === "setup-required" ? computerUseSetupTools({ requestSetup: () => run.emit({ type: "computer-use.setup-required" }) }) : undefined,
+};

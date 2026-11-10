@@ -1,65 +1,17 @@
 import type { QuestionAnswers, QuestionRequest } from "../../domain/agent-question.js";
 import type { BackgroundReport, ComputerUseRunConfig, RunChannel, RunOperation, WorkflowReport } from "../../contracts/ipc.js";
-import type { CoordinationRole, CoordinationState, DecisionRequest, MemoryChange, ProposalRequest } from "../../domain/coordination.js";
-import type { BrowserRead, BrowserReadResult, BrowserWrite, SimulatorRead, SimulatorReadResult, SimulatorWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
-import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
+import type { CoordinationRole } from "../../domain/coordination.js";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort, Continuation, ExecutionPolicy, RetryNotice, SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { UsageLimit } from "../../domain/usage-limit.js";
+import type { AutomationBridge, FindingBridge } from "../tools/automation.mjs";
+import type { BrowserBridge } from "../tools/browser.mjs";
+import type { CoordinationBridge } from "../tools/coordination.mjs";
+import type { SimulatorBridge } from "../tools/simulator.mjs";
+import type { TerminalBridge } from "../tools/terminal.mjs";
+import type { ThreadBridge } from "../tools/threads.mjs";
 
-/** The window's workspace, reachable from the run: reads are projections, writes are commands. */
-export type ThreadBridge = {
-  list(query: ThreadListQuery): Promise<ThreadSummary[]>;
-  read(threadId: string, limit?: number, computer?: string): Promise<ThreadTranscript>;
-  wait(threadId: string, timeoutMs: number): Promise<ThreadWaitResult>;
-  /** `computer` names the paired computer a new thread starts on; a named thread is acted on wherever it is. */
-  command(command: ExternalCommand, computer?: string): Promise<ThreadCommandResult>;
-};
-
-/** What a thread working under a coordinator, or the coordinator itself, says for itself, answered by the window that keeps it. */
-export type CoordinationBridge = {
-  report(state: CoordinationState, summary: string): Promise<FindingResult>;
-  decide(request: DecisionRequest): Promise<FindingResult>;
-  /** A coordinator's own memory. It rejects with what to tell the coordinator when the change cannot be made. */
-  remember(change: Exclude<MemoryChange, { kind: "edit" }>): Promise<{ note: string }>;
-  /** A coordinator's suggested threads, kept for the user to start. It rejects with what to tell the coordinator when none could be. */
-  propose(proposals: ProposalRequest[]): Promise<{ note: string }>;
-};
-
-/**
- * What a scheduled run says about itself, answered by the window that keeps it. Scoped to the running
- * thread: a run reports on its own thread or on none at all.
- */
-export type FindingBridge = {
-  notify(report: FindingReport): Promise<FindingResult>;
-  nothingToReport(checked: string): Promise<FindingResult>;
-};
-
-/** The browser panel, driven as the thread that is running: writes are commands, reads are the page. */
-export type BrowserBridge = {
-  command(write: BrowserWrite): Promise<void>;
-  read(read: BrowserRead): Promise<BrowserReadResult>;
-};
-
-/** The device the thread's own Simulator panel shows: writes are commands, reads are the screen. */
-export type SimulatorBridge = {
-  command(write: SimulatorWrite): Promise<void>;
-  read(read: SimulatorRead): Promise<SimulatorReadResult>;
-};
-
-/** The terminal panel, which a run may only read: the shell is the user's, and a run has Bash of its own. */
-export type TerminalBridge = {
-  read(read: TerminalRead): Promise<TerminalReadResult>;
-};
-
-/** Scoped to the running thread, so a run can only reach its own automation. */
-export type AutomationBridge = {
-  read(): Promise<AutomationView | null>;
-  list(): Promise<AutomationView[]>;
-  save(draft: Omit<AutomationDraft, "taskId">): Promise<AutomationView>;
-  update(patch: AutomationPatch): Promise<AutomationView>;
-  remove(): Promise<boolean>;
-};
+export type { ThreadBridge };
 
 export type SteerMessage = {
   messageId: string;

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MAX_BROWSER_WAIT_MS, MAX_ID_LENGTH, MAX_PROMPT_LENGTH, MAX_SEARCH_TEXT, MAX_URL_LENGTH } from "../../contracts/ipc.js";
-import type { BrowserReadResult } from "../../contracts/threads.js";
+import type { BrowserRead, BrowserReadResult, BrowserWrite } from "../../contracts/threads.js";
+import type { CoordinationRole } from "../../domain/coordination.js";
 import {
   browserSearchUrl,
   describeTab,
@@ -10,10 +11,16 @@ import {
   type BrowserSnapshot,
   type BrowserWaitResult,
 } from "../../domain/browser.js";
-import type { BrowserBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
+import type { ToolServer } from "./tool-server.mjs";
 
 export const BROWSER_SERVER_NAME = "aicodingtool-browser";
+
+/** The browser panel, driven as the thread that is running: writes are commands, reads are the page. */
+export type BrowserBridge = {
+  command(write: BrowserWrite): Promise<void>;
+  read(read: BrowserRead): Promise<BrowserReadResult>;
+};
 
 const DEFAULT_WAIT_MS = 20_000;
 const DEFAULT_TEXT_LIMIT = 4_000;
@@ -295,3 +302,16 @@ export const BROWSER_TOOLS: readonly ToolDefinition<BrowserBridge>[] = [
 export function browserTools(bridge: BrowserBridge, { readOnly = false } = {}) {
   return bindTools(bridge, readOnly ? BROWSER_TOOLS.filter((tool) => tool.readOnly) : BROWSER_TOOLS);
 }
+
+const BROWSER_INSTRUCTIONS = `The AICodingTool browser panel is a real browser sharing one session with the user, so every site they have signed into is signed in for you: use the browser panel tools, such as browser_open, browser_read and browser_screenshot, rather than curl or Bash for anything behind a login, and rather than guessing at a page you can read.`;
+const BROWSER_READING_INSTRUCTIONS = `The AICodingTool browser panel is a real browser sharing one session with the user: read the pages they have open there with browser_tabs, browser_read and browser_screenshot rather than guessing at them. Opening, clicking and typing in it are work for a thread.`;
+
+export const BROWSER_SERVER: ToolServer<{ browser?: BrowserBridge; coordinationRole?: CoordinationRole }> = {
+  name: BROWSER_SERVER_NAME,
+  definitions: BROWSER_TOOLS,
+  /** Reading a page the panel already holds changes nothing; opening one and acting in it does. */
+  grants: "read-only",
+  /** A coordinator changes nothing itself, so it reads the browser panel but never drives it. */
+  serve: (run) => run.browser ? browserTools(run.browser, { readOnly: run.coordinationRole === "coordinator" }) : undefined,
+  brief: (offers) => offers() ? [offers("browser_open") ? BROWSER_INSTRUCTIONS : BROWSER_READING_INSTRUCTIONS] : [],
+};

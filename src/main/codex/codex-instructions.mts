@@ -1,4 +1,5 @@
-import { runBrief, type BriefDialect, type BriefSources } from "../agent/run-brief.mjs";
+import { runBrief, type BriefSources } from "../agent/run-brief.mjs";
+import type { BriefDialect } from "../tools/tool-server.mjs";
 
 const CODEX_DIALECT: BriefDialect = {
   nativeWork: "Codex sessions or subagents",

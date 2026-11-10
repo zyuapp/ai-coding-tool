@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { REMOTE_THREAD_READ_TIMEOUT_MS } from "../../contracts/threads.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, SimulatorRead, SimulatorReadResult, SimulatorWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadRequest, ThreadResponse, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
-import type { BrowserBridge, CoordinationBridge, FindingBridge, SimulatorBridge, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
+import type { FindingBridge } from "../tools/automation.mjs";
+import type { BrowserBridge } from "../tools/browser.mjs";
+import type { CoordinationBridge } from "../tools/coordination.mjs";
+import type { SimulatorBridge } from "../tools/simulator.mjs";
+import type { TerminalBridge } from "../tools/terminal.mjs";
+import type { ThreadBridge } from "../tools/threads.mjs";
 import type { CoordinationState, DecisionRequest, MemoryChange, ProposalRequest } from "../../domain/coordination.js";
 
 /** The request union minus the envelope, distributed so each op keeps its own payload. */

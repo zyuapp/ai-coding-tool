@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { AutomationChannel } from "../../../src/main/agent/automation-channel.mts";
-import { automationTools, findingTools } from "../../../src/main/tools/automation.mts";
-import type { AutomationBridge, FindingBridge } from "../../../src/main/agent/agent-provider.mts";
+import { automationTools, findingTools, type AutomationBridge, type FindingBridge } from "../../../src/main/tools/automation.mts";
 import type { AutomationRequest } from "../../../src/contracts/ipc.js";
 import type { FindingReport } from "../../../src/contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../../src/domain/automation.js";

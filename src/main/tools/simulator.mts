@@ -1,10 +1,17 @@
 import { z } from "zod";
-import type { SimulatorReadResult, SimulatorWrite } from "../../contracts/threads.js";
+import type { SimulatorRead, SimulatorReadResult, SimulatorWrite } from "../../contracts/threads.js";
+import type { CoordinationRole } from "../../domain/coordination.js";
 import { MAX_SIMULATOR_TEXT, MAX_SWIPE_MS, SIMULATOR_ORIENTATIONS, simulatorLabel, type SimulatorElement, type SimulatorSnapshot } from "../../domain/simulator.js";
-import type { SimulatorBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
+import type { ToolServer } from "./tool-server.mjs";
 
 export const SIMULATOR_SERVER_NAME = "aicodingtool-simulator";
+
+/** The device the thread's own Simulator panel shows: writes are commands, reads are the screen. */
+export type SimulatorBridge = {
+  command(write: SimulatorWrite): Promise<void>;
+  read(read: SimulatorRead): Promise<SimulatorReadResult>;
+};
 
 /** A first boot of a fresh device can take minutes; one already up answers at once. */
 const BOOT_WAIT_MS = 240_000;
@@ -142,3 +149,16 @@ export const SIMULATOR_TOOLS: readonly ToolDefinition<SimulatorBridge>[] = [
 export function simulatorTools(bridge: SimulatorBridge, { readOnly = false } = {}) {
   return bindTools(bridge, readOnly ? SIMULATOR_TOOLS.filter((tool) => tool.readOnly) : SIMULATOR_TOOLS);
 }
+
+const SIMULATOR_INSTRUCTIONS = `To check an iOS app on a simulator, use the AICodingTool simulator tools: simulator_open starts a headless simulator in the Simulator panel and gives its UDID to build, install and launch on with xcodebuild and xcrun simctl; then simulator_read, simulator_tap, simulator_swipe, simulator_type and simulator_rotate drive it. Never open Simulator.app or drive it with computer use: the panel leaves the user's screen, mouse and focus alone.`;
+const SIMULATOR_READING_INSTRUCTIONS = `Read the iOS simulator in the AICodingTool Simulator panel with simulator_read rather than guessing at it. Starting and driving it are work for a thread.`;
+
+export const SIMULATOR_SERVER: ToolServer<{ simulator?: SimulatorBridge; coordinationRole?: CoordinationRole }> = {
+  name: SIMULATOR_SERVER_NAME,
+  definitions: SIMULATOR_TOOLS,
+  /** Reading the simulator's screen changes nothing; booting it and tapping it do. */
+  grants: "read-only",
+  /** A coordinator reads the simulator's screen and never taps it. */
+  serve: (run) => run.simulator ? simulatorTools(run.simulator, { readOnly: run.coordinationRole === "coordinator" }) : undefined,
+  brief: (offers) => offers() ? [offers("simulator_open") ? SIMULATOR_INSTRUCTIONS : SIMULATOR_READING_INSTRUCTIONS] : [],
+};

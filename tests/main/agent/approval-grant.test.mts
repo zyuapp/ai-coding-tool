@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { RunChannel } from "../../../src/contracts/ipc.ts";
 import type { ExecutionPolicy } from "../../../src/domain/run.ts";
-import { grantsTool, type ApprovalScope, type ToolReach } from "../../../src/main/agent/approval-grant.mts";
+import { grantsTool, toolReach, type ApprovalScope, type ToolReach } from "../../../src/main/agent/approval-grant.mts";
+import { mcpToolName } from "../../../src/main/tools/tool-names.mts";
+import { TOOL_SERVERS } from "../../../src/main/tools/tool-servers.mts";
 import { codexConfig } from "../../../src/main/codex/codex-config.mts";
 import { liveTurn } from "../../support/claude-session.mjs";
 
@@ -94,4 +96,34 @@ test("both engines grant the same tools for the same policy and channel", async 
       assert.equal(await claudeGrants(policy, channel, "Bash"), workspace, `claude workspace · ${where}`);
     }
   }
+});
+
+test("of every app tool, only these run without asking", () => {
+  const unasked = TOOL_SERVERS.flatMap((server) => server.definitions.map((tool) => mcpToolName(server.name, tool.name))).filter((name) => toolReach(name) === "app");
+  assert.deepEqual(unasked, [
+    "mcp__aicodingtool-computer-use__request_setup",
+    "mcp__aicodingtool-automation__schedule",
+    "mcp__aicodingtool-automation__status",
+    "mcp__aicodingtool-automation__update",
+    "mcp__aicodingtool-automation__stop",
+    "mcp__aicodingtool-automation__list_all",
+    "mcp__aicodingtool-automation__notify",
+    "mcp__aicodingtool-automation__nothing_to_report",
+    "mcp__aicodingtool-threads__list_threads",
+    "mcp__aicodingtool-threads__read_thread",
+    "mcp__aicodingtool-threads__wait_for_thread",
+    "mcp__aicodingtool-coordination__report_status",
+    "mcp__aicodingtool-coordination__raise_decision",
+    "mcp__aicodingtool-coordination__remember",
+    "mcp__aicodingtool-coordination__forget",
+    "mcp__aicodingtool-coordination__set_purpose",
+    "mcp__aicodingtool-coordination__propose_threads",
+    "mcp__aicodingtool-browser__browser_read",
+    "mcp__aicodingtool-browser__browser_screenshot",
+    "mcp__aicodingtool-browser__browser_console",
+    "mcp__aicodingtool-browser__browser_network",
+    "mcp__aicodingtool-browser__browser_wait",
+    "mcp__aicodingtool-browser__browser_tabs",
+    "mcp__aicodingtool-simulator__simulator_read",
+  ]);
 });

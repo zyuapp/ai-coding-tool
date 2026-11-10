@@ -1,15 +1,9 @@
-import { automationTools, AUTOMATION_SERVER_NAME, findingTools } from "../tools/automation.mjs";
-import { browserTools, BROWSER_SERVER_NAME } from "../tools/browser.mjs";
-import { simulatorTools, SIMULATOR_SERVER_NAME } from "../tools/simulator.mjs";
-import { computerUseSetupTools, COMPUTER_USE_SETUP_SERVER_NAME } from "../tools/computer-use.mjs";
-import { terminalTools, TERMINAL_SERVER_NAME } from "../tools/terminal.mjs";
-import { threadTools, THREAD_SERVER_NAME } from "../tools/threads.mjs";
-import { coordinationTools, COORDINATION_SERVER_NAME } from "../tools/coordination.mjs";
 import type { BoundTool } from "../tools/tool-definition.mjs";
+import { TOOL_SERVERS, type ToolServerRun } from "../tools/tool-servers.mjs";
 import type { ProviderRunInput } from "./agent-provider.mjs";
 import { offeredOn } from "./channel-tools.mjs";
 
-export type ToolSources = Pick<ProviderRunInput, "channel" | "computerUse" | "operation" | "automations" | "findings" | "threads" | "coordinationRole" | "coordination" | "browser" | "simulator" | "terminal" | "emit">;
+export type ToolSources = Pick<ProviderRunInput, "channel" | "computerUse"> & ToolServerRun;
 
 export type ServedToolSet = { server: string; tools: BoundTool[] };
 
@@ -18,22 +12,8 @@ export type ServedToolSet = { server: string; tools: BoundTool[] };
  * the channel withholds. An engine that serves this list flat offers the same tools Claude sees.
  */
 export function runTools(input: ToolSources): ServedToolSet[] {
-  const sets: ServedToolSet[] = [];
-  if (input.computerUse.status === "setup-required") {
-    sets.push({ server: COMPUTER_USE_SETUP_SERVER_NAME, tools: computerUseSetupTools({ requestSetup: () => input.emit({ type: "computer-use.setup-required" }) }) });
-  }
-  if (input.automations) {
-    sets.push({ server: AUTOMATION_SERVER_NAME, tools: [...automationTools(input.automations, input.coordinationRole), ...(input.findings ? findingTools(input.findings) : [])] });
-  }
-  /** A native review is already isolated in a thread of the engine's own. App thread tools would create sidebar tasks instead. */
-  if (input.threads && input.operation?.type !== "review") {
-    sets.push({ server: THREAD_SERVER_NAME, tools: threadTools(input.threads, Date.now, input.coordinationRole) });
-  }
-  if (input.coordination && input.coordinationRole && input.operation?.type !== "review") sets.push({ server: COORDINATION_SERVER_NAME, tools: coordinationTools(input.coordination, input.coordinationRole) });
-  /** A coordinator changes nothing itself, so it reads the browser panel but never drives it. */
-  if (input.browser) sets.push({ server: BROWSER_SERVER_NAME, tools: browserTools(input.browser, { readOnly: input.coordinationRole === "coordinator" }) });
-  /** The same holds for the simulator: a coordinator reads its screen and never taps it. */
-  if (input.simulator) sets.push({ server: SIMULATOR_SERVER_NAME, tools: simulatorTools(input.simulator, { readOnly: input.coordinationRole === "coordinator" }) });
-  if (input.terminal) sets.push({ server: TERMINAL_SERVER_NAME, tools: terminalTools(input.terminal) });
-  return sets.map(({ server, tools }) => ({ server, tools: offeredOn(input.channel, server, tools) }));
+  return TOOL_SERVERS.flatMap((server) => {
+    const tools = server.serve(input);
+    return tools ? [{ server: server.name, tools: offeredOn(input.channel, server.name, tools) }] : [];
+  });
 }

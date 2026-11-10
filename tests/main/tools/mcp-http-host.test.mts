@@ -5,10 +5,12 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { afterEach, test } from "vitest";
 import { ClaudeAgentProvider } from "../../../src/main/claude/claude-agent-provider.mts";
-import type { AutomationBridge, BrowserBridge, FindingBridge, ProviderEvent, ProviderRunInput, TerminalBridge, ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
+import type { ProviderEvent, ProviderRunInput } from "../../../src/main/agent/agent-provider.mts";
+import type { AutomationBridge, FindingBridge } from "../../../src/main/tools/automation.mts";
+import type { ThreadBridge } from "../../../src/main/tools/threads.mts";
 import { runTools } from "../../../src/main/agent/run-tools.mts";
-import { browserTools } from "../../../src/main/tools/browser.mts";
-import { terminalTools } from "../../../src/main/tools/terminal.mts";
+import { browserTools, type BrowserBridge } from "../../../src/main/tools/browser.mts";
+import { terminalTools, type TerminalBridge } from "../../../src/main/tools/terminal.mts";
 import { McpHttpHost } from "../../../src/main/tools/mcp-http-host.mts";
 import { input, queryFactory, type QueryCapture } from "../../support/claude-session.mjs";
 

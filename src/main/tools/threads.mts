@@ -1,14 +1,24 @@
 import { z } from "zod";
 import { MAX_ID_LENGTH, MAX_PROMPT_LENGTH, MAX_SEARCH_TEXT, MAX_THREAD_WAIT_MS } from "../../contracts/ipc.js";
-import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js";
+import type { ExternalCommand, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
+import type { RunOperation } from "../../contracts/ipc.js";
 import { AGENT_EFFORTS, AGENT_ENGINES, BUILT_IN_MODELS, isModelId, modelDelegable, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort } from "../../domain/run.js";
 import { THREAD_ROLES, type ThreadRole } from "../../domain/thread-role.js";
 import { DELIVERIES, MAX_BRIEF_FIELD, MAX_PROPOSAL_COMPUTER, MAX_PROPOSAL_PROJECT, MAX_PROPOSAL_TITLE, type CoordinationRole, type Delivery } from "../../domain/coordination.js";
-import type { ThreadBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
+import type { BriefDialect, ToolServer } from "./tool-server.mjs";
 
 export const THREAD_SERVER_NAME = "aicodingtool-threads";
+
+/** The window's workspace, reachable from the run: reads are projections, writes are commands. */
+export type ThreadBridge = {
+  list(query: ThreadListQuery): Promise<ThreadSummary[]>;
+  read(threadId: string, limit?: number, computer?: string): Promise<ThreadTranscript>;
+  wait(threadId: string, timeoutMs: number): Promise<ThreadWaitResult>;
+  /** `computer` names the paired computer a new thread starts on; a named thread is acted on wherever it is. */
+  command(command: ExternalCommand, computer?: string): Promise<ThreadCommandResult>;
+};
 
 /** The workspace bridge with the clock idle times are measured against. */
 export type ThreadToolContext = { bridge: ThreadBridge; now: () => number };
@@ -327,3 +337,19 @@ const MEMBER_THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = THREAD
 export function threadTools(bridge: ThreadBridge, now: () => number = Date.now, role?: CoordinationRole) {
   return bindTools({ bridge, now }, role === "coordinator" ? COORDINATOR_THREAD_TOOLS : role === "member" ? MEMBER_THREAD_TOOLS : THREAD_TOOLS);
 }
+
+const threadInstructions = (dialect: BriefDialect) => `Use the AICodingTool thread tools, such as start_thread, list_threads and read_thread, when the user's request requires creating, fetching or acting on another AICodingTool thread. App task IDs identify AICodingTool threads, not ${dialect.nativeWork}. Conversation history and app-supplied thread context are already available evidence; answering from them does not require a tool call.`;
+const worktreeInstructions = (dialect: BriefDialect, moves: boolean) => `When the user asks for work in a worktree, use the AICodingTool worktree tools so the app knows where each thread works. ${moves ? `To do the work in this thread, call move_to_worktree with "new" and the rest of the request as then; this thread moves into a new worktree when this turn ends and its next turn starts there on its own with then, so end the turn right after the call. Start a thread with start_thread and worktree only when the user wants the work in a separate thread.` : `Start a thread with start_thread and worktree to do it.`} Never make one yourself for that with git worktree${dialect.nativeWorktree ? ` or ${dialect.nativeWorktree}` : ""}.`;
+
+export const THREAD_SERVER: ToolServer<{ threads?: ThreadBridge; operation?: RunOperation; coordinationRole?: CoordinationRole }> = {
+  name: THREAD_SERVER_NAME,
+  definitions: THREAD_TOOLS,
+  /** Reading the workspace changes nothing, so it needs no approval; starting or stopping a run does. */
+  grants: "read-only",
+  /** A native review is already isolated in a thread of the engine's own. App thread tools would create sidebar tasks instead. */
+  serve: (run) => run.threads && run.operation?.type !== "review" ? threadTools(run.threads, Date.now, run.coordinationRole) : undefined,
+  brief: (offers, dialect) => [
+    ...(offers() ? [threadInstructions(dialect)] : []),
+    ...(offers("start_thread") ? [worktreeInstructions(dialect, offers("move_to_worktree"))] : []),
+  ],
+};

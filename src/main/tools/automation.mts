@@ -1,12 +1,31 @@
 import { z } from "zod";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../../domain/finding.js";
-import { MAX_ENDS_WHEN, MAX_SURFACE_WHEN, type AutomationView } from "../../domain/automation.js";
+import { MAX_ENDS_WHEN, MAX_SURFACE_WHEN, type AutomationDraft, type AutomationPatch, type AutomationView } from "../../domain/automation.js";
 import { EXECUTION_POLICIES } from "../../domain/run.js";
 import type { CoordinationRole } from "../../domain/coordination.js";
-import type { AutomationBridge, FindingBridge } from "../agent/agent-provider.mjs";
+import type { FindingReport, FindingResult } from "../../contracts/threads.js";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
+import type { ToolServer } from "./tool-server.mjs";
 
 export const AUTOMATION_SERVER_NAME = "aicodingtool-automation";
+
+/** Scoped to the running thread, so a run can only reach its own automation. */
+export type AutomationBridge = {
+  read(): Promise<AutomationView | null>;
+  list(): Promise<AutomationView[]>;
+  save(draft: Omit<AutomationDraft, "taskId">): Promise<AutomationView>;
+  update(patch: AutomationPatch): Promise<AutomationView>;
+  remove(): Promise<boolean>;
+};
+
+/**
+ * What a scheduled run says about itself, answered by the window that keeps it. Scoped to the running
+ * thread: a run reports on its own thread or on none at all.
+ */
+export type FindingBridge = {
+  notify(report: FindingReport): Promise<FindingResult>;
+  nothingToReport(checked: string): Promise<FindingResult>;
+};
 
 const scheduleField = z.string().describe(
   "A five-field cron expression in local time (\"0 8 * * *\" = 8AM daily, \"* * * * *\" = every minute), or an ISO 8601 timestamp for a single run. Seconds are not supported.",
@@ -146,3 +165,14 @@ const COORDINATOR_AUTOMATION_TOOLS = AUTOMATION_TOOLS.filter((tool) => tool.read
 export function automationTools(bridge: AutomationBridge, role?: CoordinationRole) {
   return bindTools(bridge, role === "coordinator" ? COORDINATOR_AUTOMATION_TOOLS : AUTOMATION_TOOLS);
 }
+
+const AUTOMATION_INSTRUCTIONS = `This task can schedule itself. When the user asks to repeat, babysit, poll, or watch something on a cadence, use the schedule tool instead of looping yourself or reaching for cron.`;
+
+export const AUTOMATION_SERVER: ToolServer<{ automations?: AutomationBridge; findings?: FindingBridge; coordinationRole?: CoordinationRole }> = {
+  name: AUTOMATION_SERVER_NAME,
+  definitions: [...AUTOMATION_TOOLS, ...FINDING_TOOLS],
+  /** Scheduled runs have nobody to approve anything, and these tools only reach the run's own automation. */
+  grants: "all",
+  serve: (run) => run.automations ? [...automationTools(run.automations, run.coordinationRole), ...(run.findings ? findingTools(run.findings) : [])] : undefined,
+  brief: (offers) => offers("schedule") ? [AUTOMATION_INSTRUCTIONS] : [],
+};

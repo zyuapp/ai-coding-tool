@@ -4,7 +4,13 @@ import type { AgentEvent, BackgroundReport, GoalReport, InternalStartRunCommand,
 import { capabilitiesFor } from "../../domain/agent-engine.js";
 import { toolLabel } from "../../domain/tool-call.js";
 import type { Continuation, SubagentReport, ToolIntent } from "../../domain/run.js";
-import type { AgentProvider, AgentTurn, AutomationBridge, CoordinationBridge, FindingBridge, ProviderEvent, BrowserBridge, SimulatorBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
+import type { AgentProvider, AgentTurn, ProviderEvent, ToolDecision } from "./agent-provider.mjs";
+import type { AutomationBridge, FindingBridge } from "../tools/automation.mjs";
+import type { BrowserBridge } from "../tools/browser.mjs";
+import type { CoordinationBridge } from "../tools/coordination.mjs";
+import type { SimulatorBridge } from "../tools/simulator.mjs";
+import type { TerminalBridge } from "../tools/terminal.mjs";
+import type { ThreadBridge } from "../tools/threads.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
 import type { UsageLimit } from "../../domain/usage-limit.js";
 import type { CoordinationRole } from "../../domain/coordination.js";

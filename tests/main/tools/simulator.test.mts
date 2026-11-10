@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { simulatorTools } from "../../../src/main/tools/simulator.mts";
-import type { SimulatorBridge } from "../../../src/main/agent/agent-provider.mts";
+import { simulatorTools, type SimulatorBridge } from "../../../src/main/tools/simulator.mts";
 import type { SimulatorRead, SimulatorReadResult, SimulatorWrite } from "../../../src/contracts/threads.js";
 
 const device = { udid: "PHONE", name: "iPhone 17", runtime: "iOS 26.4", state: "booted" as const };

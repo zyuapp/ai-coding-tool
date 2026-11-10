@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { AutomationRequest, AutomationResponse } from "../../contracts/ipc.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
-import type { AutomationBridge } from "./agent-provider.mjs";
+import type { AutomationBridge } from "../tools/automation.mjs";
 
 /** The request union minus the envelope, distributed so each op keeps its own payload. */
 type AutomationRequestPayload = AutomationRequest extends infer Request

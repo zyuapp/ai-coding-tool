@@ -3,7 +3,8 @@ import type { Query } from "@anthropic-ai/claude-agent-sdk";
 import { test } from "vitest";
 import { applyRunEvent, applyThreadEvent, type RunTransitionState } from "../../../src/application/thread-run-state.ts";
 import type { AgentEvent, InternalStartRunCommand, RunEvent } from "../../../src/contracts/ipc.ts";
-import type { ThreadBridge, AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput } from "../../../src/main/agent/agent-provider.mts";
+import type { AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput } from "../../../src/main/agent/agent-provider.mts";
+import type { ThreadBridge } from "../../../src/main/tools/threads.mts";
 import { ClaudeAgentProvider } from "../../../src/main/claude/claude-agent-provider.mts";
 import { RunCoordinator } from "../../../src/main/agent/run-coordinator.mts";
 

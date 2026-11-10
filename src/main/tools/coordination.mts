@@ -1,11 +1,24 @@
 import { z } from "zod";
 import { COORDINATION_STATES, distinctLabels, MAX_DECISION_CONTEXT, MAX_MEMORY_NOTE, MAX_MEMORY_NOTE_ID, MAX_OPTION_DESCRIPTION, MAX_OPTION_LABEL, MAX_OPTIONS, MAX_PROPOSAL_TITLE, MAX_PROPOSALS, MAX_PURPOSE, MAX_QUESTION, MAX_SUMMARY } from "../../domain/coordination.js";
-import type { CoordinationRole } from "../../domain/coordination.js";
-import type { CoordinationBridge } from "../agent/agent-provider.mjs";
+import type { CoordinationRole, CoordinationState, DecisionRequest, MemoryChange, ProposalRequest } from "../../domain/coordination.js";
+import type { RunOperation } from "../../contracts/ipc.js";
+import type { FindingResult } from "../../contracts/threads.js";
+import { coordinationInstructions } from "./coordination-instructions.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
+import type { ToolServer } from "./tool-server.mjs";
 import { COORDINATOR_START_INPUT, newThreadFields } from "./threads.mjs";
 
 export const COORDINATION_SERVER_NAME = "aicodingtool-coordination";
+
+/** What a thread working under a coordinator, or the coordinator itself, says for itself, answered by the window that keeps it. */
+export type CoordinationBridge = {
+  report(state: CoordinationState, summary: string): Promise<FindingResult>;
+  decide(request: DecisionRequest): Promise<FindingResult>;
+  /** A coordinator's own memory. It rejects with what to tell the coordinator when the change cannot be made. */
+  remember(change: Exclude<MemoryChange, { kind: "edit" }>): Promise<{ note: string }>;
+  /** A coordinator's suggested threads, kept for the user to start. It rejects with what to tell the coordinator when none could be. */
+  propose(proposals: ProposalRequest[]): Promise<{ note: string }>;
+};
 
 async function report(work: () => Promise<{ note: string }>, failure = "Coordination error: ") {
   try {
@@ -114,3 +127,13 @@ export function coordinationTools(bridge: CoordinationBridge, role: Coordination
   const definitions: ToolDefinition<CoordinationBridge>[] = role === "member" ? [REPORT_STATUS, RAISE_DECISION] : [RAISE_DECISION, REMEMBER, FORGET, SET_PURPOSE, PROPOSE_THREADS];
   return bindTools(bridge, definitions);
 }
+
+export const COORDINATION_SERVER: ToolServer<{ coordination?: CoordinationBridge; coordinationRole?: CoordinationRole; operation?: RunOperation }> = {
+  name: COORDINATION_SERVER_NAME,
+  definitions: [REPORT_STATUS, RAISE_DECISION, REMEMBER, FORGET, SET_PURPOSE, PROPOSE_THREADS],
+  /** A thread speaking for itself to its coordinator and the user reaches nothing but the app. */
+  grants: "all",
+  serve: (run) => run.coordination && run.coordinationRole && run.operation?.type !== "review" ? coordinationTools(run.coordination, run.coordinationRole) : undefined,
+  /** A coordination role is told how to work whether or not its tools are offered. */
+  brief: (_offers, dialect, run) => coordinationInstructions(run.coordinationRole, run, dialect),
+};

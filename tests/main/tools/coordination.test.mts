@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { z } from "zod";
-import { coordinationTools } from "../../../src/main/tools/coordination.mts";
-import type { CoordinationBridge } from "../../../src/main/agent/agent-provider.mts";
+import { coordinationTools, type CoordinationBridge } from "../../../src/main/tools/coordination.mts";
 import type { DecisionRequest, MemoryChange, ProposalRequest } from "../../../src/domain/coordination.js";
 
 type FakeCoordinationBridge = CoordinationBridge & { changes: MemoryChange[]; proposed: ProposalRequest[][] };
