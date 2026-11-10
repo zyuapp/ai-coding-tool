@@ -4,7 +4,7 @@ import type { KeyValueStorage } from "./task-store.js";
 import { DRAFT_DOCK, type WorkspaceState } from "./workspace-state.js";
 import { MAX_REMEMBERED_TOASTS } from "../domain/toast.js";
 import { MAX_RECENT_PROJECTS } from "../domain/project.js";
-import { MAX_DISCARDED_LEADS } from "./computers.js";
+import { MAX_DISCARDED_LEADS } from "./state/computers.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import { shortcutAction, shortcutOverrides, shortcutProblem, type ShortcutOverrides } from "../domain/shortcuts.js";
 import { OPEN_SUBAGENT_GROUPS, SUBAGENT_GROUPS, type SubagentGroups } from "../domain/run.js";

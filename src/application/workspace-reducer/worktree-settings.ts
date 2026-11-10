@@ -1,12 +1,12 @@
 import type { WorktreeCommand } from "../../contracts/commands.js";
-import { activeComputer } from "../computers.js";
+import { activeComputer } from "../state/computers.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { threadActivity } from "../thread-activity.js";
 import { worktreeSettingsViews } from "../worktree-settings.js";
 import { worktreeClaimants } from "../thread-location.js";
 import { settled } from "./shared.js";
 import { reduceSettings } from "./settings.js";
-import { reduceThreadCommands } from "./thread-commands.js";
+import { selectThread } from "./thread-select.js";
 import type { WorkspaceTransition } from "./types.js";
 
 type Input = Extract<WorktreeCommand, { type: "worktree.filter-project" | "worktree.confirm-delete" | "worktree.confirm-delete-safe" | "worktree.set-missing-open" | "worktree.set-threads-open" | "worktree.open-thread" }>;
@@ -45,7 +45,7 @@ export function reduceWorktreeSettings(state: WorkspaceState, input: Input): Wor
       const thread = state.threads.find((item) => item.id === input.taskId);
       if (!thread?.worktreeId) return settled(state);
       const closed = reduceSettings(state, { type: "view.set-settings-open", open: false });
-      const selected = reduceThreadCommands(closed.state, { type: "task.select", taskId: thread.id });
+      const selected = selectThread(closed.state, thread.id);
       return { state: selected.state, effects: [...closed.effects, ...selected.effects] };
     }
   }

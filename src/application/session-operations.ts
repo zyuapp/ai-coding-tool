@@ -1,6 +1,6 @@
 /** Whether a thread's session can be compacted or reviewed, read alike by the reducer that starts each and the view that offers it. */
 import type { WorkspaceState } from "./workspace-state.js";
-import { catalogOf } from "./engine-access.js";
+import { catalogOf } from "./state/engines.js";
 import { threadWorkspaceId } from "./thread-location.js";
 import { capabilitiesFor, modelSupportsManualCompaction, threadModel } from "../domain/agent-engine.js";
 import type { Thread } from "../domain/thread.js";

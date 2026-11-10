@@ -1,581 +1,120 @@
-import { sideChatView, threadTabView, type SideChatView, type ThreadTabView } from "./side-chat-view.js";
-import { worktreeMenuView, type WorktreeMenuSearch, type WorktreeMenuState } from "./worktree-menu.js";
-import type { ThreadRole } from "../domain/thread-role.js";
-import type { ApprovalView, RunTransitionState } from "./thread-run-state.js";
-import { runStatus } from "./run-record.js";
-import { threadActivity, threadLists, waitingOn, type ThreadWait } from "./thread-activity.js";
-import { compactableSession, reviewableSession } from "./session-operations.js";
-import { sidebarLists } from "./sidebar-lists.js";
-import { worktreeChoices } from "./worktree-choices.js";
-import type { MobileWorktreeChoice } from "../contracts/mobile.js";
-import type { CoordinationSend } from "./coordination-messages.js";
-import { effortRoleOf, type OverviewFolds } from "../domain/coordination.js";
-import type { ChangedFilesResult, DesktopShortcutRefusal, InstalledApp } from "../contracts/ipc.js";
-import type { PullRequestRead } from "../domain/pull-request.js";
-import { pullRequestFor } from "./pull-request-view.js";
-import { NO_CLI, type CliState } from "./cli-installation.js";
-import { NO_BROWSER_IMPORT, type BrowserImportState } from "./browser-import.js";
-import { NO_COMPUTER_USE_ACCESS, type ComputerUseAccessState } from "./computer-use-access.js";
-import type { AttachmentSendState } from "./composer-attachments.js";
-import { NO_PLAN_USAGE, type PlanUsageState } from "./plan-limits.js";
+import type { ThreadWait } from "./thread-activity.js";
 import type { ReadingPoint } from "../contracts/commands.js";
-import type { ReviewTarget } from "../domain/review.js";
-import type { ActiveGoal } from "../domain/goal.js";
-import { NO_SIMULATORS, type SimulatorState } from "../domain/simulator.js";
-import { NO_DICTATION, type DictationState } from "../domain/dictation.js";
+import { effortRoleOf } from "../domain/coordination.js";
+import { normalizeDraft, type AgentDraft } from "../domain/agent-draft.js";
+import type { RunTransitionState } from "./thread-run-state.js";
+import { threadWorkspaceRoot } from "./thread-location.js";
+import { initialThreadsState, type ThreadsState } from "./state/threads.js";
+import { initialNavigationState, type NavigationState } from "./state/navigation.js";
+import { initialProjectsState, type ProjectsState } from "./state/projects.js";
+import { NO_PROJECT_ADD, type ProjectAddWorkspaceState } from "./state/project-add.js";
+import { initialWorktreesState, type WorktreesState } from "./state/worktrees.js";
+import { draftOf, initialNewThreadDraftState, type NewThreadDraftState } from "./state/new-thread-draft.js";
+import { catalogOf, initialEnginesState, type EnginesState } from "./state/engines.js";
+import { initialComposerState, NEW_THREAD_DRAFT, type ComposerState } from "./state/composer.js";
+import { initialDialogsState, type DialogsState } from "./state/dialogs.js";
+import { initialSettingsState, type SettingsState } from "./state/settings.js";
+import { initialDocksState, type DocksState } from "./state/dock.js";
+import { initialFindBarState, type FindBarState } from "./state/find.js";
+import { initialBrowserState, type BrowserState } from "./state/browser.js";
+import { initialSimulatorState, type SimulatorSliceState } from "./state/simulator.js";
+import { initialDictationState, type DictationSliceState } from "./state/dictation.js";
+import { initialGitState, type GitState } from "./state/pull-requests.js";
+import { initialDesktopState, type DesktopState } from "./state/desktop.js";
+import { initialCliState, initialComputerUseState, initialPlanUsageState, type CliSliceState, type ComputerUseSliceState, type PlanUsageSliceState } from "./state/machine-access.js";
+import { initialAutomationsState, type AutomationsState } from "./state/automations.js";
+import { initialRunsState, type RunsState } from "./state/runs.js";
+import { initialSideChatsState, type SideChatsState } from "./state/side-chats.js";
+import { initialRemoteState, type RemoteState } from "./state/remote.js";
+import { initialAppUpdatesState, type AppUpdatesState } from "./state/app-updates.js";
+import { initialToastsState, type ToastsState } from "./state/toasts.js";
+import { initialComputersState, selectedComputer, type ComputersSliceState } from "./state/computers.js";
+import { initialErrorsState, initialStoreState, type ErrorsState, type StoreState } from "./state/store.js";
 
 export type { ReadingPoint, ThreadWait };
-import { AUTOMATION_PANEL, DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockSubject, type ThreadDock } from "./workspace-dock.js";
+export type { ProjectEdit } from "./state/projects.js";
+export type { DraftBranch } from "./state/new-thread-draft.js";
+export type { ForkName, ReviewPicker } from "./state/dialogs.js";
+export type { DesktopShortcutUnavailable } from "./state/settings.js";
+export type { FindState, JumpState } from "./state/find.js";
+export type { PendingRun, QueuedMessage } from "./state/runs.js";
+export type { SideChat } from "./state/side-chats.js";
+export type { PairedComputer } from "./state/computers.js";
 export {
   AUTOMATION_PANEL, DIFF_PANEL, DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, SIMULATOR_PANEL, WORKFLOW_PANEL, browserTarget,
   dockFor, dockSubject, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock,
   keyboardTerminalId, keyboardThreadId, ownerOfBrowserTab, ownerOfTerminal, shownThreadTab, terminalTarget, withDock, type ThreadDock,
 } from "./workspace-dock.js";
-import { diffFor, type DiffState } from "./workspace-diff.js";
-import { jumpView } from "./workspace-jump.js";
-import { shownViewCollections, workspaceViewCollections } from "./workspace-view-collections.js";
-import { findView } from "./workspace-find.js";
-export { findTargetFor } from "./workspace-find.js";
-export type { FindView } from "./workspace-find.js";
 export { diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff, type DiffState } from "./workspace-diff.js";
-import type { AutomationEdit, AutomationView } from "../domain/automation.js";
-import { NO_APP_UPDATE, type AppBuild, type AppUpdate, type AppUpdateRequest } from "../domain/app-update.js";
-import type { Toast } from "../domain/toast.js";
-import { visibleToasts } from "./toasts.js";
-import { emptyMobileServerState, type MobileServerState } from "../domain/mobile.js";
-import { pairedId, selectedComputer, NO_COMPUTERS, type ComputersState } from "./computers.js";
-import { overlaidView } from "./workspace-view-overlay.js";
-import { NO_PROJECT_ADD, type ProjectAddWorkspaceState } from "./project-add.js";
-import { workspaceDialogsView } from "./workspace-dialogs.js";
-export type { ArchivePromptView, ProjectEditorView, WorktreeMoveView } from "./workspace-dialogs.js";
-import type { BrowserApproval } from "../domain/browser.js";
-import type { FindResults, FindTarget } from "../domain/find.js";
-import { shortcutSettings, type ShortcutOverrides } from "../domain/shortcuts.js";
-import type { SettingsSection } from "../domain/settings-section.js";
-import type { SettingMark } from "../domain/settings-catalog.js";
-import { OPEN_SIDEBAR_SECTIONS, type SidebarSections } from "../domain/sidebar.js";
-import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
-import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
-import type { Workflow } from "../domain/workflow.js";
-import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, effortForModel, threadModel, engineLabel, isAgentEngine, unopenableEngine, type AgentEngine, type AgentModel, type EngineCapabilities, type EngineModel, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
-import { catalogOf, engineReadinessOf } from "./engine-access.js";
-import { normalizeDraft, type AgentDraft } from "../domain/agent-draft.js";
-import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
-import { annotationRevealFor, annotationsFor, filesFor, imagesFor, pastesFor, type AnnotationReveal } from "./composer-drafts.js";
-export type { AnnotationReveal } from "./composer-drafts.js";
-import type { Annotation, AttachedFile, PastedText, StagedImage } from "../domain/conversation.js";
-import type { MessageOrigin } from "../domain/message-origin.js";
-import { projectName, type Project } from "../domain/project.js";
-import type { Thread } from "../domain/thread.js";
-import { worktreeName, type ManagedWorktree, type MoveAfterRun, type Worktree } from "../domain/worktree.js";
-import {
-  locationOf,
-  projectFor,
-  threadWorkspaceId,
-  threadWorkspaceRoot,
-  worktreeById,
-} from "./thread-location.js";
-import type { WorktreeSettingsState } from "./worktree-settings.js";
-import { heldViews } from "./view-reuse.js";
-import { linePositions, type HeldMessage } from "../domain/usage-limit.js";
-
-/** A desktop-wide binding whose action this session cannot safely perform on the active platform. */
-export type DesktopShortcutUnavailable = Extract<DesktopShortcutRefusal, { reason: "unsupported" }>;
 
 /**
- * A run the user or the scheduler asked for that is still resolving its workspace. It lives in state
- * rather than in a closure so the reducer can re-check the thread when resolution lands.
+ * Everything the window holds, joined from the state each slice owns. It stays one flat record: it is
+ * persisted, mirrored to paired computers, and read by the phone.
  */
-export type PendingRun = Pick<HeldMessage, "usersOwn"> & {
-  id: string;
-  runId: string;
-  origin: "composer" | "automation";
-  /** `resume` picks a thread back up after its usage limit lifts, with no message of the user's. */
-  operation?: { type: "compact" } | { type: "review"; target: ReviewTarget } | { type: "resume" };
-  taskId?: string;
-  projectId?: string;
-  /** The checkout the run was told to happen in, for a thread that does not exist yet to claim. */
-  worktreeId?: string;
-  /** Agent choices carried atomically by a new thread request instead of changing the shared draft. `engine` is set with `model`. */
-  model?: AgentModel;
-  engine?: AgentEngine;
-  effort?: AgentEffort;
-  role?: ThreadRole;
-  coordination?: CoordinationSend;
-  /** Composer only: which draft to clear once the run starts, and its text as sent. */
-  draftKey?: string;
-  draftText?: string;
-  /** What the user typed, before attachments are appended. Titles a brand new thread that `title` does not name. */
-  text: string;
-  title?: string;
-  prompt: string;
-  attachments: string[];
-  annotations?: Annotation[];
-  pastes?: PastedText[];
-  files?: AttachedFile[];
-  /** Who the message the run starts with comes from, when not the user. */
-  messageOrigin?: MessageOrigin;
-  /** The decision the message answers, so it opens again if the run never starts. */
-  answers?: string;
-  policy?: ExecutionPolicy;
-  automationId?: string;
-  /** Automation only: this tick may settle without surfacing if it earns the silence. */
-  quiet?: true;
-  /** Automation only: a cron tick has nobody to answer its approvals, so the run may answer its own. */
-  unattended?: true;
-  /** Queued messages this run is draining, cleared only once the run actually starts. */
-  queuedIds?: string[];
-  /** Set when the checkout this run needs is being made on the way, which is the slow part of resolving. */
-  creatingWorktree?: boolean;
-  /** Resumes a thread after its usage limit lifted; the next in line waits until this one has answered once. */
-  warming?: true;
-};
-
-/** A checkout with the threads working in it, which is how a project offers starting one more there. */
-export type WorktreeGroup = {
-  worktree: Worktree;
-  threads: Thread[];
-};
-
-/**
- * Something the user typed while a run was going. It waits for the run to finish, unless it is
- * steered into that run first.
- */
-export type QueuedMessage = HeldMessage & {
-  /** Locks the message while steering is in flight; a rejection restores its controls. */
-  steering?: boolean;
-};
-
-/**
- * One forked conversation. Its thread is an ordinary thread in `threads`, so everything keyed by a
- * thread id reaches it too: drafts, queued messages, approvals, and steering. This record only marks
- * the thread as one that is never persisted and never listed.
- */
-export type SideChat = {
-  id: string;
-  sourceThreadId: string;
-  error: string | null;
-};
-
-export type { DockConversationView, SideChatView, ThreadTabView } from "./side-chat-view.js";
-
-/** The ids of every thread that only lives for this session. */
-export function sideChatIds(state: Pick<WorkspaceState, "sideChats">) {
-  return new Set(state.sideChats.map((chat) => chat.id));
-}
-
-/**
- * What the find bar is looking for, and where. Only the query and the match the user stepped to live
- * here: what a query matches is derived, so a thread that is still streaming keeps finding what it
- * has just printed.
- */
-export type FindState = {
-  target: FindTarget;
-  query: string;
-  /** Which match the user stepped to, counting from zero. */
-  index: number;
-  /** Bumped whenever find is asked for again, which is all the bar needs to take the caret back. */
-  focus: number;
-};
-
-/**
- * The jump panel: the name being searched for, and the row the user moved to. Which threads that
- * name matches is derived, so a thread renamed while the panel is open moves with the query.
- */
-export type JumpState = { query: string; index: number };
-
-/** Whether two reading points name the same place, which decides whether a report is worth making. */
-export function sameReadingPoint(a: ReadingPoint, b: ReadingPoint) {
-  if (a === null || b === null) return a === b;
-  return a.anchor === b.anchor && a.depth === b.depth;
-}
-
-/** The branch a thread is to start from. `create` names one the repository does not have yet. */
-export type DraftBranch = { name: string; create: boolean };
-
-/**
- * The folder editor, open on one project. A name typed beside a folder that is still being opened
- * waits here, so a directory the app cannot open leaves the name where the user last saw it too.
- */
-export type ProjectEdit = {
-  projectId: string;
-  name?: string | null;
-  saving: boolean;
-  error: string | null;
-};
-
-/** A fork waiting on its name: the thread to copy, whether the copy gets a worktree, and the name it starts with. */
-export type ForkName = { taskId: string; worktree: boolean; title: string };
-
-/** The native review picker follows the thread it was opened from and never persists. */
-export type ReviewPicker = {
-  taskId: string;
-  step: "targets" | "base" | "commit" | "custom";
-};
-
-export type WorkspaceState = ProjectAddWorkspaceState & {
-  threads: Thread[];
-  /** Native goals live only as long as this app session. */
-  goals: Record<string, ActiveGoal>;
-  projects: Project[];
-  /**
-   * Every checkout the app has recorded. A checkout outlives the thread that asked for it and stays
-   * until the user explicitly returns from or deletes it.
-   */
-  worktrees: Worktree[];
-  /** Directories found under app-owned roots for the manual Settings list. Null until that list lands. */
-  managedWorktrees: ManagedWorktree[] | null;
-  worktreeSettings: WorktreeSettingsState;
-  worktreeMenuSearch: WorktreeMenuSearch;
-  worktreeManagementLoading: boolean;
-  worktreeManagementError: string | null;
-  worktreeManagementNotice: string | null;
-  /** Threads whose checkout is being made, so nothing asks for a second one while the first lands. */
-  creatingWorktrees: string[];
-  /** Threads giving up their checkout, so the wait is shown and nothing asks to leave twice. */
-  releasingWorktrees: string[];
-  /** Roots of checkouts being deleted, so the list shows the wait and refuses a second delete. */
-  deletingWorktrees: string[];
-  /** Where each thread that moved itself goes once the run that asked has ended, and what it goes on with there. */
-  movesAfterRun: Record<string, MoveAfterRun>;
-  lastFolder: string | null;
-  currentId: string | null;
-  /** Threads the user has landed on this session, oldest first, with a cursor for back and forward. */
-  history: string[];
-  historyIndex: number;
-  draftProjectId: string | null;
-  draftPolicy: ExecutionPolicy;
-  /** How the next new thread starts: which branch, and whether it gets a checkout of its own. */
-  draftBranch: DraftBranch | null;
-  draftWorktree: boolean;
-  /** The checkout the next new thread starts in, when the user picked one the project already has. */
-  draftWorktreeId: string | null;
-  draftRole: ThreadRole | null;
-  draftEngine: AgentEngine;
-  draftModel: AgentModel;
-  draftEffort: AgentEffort;
-  draftFastMode: boolean;
-  /** What main last said about which engines can take a run. Session-only, and never persisted. */
-  /** What main has said about the engines' access; null until it has been asked. */
-  engineStatus: EngineStatus | null;
-  /** True while main is running the engine commands, which the Engines page says out loud. */
-  engineChecking: boolean;
-  /** The engine whose command the app is upgrading, which its Update button says out loud. */
-  engineUpdating: AgentEngine | null;
-  /** Engines the user asked to update while another was updating, in the order they asked. */
-  engineUpdateQueue: AgentEngine[];
-  /** True once the launch's first answer about the engines has offered their updates. */
-  engineUpdatesOffered: boolean;
-  /** True from the first launch after an app update until every engine it needs has been upgraded. */
-  engineUpgradesOwed: boolean;
-  agentSettingsReload: "idle" | "reloading" | "pending" | "reloaded" | "failed";
-  prompts: Record<string, string>;
-  /** Annotations waiting in each composer, keyed the way `prompts` is. */
-  annotations: Record<string, Annotation[]>;
-  /** Pasted blocks waiting in each composer, keyed the way `prompts` is. */
-  pastes: Record<string, PastedText[]>;
-  /** Images waiting in each composer, keyed the way `prompts` is. */
-  images: Record<string, StagedImage[]>;
-  /** Files and folders waiting in each composer, keyed the way `prompts` is. */
-  files: Record<string, AttachedFile[]>;
-  /** The folder the editor is open on, if any, and what came back the last time it tried to save. */
-  projectEdit: ProjectEdit | null;
-  /** The move the confirmation is open on: the thread asked to move, and where it would go. */
-  worktreeMove: { taskId: string; worktree: boolean } | null;
-  /** The fork the naming dialog is open on: the thread to copy, where the copy goes, and the name it suggests. */
-  forkName: ForkName | null;
-  /** The thread the archive confirmation is open on. */
-  archivePrompt: string | null;
-  /** Which of the sidebar's lists are unfolded. */
-  sections: SidebarSections;
-  /** Which subagent groups are unfolded: the sidebar's list, and each status heading in the panel. */
-  subagentGroups: SubagentGroups;
-  /** Per coordinator, how the user left the groups of its Overview. Not kept across launches. */
-  overviewFolds: Record<string, OverviewFolds>;
-  theme: string;
-  /** The ground the user asked for, which "auto" leaves to the system's own appearance. */
-  themeMode: ThemeMode;
-  /** The two families the window sets type in, and the two sizes in px that follow the user. */
-  uiFont: string;
-  monoFont: string;
-  readingSize: number;
-  terminalSize: number;
-  /** The one project the sidebar's lists are narrowed to, or null for every project. */
-  activityProject: string | null;
-  /** The simulator last picked or opened, which a dock with none of its own shows. */
-  simulatorDevice: string | null;
-  sidebarOpen: boolean;
-  sessionPanelOpen: boolean;
-  /** Whether grabbing a window plays the shutter, and whether it brings the window forward. */
-  captureSound: boolean;
-  captureFocus: boolean;
-  /** Whether a run reaches the user's own Chrome through the Claude in Chrome extension. */
-  chromeBrowser: boolean;
-  /** Whether a run may see and operate other applications. */
-  computerUse: boolean;
-  /** Whether a run may drive the browser panel. The user's own tabs stay usable either way. */
-  browserTools: boolean;
-  /** Whether a thread that needs the user is announced on the desktop. Off leaves it to the sidebar alone. */
-  notifications: boolean;
-  settingsOpen: boolean;
-  /** The page settings opens on, when something opened it on one. Null lets it open where it opens. */
-  settingsSection: SettingsSection | null;
-  /** The control on that page to scroll to and mark, when something named one. */
-  settingsFocus: SettingMark | null;
-  /** The paired computer the Usage page shows. Null shows this one. */
-  usageComputer: string | null;
-  /** Pinned models, each on its engine, since two engines may name the same id. */
-  favoriteModels: EngineModel[];
-  /** The projects last picked in the new-thread picker, newest first. Kept between launches. */
-  recentProjects: string[];
-  /** The bindings the user changed, and the action waiting for a keystroke while settings are open. */
-  shortcuts: ShortcutOverrides;
-  capturingShortcut: string | null;
-  /** A capability refusal belongs beside its affected setting, not in the workspace error banner. */
-  desktopShortcutUnavailable: DesktopShortcutUnavailable | null;
-  /** Bumped whenever something asks for the caret, which is all the composer needs to take it. */
-  composerFocus: number;
-  /**
-   * The dock view that last asked for the keyboard: whose dock it is in, which tab, and a count
-   * bumped each time one asks. A view takes the keys when the count it is drawn with changes.
-   */
-  dockFocus: { owner: string; tab: string; count: number } | null;
-  /** One dock per thread, keyed by thread id, so moving between threads leaves each one as it was. */
-  docks: Record<string, ThreadDock>;
-  /** One review per thread, keyed the way `docks` is, so each thread keeps its own place in a diff. */
-  diffs: Record<string, DiffState>;
-  /** Where each thread was left reading, keyed by thread id. Session-only, and never persisted. */
-  readingPoints: Record<string, ReadingPoint>;
-  /** The drafted annotation a transcript was last asked to show, and a count bumped by each ask. Session-only. */
-  annotationReveal: AnnotationReveal | null;
-  /** The find bar, and what a page or a shell reported after searching itself. */
-  find: FindState | null;
-  findResults: FindResults | null;
-  /** The jump panel, open on the name the user is searching for, and whether zen mode leaves only the thread on screen. */
-  jump: JumpState | null; zen: boolean;
-  /** Which dock tab the keyboard is in, so ⌘F knows whether it means that view or the thread. */
-  keyboardTab: string | null;
-  /** The origins a run may reach without asking. Visiting a site adds it. */
-  browserOrigins: string[];
-  browserImport: BrowserImportState;
-  browserApproval: BrowserApproval | null;
-  simulator: SimulatorState;
-  dictation: DictationState;
-  openMenu: string | null;
-  reviewPicker: ReviewPicker | null;
-  /**
-   * What Git last said about each checkout, keyed by checkout. A checkout is what a branch and a set
-   * of changes belong to, so a scan of one never overwrites another, and a thread returned to shows
-   * what was last read while a new scan runs. Session-only, and never persisted.
-   */
-  environments: Record<string, ChangedFilesResult>;
-  /** The pull request last read, for the checkout and branch it was read for. Session-only. */
-  pullRequest: PullRequestRead | null;
-  /** The pull request of each checkout the open coordinator's threads work in, keyed by checkout. Session-only. */
-  memberPullRequests: Record<string, PullRequestRead>;
-  /** Where each composer's images stand between its send and the run, keyed by the thread it sends to. */
-  attachmentSends: Record<string, AttachmentSendState>;
-  /** The applications this machine has, or null before any list has asked for them. */
-  installedApps: InstalledApp[] | null;
-  /** The terminal command the app installs, as the settings page last read it. */
-  cli: CliState;
-  /** What each provider says about the plan the user is signed in on. */
-  planUsage: PlanUsageState;
-  /** What the platform lets the app see and operate, as settings last read it. */
-  computerUsePermissions: ComputerUseAccessState;
-  computerUseSetup: boolean;
-  automations: AutomationView[];
-  /**
-   * Runs resolving their checkout, the coordinators' suggestions they start, and the runs and threads'
-   * session work a Stop all caught, whose ending their coordinator hears without being woken.
-   * Session-only, so a restart leaves none starting.
-   */
-  pendingRuns: Record<string, PendingRun>; startingProposals: string[]; quietStops: string[]; quietSessions: import("./outstanding-stops.js").QuietSession[];
-  queuedMessages: Record<string, QueuedMessage[]>;
-  sideChats: SideChat[];
-  sideChatSequence: number;
-  /** Latest run per thread, so a reply from a superseded run can be dropped. */
-  lastRunIds: Record<string, string>;
-  /** The bridge a phone reaches this Mac through, as the main process last reported it. */
-  remote: MobileServerState;
-  /** True while main is reading Tailscale, which the Phone page says out loud. */
-  remoteChecking: boolean;
-  /** A newer build of the app, as the updater in main last reported it. */
-  appUpdate: AppUpdate;
-  /** The build this computer runs, which paired computers show. Null until main says, and on hosts that cannot. */
-  appBuild: AppBuild | null;
-  /** An update asked of this computer that waits to install, or why the last one stopped. Session-only. */
-  appUpdateRequest: AppUpdateRequest | null;
-  /** The cards in the window's corner, oldest first. Session-only. */
-  toasts: Toast[];
-  /** The id the last toast took, so each one has its own. */
-  toastSequence: number;
-  /** Unsaved edits in each thread's automation panel. Session-only. */
-  automationEdits: Record<string, AutomationEdit>;
-  /** The pointer or the caret is on the toasts, so none leaves on its own. Session-only. */
-  toastsHeld: boolean;
-  /** What the user closed toasts about, so the same ones are not raised again. Kept between launches. */
-  dismissedToasts: string[];
-  /** The computers this one is paired with, each mirrored here as it changes there. Session-only. */
-  computers: ComputersState;
-  focused: boolean;
-} & RunTransitionState & {
-  /** `hiddenThreads` counts the threads on disk this build cannot read, which stay there untouched. */
-  storageError: string | null; hiddenThreads: number;
-  actionError: string | null;
-  viewingImage: string | null;
-  /** The pictures shown beside the enlarged one, which the arrow keys step through. */
-  viewingGallery: string[];
-  /** The settings page that clears the error above, when one does. */
-  actionErrorPage: SettingsSection | null;
-  writable: boolean;
-  /** Whether the stored threads have answered. Until they have, there is nothing to say is empty. */
-  restored: boolean;
-};
-
-export function withoutWorktreeRoot(state: Pick<WorkspaceState, "deletingWorktrees">, root: string) {
-  return state.deletingWorktrees.filter((item) => item !== root);
-}
+export type WorkspaceState =
+  & ProjectAddWorkspaceState
+  & ThreadsState
+  & ProjectsState
+  & WorktreesState
+  & NavigationState
+  & NewThreadDraftState
+  & EnginesState
+  & ComposerState
+  & DialogsState
+  & SettingsState
+  & DocksState
+  & FindBarState
+  & BrowserState
+  & SimulatorSliceState
+  & DictationSliceState
+  & GitState
+  & DesktopState
+  & CliSliceState
+  & PlanUsageSliceState
+  & ComputerUseSliceState
+  & AutomationsState
+  & RunsState
+  & SideChatsState
+  & RemoteState
+  & AppUpdatesState
+  & ToastsState
+  & ComputersSliceState
+  & RunTransitionState
+  & StoreState
+  & ErrorsState;
 
 export function emptyWorkspaceState(storageError: string | null = null): WorkspaceState {
   return {
-    threads: [],
-    goals: {},
-    projects: [],
-    worktrees: [],
-    managedWorktrees: null,
-    worktreeSettings: { project: null, confirming: null, missingOpen: null, expandedThreads: [], confirmingSafe: false, bulk: null },
-    worktreeMenuSearch: { threads: "", destinations: "" },
-    worktreeManagementLoading: false,
-    worktreeManagementError: null,
-    worktreeManagementNotice: null,
-    creatingWorktrees: [],
-    releasingWorktrees: [],
-    deletingWorktrees: [],
-    movesAfterRun: {},
-    lastFolder: null,
-    currentId: null,
-    history: [],
-    historyIndex: -1,
-    draftProjectId: null,
-    draftPolicy: "confirm",
-    draftBranch: null,
-    draftWorktree: false,
-    draftWorktreeId: null,
-    draftRole: null,
-    draftEngine: DEFAULT_ENGINE,
-    draftModel: DEFAULT_MODEL,
-    draftEffort: DEFAULT_EFFORT,
-    draftFastMode: false,
-    engineStatus: null,
-    engineChecking: false,
-    engineUpdating: null,
-    engineUpdateQueue: [],
-    engineUpdatesOffered: false,
-    engineUpgradesOwed: false,
-    agentSettingsReload: "idle",
-    prompts: {},
-    annotations: {},
-    pastes: {},
-    images: {},
-    files: {},
+    ...initialThreadsState(),
+    ...initialProjectsState(),
+    ...initialWorktreesState(),
+    ...initialNavigationState(),
+    ...initialNewThreadDraftState(),
+    ...initialEnginesState(),
+    ...initialComposerState(),
     ...NO_PROJECT_ADD,
-    projectEdit: null,
-    worktreeMove: null,
-    forkName: null,
-    archivePrompt: null,
-    sections: OPEN_SIDEBAR_SECTIONS,
-    theme: DEFAULT_THEME,
-    themeMode: DEFAULT_THEME_MODE,
-    uiFont: DEFAULT_UI_FONT,
-    monoFont: DEFAULT_MONO_FONT,
-    readingSize: READING_SIZE.default,
-    terminalSize: TERMINAL_SIZE.default,
-    activityProject: null,
-    simulatorDevice: null,
-    sidebarOpen: true,
-    subagentGroups: OPEN_SUBAGENT_GROUPS,
-    overviewFolds: {},
-    sessionPanelOpen: false,
-    captureSound: true,
-    captureFocus: true,
-    chromeBrowser: false,
-    computerUse: true,
-    browserTools: true,
-    notifications: true,
-    settingsOpen: false,
-    settingsSection: null,
-    settingsFocus: null,
-    usageComputer: null,
-    favoriteModels: [],
-    recentProjects: [],
-    shortcuts: {},
-    capturingShortcut: null,
-    desktopShortcutUnavailable: null,
-    composerFocus: 0,
-    dockFocus: null,
-    docks: {},
-    diffs: {},
-    readingPoints: {},
-    annotationReveal: null,
-    find: null,
-    findResults: null,
-    jump: null, zen: false,
-    keyboardTab: null,
-    browserOrigins: [],
-    browserImport: NO_BROWSER_IMPORT,
-    browserApproval: null,
-    simulator: NO_SIMULATORS,
-    dictation: NO_DICTATION,
-    openMenu: null,
-    reviewPicker: null,
-    environments: {},
-    pullRequest: null, memberPullRequests: {}, attachmentSends: {},
-    installedApps: null, cli: NO_CLI, planUsage: NO_PLAN_USAGE, computerUsePermissions: NO_COMPUTER_USE_ACCESS,
-    computerUseSetup: false,
-    automations: [],
-    pendingRuns: {}, startingProposals: [], quietStops: [], quietSessions: [],
-    queuedMessages: {},
-    sideChats: [],
-    sideChatSequence: 0,
-    lastRunIds: {},
-    remote: emptyMobileServerState(),
-    remoteChecking: false,
-    appUpdate: NO_APP_UPDATE,
-    appBuild: null,
-    appUpdateRequest: null,
-    toasts: [],
-    toastSequence: 0,
-    toastsHeld: false,
-    automationEdits: {},
-    dismissedToasts: [],
-    computers: NO_COMPUTERS,
-    focused: true,
-    activeRuns: {},
-    runStatuses: {},
-    approvals: {},
-    streamingTails: {},
-    backgroundProcesses: {},
-    workflows: {},
-    subagents: {},
-    storageError, hiddenThreads: 0,
-    actionError: null,
-    viewingImage: null,
-    viewingGallery: [],
-    actionErrorPage: null,
-    writable: storageError === null,
-    restored: false,
+    ...initialDialogsState(),
+    ...initialSettingsState(),
+    ...initialDocksState(),
+    ...initialFindBarState(),
+    ...initialBrowserState(),
+    ...initialSimulatorState(),
+    ...initialDictationState(),
+    ...initialGitState(),
+    ...initialDesktopState(),
+    ...initialCliState(),
+    ...initialPlanUsageState(),
+    ...initialComputerUseState(),
+    ...initialAutomationsState(),
+    ...initialRunsState(),
+    ...initialSideChatsState(),
+    ...initialRemoteState(),
+    ...initialAppUpdatesState(),
+    ...initialToastsState(),
+    ...initialComputersState(),
+    ...initialStoreState(storageError),
+    ...initialErrorsState(),
   };
-}
-
-/** A workflow by id, wherever it is kept: a dock follows one workflow, not one thread's list. */
-export function workflowById(state: Pick<WorkspaceState, "workflows">, id: string | null): Workflow | undefined {
-  if (!id) return undefined;
-  for (const workflows of Object.values(state.workflows)) {
-    const found = workflows.find((workflow) => workflow.id === id);
-    if (found) return found;
-  }
-  return undefined;
 }
 
 /** The folder the app is pointed at: the thread's own checkout, else its project, else the last one opened. */
@@ -583,11 +122,6 @@ export function currentFolder(state: WorkspaceState): string | null {
   const thread = state.threads.find((item) => item.id === state.currentId);
   const draft = state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.root : undefined;
   return threadWorkspaceRoot(state, thread) ?? draft ?? state.lastFolder;
-}
-
-/** The agent choices the new-thread composer holds. */
-export function draftOf(state: WorkspaceState): AgentDraft {
-  return { engine: state.draftEngine, model: state.draftModel, effort: state.draftEffort, policy: state.draftPolicy, fastMode: state.draftFastMode };
 }
 
 /** The draft with `change` made and held to its engine, which is how its agent choices are ever written. */
@@ -600,28 +134,9 @@ export function withDraft(state: WorkspaceState, change: Partial<AgentDraft>): W
  * Which composer the window is typing into. While a paired computer's thread is on screen it is that
  * thread's, so the draft typed for it stays keyed to it here and never travels as keystrokes.
  */
-/** The new-thread composer's one draft, kept whichever project or computer it is pointed at. */
-export const NEW_THREAD_DRAFT = "draft:";
-
-/** The new-thread composer's project picker, as an `openMenu` value. */
-export const THREAD_START_PROJECT_MENU = "thread-start:project";
-
-/** The main composer's dictation: whether it can, and what the recording on this draft is doing. */
-function dictationView(state: WorkspaceState) {
-  const { model, message, progress, session, sends } = state.dictation;
-  const here = session && session.key === promptKey(state) ? session : null;
-  return { model, message, progress, phase: here?.phase ?? null, handsFree: here?.handsFree === true && here.phase !== "transcribing", sends };
-}
-
 export function promptKey(state: Pick<WorkspaceState, "currentId"> & { computers?: WorkspaceState["computers"] }): string {
   const remote = state.computers ? selectedComputer({ computers: state.computers })?.state : undefined;
   return (remote ?? state).currentId ?? NEW_THREAD_DRAFT;
-}
-
-export function withPrompt(state: WorkspaceState, key: string, prompt: string): WorkspaceState {
-  if (prompt) return { ...state, prompts: { ...state.prompts, [key]: prompt } };
-  const { [key]: _cleared, ...prompts } = state.prompts;
-  return { ...state, prompts };
 }
 
 /** Where the cursor lands moving `step` through history, stepping over threads that are gone or archived. */
@@ -641,264 +156,4 @@ export function recordVisit(state: WorkspaceState, threadId: string): WorkspaceS
   const history = state.history.slice(0, state.historyIndex + 1);
   if (history[history.length - 1] !== threadId) history.push(threadId);
   return { ...state, history, historyIndex: history.length - 1 };
-}
-
-/** Each chat's view outlives the derive that built it, so a report elsewhere never redraws one. */
-const reusedSideChats = heldViews<SideChatView>();
-const reusedThreadTabs = heldViews<ThreadTabView>();
-
-const NO_SUBAGENTS: Subagent[] = [];
-const NO_QUEUED: QueuedMessage[] = [];
-const NO_WORKFLOWS: Workflow[] = [];
-
-/** What the thread's engine reports about its run; a feed the engine cannot fill stays empty. */
-export function engineFeeds(capabilities: EngineCapabilities, state: WorkspaceState, currentThread: Thread | undefined) {
-  return {
-    subagents: capabilities.subagents && currentThread ? state.subagents[currentThread.id] ?? NO_SUBAGENTS : NO_SUBAGENTS,
-    workflows: capabilities.workflows ? (state.currentId ? state.workflows[state.currentId] : undefined) ?? NO_WORKFLOWS : NO_WORKFLOWS,
-  };
-}
-
-/** The engine in front: what it is called, what it can feed, and whether a picker may still move off it. */
-function engineView(state: WorkspaceState, currentThread: Thread | undefined) {
-  const engine = currentThread?.engine ?? state.draftEngine;
-  const capabilities = capabilitiesFor(engine);
-  return {
-    engine,
-    /** The engine's name, for wording that speaks of the agent running this thread. */
-    engineLabel: engineLabel(engine),
-    /** A thread exists from its first message on, and keeps the engine that message went to. */
-    engineLocked: currentThread !== undefined,
-    /** Which engines a picker may hand a run to, why the others cannot be picked, and how to fix it. */
-    engineAccess: byEngine((candidate): EngineReadiness => engineReadinessOf(state, candidate)),
-    /** What the engine can feed, so a panel it cannot is not offered for this thread. */
-    capabilities,
-    /** The models this view's computer can run, for every picker and label drawn from it. */
-    models: catalogOf(state),
-    /**
-     * Why the thread in front can only be read here: it runs on an engine only a newer build on a
-     * paired computer knows. Null for any thread this build can work in.
-     */
-    unopenable: currentThread && !isAgentEngine(currentThread.engine) ? unopenableEngine(currentThread.engine) : null,
-    ...engineFeeds(capabilities, state, currentThread),
-  };
-}
-
-/** The model in front and the effort a run on it gets, which for a coordinator is never one that hands work to the engine's agents. */
-function modelView(state: WorkspaceState, currentThread: Thread | undefined) {
-  const engine = currentThread?.engine ?? state.draftEngine;
-  const model = currentThread ? threadModel(catalogOf(state), currentThread) : state.draftModel;
-  const role = effortRoleOf(currentThread, state.draftRole);
-  const effort = currentThread ? currentThread.effort ?? defaultEffortFor(engine) : state.draftEffort;
-  return { model, coordinating: role === "coordinator", effort: model === undefined ? effort : effortForModel(catalogOf(state), engine, model, effort, role) };
-}
-
-/** What the thread in front waits on, and what its composer offers, which is nothing while a run is going or on its way. */
-function waitView(state: WorkspaceState, currentThread: Thread | undefined, running: boolean) {
-  const waiting = waitingOn(state, currentThread?.id, promptKey(state));
-  const settled = currentThread && !running && waiting === null ? currentThread : undefined;
-  return {
-    waitingOn: waiting,
-    canCompact: settled !== undefined && compactableSession(state, settled),
-    canReview: settled !== undefined && reviewableSession(state, settled),
-  };
-}
-
-/**
- * The threads ⌘1 through ⌘9 reach, read straight from state so each keystroke follows the current
- * visible order.
- */
-export function threadSlots(state: WorkspaceState): string[] {
-  const { ranked, blocked } = threadActivity(state);
-  return sidebarLists(state, state.projects, threadLists(state).visibleThreads, ranked, blocked).threadSlots;
-}
-
-const NO_OVERVIEW_FOLDS: OverviewFolds = {};
-
-/** The settings page an engine notice opens, and the setting it lands on. */
-const ENGINE_SETTINGS: { section: SettingsSection; settingId: string | null } = { section: "engines", settingId: null };
-
-/** Everything the UI reads, derived in one place so components never reach into raw state. */
-export function deriveView(state: WorkspaceState) {
-  const own = deriveOwnView(state);
-  const remote = selectedComputer(state)?.state;
-  if (remote) return overlaidView(state, own, remote, (shown, window) => deriveOwnView(shown, window, shownViewCollections));
-  shownViewCollections.release();
-  return own;
-}
-
-const NO_WORKTREE_CHOICES: MobileWorktreeChoice[] = [];
-
-export type OwnWorkspaceView = ReturnType<typeof deriveOwnView>;
-
-/** `window` is whose menu the location row draws: this window's when the thread is a paired computer's. */
-function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state, collectionsOf = workspaceViewCollections) {
-  const currentThread = state.threads.find((thread) => thread.id === state.currentId);
-  const draftWorktree = worktreeById(state, state.draftWorktreeId ?? undefined);
-  const currentProject = currentThread
-    ? projectFor(state, currentThread)
-    : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId) : undefined);
-  const collections = collectionsOf(state);
-  const { listedThreads, visibleThreads, busy, blocked, managedWorktrees, lists } = collections;
-  const currentRun = state.currentId ? state.activeRuns[state.currentId] : undefined;
-  const workspaceId = currentThread
-    ? threadWorkspaceId(state, currentThread)
-    : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.workspaceId : undefined);
-  const environment = (workspaceId ? state.environments[workspaceId] : undefined) ?? null;
-  const owner = dockOwner(state), dock = dockFor(state, owner);
-  return {
-    ...engineView(state, currentThread),
-    sideChatAttention: collections.sideChatAttention,
-    unreadCount: collections.unreadCount,
-    ...lists,
-    startProjects: collections.startProjects,
-    projectSettings: collections.projectSettings,
-    threads: listedThreads,
-    archivedThreads: collections.archivedThreads,
-    currentThread,
-    coordination: collections.coordination, coordinatorsByComputer: collections.coordinatorsByComputer, memberPullRequests: collections.memberPullRequests, memberWorktrees: collections.memberWorktrees,
-    overviewFolds: (state.currentId ? state.overviewFolds[state.currentId] : undefined) ?? NO_OVERVIEW_FOLDS,
-    goal: state.currentId ? state.goals[state.currentId] ?? null : null,
-    currentProject,
-    folder: currentProject?.root ?? "",
-    /** What that folder is called: the name the user gave the project, else the folder's own. */
-    folderLabel: currentProject ? projectName(currentProject) : "",
-    policy: currentThread?.executionPolicy ?? state.draftPolicy,
-    ...modelView(state, currentThread),
-    fastMode: capabilitiesFor(currentThread?.engine ?? state.draftEngine).fastMode && (currentThread ? currentThread.fastMode ?? false : state.draftFastMode),
-    prompt: state.prompts[promptKey(state)] ?? "", dictation: dictationView(state),
-    annotations: annotationsFor(state, promptKey(state)), annotationReveal: annotationRevealFor(state, promptKey(state)),
-    pastes: pastesFor(state, promptKey(state)),
-    images: imagesFor(state, promptKey(state)),
-    files: filesFor(state, promptKey(state)),
-    status: runStatus(state, state.currentId),
-    compacting: currentRun?.status === "compacting",
-    retrying: currentRun?.retry ?? null,
-    /** The usage limit the thread is waiting out, and its place in line. */
-    limitPause: currentThread?.limitPause ? { ...currentThread.limitPause, position: linePositions(state.threads).get(currentThread.id) ?? null } : null,
-    limitPositions: linePositions(state.threads),
-    runActive: Boolean(currentRun),
-    question: currentRun?.questions?.[0],
-    queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? NO_QUEUED,
-    runningThreadIds: collections.everyBusy, monitoringThreadIds: collections.everyMonitoring,
-    blockedThreadIds: collections.everyBlocked, stoppableCoordinatorIds: collections.everyStoppable,
-    approval: currentRun?.status === "awaiting-approval" ? state.approvals[currentRun.runId] as ApprovalView | undefined : undefined,
-    backgroundProcesses: (state.currentId ? state.backgroundProcesses[state.currentId] : undefined) ?? [],
-    /** The workflow this thread's panel is on, which outlives a move to another thread and back. */
-    inspectedWorkflow: workflowById(state, dock.workflowId) ?? null,
-    streamingTail: state.currentId ? state.streamingTails[state.currentId] ?? null : null,
-    readingPoint: state.currentId ? state.readingPoints[state.currentId] ?? null : null,
-    automation: state.automations.find((item) => item.taskId === state.currentId) ?? null, automationEdits: state.automationEdits,
-    schedules: collections.schedules,
-    /** When a run on this thread last found something, which is what the automation panel reports. */
-    lastFoundAt: currentThread?.lastFindingAt ?? null,
-    /** What its last silent tick looked at, which is all a schedule that never speaks has to show. */
-    lastChecked: currentThread?.lastChecked ?? null,
-    worktreeThreadIds: collections.worktreeThreadIds,
-    /** The checkouts a project has, each with the threads that claim it, and each by id for the rows that name one. */
-    worktreeGroups: collections.worktreeGroups, worktreesById: collections.worktreesById,
-    managedWorktrees,
-    worktreeSettings: collections.worktreeSettings,
-    worktreeManagementError: state.worktreeManagementError,
-    worktreeManagementNotice: state.worktreeManagementNotice,
-    location: locationOf(state, currentThread),
-    worktreeMenu: worktreeMenuView(state, currentThread, visibleThreads, window),
-    worktreeDeleteConfirmation: managedWorktrees?.find((item) => item.root === state.worktreeSettings.confirming && !item.deleting) ?? null,
-    ...waitView(state, currentThread, Boolean(currentRun)),
-    /** The checkout the current thread works in, which is what Git is read from and moved. */
-    workspaceId,
-    draftBranch: state.draftBranch, draftWorktree: state.draftWorktree, draftWorktreeId: state.draftWorktreeId, draftRole: state.draftRole,
-    /** What the composer calls the checkout a draft starts in, when the user picked one. */
-    draftWorktreeName: draftWorktree ? worktreeName(draftWorktree) : null,
-    /** The project's existing checkouts a draft can start in instead. */
-    draftWorktreeChoices: !currentThread && currentProject ? worktreeChoices(state, currentProject.id, state.draftWorktreeId ?? undefined) : NO_WORKTREE_CHOICES,
-    environment,
-    /** The pull request that checkout's work belongs to, drawn only while the answer is still its own. */
-    pullRequest: pullRequestFor(state.pullRequest, workspaceId, environment),
-    attachmentSends: state.attachmentSends,
-    installedApps: state.installedApps, cli: state.cli, planUsage: state.planUsage,
-    /** The limits of the account the thread on screen runs on, which is the paired computer's own for a thread there. */
-    threadPlanUsage: state.planUsage,
-    computerUsePermissions: state.computerUsePermissions,
-    storageError: state.storageError, hiddenThreads: state.hiddenThreads,
-    actionError: state.actionError,
-    viewingImage: state.viewingImage, viewingGallery: state.viewingGallery,
-    actionErrorPage: state.actionErrorPage,
-    restored: state.restored,
-    computerUseSetup: state.computerUseSetup,
-    ...workspaceDialogsView(state),
-    sections: state.sections,
-    subagentGroups: state.subagentGroups,
-    theme: state.theme,
-    themeMode: state.themeMode,
-    uiFont: state.uiFont,
-    monoFont: state.monoFont,
-    readingSize: state.readingSize,
-    terminalSize: state.terminalSize,
-    sidebarOpen: state.sidebarOpen,
-    sessionPanelOpen: state.sessionPanelOpen,
-    captureSound: state.captureSound,
-    captureFocus: state.captureFocus,
-    chromeBrowser: state.chromeBrowser,
-    computerUse: state.computerUse,
-    browserTools: state.browserTools,
-    notifications: state.notifications,
-    favoriteModels: state.favoriteModels, recentProjects: state.recentProjects, shortcuts: shortcutSettings(state.shortcuts),
-    capturingShortcut: state.capturingShortcut, desktopShortcutUnavailable: state.desktopShortcutUnavailable,
-    composerFocus: state.composerFocus,
-    /** Only the dock on screen can take the keys, so a request in another thread's dock is not drawn. */
-    dockFocus: state.dockFocus?.owner === owner ? state.dockFocus : null,
-    /** Asking for computer use opens settings whether or not the user did. */
-    settingsOpen: state.settingsOpen || state.computerUseSetup,
-    settingsSection: state.computerUseSetup ? "computer-use" : state.settingsSection,
-    settingsFocus: state.computerUseSetup ? null : state.settingsFocus, usageComputer: pairedId(state.computers, state.usageComputer),
-    engineChecking: state.engineChecking,
-    engineUpdating: state.engineUpdating,
-    /** Where the composer's engine notice sends the user to fix it. */
-    engineSettingsPage: ENGINE_SETTINGS,
-    agentSettingsReload: state.agentSettingsReload,
-    dockOpen: dock.open,
-    dockExpanded: dock.expanded,
-    dockPanels: dock.panels,
-    /** The thread tabs the review and the automation panel show in place of the dock's own thread. */
-    reviewSubject: dockSubject(state, owner, DIFF_PANEL),
-    automationSubject: dockSubject(state, owner, AUTOMATION_PANEL),
-    /** The review this thread has open, whether or not the panel drawing it is the tab in front. */
-    diff: diffFor(state, owner),
-    dockTab: dock.tab,
-    browserTabs: dock.browserTabs,
-    browserApproval: state.browserApproval,
-    browserOrigins: state.browserOrigins, browserImport: state.browserImport,
-    /** The simulators, and the one this dock's panel shows. */
-    simulator: state.simulator, simulatorId: dock.simulatorId,
-    terminals: dock.terminals,
-    currentFolder: currentFolder(state),
-    openMenu: state.openMenu,
-    reviewPicker: currentThread && state.reviewPicker?.taskId === currentThread.id && !busy.has(currentThread.id) ? state.reviewPicker : null,
-    find: findView(state, currentThread),
-    jump: jumpView(state, busy), zen: state.zen, zenAvailable: Boolean(currentThread?.messages.length),
-    remote: state.remote,
-    remoteChecking: state.remoteChecking,
-    appUpdate: state.appUpdate,
-    visibleToasts: visibleToasts(state),
-    /** The paired computers as the chrome draws them, and the one whose thread is on screen. */
-    computerLinks: collections.computerLinks,
-    /** Each paired computer's own plan limits, beside this computer's `planUsage`. */
-    computerUsage: collections.computerUsage,
-    /** Each paired computer's version, and what moves it or its engines to a newer one. */
-    computerUpkeep: collections.computerUpkeep,
-    activeComputer: collections.computerLinks.find((link) => link.id === state.computers.active) ?? null,
-    computerName: state.computers.name,
-    computerFilter: state.computers.filter,
-    computerPairing: state.computers.pairing,
-    computersFound: state.computers.found,
-    computersSearching: state.computers.searching,
-    computersSearchError: state.computers.searchError,
-    threadHosts: collections.remote.threadHosts,
-    projectHosts: collections.remote.projectHosts,
-    canGoBack: reachableVisit(state, -1) !== null,
-    canGoForward: reachableVisit(state, 1) !== null,
-    sideChats: reusedSideChats(dockSideChats(state, owner).flatMap((chat) => sideChatView(state, chat))),
-    threadTabs: reusedThreadTabs(dock.threadTabs.flatMap((taskId) => threadTabView(state, taskId, busy, blocked))),
-  };
 }

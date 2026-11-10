@@ -1,7 +1,8 @@
 import type { QuestionAddress } from "../../domain/agent-question";
 import { LuGitFork as GitFork } from "react-icons/lu";
 import { useRef, type ReactNode } from "react";
-import type { DockConversationView, FindView, SideChatView } from "../../application/workspace-state";
+import type { DockConversationView, SideChatView } from "../../application/workspace-view";
+import type { FindView } from "../../application/workspace-find";
 import type { ReadingPoint } from "../../contracts/commands";
 import { sentPrompts, type Annotation, type AnnotationAnchor, type AttachedFile, type PastedText } from "../../domain/conversation";
 import { defaultEffortFor, isAgentEngine, unopenableEngine, type AgentEngine, type AgentModel, type EngineModel } from "../../domain/agent-engine";

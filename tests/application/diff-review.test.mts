@@ -3,15 +3,8 @@ import assert from "node:assert/strict";
 import { test, describe } from "vitest";
 import { DIFF_PANEL, reduce, type WorkspaceEffect } from "../../src/application/workspace-reducer.ts";
 import type { ActiveRun } from "../../src/application/thread-run-state.ts";
-import {
-  deriveView,
-  diffFor,
-  dockFor,
-  dockOwner,
-  emptyWorkspaceState,
-  type DiffState,
-  type WorkspaceState,
-} from "../../src/application/workspace-state.ts";
+import { diffFor, dockFor, dockOwner, emptyWorkspaceState, type DiffState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import type { DiffSummaryResult } from "../../src/contracts/ipc.js";
 import { DEFAULT_BRANCH_RANGE, DRAWN_FILE_LIMIT, DRAWN_LINE_BUDGET, type DiffFileSummary, type DiffRange } from "../../src/domain/diff.js";
 import type { Project } from "../../src/domain/project.js";

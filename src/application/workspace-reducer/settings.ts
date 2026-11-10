@@ -3,7 +3,7 @@ import { TAKE_KEYS, persistView } from "./dock-tabs.js";
 import { settled, targetId, rejected } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
-import { pairedId } from "../computers.js";
+import { pairedId } from "../state/computers.js";
 import { withSubagents } from "../thread-run-state.js";
 import { viewPreferences } from "../view-preferences.js";
 import { dockOwner, withDock, type WorkspaceState } from "../workspace-state.js";

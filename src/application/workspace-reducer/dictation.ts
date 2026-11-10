@@ -2,7 +2,8 @@
 import { DICTATION_HEARD_NOTHING, dictationRefusal, withSpokenWords, type DictationState } from "../../domain/dictation.js";
 import { MAIN_COMPOSER, NO_ATTACHMENT_SEND } from "../composer-attachments.js";
 import { focusComposer } from "../composer-drafts.js";
-import { promptKey, withPrompt, type WorkspaceState } from "../workspace-state.js";
+import { promptKey, type WorkspaceState } from "../workspace-state.js";
+import { withPrompt } from "../state/composer.js";
 import { rejected, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import type { DictationModel } from "../../domain/dictation.js";

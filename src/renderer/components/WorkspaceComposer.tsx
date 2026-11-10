@@ -2,7 +2,7 @@ import { ConversationComposer, type ComposerAction } from "./ConversationCompose
 import { dictationBinding } from "./ComposerDictation";
 import { NeedsYouCard } from "./NeedsYouCard";
 import { ThreadStartOptions } from "./ThreadStartOptions";
-import { THREAD_START_PROJECT_MENU } from "../../application/workspace-state";
+import { THREAD_START_PROJECT_MENU } from "../../application/state/dialogs";
 import { attachDroppedFiles, imageSources } from "../dropped-files";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { sentPrompts } from "../../domain/conversation";

@@ -3,7 +3,8 @@
  * downloads, installs once nothing here is running, and the launch it brings upgrades every engine
  * the new build needs. Nobody has to be at this screen for any of it.
  */
-import { engineReadinessOf, reduceEngine } from "./engine-access.js";
+import { reduceEngine } from "./engine-access.js";
+import { engineReadinessOf } from "./state/engines.js";
 import { reduceToasts } from "./toasts.js";
 import { threadActivity } from "./thread-activity.js";
 import { rejected, settled } from "./workspace-reducer/shared.js";

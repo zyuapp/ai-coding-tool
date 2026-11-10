@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { pasteRidesAsPill, pasteSummary, pasteTitle, promptWithPastes } from "../../src/application/pastes.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 
 const LONG = Array.from({ length: 40 }, (_, line) => `line ${line}`).join("\n");
 

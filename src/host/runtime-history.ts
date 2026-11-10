@@ -1,4 +1,5 @@
-import { findTargetFor, type WorkspaceState } from "../application/workspace-state.js";
+import type { WorkspaceState } from "../application/workspace-state.js";
+import { findTargetFor } from "../application/workspace-find.js";
 import { inputScope } from "../application/input-scope.js";
 import { shortcutCommands, type WorkspaceInput } from "../application/workspace-reducer.js";
 import { resolveScope, threadSummaries } from "../application/thread-projection.js";

@@ -1,4 +1,5 @@
-import { sideChatIds, type WorkspaceState } from "../application/workspace-state.js";
+import type { WorkspaceState } from "../application/workspace-state.js";
+import { sideChatIds } from "../application/state/side-chats.js";
 import type { PersistedSubagent, PersistedTask, TaskStoreDelta } from "../contracts/ipc.js";
 import type { Subagent, SubagentActivity } from "../domain/run.js";
 import type { Thread } from "../domain/thread.js";

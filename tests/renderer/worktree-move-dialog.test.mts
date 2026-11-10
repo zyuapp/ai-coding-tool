@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
-import type { WorktreeMoveView } from "../../src/application/workspace-state.ts";
+import type { WorktreeMoveView } from "../../src/application/workspace-view.ts";
 import { mount, query } from "../support/renderer-dom.mts";
 
 const { WorktreeMoveDialog } = await import("../../src/renderer/components/WorktreeMoveDialog.tsx");

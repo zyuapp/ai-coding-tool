@@ -17,7 +17,9 @@ import {
   type KeyInput,
 } from "../../src/domain/shortcuts.ts";
 import { reduce, shortcutCommands, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
-import { deriveView, dockFor, dockOwner, emptyWorkspaceState, THREAD_START_PROJECT_MENU, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { dockFor, dockOwner, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { THREAD_START_PROJECT_MENU } from "../../src/application/state/dialogs.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 

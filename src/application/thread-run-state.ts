@@ -2,13 +2,14 @@ import type { PendingQuestion } from "../domain/agent-question.js";
 import type { BackgroundEvent, RunEvent, ThreadEvent, WorkflowEvent } from "../contracts/ipc.js";
 import type { BackgroundProcess, RetryNotice, Subagent, SubagentMetadata, SubagentReport } from "../domain/run.js";
 import type { Workflow } from "../domain/workflow.js";
-import type { ActiveGoal } from "../domain/goal.js";
 import { createConversationMessage, createFailureMessage } from "../domain/conversation.js";
 import { runOutcome, type ThreadOutcome } from "../domain/thread-run.js";
 import type { Thread } from "../domain/thread.js";
 import { appendMessages, replaceLastMessage, withdrawMessages } from "../domain/conversation-updates.js";
 import { withMemoryUnheard, type CoordinationReport } from "../domain/coordination.js";
 import { defaultModelFor } from "../domain/agent-engine.js";
+import type { ThreadsState } from "./state/threads.js";
+import type { RunFeedsState } from "./state/runs.js";
 
 /**
  * Where a live run stands. Only a retrying run carries the notice it retries under, and a run awaiting
@@ -139,27 +140,8 @@ export type StreamingTail = {
   text: string;
 };
 
-/** Runs and their outcomes are keyed by thread, so threads progress independently. */
-export type RunTransitionState = {
-  threads: Thread[];
-  goals: Record<string, ActiveGoal>;
-  activeRuns: Record<string, ActiveRun>;
-  runStatuses: Record<string, ThreadRunStatus>;
-  approvals: Record<string, ApprovalView>;
-  streamingTails: Record<string, StreamingTail>;
-  /**
-   * What each thread's session has running in the background. The agent process (re)starts with none and
-   * says so, so this is never persisted, and it outlives the run that started the work.
-   */
-  backgroundProcesses: Record<string, BackgroundProcess[]>;
-  /** What each thread has driven as a dynamic workflow. A workflow left running outlives the run that started it. */
-  workflows: Record<string, Workflow[]>;
-  /**
-   * The helper agents each thread has delegated to. A live feed rather than thread content, so a report
-   * arriving every few milliseconds never rewrites the thread it belongs to.
-   */
-  subagents: Record<string, Subagent[]>;
-};
+/** What a run report may change: its thread, and the feeds the run reports into. */
+export type RunTransitionState = ThreadsState & RunFeedsState;
 
 function now() {
   return Date.now();

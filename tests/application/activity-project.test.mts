@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
-import type { PairedComputer } from "../../src/application/computers.ts";
+import type { PairedComputer } from "../../src/application/state/computers.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import type { WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
 import { effectOf, task, workspace } from "./workspace-reducer-fixtures.mts";
 

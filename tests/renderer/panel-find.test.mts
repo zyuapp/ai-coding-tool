@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { useRef } from "react";
 import { settleUntil } from "../support/settle.mts";
-import type { FindView } from "../../src/application/workspace-state.ts";
+import type { FindView } from "../../src/application/workspace-find.ts";
 import type { FindResults } from "../../src/domain/find.ts";
 import type { DockPanel } from "../../src/renderer/components/dock-registry.tsx";
 import { LuBot as Bot } from "react-icons/lu";

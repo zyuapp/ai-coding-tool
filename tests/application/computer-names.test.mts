@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import type { PairedComputer } from "../../src/application/computers.ts";
+import type { PairedComputer } from "../../src/application/state/computers.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
 import { MAX_COMPUTER_NAME } from "../../src/domain/computers.ts";

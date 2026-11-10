@@ -2,7 +2,8 @@
 import { settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { composerDraft, revealAnnotation } from "../composer-drafts.js";
-import { promptKey, sameReadingPoint, withPrompt, type WorkspaceState } from "../workspace-state.js";
+import { promptKey, type WorkspaceState } from "../workspace-state.js";
+import { sameReadingPoint, withPrompt } from "../state/composer.js";
 
 export const COMPOSER_INPUTS = [
   "annotation.add", "annotation.note", "annotation.remove", "annotation.recall", "annotation.reveal", "paste.add", "paste.remove", "paste.recall", "image.add",

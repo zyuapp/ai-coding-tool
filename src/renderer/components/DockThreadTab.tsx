@@ -16,7 +16,8 @@ import { pullRequestSettled } from "../../domain/pull-request";
 import { attachmentSendFor, type AttachmentSendState } from "../../application/composer-attachments";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import type { AppCommand } from "../../contracts/commands";
-import type { FindView, ThreadTabView } from "../../application/workspace-state";
+import type { ThreadTabView } from "../../application/workspace-view";
+import type { FindView } from "../../application/workspace-find";
 import { engineLabel, type EngineModel } from "../../domain/agent-engine";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 

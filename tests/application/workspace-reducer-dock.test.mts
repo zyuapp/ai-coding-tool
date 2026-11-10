@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView, dockFor, dockOwner } from "../../src/application/workspace-state.ts";
+import { dockFor, dockOwner } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import type { Workflow } from "../../src/domain/workflow.ts";
 import { dock, task, workspace, preferences, required, run } from "./workspace-reducer-fixtures.mts";
 

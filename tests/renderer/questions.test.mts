@@ -4,7 +4,7 @@ import React, { act } from "react";
 import { outbox } from "../support/composer-outbox.mts";
 import type { DesktopAPI } from "../../src/contracts/ipc.ts";
 import { reduce, type WorkspaceInput, type WorkspaceEffect } from "../../src/application/workspace-reducer.ts";
-import { deriveView } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { running } from "../application/workspace-reducer-fixtures.mts";
 import { mount, query } from "../support/renderer-dom.mts";
 

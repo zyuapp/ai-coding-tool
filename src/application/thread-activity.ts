@@ -11,7 +11,8 @@ import type { Workflow } from "../domain/workflow.js";
 import { startingThreads } from "./run-record.js";
 import { unreadView } from "./thread-attention.js";
 import { leavingThreadIds } from "./thread-location.js";
-import { sideChatIds, type WorkspaceState } from "./workspace-state.js";
+import type { WorkspaceState } from "./workspace-state.js";
+import { sideChatIds } from "./state/side-chats.js";
 
 /** What a thread is waiting on before it can work: a checkout being made or removed, or a run finding one. */
 export type ThreadWait = "worktree" | "worktree-release" | "run";

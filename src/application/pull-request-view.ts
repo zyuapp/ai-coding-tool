@@ -6,7 +6,7 @@ import type { Worktree } from "../domain/worktree.js";
 import { threadWorkspaceId } from "./thread-location.js";
 import { coordinationMembers, type CoordinationMember } from "./coordination.js";
 import { ownPullRequest, ownsPullRequest, type OwnPullRequest } from "./coordinated-thread-status.js";
-import type { ComputersState, PairedComputer } from "./computers.js";
+import type { ComputersState, PairedComputer } from "./state/computers.js";
 
 /** The branch a checkout sits on, or null while Git has not said or could not. */
 export function branchOf(environment: ChangedFilesResult | null) {

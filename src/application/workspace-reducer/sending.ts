@@ -1,16 +1,19 @@
 /** A send: the prompt the composer hands over, and the queue behind a run already going. */
 import { ARCHIVED_SEND_ERROR, CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { clearedDraft, drainingQueued, editableQueued, fileThread, forkableContinuation, handedBack, queuedFor, resolveWorkspaceEffect, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued, withUndelivered } from "./run-queue.js";
+import { clearedDraft, drainingQueued, fileThread, forkableContinuation, handedBack, queuedFor, resolveWorkspaceEffect, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued, withUndelivered } from "./run-queue.js";
+import { editableQueued } from "../state/runs.js";
 import { settled, targetId, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { annotationsFor, filesFor, focusComposer, focusedTab, pastesFor } from "../composer-drafts.js";
 import { tabHolderOf } from "../workspace-dock.js";
-import { QUEUED_SENT, queueHolder } from "../computers.js";
+import { queueHolder } from "../computers.js";
+import { QUEUED_SENT } from "../state/runs.js";
 import { threadHandleOptions } from "../thread-projection.js";
 import { leavingThreadIds, namedPlace, worktreeFor } from "../thread-location.js";
 import { promptKey, type PendingRun, type QueuedMessage, type WorkspaceState } from "../workspace-state.js";
 import { engineBlocker, modelEngine, noModel, threadModel, unknownModel } from "../../domain/agent-engine.js";
-import { catalogOf, engineOffersModel, engineReadinessOf, refreshEngines } from "../engine-access.js";
+import { refreshEngines } from "../engine-access.js";
+import { catalogOf, engineOffersModel, engineReadinessOf } from "../state/engines.js";
 import { expandThreadHandles } from "../../domain/thread-handles.js";
 import { withoutSnooze } from "../../domain/thread-snooze.js";
 import { updateThread } from "../thread-run-state.js";

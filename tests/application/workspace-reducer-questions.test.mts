@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { isRunCommand, isRunEvent } from "../../src/contracts/ipc.ts";
 import { isPhoneCommand } from "../../src/contracts/workspace-view-input.ts";
 import { running, effectAt } from "./workspace-reducer-fixtures.mts";

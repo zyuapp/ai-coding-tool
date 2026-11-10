@@ -1,5 +1,6 @@
 import React, { act } from "react";
-import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { EVERY_ENGINE_READY } from "../../src/domain/model-library.ts";
 import type { SettingsSection } from "../../src/domain/settings-section.ts";

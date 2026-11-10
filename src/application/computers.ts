@@ -8,70 +8,20 @@ import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../contracts/comput
 import type { AppCommand } from "../contracts/commands.js";
 import { commandLeaves, commandPlacement, isAppCommandType, type CommandPlacement, type PlacedCommand } from "../contracts/workspace-view-input.js";
 import type { Annotation, PastedText } from "../domain/conversation.js";
-import { offlineMessage, type ComputerFilter, type ComputerLink, type ComputerPairing, type DiscoveredComputer } from "../domain/computers.js";
+import { offlineMessage, type ComputerLink } from "../domain/computers.js";
 import { findProject, folderName, matchingProjects, projectName, type Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import type { Worktree } from "../domain/worktree.js";
 import { MAIN_COMPOSER } from "./composer-attachments.js";
 import { annotationsFor, filesFor, pastesFor } from "./composer-drafts.js";
-import { NEW_THREAD_DRAFT, promptKey, type WorkspaceState } from "./workspace-state.js";
+import { promptKey, type WorkspaceState } from "./workspace-state.js";
+import { NEW_THREAD_DRAFT } from "./state/composer.js";
 import { doingWork, threadActivity, threadLists, type ThreadActivity } from "./thread-activity.js";
 import { stoppableCoordinators } from "./coordination.js";
 import type { WorkspaceInput } from "./workspace-reducer.js";
-import { frontDock } from "./workspace-dock.js";
-import { editableQueued } from "./workspace-reducer/run-queue.js";
+import { editableQueued, QUEUED_SENT } from "./state/runs.js";
 import { isAgentEngine, unopenableEngine, type EngineId } from "../domain/agent-engine.js";
-
-/** A paired computer as this one holds it: the link, and the last state it published. */
-export type PairedComputer = ComputerLink & { state: WorkspaceState | null };
-
-export type ComputersState = {
-  /** What this computer calls itself, which is how a paired computer tags this one's rows. */
-  name: string;
-  /** Computers on the tailnet that answered, as of the last look. */
-  found: DiscoveredComputer[];
-  searching: boolean;
-  searchError: string | null;
-  paired: PairedComputer[];
-  pairing: ComputerPairing | null;
-  /** The paired computer whose thread the conversation is showing. Null for this computer's own. */
-  active: string | null;
-  /** The paired computer that was on screen when its line dropped, put back once it is up again unless the window has moved on. */
-  dropped: string | null;
-  filter: ComputerFilter;
-  /**
-   * Coordinators gone from here, cleared from the archive or outliving their time in it, whose threads
-   * on paired computers are let go once each computer says it still holds one. Kept between launches,
-   * newest last.
-   */
-  discardedLeads: string[];
-};
-
-/** How many coordinators gone from here are remembered for threads elsewhere that may still work under them. */
-export const MAX_DISCARDED_LEADS = 50;
-
-export const NO_COMPUTERS: ComputersState = { name: "", found: [], searching: false, searchError: null, paired: [], pairing: null, active: null, dropped: null, filter: "all", discardedLeads: [] };
-
-/** The paired computer whose thread is on screen, while its line is up. One whose line is down shows nothing and takes nothing. */
-export function activeComputer(state: Pick<WorkspaceState, "computers">): PairedComputer | null {
-  const { active, paired } = state.computers;
-  const computer = active === null ? null : paired.find((computer) => computer.id === active) ?? null;
-  return computer?.status === "connected" ? computer : null;
-}
-
-/** `id` while it names a paired computer, else null. */
-export function pairedId(computers: Pick<ComputersState, "paired">, id: string | null): string | null {
-  return id !== null && computers.paired.some((computer) => computer.id === id) ? id : null;
-}
-
-/** The selected host may stay on screen offline while its terminal waits to reconnect. */
-export function selectedComputer(state: Pick<WorkspaceState, "computers">): PairedComputer | null {
-  const computer = state.computers.paired.find((computer) => computer.id === state.computers.active);
-  if (!computer) return null;
-  if (computer.status === "connected") return computer;
-  const dock = computer.state ? frontDock(computer.state).dock : null;
-  return dock?.open && dock.terminals.some((terminal) => terminal.id === dock.tab) ? computer : null;
-}
+import { selectedComputer, type ComputersState, type PairedComputer } from "./state/computers.js";
 
 const terminalIds = new WeakMap<WorkspaceState["docks"], Set<string>>();
 
@@ -145,8 +95,6 @@ export function leavesComputer(state: WorkspaceState, input: WorkspaceInput): bo
 export const PANEL_ELSEWHERE = "The browser panel opens only for threads on this computer.";
 export const ATTACHMENTS_ELSEWHERE = "Files and folders attached by local path cannot be sent to another computer.";
 export const QUEUED_ATTACHMENTS_ELSEWHERE = "A message with images or files cannot be edited from another computer.";
-export const QUEUED_NOT_YOURS = "Only a message you wrote can be edited.";
-export const QUEUED_SENT = "That message has already been sent.";
 export const FILES_ELSEWHERE = "That folder is on another computer, so it cannot be opened here.";
 
 function forwarded(computer: PairedComputer, inputs: WorkspaceInput[], options: { select?: true; also?: true; draft?: SentDraft } = {}): InputRoute {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { inputScope, screenOf } from "../../src/application/input-scope.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import type { PairedComputer } from "../../src/application/computers.ts";
+import type { PairedComputer } from "../../src/application/state/computers.ts";
 import { activeRun, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 const state = workspace({ threads: [task("current"), task("other")], currentId: "current", activeRuns: { current: activeRun("current", "run") } });

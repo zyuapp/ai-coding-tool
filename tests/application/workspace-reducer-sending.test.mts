@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, shortcutCommands, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
-import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import type { WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import { parseThreadStore, serializeThreadStore } from "../../src/domain/thread-storage.ts";

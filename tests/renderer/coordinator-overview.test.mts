@@ -8,7 +8,8 @@ import type { CoordinatedThreadStatus } from "../../src/application/coordinated-
 import type { CoordinatedThreadView } from "../../src/application/coordination-view.ts";
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 import { activeRun, required } from "../application/workspace-reducer-fixtures.mts";
-import { emptyWorkspaceState, deriveView, OVERVIEW_PANEL } from "../../src/application/workspace-state.ts";
+import { emptyWorkspaceState, OVERVIEW_PANEL } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { workspaceActions } from "../../src/renderer/task-workspace/workspace-actions.ts";
 

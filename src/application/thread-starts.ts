@@ -4,13 +4,14 @@
  * for a coordinator cannot drift apart.
  */
 import type { WorkspaceState } from "./workspace-state.js";
-import { computerOfPlace, projectOnComputer, type PairedComputer } from "./computers.js";
+import { computerOfPlace, projectOnComputer } from "./computers.js";
+import type { PairedComputer } from "./state/computers.js";
 import { namedPlace, projectFor } from "./thread-location.js";
 import type { AppCommand } from "../contracts/commands.js";
 import { coordinatorOf, isCoordinator, remoteLeadOf, threadModelOf, undelegable, type ProposalPlace, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
 import { clampTitle, type Thread } from "../domain/thread.js";
 import { defaultEffortFor, defaultModelIn, effortForModel, engineHasModel, engineLabel, isAgentEngine, modelDelegable, modelHasEffort, modelTakesEffort, resolveModel, threadModel, unknownModel } from "../domain/agent-engine.js";
-import { catalogOf } from "./engine-access.js";
+import { catalogOf } from "./state/engines.js";
 
 export type NewThreadSend = Extract<AppCommand, { type: "task.send" }>;
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { newThreadSend, threadProposal } from "../../src/application/thread-starts.ts";
 import { BUILT_IN_MODELS,defaultModelFor, defaultModelIn, engineCatalog, engineModelsKnown, engineNotice, modelLabel, policyFor, resolveModel, threadModel, type AgentEngine, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.ts";
 import { threadModelOf } from "../../src/domain/coordination.ts";

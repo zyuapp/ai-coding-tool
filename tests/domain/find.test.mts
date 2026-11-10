@@ -3,7 +3,8 @@ import { test } from "vitest";
 import { fileReviewHits, findHits, MAX_FIND_HITS, reviewHits, sameFindTarget, sameReviewHit, searchesItself, stepMatch, type ReviewFile } from "../../src/domain/find.ts";
 import type { DiffFile, DiffLineKind } from "../../src/domain/diff.ts";
 import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
-import { DIFF_PANEL, deriveView, dockFor, dockOwner, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { DIFF_PANEL, dockFor, dockOwner, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 

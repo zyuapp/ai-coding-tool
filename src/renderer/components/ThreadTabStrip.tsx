@@ -9,7 +9,7 @@ import { useDismissibleLayer } from "../focus";
 import { deliveryLabel, type ThreadBrief } from "../../domain/coordination";
 import type { AutomationView } from "../../domain/automation";
 import type { PullRequestAnswer, PullRequestState } from "../../domain/pull-request";
-import type { ThreadTabView } from "../../application/workspace-state";
+import type { ThreadTabView } from "../../application/workspace-view";
 import { SweepBand } from "./SweepBand";
 import { Button, ButtonLink } from "../ui/Button";
 import "../ui/glass.css";

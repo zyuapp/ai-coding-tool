@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { threadSummaries } from "../../src/application/thread-projection.ts";
 import { sideChatPrompt } from "../../src/application/workspace-reducer/run-queue.ts";
 import { activeRun, dock, task, workspace, effectAt, required, run } from "./workspace-reducer-fixtures.mts";

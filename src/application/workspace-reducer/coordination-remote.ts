@@ -2,13 +2,15 @@
 import { proposalLanded } from "./proposals.js";
 import { now, settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
-import { coordinationMembers, leadAwayThreads, remotelyLedThreads } from "../coordination.js";
+import { coordinationMembers } from "../coordination.js";
+import { leadAwayThreads, remotelyLedThreads } from "../state/threads.js";
 import type { ThreadChange } from "../thread-activity.js";
 import { heardFacts, type MemberFact } from "../member-facts.js";
 import { endsQuietly } from "../run-settlement.js";
 import { catchesStart, remoteTurnStop, withStopsKept } from "../outstanding-stops.js";
 import { updateThread } from "../thread-run-state.js";
-import { lastWorkingIds, MAX_DISCARDED_LEADS, type PairedComputer } from "../computers.js";
+import { lastWorkingIds } from "../computers.js";
+import { MAX_DISCARDED_LEADS, type PairedComputer } from "../state/computers.js";
 import { viewPreferences } from "../view-preferences.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";

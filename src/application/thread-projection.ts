@@ -1,7 +1,8 @@
 import { runStatus } from "./run-record.js";
 import { threadActivity } from "./thread-activity.js";
 import { projectFor, worktreeFor } from "./thread-location.js";
-import { sideChatIds, type WorkspaceState } from "./workspace-state.js";
+import type { WorkspaceState } from "./workspace-state.js";
+import { sideChatIds } from "./state/side-chats.js";
 import type { ProjectScope, ThreadFilter, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../contracts/threads.js";
 import { findProject, projectName, type Project } from "../domain/project.js";
 import { threadLastOutputAt, threadCreatedAt, type Thread } from "../domain/thread.js";

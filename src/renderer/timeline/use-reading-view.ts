@@ -1,6 +1,7 @@
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { sameReadingPoint, type ReadingPoint } from "../../application/workspace-state";
+import type { ReadingPoint } from "../../application/workspace-state";
+import { sameReadingPoint } from "../../application/state/composer";
 import type { FindHit } from "../../domain/find";
 
 /**

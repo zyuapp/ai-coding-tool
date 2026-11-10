@@ -1,5 +1,7 @@
 import { TaskStore, type KeyValueStorage } from "../application/task-store.js";
-import { NEW_THREAD_DRAFT, sideChatIds, type WorkspaceState } from "../application/workspace-state.js";
+import type { WorkspaceState } from "../application/workspace-state.js";
+import { sideChatIds } from "../application/state/side-chats.js";
+import { NEW_THREAD_DRAFT } from "../application/state/composer.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
 import { errorMessage } from "./errors.js";
 

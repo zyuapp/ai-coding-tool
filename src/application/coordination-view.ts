@@ -1,13 +1,14 @@
 /** What a coordinator's Overview, cards and Needs-you card show of it and its threads, each object held while nothing it shows moves. */
 import type { WorkspaceState } from "./workspace-state.js";
 import type { ApprovalView } from "./thread-run-state.js";
-import { ledStartRefusal, threadHostOf, type PairedComputer, type ThreadHost } from "./computers.js";
+import { ledStartRefusal, threadHostOf, type ThreadHost } from "./computers.js";
+import type { PairedComputer } from "./state/computers.js";
 import { coordinationMembers, memberActivity, waitingLine, type CoordinationMember } from "./coordination.js";
 import { checkoutAnswer, coordinatedThreadStatus, GROUP_OF, nextSteps, ownPullRequest, type CoordinatedThreadStanding, type OwnPullRequest } from "./coordinated-thread-status.js";
 import { coordinationDecisions, coordinatorOf, isCoordinator, openDecisions, remoteLeadOf, threadModelOf, waitingOnUser, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadModelChoice, type ThreadProposal, type WaitingOnUser } from "../domain/coordination.js";
 import { threadCreatedAt, type Thread } from "../domain/thread.js";
 import { currentModel, type AgentEngine } from "../domain/agent-engine.js";
-import { catalogOf } from "./engine-access.js";
+import { catalogOf } from "./state/engines.js";
 import type { Project } from "../domain/project.js";
 
 /** One thread under a coordinator as its Overview row and its card in the coordinator's conversation show it. */

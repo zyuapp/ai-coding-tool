@@ -1,7 +1,9 @@
 import { backfillProjectSortIndex } from "./project-order.js";
 import { backfillSortIndex } from "./thread-order.js";
 import { restoredThreads, withCutOffTurnsEnded } from "./thread-restore.js";
-import { draftOf, emptyWorkspaceState, sideChatIds, withDraft, type WorkspaceState } from "./workspace-state.js";
+import { emptyWorkspaceState, withDraft, type WorkspaceState } from "./workspace-state.js";
+import { draftOf } from "./state/new-thread-draft.js";
+import { sideChatIds } from "./state/side-chats.js";
 import { DEFAULT_ENGINE, type EngineStatus } from "../domain/agent-engine.js";
 import { coordinatorOf } from "../domain/coordination.js";
 import { legacyProjectId } from "../domain/project.js";

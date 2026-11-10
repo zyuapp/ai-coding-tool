@@ -1,4 +1,4 @@
-import type { PairedComputer } from "../application/computers.js";
+import type { PairedComputer } from "../application/state/computers.js";
 import { resolveScope, threadMatches, threadSummaries, threadSummary, threadTranscript } from "../application/thread-projection.js";
 import type { WorkspaceState } from "../application/workspace-state.js";
 import { isThreadSummary, isThreadTranscript } from "../contracts/thread-results.js";

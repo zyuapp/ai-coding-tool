@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
-import { emptyWorkspaceState, deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { routeInput } from "../../src/application/computers.ts";
 import { isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";

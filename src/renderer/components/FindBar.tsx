@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuSearch as Search, LuX as X } from "react-icons/lu";
-import type { FindView } from "../../application/workspace-state";
+import type { FindView } from "../../application/workspace-find";
 import { useFocusReturn } from "../focus";
 import { shortcutTip } from "./TooltipLayer";
 import { IconButton } from "../ui/Button";

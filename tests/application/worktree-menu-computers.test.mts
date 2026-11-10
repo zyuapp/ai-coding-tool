@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { FILES_ELSEWHERE, routeInput, type PairedComputer } from "../../src/application/computers.ts";
+import { FILES_ELSEWHERE, routeInput } from "../../src/application/computers.ts";
+import type { PairedComputer } from "../../src/application/state/computers.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import type { WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { WORKTREE_MENU } from "../../src/application/worktree-menu.ts";
 import type { ManagedWorktree } from "../../src/domain/worktree.ts";
 import { effectOf, heldWorktree, projected, required, task, workspace, PROJECT } from "./workspace-reducer-fixtures.mts";

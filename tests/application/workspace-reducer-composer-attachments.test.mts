@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { attachmentSendFor } from "../../src/application/composer-attachments.ts";
 import { imagesFor } from "../../src/application/composer-drafts.ts";
-import { NEW_THREAD_DRAFT } from "../../src/application/workspace-state.ts";
+import { NEW_THREAD_DRAFT } from "../../src/application/state/composer.ts";
 import { MAX_ATTACHMENTS, type OutgoingAttachment } from "../../src/domain/conversation.ts";
 import { effectAt, run, task, workspace } from "./workspace-reducer-fixtures.mts";
 

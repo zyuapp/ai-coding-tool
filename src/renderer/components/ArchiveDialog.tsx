@@ -1,5 +1,5 @@
 import { useId, useRef } from "react";
-import type { ArchivePromptView } from "../../application/workspace-state";
+import type { ArchivePromptView } from "../../application/workspace-view";
 import type { AppCommand } from "../../contracts/commands";
 import { archiveConsequence, archiveQuestion } from "../../domain/thread-retention";
 import { Button } from "../ui/Button";

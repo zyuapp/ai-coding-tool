@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
-import type { PairedComputer } from "../../src/application/computers.ts";
+import type { PairedComputer } from "../../src/application/state/computers.ts";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import { activeRun, correlatedRunEvent, effectAt, required, task, workspace } from "./workspace-reducer-fixtures.mts";

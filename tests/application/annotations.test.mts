@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { clampQuote, promptWithAnnotations } from "../../src/application/annotations.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import type { WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 
 function currentWorkspace() {
   return workspace({ threads: [task("task-1")], currentId: "task-1" });

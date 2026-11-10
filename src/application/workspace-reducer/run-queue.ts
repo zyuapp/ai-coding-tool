@@ -9,17 +9,17 @@ import { promptWithPastes } from "../pastes.js";
 import { ATTENDED_RUN, threadMark, updateThread, withActiveRun, withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type ActiveRun, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import { runOf, runStatus, threadBusy } from "../run-record.js";
-import { withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "../workspace-state.js";
+import type { DraftBranch, PendingRun, QueuedMessage, SideChat, WorkspaceState } from "../workspace-state.js";
+import { withPrompt } from "../state/composer.js";
 import type { StartRunCommand } from "../../contracts/ipc.js";
 import { withoutOutcome } from "../../domain/attention.js";
 import { coordinationRole } from "../coordination.js";
 import { undeliveredNote } from "../coordination-messages.js";
 import { GROUP_OF } from "../coordinated-thread-status.js";
 import { withTurnBegun } from "../outstanding-stops.js";
-import { QUEUED_NOT_YOURS, QUEUED_SENT } from "../computers.js";
 import { isCoordinator, withCoordinationNote, withoutAnswer, withoutReport } from "../../domain/coordination.js";
 import { capabilitiesFor, defaultEffortFor, effortForModel, policyFor, threadModel, type AgentModel } from "../../domain/agent-engine.js";
-import { catalogOf } from "../engine-access.js";
+import { catalogOf } from "../state/engines.js";
 import { createSentMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
 import type { Project } from "../../domain/project.js";
 import { isUsersOwn, legacyOrigin } from "../../domain/message-origin.js";
@@ -303,12 +303,6 @@ export function stoppingProcess(state: WorkspaceState, taskId: string, processId
 /** Whether a queued message is already on its way into a run that is starting, which takes it out of the queue once it does. */
 export function drainingQueued(state: Pick<WorkspaceState, "pendingRuns">, taskId: string, messageId: string): boolean {
   return Object.values(state.pendingRuns).some((pending) => pending.taskId === taskId && pending.queuedIds?.includes(messageId));
-}
-
-export function editableQueued(queued: readonly QueuedMessage[], messageId: string): { message: QueuedMessage } | { refusal: string } {
-  const message = queued.find((item) => item.id === messageId);
-  if (!message || message.steering) return { refusal: QUEUED_SENT };
-  return isUsersOwn(message) ? { message } : { refusal: QUEUED_NOT_YOURS };
 }
 
 /**

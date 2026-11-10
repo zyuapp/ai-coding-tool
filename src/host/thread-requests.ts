@@ -4,7 +4,8 @@ import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState 
 import { threadSummary, threadWaitResult } from "../application/thread-projection.js";
 import { isWorking } from "../application/thread-activity.js";
 import { listAcrossComputers, namedComputer, online, readAcrossComputers, remoteSummary, resolveThreadRead, tag, type PreparedThreadRequest } from "./thread-reads.js";
-import { projectOnComputer, type PairedComputer } from "../application/computers.js";
+import { projectOnComputer } from "../application/computers.js";
+import type { PairedComputer } from "../application/state/computers.js";
 import { newThreadSend, threadProposal, type NewThreadSend } from "../application/thread-starts.js";
 import type { Thread } from "../domain/thread.js";
 import { projectFor, worktreeById, worktreeFor } from "../application/thread-location.js";

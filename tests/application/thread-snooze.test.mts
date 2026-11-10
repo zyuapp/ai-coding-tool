@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
-import { deriveView } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { parseThreadStore, serializeThreadStore } from "../../src/domain/thread-storage.ts";
 import { SNOOZE_OPTIONS } from "../../src/domain/thread-snooze.ts";
 import { isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { heardFacts, withFactsHeard, type MemberFact } from "../../src/application/member-facts.ts";
-import type { PairedComputer } from "../../src/application/computers.ts";
+import type { PairedComputer } from "../../src/application/state/computers.ts";
 import { reduce, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";

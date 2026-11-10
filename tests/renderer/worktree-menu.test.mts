@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act, useReducer } from "react";
 import { reduce, type WorkspaceInput, type WorkspaceEffect } from "../../src/application/workspace-reducer.ts";
-import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import type { WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { heldWorktree, projected, task, PROJECT } from "../application/workspace-reducer-fixtures.mts";
 import { mount, query, item, sizeOf, pumpResizeObservers, place } from "../support/renderer-dom.mts";
 

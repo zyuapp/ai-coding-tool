@@ -3,7 +3,7 @@ import { test } from "vitest";
 import React, { useRef } from "react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import type { DiffFile, DiffFileSummary } from "../../src/domain/diff.ts";
-import type { FindView } from "../../src/application/workspace-state.ts";
+import type { FindView } from "../../src/application/workspace-find.ts";
 import type { FindResults } from "../../src/domain/find.ts";
 import type { PanelRow } from "../../src/renderer/diff/panel-rows.ts";
 import type { PatchState } from "../../src/renderer/diff/use-patch.ts";

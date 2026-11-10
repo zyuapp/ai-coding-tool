@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, WORKSPACE_ERRORS } from "../../src/application/workspace-reducer.ts";
-import { deriveView } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import type { Project } from "../../src/domain/project.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import { withFinding } from "../../src/domain/attention.ts";

@@ -1,6 +1,7 @@
 import { NO_SIMULATORS, type SimulatorState } from "../domain/simulator.js";
 import { annotationRevealFor, annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
-import { promptKey, type OwnWorkspaceView, type SideChatView, type ThreadTabView, type WorkspaceState } from "./workspace-state.js";
+import { promptKey, type WorkspaceState } from "./workspace-state.js";
+import type { OwnWorkspaceView, SideChatView, ThreadTabView } from "./workspace-view.js";
 import { heldViews } from "./view-reuse.js";
 import type { WorktreeMenuState } from "./worktree-menu.js";
 import type { OverviewFolds } from "../domain/coordination.js";

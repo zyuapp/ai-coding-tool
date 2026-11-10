@@ -2,7 +2,7 @@ import type { AgentEngine } from "../domain/agent-engine.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { ComputerStatus } from "../domain/computers.js";
 import { supportsComputerCommand } from "../contracts/computer-capabilities.js";
-import type { PairedComputer } from "./computers.js";
+import type { PairedComputer } from "./state/computers.js";
 
 /**
  * The plan limits each provider reports, the read they belong to, and which providers have yet to

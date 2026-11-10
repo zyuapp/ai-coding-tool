@@ -1,4 +1,5 @@
-import { deriveView, type QueuedMessage, type WorkspaceState } from "./workspace-state.js";
+import type { QueuedMessage, WorkspaceState } from "./workspace-state.js";
+import { deriveView } from "./workspace-view.js";
 import { clipText, labelOf, threadSummaries, threadTranscript } from "./thread-projection.js";
 import { projectName, type Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
@@ -9,7 +10,8 @@ import { worktreeName } from "../domain/worktree.js";
 import { orderThreads } from "./thread-order.js";
 import { worktreeChoices } from "./worktree-choices.js";
 import { coordinationMembers, coordinatorRoster, memberActivity, ownCoordinationSections, rowHeadline, waitingLine } from "./coordination.js";
-import { computerOfThread, selectedComputer, type PairedComputer } from "./computers.js";
+import { computerOfThread } from "./computers.js";
+import { selectedComputer, type PairedComputer } from "./state/computers.js";
 import { isUsersOwn } from "../domain/message-origin.js";
 import { drainingQueued } from "./workspace-reducer/run-queue.js";
 import { supportsComputerCommand } from "../contracts/computer-capabilities.js";

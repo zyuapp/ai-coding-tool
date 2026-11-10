@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test, vi } from "vitest";
 import { reduce, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
-import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import type { WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { threadSummary } from "../../src/application/thread-projection.ts";
 import { isWorking } from "../../src/application/thread-activity.ts";
 import { whyTickCannotRun } from "../../src/application/findings.ts";

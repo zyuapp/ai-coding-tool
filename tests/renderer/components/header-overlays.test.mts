@@ -2,7 +2,7 @@ import { dom, mount, query } from "../../support/renderer-dom.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
-import type { ThreadTabView } from "../../../src/application/workspace-state.ts";
+import type { ThreadTabView } from "../../../src/application/workspace-view.ts";
 
 const { BranchMenu } = await import("../../../src/renderer/components/BranchMenu.tsx");
 const { ThreadTabStrip, scheduleChipLabel } = await import("../../../src/renderer/components/ThreadTabStrip.tsx");

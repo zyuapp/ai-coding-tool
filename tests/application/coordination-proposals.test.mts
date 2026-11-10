@@ -6,7 +6,8 @@ import { coordinationContext } from "../../src/application/coordination-messages
 import { sidebarLists } from "../../src/application/sidebar-lists.ts";
 import { isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
-import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { coordinatedThreads, type ThreadBrief, type ThreadProposal } from "../../src/domain/coordination.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import { activeRun, correlatedRunEvent, effectAt, PROJECT, required, task, workspace } from "./workspace-reducer-fixtures.mts";

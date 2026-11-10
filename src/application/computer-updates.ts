@@ -8,7 +8,7 @@ import type { AppCommand } from "../contracts/commands.js";
 import { AGENT_ENGINES, engineLabel, engineUpdate, isAgentEngine, type EngineId, type EngineReadiness } from "../domain/agent-engine.js";
 import type { AppBuild } from "../domain/app-update.js";
 import { compareVersions } from "../domain/engine-version.js";
-import type { PairedComputer } from "./computers.js";
+import type { PairedComputer } from "./state/computers.js";
 import { runningThreads } from "./app-updates.js";
 import type { WorkspaceState } from "./workspace-state.js";
 

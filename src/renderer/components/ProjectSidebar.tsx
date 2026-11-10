@@ -5,7 +5,7 @@ import type { Thread } from "../../domain/thread";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
 import type { ActivitySections } from "../../application/thread-order";
 import type { AutomationView } from "../../domain/automation";
-import type { WorktreeGroup } from "../../application/workspace-state";
+import type { WorktreeGroup } from "../../application/workspace-view";
 import { SidebarActivity } from "./SidebarActivity";
 import { SidebarHeader, SidebarResizer } from "./SidebarChrome";
 import type { ThreadHost } from "../../application/computers";

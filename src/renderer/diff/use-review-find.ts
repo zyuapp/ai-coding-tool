@@ -11,7 +11,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import type { DiffFileSummary } from "../../domain/diff";
 import { MAX_FIND_HITS, reviewHits, sameReviewHit, targetKey, type FindResults, type ReviewFile, type ReviewHit } from "../../domain/find";
-import type { FindView } from "../../application/workspace-state";
+import type { FindView } from "../../application/workspace-find";
 import { drawnMatches, paintMatches } from "../find/paint";
 import { colouredKeys, type PanelRow } from "./panel-rows";
 import type { PatchState } from "./use-patch";

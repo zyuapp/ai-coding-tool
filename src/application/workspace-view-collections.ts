@@ -1,7 +1,8 @@
 import type { AutomationView } from "../domain/automation.js";
 import type { Thread } from "../domain/thread.js";
 import type { Worktree } from "../domain/worktree.js";
-import { remoteCollections, type PairedComputer } from "./computers.js";
+import { remoteCollections } from "./computers.js";
+import type { PairedComputer } from "./state/computers.js";
 import type { Project } from "../domain/project.js";
 import { orderProjects } from "./project-order.js";
 import type { ComputerLink } from "../domain/computers.js";
@@ -12,7 +13,8 @@ import { coordinationView, type CoordinationView } from "./coordination-view.js"
 import { memberPullRequestsView } from "./pull-request-view.js";
 import { memberWorktreesView } from "./member-worktrees.js";
 import { isCoordinator } from "../domain/coordination.js";
-import type { WorkspaceState, WorktreeGroup } from "./workspace-state.js";
+import type { WorkspaceState } from "./workspace-state.js";
+import type { WorktreeGroup } from "./workspace-view.js";
 import { threadActivity, threadLists } from "./thread-activity.js";
 import { worktreeSettingsPage, worktreeSettingsViews } from "./worktree-settings.js";
 import { computerUsage, sameComputerUsage } from "./plan-limits.js";

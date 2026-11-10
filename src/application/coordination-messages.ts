@@ -3,7 +3,7 @@ import type { WorkspaceState } from "./workspace-state.js";
 import { threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
 import { updateThread } from "./thread-run-state.js";
 import { coordinationMembers, unheardWork, type CoordinationMember } from "./coordination.js";
-import { coordinatedThreadStatus, GROUP_OF } from "./coordinated-thread-status.js";
+import { coordinatedThreadStatus, GROUP_OF, lastReply } from "./coordinated-thread-status.js";
 import { coordinatorOf, deliveryLabel, isCoordinator, openDecisions, remoteLeadOf, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type RemoteLead, type ThreadBrief, type ThreadProposal } from "../domain/coordination.js";
 import { threadLastOutputAt, type Thread } from "../domain/thread.js";
 import { originLabel } from "../domain/message-origin.js";
@@ -83,15 +83,6 @@ export function briefPrompt(brief: ThreadBrief | undefined, memory = ""): string
     ...(brief && memory ? [""] : []),
     ...(memory ? [memory] : []),
   ].join("\n");
-}
-
-/** The last thing the thread said, from the message at `from` on, so a turn's reply is only ever its own. */
-export function lastReply(thread: Thread, from = 0): string | undefined {
-  for (let index = thread.messages.length - 1; index >= from; index -= 1) {
-    const message = thread.messages[index]!;
-    if (message.kind === "assistant" && message.text.trim()) return message.text.trim();
-  }
-  return undefined;
 }
 
 function excerpt(text: string) {

@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { executeWorkspaceInput, type WorkspaceExecutionHost } from "../../src/application/workspace-execution.ts";
 import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
-import type { PairedComputer } from "../../src/application/computers.ts";
+import type { PairedComputer } from "../../src/application/state/computers.ts";
 import { answerThreadRequest, releaseThreadWaiters, type ThreadRequestHost } from "../../src/host/thread-requests.ts";
 import { computerEffects } from "../../src/host/computer-effects.ts";
 import type { EffectHost } from "../../src/host/effect-host.ts";

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import type { ChangedFilesResult } from "../../src/contracts/ipc.ts";
 import type { ThreadStoreData } from "../../src/domain/thread-storage.ts";
 import { EMPTY_DOCK } from "../../src/application/workspace-dock.ts";

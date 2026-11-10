@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { settleTurn } from "../../src/application/run-settlement.ts";
-import { drainQueue, editableQueued } from "../../src/application/workspace-reducer/run-queue.ts";
-import { QUEUED_NOT_YOURS, QUEUED_SENT } from "../../src/application/computers.ts";
+import { drainQueue } from "../../src/application/workspace-reducer/run-queue.ts";
+import { editableQueued } from "../../src/application/state/runs.ts";
+import { QUEUED_NOT_YOURS, QUEUED_SENT } from "../../src/application/state/runs.ts";
 import type { QueuedMessage } from "../../src/application/workspace-state.ts";
 import { required, task, workspace } from "./workspace-reducer-fixtures.mts";
 

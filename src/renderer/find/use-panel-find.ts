@@ -3,7 +3,7 @@
  * there is to find: there is no row data behind it the way a transcript or a review has one.
  */
 import { useEffect, useRef, useState, type RefObject } from "react";
-import type { FindView } from "../../application/workspace-state";
+import type { FindView } from "../../application/workspace-find";
 import { MAX_FIND_HITS, targetKey, type FindResults } from "../../domain/find";
 import { drawnMatches, paintMatches } from "./paint";
 

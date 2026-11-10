@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { coordinationSections } from "../../src/application/coordination.ts";
 import { NO_PULL_REQUEST, type PullRequestAnswer } from "../../src/domain/pull-request.ts";
 import { activeRun, correlatedRunEvent, effectOf, heldWorktree, projected, required, task } from "./workspace-reducer-fixtures.mts";

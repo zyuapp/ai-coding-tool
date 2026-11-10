@@ -1,10 +1,11 @@
 /** Who works under a coordinator and where each stands as its roster, what Stop all reaches, and how the sidebar groups them. */
 import type { PendingRun, WorkspaceState } from "./workspace-state.js";
-import type { PairedComputer } from "./computers.js";
+import type { PairedComputer } from "./state/computers.js";
 import { doingWork, threadActivity, unstoppedSessionWork, type ThreadActivity } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { caughtStartComputer } from "./outstanding-stops.js";
-import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, isCoordinator, isWaitingOnUser, leadIdOf, remoteLeadOf, waitingOnUser, withCoordinated, type ThreadProposal, type WaitingOnUser } from "../domain/coordination.js";
+import { remotelyLedThreads } from "./state/threads.js";
+import { coordinatorOf, coordinatedThreadIds, coordinatedThreads, isCoordinator, isWaitingOnUser, leadIdOf, remoteLeadOf, waitingOnUser, withCoordinated, type ThreadProposal, type WaitingOnUser } from "../domain/coordination.js";
 import type { Thread } from "../domain/thread.js";
 import { newestUnreadFinding, wantsAttention } from "../domain/attention.js";
 import { supportsComputerCommand } from "../contracts/computer-capabilities.js";
@@ -32,29 +33,6 @@ const NO_MEMBERS: readonly CoordinationMember[] = [];
 const members = new WeakMap<readonly Thread[], { paired: readonly PairedComputer[]; byLead: Map<string, readonly CoordinationMember[]> }>();
 
 /** Each list's threads that work under a coordinator on another computer, and those whose one there is away, gathered once per list. */
-const remotelyLed = new WeakMap<readonly Thread[], readonly Thread[]>();
-const leadsAway = new WeakMap<readonly Thread[], readonly Thread[]>();
-
-/** The threads in a paired computer's list that a coordinator elsewhere started, and that still work under it. */
-export function remotelyLedThreads(threads: readonly Thread[]): readonly Thread[] {
-  let found = remotelyLed.get(threads);
-  if (!found) {
-    found = threads.filter((thread) => remoteLeadOf(thread) && thread.archivedAt === undefined);
-    remotelyLed.set(threads, found);
-  }
-  return found;
-}
-
-/** The threads in a paired computer's list whose coordinator elsewhere is away, which work under it again once it is back. */
-export function leadAwayThreads(threads: readonly Thread[]): readonly Thread[] {
-  let found = leadsAway.get(threads);
-  if (!found) {
-    found = threads.filter((thread) => awayLeadOf(thread) && thread.archivedAt === undefined);
-    leadsAway.set(threads, found);
-  }
-  return found;
-}
-
 /**
  * Every thread working under a live coordinator: this computer's, in the order the list holds them,
  * then each paired computer's that names it as their coordinator. This is the one set its views, its

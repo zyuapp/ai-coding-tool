@@ -3,7 +3,7 @@
  * other view counts its own matches and reports them back.
  */
 import { memoizedFindHits, searchesItself, type FindHit, type FindTarget } from "../domain/find.js";
-import { selectedComputer, NO_COMPUTERS } from "./computers.js";
+import { selectedComputer, NO_COMPUTERS } from "./state/computers.js";
 import { DIFF_PANEL, frontDock, dockTabKind } from "./workspace-dock.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { Thread } from "../domain/thread.js";

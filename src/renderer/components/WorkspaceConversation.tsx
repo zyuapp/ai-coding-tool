@@ -5,7 +5,7 @@ import { CoordinationBar, type ThreadCardsView } from "./Coordination";
 import { isCoordinator } from "../../domain/coordination";
 import { usePullRequestReads } from "../task-workspace/pull-request-reads";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
-import type { FindView } from "../../application/workspace-state";
+import type { FindView } from "../../application/workspace-find";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 

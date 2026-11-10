@@ -1,6 +1,6 @@
 import { useId, useRef } from "react";
 import { LuFolderSymlink as FolderSymlink, LuHouse as House, LuMoveRight as MoveRight } from "react-icons/lu";
-import type { WorktreeMoveView } from "../../application/workspace-state";
+import type { WorktreeMoveView } from "../../application/workspace-view";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 

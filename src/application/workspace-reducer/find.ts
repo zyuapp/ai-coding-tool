@@ -1,6 +1,6 @@
 /** The find bar's target: what it asks of the view holding the text, and when that view is gone. */
 import type { WorkspaceEffect } from "./types.js";
-import { selectedComputer } from "../computers.js";
+import { selectedComputer } from "../state/computers.js";
 import { DIFF_PANEL, dockHoldsTab, dockSideChats, frontDock, ownerOfBrowserTab, ownerOfTerminal, type FindState, type WorkspaceState } from "../workspace-state.js";
 import { searchesItself, type FindTarget } from "../../domain/find.js";
 import type { FindResults } from "../../domain/find.js";

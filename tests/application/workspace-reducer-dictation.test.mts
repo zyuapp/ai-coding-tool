@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { MAIN_COMPOSER } from "../../src/application/composer-attachments.ts";
-import { NEW_THREAD_DRAFT, deriveView, promptKey } from "../../src/application/workspace-state.ts";
+import { promptKey } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
+import { NEW_THREAD_DRAFT } from "../../src/application/state/composer.ts";
 import { DICTATION_HEARD_NOTHING, DICTATION_MISSING, withSpokenWords } from "../../src/domain/dictation.ts";
 import { effectOf, run, task, workspace } from "./workspace-reducer-fixtures.mts";
 

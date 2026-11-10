@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from "react";
 import { LuFolderOpen as FolderOpen } from "react-icons/lu";
-import type { ProjectEditorView } from "../../application/workspace-state";
+import type { ProjectEditorView } from "../../application/workspace-view";
 import { folderName } from "../../domain/project";
 import { pickFolder } from "../folder-picker";
 import { Button } from "../ui/Button";

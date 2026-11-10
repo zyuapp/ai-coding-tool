@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { BRIEF_REQUIRED, COORDINATOR_WORKTREE_START, newThreadSend, proposalSend, REMOTE_LED_HERE, threadProposal, type NewThreadSend, type NewThreadStart } from "../../src/application/thread-starts.ts";
 import { WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR } from "../../src/application/workspace-reducer/errors.ts";
-import type { PairedComputer } from "../../src/application/computers.ts";
+import type { PairedComputer } from "../../src/application/state/computers.ts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ThreadBrief } from "../../src/domain/coordination.ts";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";

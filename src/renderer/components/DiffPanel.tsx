@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { LuArrowDown as ArrowDown, LuCheck as Check } from "react-icons/lu";
 import type { DiffSummaryResult } from "../../contracts/ipc";
-import type { DiffState, FindView } from "../../application/workspace-state";
+import type { DiffState } from "../../application/workspace-state";
+import type { FindView } from "../../application/workspace-find";
 import type { FindResults } from "../../domain/find";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import { commentQuote, foldedForSize, rangeKey, type DiffFileSummary, type DiffRange } from "../../domain/diff";

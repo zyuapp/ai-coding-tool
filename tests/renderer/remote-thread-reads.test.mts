@@ -6,7 +6,7 @@ import { subscribeWorkspaceRuntime } from "../../src/host/runtime-subscriptions.
 import { noComputers } from "../../src/host/no-computers.ts";
 import { fakeDesktop } from "../support/desktop-api.mts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import type { PairedComputer } from "../../src/application/computers.ts";
+import type { PairedComputer } from "../../src/application/state/computers.ts";
 import type { ComputerThreadQuery } from "../../src/contracts/computers.ts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
 import { threadTranscript } from "../../src/application/thread-projection.ts";

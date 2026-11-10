@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { DIFF_PANEL, reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView, dockOwner, engineFeeds } from "../../src/application/workspace-state.ts";
+import { dockOwner } from "../../src/application/workspace-state.ts";
+import { deriveView, engineFeeds } from "../../src/application/workspace-view.ts";
 import { capabilitiesFor } from "../../src/domain/agent-engine.ts";
 import type { FindTarget } from "../../src/domain/find.ts";
 import type { Subagent } from "../../src/domain/run.ts";

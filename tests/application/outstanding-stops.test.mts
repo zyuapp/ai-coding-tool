@@ -3,7 +3,7 @@ import { test } from "vitest";
 import {
   catchesStart, caughtStartComputer, remoteTurnStop, stopIntentOf, withoutCaughtStart, withoutLapsedStops, withRunAnswered, withStartLanded, withStopAll, withStopsKept, withTurnBegun,
 } from "../../src/application/outstanding-stops.ts";
-import type { PairedComputer } from "../../src/application/computers.ts";
+import type { PairedComputer } from "../../src/application/state/computers.ts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 import type { Thread } from "../../src/domain/thread.ts";

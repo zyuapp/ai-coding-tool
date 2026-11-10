@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { coordinatorRoster, type RosterActivity } from "../../src/application/coordination.ts";
-import type { PairedComputer } from "../../src/application/computers.ts";
+import type { PairedComputer } from "../../src/application/state/computers.ts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import { activeRun, task, workspace } from "./workspace-reducer-fixtures.mts";

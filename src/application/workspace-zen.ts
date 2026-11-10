@@ -1,5 +1,5 @@
 /** Zen mode: the window shows the thread on screen, its conversation and its composer, and nothing else. */
-import { selectedComputer } from "./computers.js";
+import { selectedComputer } from "./state/computers.js";
 import { frontDock } from "./workspace-dock.js";
 import type { WorkspaceState } from "./workspace-state.js";
 

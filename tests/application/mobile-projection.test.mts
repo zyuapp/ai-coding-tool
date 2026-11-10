@@ -4,7 +4,8 @@ import { test } from "vitest";
 import { applyMobilePatch, diffMobileView, emptyMobileView, mobileArchivedThreads, mobileEngineView, mobileThreadHistory, MOBILE_BACKGROUND_DETAIL_LIMIT, MOBILE_HISTORY_PAGE, MOBILE_MESSAGE_TEXT_LIMIT, MOBILE_SUGGESTION_PROMPT_LIMIT, MOBILE_TRANSCRIPT_MESSAGES,
   projectMobileView } from "../../src/application/mobile-projection.ts";
 import { BUILT_IN_MODELS, efforts, effortsFor, modelLabel, modelsFor, type EngineStatus } from "../../src/domain/agent-engine.ts";
-import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { workspaceViewCollections } from "../../src/application/workspace-view-collections.ts";
 import type { ActiveRun, ApprovalView } from "../../src/application/thread-run-state.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";

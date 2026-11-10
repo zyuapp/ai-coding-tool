@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import { deriveView, promptKey } from "../../application/workspace-state";
+import { promptKey } from "../../application/workspace-state";
+import { deriveView } from "../../application/workspace-view";
 import { viewPreferences, writeViewPreferences } from "../../application/view-preferences";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 import { threadHandleOptions } from "../../application/thread-projection";

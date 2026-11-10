@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { createRemoteWorkspaceReader } from "../../src/application/remote-workspace.ts";
 import { applyWorkspacePatches } from "../../src/application/workspace-patches.ts";
-import { deriveView, emptyWorkspaceState } from "../../src/application/workspace-state.ts";
+import { emptyWorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { task } from "./workspace-reducer-fixtures.mts";
 

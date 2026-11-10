@@ -7,8 +7,9 @@ import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./typ
 import { reduceSettings, stopCapture } from "./settings.js";
 import { reduceThreadCommands } from "./thread-commands.js";
 import { projectFor } from "../thread-location.js";
-import { selectedComputer } from "../computers.js";
-import { dockHoldsTab, findTargetFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
+import { selectedComputer } from "../state/computers.js";
+import { dockHoldsTab, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
+import { findTargetFor } from "../workspace-find.js";
 import { jumpView } from "../workspace-jump.js";
 import { zenAllowed } from "../workspace-zen.js";
 import { focusComposer } from "../composer-drafts.js";

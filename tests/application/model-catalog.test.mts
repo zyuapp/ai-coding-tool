@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { BUILT_IN_MODELS, modelsFor, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.ts";
 import { effectAt, run, send, task, workspace } from "./workspace-reducer-fixtures.mts";
 import { parseThreadStore, serializeThreadStore } from "../../src/domain/thread-storage.ts";

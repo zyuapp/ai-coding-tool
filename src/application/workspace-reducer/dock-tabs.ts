@@ -4,7 +4,8 @@ import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import { focusedTab } from "../composer-drafts.js";
 import { viewPreferences } from "../view-preferences.js";
 import { isCoordinator } from "../../domain/coordination.js";
-import { DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, dockFor, dockTabAfterClosing, withDock, workflowById, type WorkspaceState } from "../workspace-state.js";
+import { DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, dockFor, dockTabAfterClosing, withDock, type WorkspaceState } from "../workspace-state.js";
+import { workflowById } from "../state/runs.js";
 
 /** The window has the keys again, which a page in the panel is otherwise holding. */
 export const TAKE_KEYS: WorkspaceEffect[] = [{ type: "focus-window" }];

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { projectSettingsRows } from "../../src/application/project-settings.ts";
-import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import type { PairedComputer } from "../../src/application/computers.ts";
+import type { WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
+import type { PairedComputer } from "../../src/application/state/computers.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
 import { task, workspace } from "./workspace-reducer-fixtures.mts";
 

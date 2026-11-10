@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
-import { deriveView } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import type { AutomationFire } from "../../src/contracts/ipc.ts";
 import { sentPrompts } from "../../src/domain/conversation.ts";
 import type { Subagent } from "../../src/domain/run.ts";

@@ -1,17 +1,18 @@
 /** Threads themselves: making one, choosing it, and what the list can do to it. */
 import { reduceWorktrees } from "./worktrees.js";
 import { retireAutomations } from "./automations.js";
-import { TAKE_KEYS, disposeDocks, focusDockTab, showDockTab } from "./dock-tabs.js";
-import { refreshThreadEnvironment } from "./environment.js";
+import { TAKE_KEYS, disposeDocks } from "./dock-tabs.js";
 import { closeSideChats } from "./side-chats.js";
 import { discardedLeads } from "./coordination-remote.js";
 import { cancellingRun, fileThread } from "./run-queue.js";
-import { followUps, now, rejected, settled, targetId } from "./shared.js";
+import { now, rejected, settled, targetId } from "./shared.js";
 import { coordinatorAskRefusal } from "./errors.js";
+import { landOnThread, selectThread } from "./thread-select.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import type { AppCommand } from "../../contracts/commands.js";
 import { focusComposer } from "../composer-drafts.js";
-import { computerOfThread, shownComputers, type PairedComputer } from "../computers.js";
+import { computerOfThread, shownComputers } from "../computers.js";
+import type { PairedComputer } from "../state/computers.js";
 import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import { forkedThreads } from "../thread-fork.js";
 import { forkTitle } from "../../domain/thread.js";
@@ -20,20 +21,20 @@ import { coordinatorRoster, dismissedWith, ownCoordinationSections, projectActiv
 import { offlineMessage } from "../../domain/computers.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
 import { updateThread } from "../thread-run-state.js";
-import { projectFor, worktreeById } from "../thread-location.js";
-import { DRAFT_DOCK, dockFor, frontDock, sideChatIds, withDock, withDraft, type WorkspaceState } from "../workspace-state.js";
+import { worktreeById } from "../thread-location.js";
+import { DRAFT_DOCK, dockFor, frontDock, withDock, withDraft, type WorkspaceState } from "../workspace-state.js";
+import { sideChatIds } from "../state/side-chats.js";
 import { threadActivity, threadLists } from "../thread-activity.js";
-import { dismissed, hasUnreadAttention, readAttention, wantsAttention, withAllRead } from "../../domain/attention.js";
-import { readRow } from "../thread-attention.js";
+import { dismissed, hasUnreadAttention, wantsAttention, withAllRead } from "../../domain/attention.js";
 import { archivePromptView } from "../workspace-dialogs.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
-import { asCoordinator, coordinatorOf, effortRoleOf } from "../../domain/coordination.js";
+import { asCoordinator, effortRoleOf } from "../../domain/coordination.js";
 import { isSnoozeHours, withoutSnooze } from "../../domain/thread-snooze.js";
 import { cancelPause } from "../limit-pauses.js";
 import { capabilitiesFor, defaultModelIn, engineHasModel, modelHasEffort, threadModel, type EngineId } from "../../domain/agent-engine.js";
 import type { AgentDraft } from "../../domain/agent-draft.js";
 import type { AgentEffort } from "../../domain/run.js";
-import { catalogOf } from "../engine-access.js";
+import { catalogOf } from "../state/engines.js";
 
 export const THREAD_COMMAND_INPUTS = [
   "task.new", "task.select", "task.dismiss", "task.dismiss-all", "task.read-all", "task.result-collected", "task.archive", "task.snooze", "task.unsnooze", "snoozes.elapsed", "task.restore",
@@ -55,19 +56,6 @@ function askForkName(state: WorkspaceState, input: Extract<ThreadCommandInput, {
 /** Offers the title to the engine's own record of the thread; an engine that keeps none ignores it. */
 function labelThread(taskId: string, title: string): WorkspaceEffect {
   return { type: "send-run-command", command: { type: "label", taskId, title } };
-}
-
-/** Puts the user on a thread: what it holds becomes read, and the app follows it to its folder. */
-function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
-  const thread = state.threads.find((item) => item.id === taskId);
-  const project = projectFor(state, thread);
-  return readRow({
-    ...state,
-    currentId: taskId,
-    draftProjectId: thread?.projectId ?? null,
-    lastFolder: project?.root ?? state.lastFolder,
-    actionError: null,
-  }, taskId);
 }
 
 /**
@@ -261,18 +249,8 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
      * A side chat is a tab within its source thread, and a thread under a coordinator a tab within the
      * coordinator's, so landing on either lands on the thread holding it and opens its tab there.
      */
-    case "task.select": {
-      const chat = state.sideChats.find((item) => item.id === input.taskId);
-      const lead = chat ? undefined : coordinatorOf(state.threads, state.threads.find((item) => item.id === input.taskId));
-      const taskId = chat?.sourceThreadId ?? lead?.id ?? input.taskId;
-      const landed = landOnThread(state, taskId);
-      if (taskId === input.taskId) return settled(landed);
-      const tabs = dockFor(landed, taskId).threadTabs;
-      const opened = lead && !tabs.includes(input.taskId) ? withDock(landed, taskId, { threadTabs: [...tabs, input.taskId] }) : landed;
-      const shown = showDockTab(readAttention(opened, input.taskId), taskId, input.taskId);
-      const focused = focusDockTab(shown, taskId, input.taskId);
-      return lead ? { ...focused, effects: [...focused.effects, ...followUps(refreshThreadEnvironment(focused.state, input.taskId))] } : focused;
-    }
+    case "task.select":
+      return selectThread(state, input.taskId);
 
     case "task.dismiss":
       return dismissThread(state, input.taskId);

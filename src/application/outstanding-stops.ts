@@ -6,11 +6,12 @@
  * coordinator keeps, so it is heard quietly after a restart here too.
  */
 import type { WorkspaceEffect } from "./workspace-reducer/types.js";
-import { remotelyLedThreads, type RemoteWork } from "./coordination.js";
+import type { RemoteWork } from "./coordination.js";
+import { remotelyLedThreads } from "./state/threads.js";
 import type { StopIntent } from "./run-settlement.js";
 import { updateThread, type ActiveRun } from "./thread-run-state.js";
 import type { ThreadChange } from "./thread-activity.js";
-import type { PairedComputer } from "./computers.js";
+import type { PairedComputer } from "./state/computers.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import { supportsComputerCommand } from "../contracts/computer-capabilities.js";
 import type { AppCommand } from "../contracts/commands.js";

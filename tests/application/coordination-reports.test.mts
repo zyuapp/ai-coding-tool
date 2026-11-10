@@ -5,7 +5,8 @@ import { coordinatedThreadStatus } from "../../src/application/coordinated-threa
 import { coordinationView } from "../../src/application/coordination-view.ts";
 import { threadMark, withdrawRun } from "../../src/application/thread-run-state.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import type { WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { MAX_OPEN_DECISIONS, type CoordinationReport, type ThreadBrief } from "../../src/domain/coordination.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import { activeRun, correlatedRunEvent, effectAt, effectOf, required, run, task, workspace } from "./workspace-reducer-fixtures.mts";

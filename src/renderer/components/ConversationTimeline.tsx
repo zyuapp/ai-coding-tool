@@ -4,7 +4,9 @@ import { LuChevronDown as ChevronDown, LuFolderSymlink as FolderSymlink, LuHourg
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { ThreadStart } from "../../application/coordination-view";
 import type { StreamingTail } from "../../application/thread-run-state";
-import type { AnnotationReveal, FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
+import type { ReadingPoint, ThreadWait } from "../../application/workspace-state";
+import type { AnnotationReveal } from "../../application/workspace-view";
+import type { FindView } from "../../application/workspace-find";
 import type { AgentEngine } from "../../domain/agent-engine";
 import { isCoordinator } from "../../domain/coordination";
 import type { RetryNotice } from "../../domain/run";

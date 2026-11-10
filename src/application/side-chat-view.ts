@@ -3,7 +3,7 @@ import type { ReadingPoint } from "../contracts/commands.js";
 import type { Annotation, AttachedFile, PastedText, StagedImage } from "../domain/conversation.js";
 import type { RetryNotice } from "../domain/run.js";
 import type { PendingQuestion } from "../domain/agent-question.js";
-import { type ApprovalView, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
+import type { ApprovalView, StreamingTail, ThreadRunStatus } from "./thread-run-state.js";
 import { annotationRevealFor, annotationsFor, filesFor, imagesFor, pastesFor, type AnnotationReveal } from "./composer-drafts.js";
 import { runStatus } from "./run-record.js";
 import { coordinatedThreadStatus, type CoordinatedThreadStatus } from "./coordinated-thread-status.js";
@@ -14,7 +14,7 @@ import type { AutomationView } from "../domain/automation.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
 import type { ChangedFilesResult } from "../contracts/ipc.js";
 import { threadModel, type AgentModel } from "../domain/agent-engine.js";
-import { catalogOf } from "./engine-access.js";
+import { catalogOf } from "./state/engines.js";
 
 const NO_QUEUED: QueuedMessage[] = [];
 

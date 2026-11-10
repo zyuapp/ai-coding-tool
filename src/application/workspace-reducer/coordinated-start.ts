@@ -7,7 +7,7 @@ import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import { createConversationMessage, type ConversationMessage } from "../../domain/conversation.js";
 import { asCoordinator, isCoordinator, wantsFreshSession, withCoordinationNote, withMemoryHeard, withoutCoordinationNotes, withoutProposals } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
-import { catalogOf } from "../engine-access.js";
+import { catalogOf } from "../state/engines.js";
 
 /** A thread as its run starts under a coordinator, what it is told first, and what the run is sent. */
 export type CoordinatedStart = { thread: Thread; notice: ConversationMessage[]; prompt: string; fresh: boolean };

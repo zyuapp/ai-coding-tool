@@ -20,7 +20,7 @@ import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import { canJoinCoordinator, coordinatorOf, decisionsFull, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
 import { defaultEffortFor, effortForModel, engineHasModel, modelDelegable, modelEngine, modelHasEffort, modelTakesEffort, unknownModel } from "../../domain/agent-engine.js";
-import { catalogOf } from "../engine-access.js";
+import { catalogOf } from "../state/engines.js";
 import type { Thread } from "../../domain/thread.js";
 import { dismissed } from "../../domain/attention.js";
 

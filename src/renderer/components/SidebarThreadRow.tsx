@@ -9,7 +9,7 @@ import { hasUnreadAttention, MEMBER_BLOCKED_LABEL, MEMBER_UNREAD_LABEL, newestUn
 import type { ThreadOutcome } from "../../domain/thread-run";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
 import type { AutomationView } from "../../domain/automation";
-import type { WorktreeGroup } from "../../application/workspace-state";
+import type { WorktreeGroup } from "../../application/workspace-view";
 import { ContextMenu, type MenuEntry, type MenuItem } from "./PopoverMenu";
 import { threadMenuEntries } from "./thread-menu";
 import type { SnoozeHours } from "../../domain/thread-snooze";

@@ -1,5 +1,5 @@
 import type { WorktreeCommand } from "../../contracts/commands.js";
-import { activeComputer } from "../computers.js";
+import { activeComputer } from "../state/computers.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { settled } from "./shared.js";
 import type { WorkspaceTransition } from "./types.js";

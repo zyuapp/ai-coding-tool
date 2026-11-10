@@ -1,6 +1,7 @@
 import { escapeCommands, shortcutCommands, type WorkspaceInput } from "./workspace-reducer.js";
-import { selectedComputer } from "./computers.js";
-import { findTargetFor, type WorkspaceState } from "./workspace-state.js";
+import { selectedComputer } from "./state/computers.js";
+import type { WorkspaceState } from "./workspace-state.js";
+import { findTargetFor } from "./workspace-find.js";
 
 /** The find bar is one bar whatever it searches, so its inputs follow each other. */
 const FIND_KEY = "view:find";

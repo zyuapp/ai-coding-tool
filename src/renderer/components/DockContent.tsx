@@ -8,7 +8,8 @@ import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { usePanelFind } from "../find/use-panel-find";
 import { moveListFocus } from "../focus";
 import "../ui/glass.css";
-import { DIFF_PANEL, type FindView } from "../../application/workspace-state";
+import { DIFF_PANEL } from "../../application/workspace-state";
+import type { FindView } from "../../application/workspace-find";
 import type { FindResults } from "../../domain/find";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;

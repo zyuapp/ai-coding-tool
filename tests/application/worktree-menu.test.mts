@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { parseThreadStore, serializeThreadStore, THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
 import type { ManagedWorktree } from "../../src/domain/worktree.ts";
 import { activeRun, effectOf, heldWorktree, madeWorktree, projected, required, task, PROJECT } from "./workspace-reducer-fixtures.mts";

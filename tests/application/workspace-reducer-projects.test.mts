@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { reduce, WORKSPACE_ERRORS, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { computerEffects } from "../../src/host/computer-effects.ts";
 import type { EffectHost } from "../../src/host/effect-host.ts";
-import { deriveView } from "../../src/application/workspace-state.ts";
+import { deriveView } from "../../src/application/workspace-view.ts";
 import { RUNNING_PROJECT_ERROR } from "../../src/application/workspace-reducer/errors.ts";
 import { task, workspace, activeRun, effectAt, required, run, PROJECT, projected, madeWorktree, heldWorktree, inside, send } from "./workspace-reducer-fixtures.mts";
 
