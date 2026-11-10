@@ -13,8 +13,9 @@
   "main": "dist/main/main/main.js",
   "scripts": {
     "build": "vite build && tsc -p tsconfig.main.json && node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/build-simulator-helper.mts && node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/build-glass-addon.mts && node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/build-dictation-helper.mts",
-    "check": "npm run check:licenses && npm run check:ios-themes && tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.test.json && npm run lint",
+    "check": "npm run check:licenses && npm run check:ios-themes && npm run check:ios-contract && tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.test.json && npm run lint",
     "check:licenses": "node scripts/generate-legal-notices.mjs --check",
+    "check:ios-contract": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-ios-contract.mts --check",
     "check:ios-themes": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-ios-themes.mts --check",
     "generate:native-licenses": "node scripts/generate-native-legal-notices.mjs",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
@@ -29,6 +30,7 @@
     "package:linux": "npm run prepare:electron && npm run prepare:cua && npm run build && electron-builder --linux --publish never",
     "generate:codex-protocol": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-codex-protocol.mts",
     "generate:claude-baseline": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-claude-baseline.mts",
+    "generate:ios-contract": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-ios-contract.mts",
     "generate:ios-themes": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-ios-themes.mts"
   },
   "dependencies": {

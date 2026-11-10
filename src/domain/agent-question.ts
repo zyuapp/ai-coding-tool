@@ -1,9 +1,11 @@
+export type QuestionOption = { label: string; description: string };
+
 /** A question the agent can leave open while continuing its work. */
 export type AgentQuestion = {
   id: string;
   header: string;
   question: string;
-  options: { label: string; description: string }[];
+  options: QuestionOption[];
 };
 
 export type QuestionRequest = {

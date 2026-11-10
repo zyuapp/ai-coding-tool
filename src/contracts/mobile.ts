@@ -27,6 +27,9 @@ import { isPhoneCommand, type PhoneCommandType } from "./workspace-view-input.js
  */
 export type MobileCommand = Extract<AppCommand, { type: PhoneCommandType }>;
 
+/** A whole number: a count, an index or a rounded share. The phone reads it as an integer where a plain `number` is a `Double`. */
+export type Count = number;
+
 /**
  * One piece of software on the computer, the app or an engine: what it runs, where a newer one
  * stands, and the command that moves it on, which the phone sends back as it came.
@@ -95,7 +98,7 @@ export type MobileMessage = {
   /** What a tool call did, in one line, as the desktop's transcript reads it. Tool messages only. */
   call?: MobileToolCall;
   /** How many images the message carried. */
-  images?: number;
+  images?: Count;
   /** Set on a reply that may link images, which the phone asks for by this ID with an "image" query. */
   id?: string;
 };
@@ -103,7 +106,6 @@ export type MobileMessage = {
 /** A tool call as a row reads it: its label, the argument that tells it from the next, and its family's glyph. */
 export type MobileToolCall = { family: ToolFamily; label: string; argument: string; sigil?: string; verb?: true };
 
-/** A thread working under the open coordinator, wherever it runs. `computer` names another computer holding it, which the phone cannot open. */
 /**
  * A thread working under the open coordinator. One on another computer names it in `computer`, and
  * `online` says whether that computer's line is up, which is when the phone may open it. `online` is
@@ -181,7 +183,7 @@ export type MobileSuggestion = {
  * lifts, which `limit.cancel` stops; a weekly one waits for `limit.resume`. `position` is its place in
  * its engine's line, counting from one.
  */
-export type MobileLimitPause = { resetsAt: number; window: "session" | "weekly"; position: number | null };
+export type MobileLimitPause = { resetsAt: number; window: "session" | "weekly"; position: Count | null };
 
 /** An archived thread as the phone's Archived list reads it, which `task.restore` puts back. */
 export type MobileArchivedThread = { id: string; title: string; projectName: string | null; archivedAt: number; deletesAt: number };
@@ -201,7 +203,7 @@ export type MobileLocation =
   | { kind: "local" }
   | { kind: "creating" }
   | { kind: "releasing" }
-  | { kind: "worktree"; name: string; threads: number };
+  | { kind: "worktree"; name: string; threads: Count };
 
 /** One of the project's other checkouts, which a thread can move into or a draft start in. */
 export type MobileWorktreeChoice = {
@@ -213,9 +215,9 @@ export type MobileWorktreeChoice = {
 /** What the checkout holds against its baseline, as the desktop's session panel counts it. */
 export type MobileChanges = {
   branch: string | null;
-  files: number;
-  additions: number;
-  deletions: number;
+  files: Count;
+  additions: Count;
+  deletions: Count;
 };
 
 /** What the open thread is set to run as, which the phone can change like any other command. */
@@ -255,7 +257,7 @@ export type MobileThreadView = {
   worktreeId: string | null;
   messages: MobileMessage[];
   /** How many older messages the limit left out. */
-  omitted: number;
+  omitted: Count;
   /** The unfinished end of a streaming reply, which is not a message yet. */
   streamingTail: string | null;
   status: MobileRunStatus;
@@ -322,7 +324,7 @@ export type MobileTheme = {
 };
 
 /** One plan window as a phone draws it, its share already rounded. */
-export type MobileUsageWindow = { id: string; label: string; share: number | null; resetsAt: string | null };
+export type MobileUsageWindow = { id: string; label: string; share: Count | null; resetsAt: string | null };
 
 /** An engine's plan as the Usage sheet lists it: its windows, or why the computer could not read them. */
 export type MobileEngineUsage = { engine: AgentEngine; label: string; plan: string | null; windows: MobileUsageWindow[]; message?: string };
@@ -330,13 +332,13 @@ export type MobileEngineUsage = { engine: AgentEngine; label: string; plan: stri
 /** The windows the composer's model spends, and the warning over the composer once one runs low. */
 export type MobileComposerUsage = {
   /** The fullest window's share. */
-  share: number;
+  share: Count;
   /** What the desktop composer's meter reads: the session and fullest week, or the fullest window alone. */
-  meter: { span: string; share: number }[];
+  meter: { span: string; share: Count }[];
   /** The windows the model spends, by id. */
   spends: string[];
   /** Null once dismissed, below the warning line, or while the thread waits out a limit. */
-  warning: { key: string; share: number; window: string; resetsAt: string | null } | null;
+  warning: { key: string; share: Count; window: string; resetsAt: string | null } | null;
 };
 
 export type MobileUsage = { engines: MobileEngineUsage[]; composer: MobileComposerUsage | null };
@@ -358,7 +360,7 @@ export type MobileView = {
   /** The plan limits of this computer's accounts. */
   usage: MobileUsage;
   /** How many threads are archived, which an "archived" query lists. Absent from older desktops. */
-  archived?: number;
+  archived?: Count;
   /** The thread the phone has open, which is the thread the desktop has open. */
   thread: MobileThreadView | null;
   /** Where the desktop stands with no thread open. Null whenever `thread` is not. */
@@ -377,14 +379,14 @@ export type MobileThreadDelta = Partial<Omit<MobileThreadView, "id" | "messages"
    * slides, the first `kept` of the rest stay, and `messages` follow them. A message growing, a
    * message arriving and the oldest falling out of the window all cost only what is new.
    */
-  spliced?: { dropped: number; kept: number; messages: MobileMessage[] };
+  spliced?: { dropped: Count; kept: Count; messages: MobileMessage[] };
   /** The whole transcript, when it did not simply move at its end. */
   messages?: MobileMessage[];
   /**
    * What a streaming reply added: everything past the first `from` characters of the tail the phone
    * holds. A tail that did not simply grow travels whole, as `streamingTail`.
    */
-  tail?: { from: number; text: string };
+  tail?: { from: Count; text: string };
 };
 
 /**
@@ -399,7 +401,7 @@ export type MobilePatch = {
   upkeep?: MobileUpkeepItem[];
   dictation?: boolean;
   usage?: MobileUsage;
-  archived?: number;
+  archived?: Count;
   thread?:
     | { kind: "closed" }
     | { kind: "opened"; thread: MobileThreadView }
@@ -458,10 +460,10 @@ export type MobileQuery =
 export type MobileImageRead = { data: string; contentType: string };
 
 /** What a {@link MobileQuery} of kind "thread" answers: the thread as its own screen would read it. */
-export type MobileThreadRead = { title: string; status: MobileRunStatus; messages: MobileMessage[]; omitted: number; streamingTail: string | null };
+export type MobileThreadRead = { title: string; status: MobileRunStatus; messages: MobileMessage[]; omitted: Count; streamingTail: string | null };
 
 /** What a {@link MobileQuery} of kind "history" answers: the messages from index `start` on, oldest first. */
-export type MobileThreadHistory = { start: number; messages: MobileMessage[] };
+export type MobileThreadHistory = { start: Count; messages: MobileMessage[] };
 
 export function isMobileQuery(value: unknown): value is MobileQuery {
   if (isRecord(value) && value.kind === "history") return isString(value.taskId) && Number.isSafeInteger(value.before) && (value.before as number) >= 0;
@@ -546,7 +548,7 @@ export type MobileClientMessage = MobilePairRequest | MobileResumeRequest | Mobi
  * Every message the server sends carries a sequence, counting from one within a session and never
  * repeating, so a phone can say what it has and be given only what it missed.
  */
-type Sequenced = { sequence: number };
+type Sequenced = { sequence: Count };
 
 export type MobilePairedMessage = Sequenced & {
   kind: "paired";
@@ -581,9 +583,15 @@ export type MobileEngineTerms = {
   id: AgentEngine;
   label: string;
   fastMode: boolean;
-  policies: { id: ExecutionPolicy; label: string; description: string }[];
+  policies: MobilePolicyTerm[];
   models: MobileModel[];
 };
+
+/** A mode a picker offers, as this build names it. */
+export type MobilePolicyTerm = { id: ExecutionPolicy; label: string; description: string };
+
+/** A role a thread may take, as this build names it. */
+export type MobileRoleTerm = { id: ThreadRole; label: string };
 
 /** Everything a phone app reads by name from the build it is connected to. */
 export type MobileVocabulary = {
@@ -591,7 +599,7 @@ export type MobileVocabulary = {
   /** Every effort, deepest first. */
   efforts: MobileEffortTerm[];
   /** Every role a thread may take, in menu order. Absent from older desktops. */
-  roles?: Array<{ id: ThreadRole; label: string }>;
+  roles?: MobileRoleTerm[];
 };
 
 export type MobilePatchMessage = Sequenced & { kind: "patch"; patch: MobilePatch };
