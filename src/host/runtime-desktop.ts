@@ -1,8 +1,8 @@
 import type { KeyValueStorage } from "../application/task-store.js";
-import type { ThreadNotice } from "../contracts/ipc.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../application/workspace-reducer.js";
 import type { WorkspaceState } from "../application/workspace-state.js";
-import type { DesktopAPI } from "../contracts/ipc.js";
+import type { DesktopPorts, ThreadNotice } from "../contracts/ipc.js";
+import type { JoinedPorts } from "../contracts/desktop-port.js";
 import type { WorkspaceSurfaceEffect } from "../contracts/workspace-runtime.js";
 import type { ComputerLink, DiscoveredComputer } from "../domain/computers.js";
 import type { ComputerThreadQuery } from "../contracts/computers.js";
@@ -35,32 +35,7 @@ export type ComputerDesktop = {
  * What the runtime asks of the machine it runs on: the desktop API less everything only a window on
  * screen uses, such as file drops, the terminal's own output, and the keystrokes a window hears.
  */
-export type RuntimeDesktop = Pick<DesktopAPI,
-  | "directories" | "openFolder" | "registerProject" | "onOpenProject" | "projectlessWorkspace" | "commands"
-  | "cliStatus" | "installCli" | "uninstallCli"
-  | "computerUsePermissions" | "enableComputerUse" | "restartForComputerUse" | "planUsage"
-  | "send" | "onAgentEvent"
-  | "changedFiles" | "diffSummary" | "diffPatch" | "pullRequest" | "checkoutBranch" | "createBranch"
-  | "createWorktree" | "listManagedWorktrees" | "revealWorktree" | "releaseWorktree"
-  | "saveAttachment" | "preserveMessageImages" | "readMessageImage" | "downloadImage"
-  | "suggestTaskTitle" | "engineStatus" | "signInEngine" | "updateEngine" | "checkForUpdates" | "appUpdate" | "appBuild" | "onAppUpdate" | "launchedUpdate" | "downloadUpdate" | "installUpdate" | "openSourceLicenses"
-  | "loadTaskStore" | "loadThreadMessages" | "searchThreadMessages" | "persistTaskStore" | "loadSubagentActivity" | "loadSubagentMetadata"
-  | "listAutomations" | "saveAutomation" | "updateAutomation" | "deleteAutomation" | "runAutomationNow"
-  | "onAutomationsChanged" | "onAutomationFire" | "acknowledgeAutomation"
-  | "onThreadRequest" | "answerThreadRequest"
-  | "mobileState" | "setMobileEnabled" | "createMobilePairingCode" | "revokeMobileDevice" | "refreshTailscale"
-  | "onMobileState" | "onMobileRequest" | "answerMobileRequest" | "publishMobileView"
-  | "configureBrowserPermissions" | "openBrowserTab" | "navigateBrowser" | "browserHistory" | "reloadBrowser"
-  | "closeBrowserTab" | "showBrowserTab" | "actInBrowser" | "readBrowserPage" | "inspectBrowserPage"
-  | "captureBrowserPage" | "clearBrowserData" | "listBrowserImportSources" | "listBrowserImportSites" | "importBrowserSites" | "onBrowserEvent" | "findInPage" | "stopFindInPage"
-  | "focusBrowserTab" | "onBrowserFind"
-  | "openFile" | "listApps" | "openFolderInApp"
-  | "listSimulators" | "bootSimulator" | "simulatorInput" | "describeSimulator" | "captureSimulator"
-  | "onDictationModel" | "startDictation" | "stopDictation" | "cancelDictation" | "downloadDictationModel" | "cancelDictationDownload" | "transcribeAudio"
-  | "startTerminal" | "writeTerminal" | "resizeTerminal" | "closeTerminal" | "readTerminal" | "onTerminalEvent"
-  | "setCaptureOptions" | "setShortcuts" | "setShortcutCapture"
-  | "closeWindow" | "focusWindow" | "announceThread" | "setBadgeCount"
-> & ComputerDesktop;
+export type RuntimeDesktop = JoinedPorts<DesktopPorts, "runtime"> & ComputerDesktop;
 
 /** Where the runtime runs: the desktop it acts on, where it keeps what a window remembers, and the window itself when there is one. */
 export type WorkspaceRuntimeHost = {

@@ -1,40 +1,42 @@
-import type { SimulatorAvailability, SimulatorDevice, SimulatorFrame, SimulatorInput, SimulatorShot, SimulatorSnapshot } from "../domain/simulator.js";
-import type { GlassRegion } from "./glass.js";
-import type { BranchesResult } from "./git.js";
 export type { BranchesResult } from "./git.js";
 import type { AgentSettingsReloadEvent, ReloadAgentSettingsCommand } from "./agent-settings.js";
 export { isAgentSettingsReloadEvent, type AgentSettingsReloadEvent } from "./agent-settings.js";
 import { isQuestionRequest, type QuestionRequest } from "../domain/agent-question.js";
-import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
-import type { BrowserRead, SimulatorRead, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
-import type { BrowserAction, BrowserPermissions, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
-import type { BrowserImportResult, BrowserImportSite, BrowserImportSource } from "../domain/browser-import.js";
-import type { AppBuild, AppUpdate } from "../domain/app-update.js";
-import type { CaptureOptions } from "../domain/capture.js";
+import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch } from "../domain/automation.js";
+import type { BrowserRead, SimulatorRead, TerminalRead, ThreadResponse } from "./threads.js";
+import type { BrowserAction, BrowserBounds } from "../domain/browser.js";
 import type { DictationModel } from "../domain/dictation.js";
 import { isUsageLimit, type UsageLimit } from "../domain/usage-limit.js";
-import type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
-import type { CliStatus } from "../domain/cli.js";
+import type { ComputerUseRunConfig } from "../domain/computer-use.js";
 import type { DiffFileSummary, DiffRange } from "../domain/diff.js";
 import type { ExternalApp } from "../domain/external-apps.js";
 import type { FindResults } from "../domain/find.js";
 import type { ActiveGoal } from "../domain/goal.js";
-import type { TerminalUpdate } from "../domain/terminal.js";
-import type { AttachedFileDraft } from "../domain/conversation.js";
-import { capabilitiesFor, isAgentEffort, isAgentEngine, isModelId, type AgentEngine, type AgentModel, type EngineStatus } from "../domain/agent-engine.js";
+import { capabilitiesFor, isAgentEffort, isAgentEngine, isModelId, type AgentEngine, type AgentModel } from "../domain/agent-engine.js";
 import type { CoordinationRole } from "../domain/coordination.js";
-import { isExecutionPolicy, type AgentEffort, type BackgroundProcess, type BackgroundProcessKind, type Continuation, type ExecutionPolicy, type RetryNotice, type RunStatus, type SubagentActivity, type SubagentReport, type ToolIntent } from "../domain/run.js";
-import type { PlanUsage } from "../domain/plan-usage.js";
-import type { PullRequestAnswer } from "../domain/pull-request.js";
-import type { ShortcutOverrides, ShortcutSurface } from "../domain/shortcuts.js";
+import { isExecutionPolicy, type AgentEffort, type BackgroundProcess, type BackgroundProcessKind, type Continuation, type ExecutionPolicy, type RetryNotice, type RunStatus, type SubagentReport, type ToolIntent } from "../domain/run.js";
+import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { WorkflowAgent, WorkflowAgentState, WorkflowPhase, WorkflowStatus } from "../domain/workflow.js";
-import type { WorkspaceRecord } from "../domain/workspace.js";
-import type { ManagedWorktree, Worktree, WorktreeRelease } from "../domain/worktree.js";
+import type { Worktree, WorktreeRelease } from "../domain/worktree.js";
 import { isReviewTarget, type ReviewTarget } from "../domain/review.js";
 import type { MobileDesktopAPI } from "./mobile.js";
-import type { ImageDesktopAPI } from "./images.js";
-import type { LoadedTaskStore, TaskStoreDelta } from "./task-store.js";
-import type { TerminalDataEvent, TerminalOutputRead, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
+import type { JoinedPorts, PortMembers } from "./desktop-port.js";
+import type { AutomationPort } from "./automation-port.js";
+import type { BrowserPort } from "./browser-port.js";
+import type { CliPort } from "./cli-port.js";
+import type { ComputerUsePort } from "./computer-use-port.js";
+import type { DictationPort } from "./dictation-port.js";
+import type { EnginePort } from "./engine-port.js";
+import type { FilePort } from "./file-port.js";
+import type { GitPort } from "./git-port.js";
+import type { ProjectPort } from "./project-port.js";
+import type { RunPort } from "./run-port.js";
+import type { ShortcutPort } from "./shortcut-port.js";
+import type { SimulatorPort } from "./simulator-port.js";
+import type { StorePort } from "./store-port.js";
+import type { TerminalPort } from "./terminal-port.js";
+import type { UpdatePort } from "./update-port.js";
+import type { WindowPort } from "./window-port.js";
 export type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalText } from "./terminal.js";
 export type { LoadedTaskStore, PersistedSubagent, PersistedTask, TaskStoreDelta } from "./task-store.js";
 export type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
@@ -237,221 +239,19 @@ export type DesktopPlatform = "macos" | "linux" | "other";
 /** What the platform draws under the window's page: Liquid Glass, the older vibrancy blur, or nothing. */
 export type WindowMaterial = "glass" | "vibrancy" | "none";
 
-export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
-  /** Static renderer-facing platform identity; runtime capabilities still come from main. */
-  readonly platform: DesktopPlatform;
-  /** Static for the window's life, so the first paint already leaves the material showing. */
-  readonly windowMaterial: WindowMaterial;
-  /** The panes of glass under the window's page, for what sits on the frame with nothing of the page behind it. */
-  setWindowGlassRegions(regions: GlassRegion[]): Promise<void>;
-  openFolder(): Promise<WorkspaceRecord | null>;
-  /** Opens a folder named by path rather than picked, refusing anything that is not one to work in. */
-  registerProject(root: string): Promise<WorkspaceRecord>;
-  directories(prefix: string, computerId?: string): Promise<string[]>;
-  /** A folder the `aic` terminal command named, already registered as a workspace. */
-  onOpenProject(listener: (workspace: WorkspaceRecord) => void): () => void;
-  /** Whether the `aic` terminal command is installed, and the path it takes. */
-  cliStatus(): Promise<CliStatus>;
-  /** Writes the command, asking for the administrator password when its directory needs one. */
-  installCli(): Promise<CliStatus>;
-  uninstallCli(): Promise<CliStatus>;
-  projectlessWorkspace(): Promise<WorkspaceRecord>;
-  /** What the "/" menu offers a thread on the engine: its slash commands and enabled skills. */
-  commands(workspaceId: WorkspaceId, engine: AgentEngine): Promise<CommandDiscoveryResult>;
-  computerUsePermissions(): Promise<ComputerUsePermissions>;
-  enableComputerUse(permission: ComputerUsePermission): Promise<ComputerUsePermissions>;
-  /** One engine's plan windows. Never rejects: an engine that cannot answer says why instead. */
-  planUsage(engine: AgentEngine): Promise<PlanUsage>;
-  restartForComputerUse(): void;
-  send(command: RunCommand): void;
-  onAgentEvent(listener: (event: AgentEvent) => void): () => void;
-  changedFiles(workspaceId: WorkspaceId): Promise<ChangedFilesResult>;
-  /** The files a comparison touches, with their counts. Cheap enough to read whenever a run ends. */
-  diffSummary(workspaceId: WorkspaceId, range: DiffRange, ignoreWhitespace?: boolean): Promise<DiffSummaryResult>;
-  /** One file's patch, read only once that file is drawn. A rename needs both of its paths. */
-  diffPatch(workspaceId: WorkspaceId, range: DiffRange, path: string, previousPath?: string, ignoreWhitespace?: boolean): Promise<DiffPatchResult>;
-  /** The local branches a thread can start from, newest first. */
-  branches(workspaceId: WorkspaceId): Promise<BranchesResult>;
-  /** Which of these hashes are commits the checkout's repository holds. */
-  commits(workspaceId: WorkspaceId, hashes: string[]): Promise<string[]>;
-  /** What the checkout has to say about its pull request, including that `gh` is not installed. */
-  pullRequest(workspaceId: WorkspaceId): Promise<PullRequestAnswer>;
-  /** Moves a project checkout onto a branch. Never forced, so uncommitted work stops it. */
-  checkoutBranch(workspaceId: WorkspaceId, branch: string): Promise<void>;
-  /** Makes a branch at the checkout's own HEAD, without moving onto it. */
-  createBranch(workspaceId: WorkspaceId, branch: string): Promise<void>;
-  /** Makes the thread's own checkout, detached at whatever the project has checked out right now. */
-  createWorktree(request: CreateWorktreeRequest): Promise<CreatedWorktree>;
-  /** Reads the worktree directories under roots owned by this app without changing them. */
-  listManagedWorktrees(): Promise<ManagedWorktree[]>;
-  /** Shows one app-owned worktree in the platform's file manager. */
-  revealWorktree(root: string): Promise<void>;
-  /** Force-commits what the worktree still holds so the thread can leave it without losing work. */
-  releaseWorktree(request: ReleaseWorktreeRequest): Promise<WorktreeSnapshotResult>;
-  /** Where a dropped or pasted file sits on this machine. Empty for anything that is not a file on disk. */
-  pathForFile(file: File): string;
-  /** What each of those paths is. A path that is neither a file nor a folder is left out. */
-  describeFiles(paths: string[]): Promise<AttachedFileDraft[]>;
-  /** Names a thread from its first message and any screenshots it carries, off the agent's run path. Null when no name came back. */
-  /** A title for a thread's first message, written by the engine the thread runs on. */
-  /** `model` is the one the thread runs on, for an engine whose titles are written on it. */
-  suggestTaskTitle(text: string, attachments: string[], engine: AgentEngine, model?: AgentModel): Promise<string | null>;
-  /** Which engines can take a run. The answer is kept; `refresh` throws it away and asks the machine again. */
-  engineStatus(refresh?: boolean): Promise<EngineStatus>;
-  /** Signs in through the engine's own flow, in the browser, and answers with the status after it. */
-  signInEngine(engine: AgentEngine): Promise<EngineStatus>;
-  /** Upgrades the engine's command the way the user installed it, and answers with the status after it. */
-  updateEngine(engine: AgentEngine): Promise<EngineStatus>;
-  /** `quiet` looks without a dialog for any answer, for a check nobody at this screen asked for. */
-  checkForUpdates(quiet?: boolean): void;
-  /** Where a newer build stands, and each change to it from then on. */
-  appUpdate(): Promise<AppUpdate>;
-  onAppUpdate(listener: (update: AppUpdate) => void): () => void;
-  /** The version this launch updated the app to, answered once; null when it is not the first launch since an update. */
-  launchedUpdate(): Promise<string | null>;
-  /** The build this computer runs, or null for a host that cannot say. */
-  appBuild(): Promise<AppBuild | null>;
-  /** `unattended` keeps a failure off this screen, for a download asked from another computer. */
-  downloadUpdate(unattended?: boolean): void;
-  /** Asks to restart, then quits and installs the downloaded update. `unattended` installs without asking. */
-  installUpdate(unattended?: boolean): void;
-  openSourceLicenses(): Promise<void>;
-  loadTaskStore(): Promise<LoadedTaskStore | null>;
-  loadThreadMessages(taskId: string): Promise<import("../domain/conversation.js").ConversationMessage[]>;
-  /** Which of these threads have a stored message containing `search`, read without loading their histories. */
-  searchThreadMessages(search: string, taskIds: string[]): Promise<string[]>;
-  persistTaskStore(delta: TaskStoreDelta): Promise<void>;
-  /** A stored subagent's activity, which the store leaves behind until someone opens that subagent. */
-  loadSubagentActivity(taskId: string, subagentId: string): Promise<SubagentActivity[]>;
-  loadSubagentMetadata(engine: AgentEngine, subagentId: string, sessionId?: string): Promise<import("../domain/run.js").SubagentMetadata>;
-  listAutomations(): Promise<AutomationView[]>;
-  saveAutomation(draft: AutomationDraft): Promise<AutomationView>;
-  updateAutomation(taskId: string, patch: AutomationPatch): Promise<AutomationView>;
-  deleteAutomation(taskId: string): Promise<boolean>;
-  runAutomationNow(taskId: string): Promise<AutomationRunStatus | "busy">;
-  onAutomationsChanged(listener: (automations: AutomationView[]) => void): () => void;
-  onAutomationFire(listener: (fire: AutomationFire) => void): () => void;
-  acknowledgeAutomation(ack: AutomationAck): void;
-  /** The window answers thread requests itself: it is the only process that holds workspace state. */
-  onThreadRequest(listener: (request: ThreadRequest) => void): () => void;
-  answerThreadRequest(response: ThreadResponse): void;
-  /** The browser panel's pages live in main; the window owns the record of them and their geometry. */
-  configureBrowserPermissions(permissions: BrowserPermissions): Promise<void>;
-  openBrowserTab(tabId: string, url?: string, taskId?: string): Promise<void>;
-  navigateBrowser(tabId: string, url: string, taskId?: string): Promise<void>;
-  browserHistory(tabId: string, delta: -1 | 1, taskId?: string): Promise<void>;
-  reloadBrowser(tabId: string, taskId?: string): Promise<void>;
-  closeBrowserTab(tabId: string): Promise<void>;
-  /** Which tab the panel is showing. */
-  showBrowserTab(tabId: string | null): Promise<void>;
-  /** Where the panel is, in window coordinates. Null while the panel is not on screen. */
-  setBrowserBounds(bounds: BrowserBounds | null): Promise<void>;
-  actInBrowser(tabId: string, action: BrowserAction, taskId?: string): Promise<string>;
-  /** Waits for the tab to stop loading, then reads the page. Null when that tab is gone. */
-  readBrowserPage(tabId: string, textLimit: number, timeoutMs: number, taskId?: string): Promise<BrowserSnapshot | null>;
-  /** Reads recent diagnostics or waits for a condition in one page. */
-  inspectBrowserPage(tabId: string, inspection: BrowserInspection, taskId?: string): Promise<BrowserInspectionResult | null>;
-  /** Waits the same way, then writes a picture of the page to a file. Null when that tab is gone. */
-  captureBrowserPage(tabId: string, fullPage: boolean, timeoutMs: number, taskId?: string): Promise<BrowserShot | null>;
-  clearBrowserData(): Promise<void>;
-  /** Other browsers' profiles on this machine, the sites one holds cookies for, and copying those cookies in. */
-  listBrowserImportSources(): Promise<BrowserImportSource[]>;
-  listBrowserImportSites(sourceId: string): Promise<BrowserImportSite[]>;
-  importBrowserSites(sourceId: string, sites: string[]): Promise<BrowserImportResult>;
-  onBrowserEvent(listener: (event: BrowserPageEvent) => void): () => void;
-  /** Searching a page. Chromium holds the text and counts the matches, so it reports them back. */
-  findInPage(tabId: string, query: string, forward: boolean, findNext: boolean): Promise<void>;
-  stopFindInPage(tabId: string): Promise<void>;
-  focusBrowserTab(tabId: string): Promise<void>;
-  onBrowserFind(listener: (event: BrowserFindEvent) => void): () => void;
-  /** The simulators this Mac has, and whether it can run the panel at all. */
-  listSimulators(): Promise<{ availability: SimulatorAvailability; devices: SimulatorDevice[] }>;
-  /** Boots a simulator without a window, resolving once it can take input. */
-  bootSimulator(udid: string): Promise<void>;
-  simulatorInput(udid: string, input: SimulatorInput): Promise<void>;
-  /** The app on screen as its accessibility tree, each element given a ref only this read's taps accept. */
-  describeSimulator(udid: string, device: string): Promise<SimulatorSnapshot>;
-  captureSimulator(udid: string): Promise<SimulatorShot>;
-  /** Streams a device's screen to this window while at least one view watches it. */
-  watchSimulator(udid: string): Promise<void>;
-  unwatchSimulator(udid: string): Promise<void>;
-  onSimulatorFrame(listener: (frame: SimulatorFrame) => void): () => void;
-  /** Where the speech model stands, told at once and again whenever it moves. */
-  onDictationModel(listener: (status: DictationModelStatus) => void): () => void;
-  /** Starts the microphone for the hold `id`, resolving once it hears. */
-  startDictation(id: string): Promise<void>;
-  /** Stops the hold's microphone and answers with the words it heard. */
-  stopDictation(id: string): Promise<string>;
-  cancelDictation(id: string): Promise<void>;
-  downloadDictationModel(): Promise<void>;
-  /** Stops the download and removes the part of the model it fetched. */
-  cancelDictationDownload(): Promise<void>;
-  /** Turns a phone's recording, base64 WAV, into words. */
-  transcribeAudio(audio: string): Promise<string>;
-  /** How loud the hold's microphone is, from 0 to 1, many times a second. Never becomes state. */
-  onDictationLevel(listener: (level: number) => void): () => void;
-  /** Hands a file to the desktop, which opens it with whatever it opens that kind of file with. */
-  openFile(roots: string[], path: string, line: number | null): Promise<void>;
-  /** The applications on this machine that can take a folder, read fresh enough to see a new install. */
-  listApps(): Promise<InstalledApp[]>;
-  /** Opens a checkout in one of them. `root` has to be a folder the app already works in. */
-  openFolderInApp(appId: string, root: string): Promise<void>;
-  /** The terminal panel's shells live in main; the window owns the record of them. */
-  startTerminal(terminalId: string, options: TerminalStartOptions): Promise<void>;
-  /** User input from this window or a paired computer. A run may read a terminal, never drive one. */
-  writeTerminal(terminalId: string, data: string): Promise<void>;
-  resizeTerminal(terminalId: string, cols: number, rows: number): Promise<void>;
-  closeTerminal(terminalId: string): Promise<void>;
-  /** The lines the terminal holds, cooked to plain text. Null when that terminal is gone. */
-  readTerminal(terminalId: string, options: TerminalReadOptions): Promise<TerminalText | null>;
-  terminalSnapshot(terminalId: string): Promise<TerminalScreenSnapshot | null>;
-  readRemoteTerminal(computerId: string, terminalId: string, after?: number): Promise<TerminalOutputRead | null>;
-  /** Output, coalesced and delivered straight to the view. It is never workspace state. */
-  onTerminalData(listener: (event: TerminalDataEvent) => void): () => void;
-  onTerminalEvent(listener: (update: TerminalUpdate) => void): () => void;
-  /** A window grabbed by the desktop hotkey, on its way to the composer the user was last in. */
-  onWindowScreenshot(listener: (shot: WindowScreenshot) => void): () => void;
-  /** A desktop-wide binding main could not claim, with a platform reason when the path is unavailable. */
-  onDesktopShortcutRefused(listener: (refusal: DesktopShortcutRefusal) => void): () => void;
-  /** How a grab announces itself. Main owns both, so it is told rather than asked. */
-  setCaptureOptions(options: CaptureOptions): void;
-  /** The theme's ground and canvas, which the platform's own window frame is drawn from. */
-  setTheme(theme: WindowTheme): void;
-  /** The keystrokes main matches, so a shortcut works inside a page the window never hears from. */
-  setShortcuts(overrides: ShortcutOverrides): void;
-  /** While settings wait for a keystroke, main hands every one of them over instead of acting on it. */
-  setShortcutCapture(capturing: boolean): void;
-  onShortcut(listener: (invocation: ShortcutInvocation) => void): () => void;
-  /** What was pressed while capturing, or null for the Escape that calls it off. */
-  onShortcutCaptured(listener: (binding: string | null) => void): () => void;
-  closeWindow(): void;
-  /** Takes the keyboard back from a page in the panel, so the window can have it. */
-  focusWindow(): void;
-  /** A thread's notice on its way to the desktop. Main decides whether the user is somewhere it has to reach them. */
-  announceThread(notice: ThreadNotice): void;
-  /** How many threads carry an unseen mark, which the platform draws on the app icon. */
-  setBadgeCount(count: number): void;
-  /** The thread a clicked notification named, on its way to becoming the current one. */
-  onOpenThread(listener: (taskId: string) => void): () => void;
-  /** Whether the window is the one in use, its browser panel included. */
-  onWindowActive(listener: (active: boolean) => void): () => void;
-  /** How tinted the system draws its glass, 0 to 1, where the window sits on glass. */
-  onGlassTint(listener: (amount: number) => void): () => void;
-};
+/** Every capability's part of the desktop API. */
+export type DesktopPorts = [
+  WindowPort, ShortcutPort, ProjectPort, CliPort, ComputerUsePort, EnginePort, RunPort, GitPort, FilePort, StorePort,
+  UpdatePort, AutomationPort, BrowserPort, SimulatorPort, DictationPort, TerminalPort, { runtime: MobileDesktopAPI },
+];
+
+export type DesktopAPI = PortMembers<DesktopPorts>;
 
 /** The calls a window's own views make on the desktop, each relayed to main by name. */
-export type WindowDesktopCall =
-  | "openFolder" | "projectlessWorkspace" | "commands" | "branches" | "commits" | "diffPatch"
-  | "describeFiles" | "saveAttachment" | "readAttachment" | "readAttachmentContext"
-  | "setBrowserBounds" | "focusBrowserTab" | "terminalSnapshot" | "readRemoteTerminal" | "setTheme"
-  | "setWindowGlassRegions"
-  | "watchSimulator" | "unwatchSimulator";
+export type WindowDesktopCall = keyof JoinedPorts<DesktopPorts, "windowCalls">;
 
 /** What a window reaches directly: its calls, what main pushes at it, and what it answers itself. The rest is the runtime's. */
-export type WindowDesktopAPI = Pick<DesktopAPI, WindowDesktopCall
-  | "platform" | "windowMaterial" | "pathForFile"
-  | "onTerminalData" | "onSimulatorFrame" | "onWindowScreenshot" | "onDesktopShortcutRefused" | "onShortcut" | "onShortcutCaptured" | "onOpenThread" | "onWindowActive" | "onGlassTint" | "onDictationLevel"
->;
+export type WindowDesktopAPI = JoinedPorts<DesktopPorts, "windowCalls"> & JoinedPorts<DesktopPorts, "windowOwn">;
 
 /** Where the speech model stands, and why when it cannot be used. */
 /** `progress` is how much of the download has arrived, 0 to 1; a download without one is being prepared. */
