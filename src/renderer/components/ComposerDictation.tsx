@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useId, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { LuCheck as Check, LuMic as Mic, LuX as X } from "react-icons/lu";
 import { DICTATION_TAP_MS, type DictationModel, type DictationPhase } from "../../domain/dictation";
 import type { ShortcutSetting } from "../../domain/shortcuts";
@@ -142,27 +142,45 @@ export function MicButton({ dictation, talk, disabled }: { dictation: ComposerDi
   );
 }
 
-const BARS = 40;
+const SAMPLES = 48;
+/** The line's drawing box, stretched to the strip. */
+const WAVE_WIDTH = 480;
+const WAVE_HEIGHT = 26;
 
 /** How loud a reading is once room noise is taken off: silence is 0, and quiet speech still rises. */
 function loudness(level: number) {
   return Math.pow(Math.min(1, Math.max(0, (level - 0.15) / 0.85)), 0.75);
 }
 
-/** A silent bar is a dot; the loudest fills the strip's height. */
-function barHeight(level: number) {
-  return Math.round(12 + loudness(level) * 88);
-}
-
-/** How loud the microphone is, newest on the right. The last wave stays while it is written down. */
+/**
+ * How loud the microphone is, newest on the right, and how many readings have arrived, so the
+ * ripple travels with them. The last wave stays while it is written down.
+ */
 function useLevels(listening: boolean) {
-  const [levels, setLevels] = useState<number[]>(() => Array(BARS).fill(0));
+  const [heard, setHeard] = useState(() => ({ levels: Array<number>(SAMPLES).fill(0), count: 0 }));
   useEffect(() => {
     if (!listening) return;
-    setLevels(Array(BARS).fill(0));
-    return window.desktop.onDictationLevel((level) => setLevels((current) => [...current.slice(1), level]));
+    setHeard({ levels: Array<number>(SAMPLES).fill(0), count: 0 });
+    return window.desktop.onDictationLevel((level) => setHeard((current) => ({ levels: [...current.levels.slice(1), level], count: current.count + 1 })));
   }, [listening]);
-  return levels;
+  return heard;
+}
+
+/**
+ * One line that ripples as loud as each reading: a steady ripple carried along with the readings,
+ * swelling with the voice and flat in silence. Curves through the midpoints keep it smooth.
+ */
+function wavePath(levels: readonly number[], count: number, quiet = false) {
+  const middle = WAVE_HEIGHT / 2;
+  const points = levels.map((level, index) => {
+    const swing = quiet ? 1 : 1 + loudness(level) * (middle - 2);
+    return [(index / (levels.length - 1)) * WAVE_WIDTH, middle + Math.sin((index + count) * 0.9) * swing] as const;
+  });
+  return points.map(([x, y], index) => {
+    if (index === 0) return `M${x.toFixed(1)} ${y.toFixed(1)}`;
+    const [px, py] = points[index - 1]!;
+    return `Q${px.toFixed(1)} ${py.toFixed(1)} ${((px + x) / 2).toFixed(1)} ${((py + y) / 2).toFixed(1)}`;
+  }).join(" ");
 }
 
 /** Whole seconds since the microphone started hearing. */
@@ -193,15 +211,24 @@ function TalkHalo() {
 /** Stands in the composer bar while dictation is listening or turning speech into words. */
 export function DictationStrip({ phase, away, handsFree }: { phase: DictationPhase; away: boolean; handsFree: boolean }) {
   const listening = phase !== "transcribing";
-  const levels = useLevels(listening);
+  const { levels, count } = useLevels(listening);
+  const gradient = useId();
+  const path = wavePath(levels, count, !listening);
   const elapsed = useElapsed(phase === "recording");
   const state = !listening ? " transcribing" : away ? " away" : handsFree ? " hands-free" : "";
   return (
     <div className={`dictation-strip${state}`} role="status" aria-live="polite">
       <span className="dictation-time">{elapsed}</span>
-      <div className="dictation-wave" aria-hidden="true">
-        {levels.map((level, index) => <span key={index} style={{ height: `${listening ? barHeight(level) : 14}%`, "--bar": index } as CSSProperties} />)}
-      </div>
+      <svg className="dictation-wave" viewBox={`0 0 ${WAVE_WIDTH} ${WAVE_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id={gradient} x1="0" x2="1">
+            <stop offset="0.4" className="wave-body" />
+            <stop offset="1" className="wave-head" />
+          </linearGradient>
+        </defs>
+        <path className="wave-glow" d={path} />
+        <path className="wave-line" d={path} stroke={`url(#${gradient})`} />
+      </svg>
       {/** Hands-free, the two buttons beside the strip say what they do, so it says nothing. */}
       {!(listening && !away && handsFree) && <span className="dictation-hint">
         {!listening ? "Writing it down…"
