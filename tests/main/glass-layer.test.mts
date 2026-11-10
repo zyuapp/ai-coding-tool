@@ -36,7 +36,7 @@ test("the glass layer stays over its window's page and lets the pointer through 
   started.setInteractive(false);
   assert.deepEqual(layer.calls.at(-1), ["setIgnoreMouseEvents", true, { forward: true }]);
 
-  const regions = [{ x: 1, y: 2, width: 300, height: 100, radius: 17 }];
+  const regions = [{ x: 1, y: 2, width: 300, height: 100, radius: 17, clear: true }];
   started.setRegions(regions);
   assert.deepEqual(glassed, [regions]);
 });

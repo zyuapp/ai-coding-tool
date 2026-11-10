@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type HTMLAttributes, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { openGlassLayer, type GlassLayerView } from "../glass-layer";
 
@@ -21,16 +21,17 @@ function useGlassLayer(wanted: boolean) {
  * place and its width, the pane gives the slot its height, and a slot that is covered or scrolled
  * away takes its pane out of sight with it.
  */
-function useSlotGeometry(layer: GlassLayerView | null, slot: HTMLElement | null, host: HTMLElement | null) {
+function useSlotGeometry(layer: GlassLayerView | null, slot: HTMLElement | null, host: HTMLElement | null, fit: "frame" | "slot") {
   useLayoutEffect(() => {
     const frame = slot?.parentElement;
     const pane = host?.firstElementChild;
     if (!layer || !slot || !host || !frame || !(pane instanceof layer.window.HTMLElement)) return;
     const place = () => {
-      const around = frame.getBoundingClientRect();
       const at = slot.getBoundingClientRect();
-      host.style.left = `${around.left}px`;
-      host.style.width = `${around.width}px`;
+      /** A pane laid out by its surroundings takes their width; one that is its own size sits exactly on its slot. */
+      const across = fit === "frame" ? frame.getBoundingClientRect() : at;
+      host.style.left = `${across.left}px`;
+      host.style.width = `${across.width}px`;
       host.style.top = `${at.top}px`;
       layer.reportRegions();
     };
@@ -80,24 +81,41 @@ function useSlotGeometry(layer: GlassLayerView | null, slot: HTMLElement | null,
       document.removeEventListener("transitioncancel", rest);
       layer.reportRegions();
     };
-  }, [layer, slot, host]);
+  }, [layer, slot, host, fit]);
 }
+
+type PaneProps = Omit<HTMLAttributes<HTMLElement>, "className" | "children">;
 
 /**
  * A pane that sits on real glass where the window has a glass layer, and is drawn in place, on the
  * stylesheet's own glass, everywhere else. `frame` names the classes the pane's surroundings carry,
- * which its styles are written against.
+ * which its styles are written against; a pane that is its own size, like a round button, fits its
+ * slot instead. A clear pane shows what is behind it; the others frost it.
  */
-export function GlassPanel({ layered, className, frame, children }: { layered: boolean; className: string; frame: string; children: ReactNode }) {
+export function GlassPanel({ layered, className, frame, fit = "frame", clear = false, as: Pane = "div", children, ...pane }: PaneProps & {
+  layered: boolean;
+  className: string;
+  frame: string;
+  fit?: "frame" | "slot";
+  clear?: boolean;
+  as?: "div" | "button";
+  children: ReactNode;
+}) {
   const layer = useGlassLayer(layered);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [host, setHost] = useState<HTMLElement | null>(null);
-  useSlotGeometry(layer, slot, host);
-  if (!layer) return <div className={className}>{children}</div>;
+  useSlotGeometry(layer, slot, host, fit);
+  const kind = Pane === "button" ? { type: "button" as const } : {};
+  if (!layer) return <Pane className={className} {...kind} {...pane}>{children}</Pane>;
   return (
     <>
       <div ref={setSlot} className={`${className} glass-slot`} aria-hidden="true" />
-      {createPortal(<div ref={setHost} className={`glass-host ${frame}`}><div className={className} data-glass-region="">{children}</div></div>, layer.root)}
+      {createPortal(
+        <div ref={setHost} className={`glass-host ${frame}`} data-fit={fit}>
+          <Pane className={className} data-glass-region={clear ? "clear" : ""} {...kind} {...pane}>{children}</Pane>
+        </div>,
+        layer.root,
+      )}
     </>
   );
 }

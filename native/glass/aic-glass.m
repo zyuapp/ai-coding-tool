@@ -52,8 +52,8 @@ static napi_value Attach(napi_env env, napi_callback_info info) {
 /**
  * Lays one pane of glass per region under a see-through window's web contents, so what the page
  * draws there sits on glass that bends whatever is behind the window. Takes the window's handle and
- * a flat list of x, y from the top, width, height and corner radius; panes are reused, so a region
- * that moves is not rebuilt.
+ * a flat list of x, y from the top, width, height, corner radius and whether the pane is the clear
+ * style; panes are reused, so a region that moves is not rebuilt.
  */
 static napi_value Regions(napi_env env, napi_callback_info info) {
   size_t argc = 2;
@@ -74,30 +74,31 @@ static napi_value Regions(napi_env env, napi_callback_info info) {
   for (NSView *view in root.subviews) {
     if ([view.identifier isEqualToString:kRegionIdentifier]) [panes addObject:view];
   }
-  NSUInteger wanted = count / 5;
+  NSUInteger wanted = count / 6;
   while (panes.count > wanted) {
     [panes.lastObject removeFromSuperview];
     [panes removeLastObject];
   }
   for (NSUInteger index = 0; index < wanted; index++) {
-    double values[5] = {0, 0, 0, 0, 0};
-    for (uint32_t field = 0; field < 5; field++) {
+    double values[6] = {0, 0, 0, 0, 0, 0};
+    for (uint32_t field = 0; field < 6; field++) {
       napi_value element;
-      if (napi_get_element(env, argv[1], (uint32_t)index * 5 + field, &element) == napi_ok) napi_get_value_double(env, element, &values[field]);
+      if (napi_get_element(env, argv[1], (uint32_t)index * 6 + field, &element) == napi_ok) napi_get_value_double(env, element, &values[field]);
     }
     CGFloat y = root.isFlipped ? values[1] : root.bounds.size.height - values[1] - values[3];
     NSRect frame = NSMakeRect(values[0], y, values[2], values[3]);
     NSView *pane = index < panes.count ? panes[index] : nil;
     if (!pane) {
       pane = [[glass alloc] initWithFrame:frame];
-      /** The clear style: what is behind a pane reads through it, as through the system's own floating bars. */
-      [pane setValue:@1 forKey:@"style"];
       pane.identifier = kRegionIdentifier;
       [root addSubview:pane positioned:NSWindowBelow relativeTo:nil];
       [panes addObject:pane];
     }
     pane.frame = frame;
     [pane setValue:@(values[4]) forKey:@"cornerRadius"];
+    /** The clear style reads what is behind a pane through it, as the system's own floating bars do; the regular one frosts it. */
+    NSNumber *style = values[5] > 0 ? @1 : @0;
+    if (![[pane valueForKey:@"style"] isEqual:style]) [pane setValue:style forKey:@"style"];
   }
   napi_get_boolean(env, true, &applied);
   return applied;

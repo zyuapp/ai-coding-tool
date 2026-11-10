@@ -365,7 +365,7 @@ export function ConversationComposer({
       <QueuedRow messages={queuedMessages} surface={surface} canSteer={runActive} onEdit={onEditQueued} onSteer={onSteerQueued} onDrop={onDropQueued} />
       {planUsage && model !== undefined && <PlanUsageWarning engine={engine} engineLabel={engineLabel} model={model} {...planUsage} />}
       {surface === "main" && startOptions}
-      {unopenable ? <UnopenableComposer reason={unopenable} taskId={taskId} surface={surface} runActive={runActive} updateAvailable={updateAvailable} onCancel={onCancel} /> : <GlassPanel layered={surface === "main"} className="composer" frame={`composer-wrap ${surface}`}>
+      {unopenable ? <UnopenableComposer reason={unopenable} taskId={taskId} surface={surface} runActive={runActive} updateAvailable={updateAvailable} onCancel={onCancel} /> : <GlassPanel layered={surface === "main"} clear className="composer" frame={`composer-wrap ${surface}`}>
         {reviewPicker && (
           <ReviewPicker
             picker={reviewPicker}

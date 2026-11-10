@@ -77,7 +77,7 @@ test("every call the window makes is relayed on one channel, refused from anyone
     terminalSnapshot: { valid: ["terminal"], invalid: [[42]] },
     readRemoteTerminal: { valid: ["holder", "terminal", 3], invalid: [["holder", "terminal", -1], ["holder", "terminal", 1.5], ["", "terminal"]] },
     setTheme: { valid: [{ variant: "dark", canvas: "#0e1117" }], invalid: [[{ variant: "blue", canvas: "#0e1117" }], [{ variant: "dark", canvas: "red" }]] },
-    setGlassRegions: { valid: [[{ x: 1, y: 2, width: 300, height: 100, radius: 17 }]], invalid: [[[{ x: 1, y: 2, width: -3, height: 100, radius: 17 }]], [[{ x: "1", y: 2, width: 300, height: 100, radius: 17 }]], [undefined]] },
+    setGlassRegions: { valid: [[{ x: 1, y: 2, width: 300, height: 100, radius: 17, clear: true }]], invalid: [[[{ x: 1, y: 2, width: -3, height: 100, radius: 17, clear: true }]], [[{ x: 1, y: 2, width: 300, height: 100, radius: 17 }]], [undefined]] },
     setGlassLayerInteractive: { valid: [true], invalid: [["yes"]] },
     focusGlassLayer: { valid: [false], invalid: [[1]] },
     watchSimulator: { valid: ["udid"], invalid: [[""], [7]] },

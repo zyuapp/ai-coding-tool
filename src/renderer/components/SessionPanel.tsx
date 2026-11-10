@@ -1,4 +1,5 @@
 import { LuAlarmClock as AlarmClock, LuChevronDown as ChevronDown, LuChevronRight as ChevronRight, LuFileDiff as FileDiff, LuGitBranch as GitBranch, LuGitMerge as GitMerge, LuGitPullRequest as GitPullRequest, LuGitPullRequestClosed as GitPullRequestClosed, LuGitPullRequestDraft as GitPullRequestDraft } from "react-icons/lu";
+import { GlassPanel } from "./GlassPanel";
 import { useRef, type ReactNode } from "react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import { orderSubagents, type BackgroundProcess, type Subagent, type SubagentGroup, type SubagentGroups } from "../../domain/run";
@@ -262,7 +263,7 @@ export function SessionPanel({ environment, hasProject, workspaceId, pullRequest
 
   return (
     <aside className="session-panel" aria-label="Session panel">
-      <div className="session-card">
+      <GlassPanel layered clear className="session-card" frame="session-panel">
         <SessionEnvironment
           environment={environment}
           hasProject={hasProject}
@@ -299,7 +300,7 @@ export function SessionPanel({ environment, hasProject, workspaceId, pullRequest
 
         <BackgroundProcessSection processes={backgroundProcesses} workflows={workflows} onOpenWorkflow={onOpenWorkflow} onStop={onStopProcess} />
         {children}
-      </div>
+      </GlassPanel>
     </aside>
   );
 }

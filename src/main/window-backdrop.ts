@@ -27,7 +27,7 @@ export function loadWindowGlass(nativeDirectory: string, platform: NodeJS.Platfo
     if (!addon.available()) return null;
     return {
       attach: (handle) => addon.attach(handle),
-      regions: (handle, regions) => addon.regions(handle, regions.flatMap(({ x, y, width, height, radius }) => [x, y, width, height, radius])),
+      regions: (handle, regions) => addon.regions(handle, regions.flatMap(({ x, y, width, height, radius, clear }) => [x, y, width, height, radius, clear ? 1 : 0])),
       active: (handle, active) => addon.active(handle, active),
     };
   } catch {

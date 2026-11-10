@@ -6,8 +6,13 @@
 
 /** The name main knows the layer by. */
 const FRAME = "glass-layer";
-/** What marks an element in the layer as a pane the platform puts glass under. */
-const REGION = "data-glass-region";
+/**
+ * What the platform puts glass under: a pane marked as one, and any menu or popover drawn in the
+ * layer. A pane marked clear takes clear glass; the rest take the frosted kind a list reads on.
+ */
+const PANES = "[data-glass-region], .menu-popover, .setting-popover, .command-menu, .picker-popover";
+/** The controls on a pane, each a bead of clear glass of its own on the pane's glass. */
+const BEADS = ".setting-menu > summary, .fast-mode-toggle";
 
 export type GlassLayerView = {
   /** Where panes are mounted. */
@@ -25,8 +30,22 @@ export type GlassLayerView = {
 const SHARED_EVENTS = new Set(["keydown", "keyup", "pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick", "contextmenu", "focusin", "focusout"]);
 
 type Listening = { on: "window" | "document"; type: string; listener: EventListenerOrEventListenerObject; options?: boolean | AddEventListenerOptions };
+let layerHasKeyboard = false;
 const listening: Listening[] = [];
 let layerTargets: { window: Window; document: Document } | null = null;
+/** What the page does when its window loses the keyboard, which the keyboard passing to the layer is not. */
+const leaving = new Set<EventListenerOrEventListenerObject>();
+
+/** Tells the page its window lost the keyboard once it is clear that neither the page nor the layer has it. */
+function left(event: Event) {
+  setTimeout(() => {
+    if (document.hasFocus() || layerHasKeyboard) return;
+    for (const listener of leaving) {
+      if (typeof listener === "function") listener.call(window, event);
+      else listener.handleEvent(event);
+    }
+  }, 60);
+}
 
 /**
  * Starts keeping the page's own listeners, so they can be given to the layer as well. Runs before
@@ -38,13 +57,16 @@ export function shareListenersWithGlassLayer() {
     const target: Window | Document = on === "window" ? window : document;
     const add = target.addEventListener.bind(target);
     const remove = target.removeEventListener.bind(target);
+    if (on === "window") add("blur", left);
     target.addEventListener = (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) => {
+      if (on === "window" && type === "blur") return void leaving.add(listener);
       add(type, listener, options);
       if (!SHARED_EVENTS.has(type)) return;
       listening.push({ on, type, listener, ...(options === undefined ? {} : { options }) });
       layerTargets?.[on].addEventListener(type, listener, options);
     };
     target.removeEventListener = (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions) => {
+      if (on === "window" && type === "blur") return void leaving.delete(listener);
       remove(type, listener, options);
       if (!SHARED_EVENTS.has(type)) return;
       const index = listening.findIndex((kept) => kept.on === on && kept.type === type && kept.listener === listener);
@@ -70,6 +92,18 @@ function shareInstances(layer: Window & typeof globalThis) {
 }
 
 let opening: Promise<GlassLayerView | null> | null = null;
+let opened: GlassLayerView | null = null;
+
+/** Where a menu or any other float is mounted: in the layer once it is open, so it floats on real glass, and in the page until then. */
+export function floatRoot(): HTMLElement {
+  return opened?.root ?? document.body;
+}
+
+/** The element with the keyboard, whichever of the page's two documents it is in. */
+export function focusedElement(): Element | null {
+  const inLayer = layerHasKeyboard ? opened?.window.document.activeElement : null;
+  return inLayer && inLayer !== opened?.window.document.body ? inLayer : document.activeElement;
+}
 
 /** Opens the layer the first time it is wanted. Null where the window has no glass to put under one. */
 export function openGlassLayer(): Promise<GlassLayerView | null> {
@@ -143,9 +177,11 @@ function followPointer(layer: Window) {
  * documents: to the layer when something in it takes focus, and back when something in the page does.
  */
 function followFocus(layer: Window & typeof globalThis) {
-  let layerHasKeyboard = false;
   layer.addEventListener("focus", () => { layerHasKeyboard = true; });
-  layer.addEventListener("blur", () => { layerHasKeyboard = false; });
+  layer.addEventListener("blur", (event) => {
+    layerHasKeyboard = false;
+    left(event);
+  });
   const toLayer = () => {
     if (!layerHasKeyboard) void window.desktop.focusGlassLayer(true);
   };
@@ -168,10 +204,11 @@ function regionReporter(doc: Document) {
     if (frame) return;
     frame = requestAnimationFrame(() => {
       frame = 0;
-      const regions = [...doc.querySelectorAll<HTMLElement>(`[${REGION}]`)].flatMap((pane) => {
+      const regions = [...doc.querySelectorAll<HTMLElement>(`${PANES}, ${BEADS}`)].flatMap((pane) => {
         const { x, y, width, height } = pane.getBoundingClientRect();
-        if (width === 0 || height === 0 || pane.closest("[data-covered]")) return [];
-        return [{ x, y, width, height, radius: Number.parseFloat(getComputedStyle(pane).borderTopLeftRadius) || 0 }];
+        const style = getComputedStyle(pane);
+        if (width === 0 || height === 0 || style.visibility === "hidden") return [];
+        return [{ x, y, width, height, radius: Number.parseFloat(style.borderTopLeftRadius) || 0, clear: pane.dataset.glassRegion === "clear" || pane.matches(BEADS) }];
       });
       const telling = JSON.stringify(regions);
       if (telling === told) return;
@@ -196,5 +233,9 @@ async function open(): Promise<GlassLayerView | null> {
   const root = doc.createElement("div");
   root.className = "glass-layer";
   doc.body.append(root);
-  return { root, window: layer, reportRegions: regionReporter(doc) };
+  const reportRegions = regionReporter(doc);
+  /** A menu opening, closing or growing is a pane coming, going or changing, so anything that changes in the layer is told. */
+  new MutationObserver(reportRegions).observe(root, { subtree: true, childList: true, attributes: true });
+  opened = { root, window: layer, reportRegions };
+  return opened;
 }

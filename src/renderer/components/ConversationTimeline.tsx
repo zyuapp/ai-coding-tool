@@ -1,4 +1,5 @@
 import { elementScroll, useVirtualizer } from "@tanstack/react-virtual";
+import { GlassPanel } from "./GlassPanel";
 import type { IconType } from "react-icons";
 import { LuChevronDown as ChevronDown, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass } from "react-icons/lu";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
@@ -273,15 +274,9 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
       )}
       {!atBottom && (
         <div className="scroll-to-end-dock">
-        <button
-          type="button"
-          className="scroll-to-end"
-          aria-label="Scroll to the latest message"
-          data-tip="Latest message"
-          onClick={scrollToFoot}
-        >
+        <GlassPanel layered clear as="button" fit="slot" className="scroll-to-end" frame="scroll-to-end-dock" aria-label="Scroll to the latest message" data-tip="Latest message" onClick={scrollToFoot}>
           <ChevronDown size={18} aria-hidden="true" />
-        </button>
+        </GlassPanel>
         </div>
       )}
       {annotate.selection && !annotate.noting && onAnnotateAdd && (

@@ -3697,18 +3697,29 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
  */
 :root[data-glass-layer], :root[data-glass-layer] body { overflow: hidden; background: none; }
 .glass-layer { position: fixed; inset: 0; pointer-events: none; }
+.glass-layer > :is(.menu-popover, .picker-popover) { pointer-events: auto; }
 .glass-host { position: fixed; pointer-events: none; }
 .glass-host > * { pointer-events: auto; }
 .glass-host[data-covered] { visibility: hidden; }
 .glass-host.composer-wrap { border-radius: 0; padding-block: 0; background: none; }
-.glass-slot, [data-glass-region]:is(*, :focus-within, :has(*)) { box-shadow: none; }
+.glass-host.session-panel { position: fixed; right: auto; max-height: none; overflow: visible; box-shadow: none; animation: none; }
+.glass-host.scroll-to-end-dock { position: fixed; }
+.glass-host[data-fit="slot"] > [data-glass-region] { position: static; }
+.glass-slot, [data-glass-region]:is(*, :focus-within, :has(*)) { border-color: transparent; box-shadow: none; }
+.glass-slot { background: none; backdrop-filter: none; }
+:is(.glass-slot, [data-glass-region])::before { content: none; }
+.session-panel:has(> .glass-slot) { box-shadow: none; }
 /** Clear glass shows what is behind it almost as it is, so a thin wash of the page keeps what is written on it readable. */
-[data-glass-region] { background: rgb(from var(--canvas) r g b / calc(0.24 + 0.36 * var(--glass-tint))); }
+[data-glass-region] { background: rgb(from var(--canvas) r g b / calc(0.24 + 0.36 * var(--glass-tint))); backdrop-filter: none; }
+/** A menu in the layer sits on frosted glass, under a thin wash of its own colour. */
+:root[data-glass-layer] :is(.menu-popover, .setting-popover, .command-menu, .picker-popover) { border-color: transparent; background: rgb(from var(--p-bg-4) r g b / calc(0.2 + 0.5 * var(--glass-tint))); backdrop-filter: none; box-shadow: none; }
+/** A control on a pane is a bead of glass of its own, so it drops the fill and the rim the stylesheet gave it. */
+:root[data-glass-layer] :is(.setting-menu > summary, .fast-mode-toggle):not(:hover) { background: none; }
+:root[data-glass-layer] :is(.setting-menu > summary, .fast-mode-toggle) { box-shadow: none; }
+/** One that opens over the composer has the composer's own words under it, which no glass frosts, so its wash is thicker. */
+:root[data-glass-layer] [data-glass-region] :is(.setting-popover, .command-menu, .picker-popover) { background: rgb(from var(--p-bg-4) r g b / calc(0.86 + 0.1 * var(--glass-tint))); }
 /** The transcript runs on under real glass to its foot, and fades only in the strip below the composer. */
 .composer-wrap:has(> .glass-slot) { background: linear-gradient(to top, var(--canvas) 6px, var(--canvas-fade) 20px); }
-:is(.glass-slot, [data-glass-region])::before { content: none; }
-/** Nothing is behind a menu in the layer for it to blur, so it is solid there. */
-:root[data-glass-layer] { --glass-menu: var(--glass-sheen), var(--surface-menu); --glass-menu-blur: none; }
 .command-menu {
   position: absolute;
   z-index: 40;
