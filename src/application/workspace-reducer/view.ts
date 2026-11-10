@@ -5,7 +5,7 @@ import { searchEffects, stopSearchEffects } from "./find.js";
 import { followUps, settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { reduceSettings, stopCapture } from "./settings.js";
-import { reduceThreadCommands } from "./thread-commands.js";
+import { selectThread } from "./thread-select.js";
 import { projectFor } from "../thread-location.js";
 import { selectedComputer } from "../state/computers.js";
 import { dockHoldsTab, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
@@ -143,7 +143,7 @@ export function reduceView(state: WorkspaceState, input: ViewInput): WorkspaceTr
     }
 
     case "view.jump-choose":
-      return reduceThreadCommands({ ...state, jump: null }, { type: "task.select", taskId: input.taskId });
+      return selectThread({ ...state, jump: null }, input.taskId);
 
     case "view.jump-choose-setting":
       return reduceSettings({ ...state, jump: null }, { type: "view.set-settings-open", open: true, section: input.section, ...(input.settingId ? { settingId: input.settingId } : {}) });
