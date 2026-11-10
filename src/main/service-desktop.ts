@@ -1,6 +1,5 @@
 import type { AgentEngine } from "../domain/agent-engine.js";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../domain/computer-use.js";
-import { terminalLineLimit } from "../domain/terminal.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
 import type { RunCommand } from "../contracts/ipc.js";
@@ -16,7 +15,8 @@ import type { ComputerReads } from "./computer-queries.js";
 import type { DesktopEvents } from "./desktop-events.js";
 import { preserveMessageImages } from "./message-image-store.js";
 import type { RunBridge } from "./run-host.js";
-import * as terminal from "./terminal-host.js";
+import { terminalDesktop } from "./terminal-host.js";
+import { automationDesktop } from "./automation-desktop.js";
 
 /** The services every host has, whether or not a window is drawn over them. */
 export type ServiceDesktopHost = {
@@ -103,7 +103,7 @@ function workspaceDesktop(host: ServiceDesktopHost) {
   } satisfies Partial<RuntimeDesktop>;
 }
 
-/** Files on disk, the engines, storage, and schedules. */
+/** Files on disk, the engines, and storage. */
 function storeDesktop(host: ServiceDesktopHost) {
   const { events } = host;
   return {
@@ -151,32 +151,12 @@ function storeDesktop(host: ServiceDesktopHost) {
     persistTaskStore: (delta) => host.taskDatabase().persist(delta),
     loadSubagentActivity: (taskId, subagentId) => host.taskDatabase().subagentActivity(taskId, subagentId),
     loadSubagentMetadata: async (engine, subagentId, sessionId) => (await import("./agent/engine-services.mjs")).engineServices[engine].subagentMetadata?.(subagentId, sessionId) ?? {},
-    listAutomations: async () => host.scheduler().list(),
-    saveAutomation: (draft) => host.scheduler().save(draft),
-    updateAutomation: (taskId, patch) => host.scheduler().update(taskId, patch),
-    deleteAutomation: (taskId) => host.scheduler().remove(taskId),
-    runAutomationNow: (taskId) => host.scheduler().runNow(taskId),
-    onAutomationsChanged: (listener) => events.on("automation:changed", listener),
-    onAutomationFire: (listener) => events.on("automation:fire", listener),
-    acknowledgeAutomation: (ack) => host.runs.acknowledgeAutomation(ack.runId, ack.started),
     onThreadRequest: (listener) => events.on("thread:request", listener),
     answerThreadRequest: (response) => host.runs.answerThread(response),
   } satisfies Partial<RuntimeDesktop>;
 }
 
-/** The terminal panel's shells, which run wherever the runtime does. */
-function terminalDesktop(host: ServiceDesktopHost) {
-  return {
-    startTerminal: async (terminalId, options) => terminal.startTerminal(terminalId, options.cwd),
-    writeTerminal: async (terminalId, data) => terminal.writeTerminal(terminalId, data),
-    resizeTerminal: async (terminalId, cols, rows) => terminal.resizeTerminal(terminalId, cols, rows),
-    closeTerminal: async (terminalId) => terminal.closeTerminal(terminalId),
-    readTerminal: (terminalId, options) => terminal.readTerminal(terminalId, { lines: terminalLineLimit(options.lines), ...(options.match ? { match: options.match } : {}) }),
-    onTerminalEvent: (listener) => host.events.on("terminal:event", listener),
-  } satisfies Partial<RuntimeDesktop>;
-}
-
 /** What every host answers the runtime with, in the process that owns the services. */
 export function serviceDesktop(host: ServiceDesktopHost) {
-  return { ...workspaceDesktop(host), ...storeDesktop(host), ...terminalDesktop(host) };
+  return { ...workspaceDesktop(host), ...storeDesktop(host), ...terminalDesktop(host.events), ...automationDesktop(host) };
 }

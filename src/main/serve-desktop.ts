@@ -1,9 +1,13 @@
-import { NO_APP_UPDATE, type AppBuild } from "../domain/app-update.js";
+import type { AppBuild } from "../domain/app-update.js";
 import { noComputers } from "../host/no-computers.js";
 import type { RuntimeDesktop } from "../host/runtime-desktop.js";
 import type * as MobileHost from "./mobile/mobile-host.mjs" with { "resolution-mode": "import" };
 import { serviceDesktop, type ServiceDesktopHost } from "./service-desktop.js";
 import { dictationDesktop, type DictationHost } from "./dictation-host.js";
+import { headlessBrowserDesktop } from "./browser-desktop.js";
+import { needsDesktop, nothing } from "./headless.js";
+import { headlessSimulatorDesktop } from "./simulator-desktop.js";
+import { headlessUpdateDesktop } from "./update-desktop.js";
 import type { ServeUpdater } from "./serve-updates.js";
 
 /** What a headless host adds to the services: the phone bridge it runs itself, and a place to say things. */
@@ -19,33 +23,14 @@ export type ServeDesktopHost = Omit<ServiceDesktopHost, "openUrl" | "computerUse
   launchedUpdate: string | null;
 };
 
-function needsDesktop(what: string) {
-  return async (): Promise<never> => { throw new Error(`${what} needs the desktop app.`); };
-}
-
 /** Nothing is drawn here: the window's own effects are dropped, and what only a window can do is refused. */
 function headlessDesktop(host: ServeDesktopHost) {
   const { events } = host;
-  const nothing = () => {};
-  const unsubscribed = () => () => {};
-  const { updates } = host;
-  let launchedUpdate = host.launchedUpdate;
   return {
     openFolder: needsDesktop("Picking a folder"),
     revealWorktree: needsDesktop("Revealing a checkout"),
     restartForComputerUse: nothing,
     downloadImage: needsDesktop("Saving an image"),
-    checkForUpdates: () => { void updates?.check(); },
-    appUpdate: async () => updates?.state() ?? NO_APP_UPDATE,
-    appBuild: async () => host.build,
-    launchedUpdate: async () => {
-      const version = launchedUpdate;
-      launchedUpdate = null;
-      return version;
-    },
-    onAppUpdate: (listener) => events.on("update:changed", listener),
-    downloadUpdate: () => { void updates?.download(); },
-    installUpdate: () => { void updates?.install(); },
     openSourceLicenses: needsDesktop("The licenses page"),
     mobileState: async () => host.mobile().mobileState(),
     setMobileEnabled: (enabled) => host.mobile().setMobileEnabled(enabled),
@@ -56,32 +41,6 @@ function headlessDesktop(host: ServeDesktopHost) {
     onMobileRequest: (listener) => events.on("mobile:request", listener),
     answerMobileRequest: (response) => host.mobile().answerMobileRequest(response),
     publishMobileView: (update) => host.mobile().publishMobileView(update),
-    configureBrowserPermissions: async () => {},
-    openBrowserTab: needsDesktop("The browser panel"),
-    navigateBrowser: needsDesktop("The browser panel"),
-    browserHistory: needsDesktop("The browser panel"),
-    reloadBrowser: needsDesktop("The browser panel"),
-    closeBrowserTab: async () => {},
-    showBrowserTab: async () => {},
-    actInBrowser: needsDesktop("The browser panel"),
-    readBrowserPage: async () => null,
-    inspectBrowserPage: async () => null,
-    captureBrowserPage: async () => null,
-    clearBrowserData: async () => {},
-    listBrowserImportSources: async () => [],
-    listBrowserImportSites: async () => [],
-    importBrowserSites: needsDesktop("The browser panel"),
-    onBrowserEvent: unsubscribed,
-    findInPage: async () => {},
-    stopFindInPage: async () => {},
-    focusBrowserTab: async () => {},
-    onBrowserFind: unsubscribed,
-    listSimulators: async () => ({ availability: { status: "unsupported" as const, reason: "The simulator needs the desktop app." }, devices: [] }),
-    bootSimulator: needsDesktop("The simulator"),
-    simulatorInput: needsDesktop("The simulator"),
-    describeSimulator: needsDesktop("The simulator"),
-    captureSimulator: needsDesktop("The simulator"),
-    ...dictationDesktop(() => host.dictation),
     openFile: needsDesktop("Opening a file"),
     listApps: async () => [],
     openFolderInApp: needsDesktop("Opening a folder in an application"),
@@ -109,5 +68,13 @@ export function createServeDesktop(host: ServeDesktopHost): RuntimeDesktop {
       enable: async () => ({ accessibility: false, screenRecording: false }),
     },
   });
-  return { ...services, ...headlessDesktop(host), ...noComputers };
+  return {
+    ...services,
+    ...headlessBrowserDesktop,
+    ...headlessSimulatorDesktop,
+    ...dictationDesktop(() => host.dictation),
+    ...headlessUpdateDesktop(host),
+    ...headlessDesktop(host),
+    ...noComputers,
+  };
 }

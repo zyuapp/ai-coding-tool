@@ -3,9 +3,11 @@ import type { IPty } from "@lydell/node-pty";
 import type { Terminal } from "@xterm/headless";
 import type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalText } from "../contracts/ipc.js";
 import { serializeTerminal } from "./terminal-snapshot.js";
-import { terminalTitle, withinReadBudget, type TerminalUpdate } from "../domain/terminal.js";
+import { terminalLineLimit, terminalTitle, withinReadBudget, type TerminalUpdate } from "../domain/terminal.js";
 import { isTerminalDimension, MAX_TERMINAL_INPUT, type TerminalOutputRead } from "../contracts/terminal.js";
 import { TerminalOutputBuffer } from "./terminal-output-buffer.js";
+import type { TerminalPort } from "../contracts/terminal-port.js";
+import type { DesktopEvents } from "./desktop-events.js";
 
 /**
  * The terminal panel's shells. This is the only place a pseudo-terminal is created, written to, or
@@ -235,5 +237,17 @@ export async function readTerminal(terminalId: string, options: TerminalReadOpti
     lines: kept,
     omitted: filtered.length - kept.length,
     ...(match ? { matched: filtered.length } : {}),
+  };
+}
+
+/** The terminal panel's shells, which run wherever the runtime does. */
+export function terminalDesktop(events: DesktopEvents): TerminalPort["runtime"] {
+  return {
+    startTerminal: async (terminalId, options) => startTerminal(terminalId, options.cwd),
+    writeTerminal: async (terminalId, data) => writeTerminal(terminalId, data),
+    resizeTerminal: async (terminalId, cols, rows) => resizeTerminal(terminalId, cols, rows),
+    closeTerminal: async (terminalId) => closeTerminal(terminalId),
+    readTerminal: (terminalId, options) => readTerminal(terminalId, { lines: terminalLineLimit(options.lines), ...(options.match ? { match: options.match } : {}) }),
+    onTerminalEvent: (listener) => events.on("terminal:event", listener),
   };
 }

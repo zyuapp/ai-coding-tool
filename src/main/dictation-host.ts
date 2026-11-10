@@ -12,6 +12,7 @@ import path from "node:path";
 import { createInterface } from "node:readline";
 import { DICTATION_UNSUPPORTED, MAX_DICTATION_AUDIO_BYTES, isDictationAudio } from "../domain/dictation.js";
 import type { DictationModelStatus } from "../contracts/ipc.js";
+import type { DictationPort } from "../contracts/dictation-port.js";
 import { dictationModelPlace, type DictationModelPlace } from "./dictation-models.js";
 
 /** The helper holds the model in memory, so it goes after this long without a hold. */
@@ -289,14 +290,14 @@ export class DictationHost {
 }
 
 /** What a runtime asks of dictation, from the host `host` answers with when first asked. */
-export function dictationDesktop(host: () => DictationHost) {
+export function dictationDesktop(host: () => DictationHost): DictationPort["runtime"] {
   return {
-    onDictationModel: (listener: (status: DictationModelStatus) => void) => host().onDictationModel(listener),
-    startDictation: (id: string) => host().startDictation(id),
-    stopDictation: (id: string) => host().stopDictation(id),
-    cancelDictation: (id: string) => host().cancelDictation(id),
+    onDictationModel: (listener) => host().onDictationModel(listener),
+    startDictation: (id) => host().startDictation(id),
+    stopDictation: (id) => host().stopDictation(id),
+    cancelDictation: (id) => host().cancelDictation(id),
     downloadDictationModel: () => host().downloadDictationModel(),
     cancelDictationDownload: () => host().cancelDictationDownload(),
-    transcribeAudio: (audio: string) => host().transcribeAudio(audio),
+    transcribeAudio: (audio) => host().transcribeAudio(audio),
   };
 }

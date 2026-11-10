@@ -11,6 +11,7 @@ export type WindowPort = {
     announceThread(notice: ThreadNotice): void;
     /** How many threads carry an unseen mark, which the platform draws on the app icon. */
     setBadgeCount(count: number): void;
+    openSourceLicenses(): Promise<void>;
   };
   windowCalls: {
     /** The panes of glass under the window's page, for what sits on the frame with nothing of the page behind it. */

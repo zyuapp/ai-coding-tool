@@ -1,7 +1,7 @@
 import { app, dialog, shell, type BrowserWindow } from "electron";
 import type { AppUpdater } from "electron-updater";
 import { homedir } from "node:os";
-import { NO_APP_UPDATE, type AppUpdate } from "../domain/app-update.js";
+import { NO_APP_UPDATE, type AppBuild, type AppUpdate } from "../domain/app-update.js";
 import { registerAppImageUpdateRepair } from "./appimage-update.js";
 import { automaticUpdatesAvailable, manualUpdateRecovery } from "./platform-capabilities.js";
 
@@ -68,6 +68,11 @@ function setState(host: UpdateHost, next: AppUpdate) {
 
 export function appUpdate() {
   return state;
+}
+
+/** The build this app runs, and whether it replaces itself. */
+export function appBuild(): AppBuild {
+  return { version: app.getVersion(), selfUpdating: app.isPackaged && automaticUpdatesAvailable() };
 }
 
 /** Checks now and every hour after, skipping while an update is downloading or waiting on a restart. */

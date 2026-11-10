@@ -11,13 +11,16 @@ import { mobileBridge } from "./mobile/bridge.js";
 import { listInstalledApps, openFolderInApp } from "./open-in-app.js";
 import { openInEditor } from "./open-in-editor.js";
 import { serviceDesktop, type ServiceDesktopHost } from "./service-desktop.js";
-import { appUpdate, checkForUpdates, confirmInstall, downloadUpdate, installUpdate, type UpdateHost } from "./updates.js";
-import { automaticUpdatesAvailable } from "./platform-capabilities.js";
+import * as updates from "./updates.js";
+import type { UpdateHost } from "./updates.js";
+import { updateDesktop } from "./update-desktop.js";
 import * as browser from "./browser-host.js";
 import * as simulator from "./simulator-host.js";
 import { dictationDesktop } from "./dictation-host.js";
 import { desktopDictation } from "./desktop-dictation.js";
-import { importBrowserSites, listImportSites, listImportSources } from "./browser-import.js";
+import * as browserImport from "./browser-import.js";
+import { browserDesktop } from "./browser-desktop.js";
+import { simulatorDesktop } from "./simulator-desktop.js";
 
 /** What the desktop adds to the services: the window, and everything only a window can do. */
 export type RuntimeDesktopHost = Omit<ServiceDesktopHost, "openUrl" | "computerUse"> & {
@@ -52,43 +55,9 @@ function computerDesktop(host: RuntimeDesktopHost): ComputerDesktop {
   };
 }
 
-/** The browser and simulator panels, whose pages and devices are driven from this process. */
-function panelDesktop(host: RuntimeDesktopHost) {
-  const { events } = host;
-  return {
-    configureBrowserPermissions: async (permissions) => browser.configurePermissions(permissions),
-    openBrowserTab: async (tabId, url, taskId) => browser.openTab(tabId, url, taskId),
-    navigateBrowser: async (tabId, url, taskId) => browser.navigate(tabId, url, taskId),
-    browserHistory: async (tabId, delta, taskId) => browser.goHistory(tabId, delta, taskId),
-    reloadBrowser: async (tabId, taskId) => browser.reload(tabId, taskId),
-    closeBrowserTab: async (tabId) => browser.closeTab(tabId),
-    showBrowserTab: async (tabId) => browser.showTab(tabId),
-    actInBrowser: (tabId, action, taskId) => browser.act(tabId, action, taskId),
-    readBrowserPage: (tabId, textLimit, timeoutMs, taskId) => browser.readPage(tabId, textLimit, timeoutMs, taskId),
-    inspectBrowserPage: (tabId, inspection, taskId) => browser.inspectPage(tabId, inspection, taskId),
-    captureBrowserPage: (tabId, fullPage, timeoutMs, taskId) => browser.capturePage(tabId, fullPage, timeoutMs, taskId),
-    clearBrowserData: () => browser.clearData(),
-    listBrowserImportSources: () => listImportSources(),
-    listBrowserImportSites: (sourceId) => listImportSites(sourceId),
-    importBrowserSites: (sourceId, sites) => importBrowserSites(sourceId, sites, browser.replaceCookies),
-    onBrowserEvent: (listener) => events.on("browser:event", listener),
-    findInPage: async (tabId, query, forward, findNext) => browser.findInPage(tabId, query, { forward, findNext }),
-    stopFindInPage: async (tabId) => browser.stopFindInPage(tabId),
-    focusBrowserTab: async (tabId) => browser.focusTab(tabId),
-    onBrowserFind: (listener) => events.on("browser:find", listener),
-    listSimulators: () => simulator.listSimulators(),
-    bootSimulator: (udid) => simulator.bootSimulator(udid),
-    simulatorInput: (udid, input) => simulator.simulatorInput(udid, input),
-    describeSimulator: (udid, device) => simulator.describeSimulator(udid, device),
-    captureSimulator: (udid) => simulator.captureSimulator(udid),
-    ...dictationDesktop(desktopDictation),
-  } satisfies Partial<RuntimeDesktop>;
-}
-
 /** The window itself, its keys, the desktop around it, and the phone bridge it keeps awake for. */
 function windowDesktop(host: RuntimeDesktopHost) {
   const { events } = host;
-  let launchedUpdate = host.launchedUpdate;
   return {
     openFolder: async () => {
       const window = host.window();
@@ -107,21 +76,6 @@ function windowDesktop(host: RuntimeDesktopHost) {
       if (!window) throw new Error("There is no window to save into.");
       await downloadImage(window, source);
     },
-    checkForUpdates: (quiet) => {
-      const stage = appUpdate().status;
-      if (quiet && (stage === "downloading" || stage === "ready")) return;
-      void checkForUpdates(host.updates, { userRequested: !quiet }).catch((error) => console.error("Update check failed:", error));
-    },
-    appUpdate: async () => appUpdate(),
-    launchedUpdate: async () => {
-      const version = launchedUpdate;
-      launchedUpdate = null;
-      return version;
-    },
-    onAppUpdate: (listener) => events.on("update:changed", listener),
-    appBuild: async () => ({ version: app.getVersion(), selfUpdating: app.isPackaged && automaticUpdatesAvailable() }),
-    downloadUpdate: (unattended) => { void downloadUpdate(host.updates, { unattended }); },
-    installUpdate: (unattended) => { if (unattended) installUpdate(host.updates, { unattended }); else void confirmInstall(host.updates); },
     openSourceLicenses: () => openSourceLicenses(host.window()),
     mobileState: () => mobileBridge.state(),
     setMobileEnabled: (enabled) => mobileBridge.setEnabled(enabled),
@@ -177,5 +131,13 @@ export function createRuntimeDesktop(host: RuntimeDesktopHost): RuntimeDesktop {
     openUrl: (url) => shell.openExternal(url),
     computerUse: { permissions: computerUsePermissions, enable: requestComputerUsePermission },
   });
-  return { ...services, ...panelDesktop(host), ...windowDesktop(host), ...computerDesktop(host) };
+  return {
+    ...services,
+    ...browserDesktop(browser, browserImport, host.events),
+    ...simulatorDesktop(simulator),
+    ...dictationDesktop(desktopDictation),
+    ...updateDesktop(updates, host),
+    ...windowDesktop(host),
+    ...computerDesktop(host),
+  };
 }

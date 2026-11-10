@@ -15,6 +15,5 @@ export type UpdatePort = {
     downloadUpdate(unattended?: boolean): void;
     /** Asks to restart, then quits and installs the downloaded update. `unattended` installs without asking. */
     installUpdate(unattended?: boolean): void;
-    openSourceLicenses(): Promise<void>;
   };
 };
