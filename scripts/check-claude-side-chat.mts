@@ -12,7 +12,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { query, type HookCallback, type SessionStoreEntry } from "@anthropic-ai/claude-agent-sdk";
 import type { Continuation } from "../src/domain/run.js";
-import type { ProviderResult, ThreadBridge } from "../src/main/agent/agent-provider.mjs";
+import type { ProviderResult } from "../src/main/agent/agent-provider.mjs";
+import type { ThreadBridge } from "../src/main/tools/threads.mjs";
 
 const { ClaudeAgentProvider }: typeof import("../src/main/claude/claude-agent-provider.mjs") = await import(new URL("../dist/main/main/claude/claude-agent-provider.mjs", import.meta.url).href);
 const { sideChatPrompt }: typeof import("../src/application/workspace-reducer/run-queue.js") = await import(new URL("../dist/main/application/workspace-reducer/run-queue.js", import.meta.url).href);

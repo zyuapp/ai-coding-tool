@@ -11,8 +11,6 @@ import type { SimulatorBridge } from "../tools/simulator.mjs";
 import type { TerminalBridge } from "../tools/terminal.mjs";
 import type { ThreadBridge } from "../tools/threads.mjs";
 
-export type { ThreadBridge };
-
 export type SteerMessage = {
   messageId: string;
   prompt: string;
