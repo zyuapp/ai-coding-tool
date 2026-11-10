@@ -11,8 +11,6 @@ export const GLASS_LAYER_ARGUMENT = "--glass-layer";
 /** The see-through window that floats over the app and holds what sits on real glass. */
 export type GlassLayer = {
   setRegions(regions: readonly GlassRegion[]): void;
-  /** Whether the layer takes the pointer; it lets everything through to the window under it otherwise. */
-  setInteractive(interactive: boolean): void;
   focus(): void;
   focused(): boolean;
   /** Whether the layer's glass is drawn as in use, which follows the window under it rather than the layer's own turn at the keyboard. */
@@ -51,7 +49,8 @@ export function startGlassLayer(parent: BrowserWindow, layer: BrowserWindow, gla
     if (!parent.isDestroyed() && !layer.isDestroyed()) layer.setBounds(parent.getContentBounds());
   };
   for (const moved of ["resize", "move", "enter-full-screen", "leave-full-screen", "restore", "show"] as const) parent.on(moved as "resize", fit);
-  layer.setIgnoreMouseEvents(true, { forward: true });
+  /** The layer takes the pointer over its panes and nowhere else, which the platform decides from where they are. */
+  glass.track(layer.getNativeWindowHandle());
   fit();
   layer.showInactive();
   return {
@@ -61,11 +60,6 @@ export function startGlassLayer(parent: BrowserWindow, layer: BrowserWindow, gla
       const zoom = parent.webContents.getZoomFactor();
       if (layer.webContents.getZoomFactor() !== zoom) layer.webContents.setZoomFactor(zoom);
       glass.regions(layer.getNativeWindowHandle(), glassRegionsInPoints(regions, zoom));
-    },
-    setInteractive: (interactive) => {
-      if (layer.isDestroyed()) return;
-      if (interactive) layer.setIgnoreMouseEvents(false);
-      else layer.setIgnoreMouseEvents(true, { forward: true });
     },
     focus: () => {
       if (!layer.isDestroyed()) layer.focus();

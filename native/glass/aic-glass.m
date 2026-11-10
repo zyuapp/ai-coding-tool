@@ -9,6 +9,30 @@
 static NSString *const kGlassIdentifier = @"aic-window-glass";
 static NSString *const kRegionIdentifier = @"aic-glass-region";
 
+/**
+ * The see-through layer takes the pointer only over its panes. AppKit sends a window that ignores the
+ * mouse nothing to decide by, and a page cannot be told where the pointer is while its window is not
+ * the key one, so the choice is made here, from where the pointer is and where the panes are.
+ */
+static __weak NSWindow *gLayer = nil;
+static NSArray<NSValue *> *gLayerPanes = nil;
+static id gPointerMonitor = nil;
+
+static void FollowPointer(void) {
+  NSWindow *layer = gLayer;
+  /** A press that began on a pane keeps it until it ends, so a drag off its edge is not dropped. */
+  if (!layer || NSEvent.pressedMouseButtons != 0) return;
+  NSPoint at = [layer convertPointFromScreen:NSEvent.mouseLocation];
+  BOOL over = NO;
+  for (NSValue *pane in gLayerPanes) {
+    if (NSPointInRect(at, pane.rectValue)) {
+      over = YES;
+      break;
+    }
+  }
+  if (layer.ignoresMouseEvents == over) layer.ignoresMouseEvents = !over;
+}
+
 /** Looked up by name, so the addon builds against an SDK older than the class. */
 static Class GlassClass(void) {
   return NSClassFromString(@"NSGlassEffectView");
@@ -100,12 +124,47 @@ static napi_value Regions(napi_env env, napi_callback_info info) {
     }
     pane.frame = frame;
     [pane setValue:@(values[4]) forKey:@"cornerRadius"];
+    [panes replaceObjectAtIndex:index withObject:pane];
     /** The clear style reads what is behind a pane through it, as the system's own floating bars do; the regular one frosts it. */
     NSNumber *style = values[5] > 0 ? @1 : @0;
     if (![[pane valueForKey:@"style"] isEqual:style]) [pane setValue:style forKey:@"style"];
   }
+  if (handle.window == gLayer) {
+    NSMutableArray<NSValue *> *rects = [NSMutableArray array];
+    for (NSView *pane in panes) [rects addObject:[NSValue valueWithRect:[root convertRect:pane.frame toView:nil]]];
+    gLayerPanes = rects;
+    FollowPointer();
+  }
   napi_get_boolean(env, true, &applied);
   return applied;
+}
+
+/** Makes a window the see-through layer: it lets the pointer through everywhere but over its panes. */
+static napi_value Track(napi_env env, napi_callback_info info) {
+  size_t argc = 1;
+  napi_value argv[1];
+  napi_value tracked;
+  napi_get_boolean(env, false, &tracked);
+  if (napi_get_cb_info(env, info, &argc, argv, NULL, NULL) != napi_ok || argc < 1) return tracked;
+  void *data = NULL;
+  size_t length = 0;
+  if (napi_get_buffer_info(env, argv[0], &data, &length) != napi_ok || length < sizeof(void *)) return tracked;
+  NSWindow *window = ((__bridge NSView *)(*(void **)data)).window;
+  if (!window) return tracked;
+  gLayer = window;
+  gLayerPanes = @[];
+  window.ignoresMouseEvents = YES;
+  window.acceptsMouseMovedEvents = YES;
+  window.parentWindow.acceptsMouseMovedEvents = YES;
+  if (!gPointerMonitor) {
+    NSEventMask moves = NSEventMaskMouseMoved | NSEventMaskLeftMouseDragged | NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp | NSEventMaskMouseEntered | NSEventMaskMouseExited | NSEventMaskScrollWheel;
+    gPointerMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:moves handler:^NSEvent *(NSEvent *event) {
+      FollowPointer();
+      return event;
+    }];
+  }
+  napi_get_boolean(env, true, &tracked);
+  return tracked;
 }
 
 /**
@@ -144,5 +203,8 @@ NAPI_MODULE_INIT() {
   napi_value active;
   napi_create_function(env, "active", NAPI_AUTO_LENGTH, Active, NULL, &active);
   napi_set_named_property(env, exports, "active", active);
+  napi_value track;
+  napi_create_function(env, "track", NAPI_AUTO_LENGTH, Track, NULL, &track);
+  napi_set_named_property(env, exports, "track", track);
   return exports;
 }

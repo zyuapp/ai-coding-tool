@@ -21,21 +21,18 @@ function fakeWindow(content = { x: 10, y: 20, width: 800, height: 600 }) {
   return { window: window as unknown as BrowserWindow & { content: typeof content; webContents: { zoom: number } }, calls };
 }
 
-test("the glass layer stays over its window's page and lets the pointer through until it is told to take it", () => {
+test("the glass layer stays over its window's page, at its zoom, with glass under the panes it names", () => {
   const parent = fakeWindow();
   const layer = fakeWindow();
   const glassed: unknown[] = [];
-  const started = startGlassLayer(parent.window, layer.window, { attach: () => true, active: () => true, regions: (_handle, regions) => { glassed.push(regions); return true; } });
-  assert.deepEqual(layer.calls, [["setIgnoreMouseEvents", true, { forward: true }], ["setBounds", parent.window.content], ["showInactive"]]);
+  let tracked = 0;
+  const started = startGlassLayer(parent.window, layer.window, { attach: () => true, active: () => true, track: () => { tracked += 1; return true; }, regions: (_handle, regions) => { glassed.push(regions); return true; } });
+  assert.equal(tracked, 1, "the platform is told which window lets the pointer through");
+  assert.deepEqual(layer.calls, [["setBounds", parent.window.content], ["showInactive"]]);
 
   parent.window.content = { x: 10, y: 20, width: 1200, height: 700 };
   parent.window.emit("resize");
   assert.deepEqual(layer.calls.at(-1), ["setBounds", { x: 10, y: 20, width: 1200, height: 700 }]);
-
-  started.setInteractive(true);
-  assert.deepEqual(layer.calls.at(-1), ["setIgnoreMouseEvents", false]);
-  started.setInteractive(false);
-  assert.deepEqual(layer.calls.at(-1), ["setIgnoreMouseEvents", true, { forward: true }]);
 
   const regions = [{ x: 1, y: 2, width: 300, height: 100, radius: 17, clear: true }];
   started.setRegions(regions);

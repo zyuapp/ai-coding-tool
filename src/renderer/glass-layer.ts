@@ -217,28 +217,6 @@ function mirrorRoot(into: Document) {
   new MutationObserver(sync).observe(from, { attributes: true });
 }
 
-/** The layer lets the pointer through to the page except over what it draws, or while a press that began there is held. */
-function followPointer(layer: Window) {
-  const doc = layer.document;
-  let interactive = false;
-  let pressed = false;
-  const set = (next: boolean) => {
-    if (next === interactive) return;
-    interactive = next;
-    void window.desktop.setGlassLayerInteractive(next);
-  };
-  const drawn = (target: EventTarget | null) => target !== null && target !== doc && target !== doc.documentElement && target !== doc.body;
-  doc.addEventListener("mousemove", (event) => set(pressed || drawn(event.target)), true);
-  doc.addEventListener("mousedown", () => { pressed = true; }, true);
-  doc.addEventListener("mouseup", (event) => {
-    pressed = false;
-    set(drawn(event.target));
-  }, true);
-  doc.documentElement.addEventListener("mouseleave", () => {
-    if (!pressed) set(false);
-  });
-}
-
 /**
  * The keyboard goes to whichever window is the key one, so it follows focus between the two
  * documents: to the layer when something in it takes focus, and back when something in the page does.
@@ -295,7 +273,6 @@ async function open(): Promise<GlassLayerView | null> {
   shareInstances(layer);
   layerTargets = { window: layer, document: doc };
   for (const { on, type, listener, options } of listening) layerTargets[on].addEventListener(type, listener, options);
-  followPointer(layer);
   followFocus(layer);
   const root = doc.createElement("div");
   root.className = "glass-layer";

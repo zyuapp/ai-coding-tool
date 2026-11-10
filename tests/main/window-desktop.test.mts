@@ -51,7 +51,7 @@ test("every call the window makes is relayed on one channel, refused from anyone
     desktop: { openFolder: record("openFolder"), projectlessWorkspace: record("projectlessWorkspace"), diffPatch: record("diffPatch"), saveAttachment: record("saveAttachment"), focusBrowserTab: record("focusBrowserTab") },
     reads: { read: record("read") },
     setTheme: (theme: unknown) => { electron.reached.push(["setTheme", theme]); },
-    glassLayer: { setRegions: record("setGlassRegions"), setInteractive: record("setGlassLayerInteractive"), focus: record("focusGlassLayer") },
+    glassLayer: { setRegions: record("setGlassRegions"), focus: record("focusGlassLayer") },
     setWindowGlassRegions: record("setWindowGlassRegions"),
   } as unknown as WindowDesktopHost;
   serveWindowDesktop(host, (event) => (event.sender as unknown) === window.sender);
@@ -80,7 +80,6 @@ test("every call the window makes is relayed on one channel, refused from anyone
     setTheme: { valid: [{ variant: "dark", canvas: "#0e1117" }], invalid: [[{ variant: "blue", canvas: "#0e1117" }], [{ variant: "dark", canvas: "red" }]] },
     setGlassRegions: { valid: [[{ x: 1, y: 2, width: 300, height: 100, radius: 17, clear: true }]], invalid: [[[{ x: 1, y: 2, width: -3, height: 100, radius: 17, clear: true }]], [[{ x: 1, y: 2, width: 300, height: 100, radius: 17 }]], [undefined]] },
     setWindowGlassRegions: { valid: [[{ x: 1, y: 2, width: 300, height: 100, radius: 17, clear: true }]], invalid: [[[{ x: 1 }]], [null]] },
-    setGlassLayerInteractive: { valid: [true], invalid: [["yes"]] },
     focusGlassLayer: { valid: [false], invalid: [[1]] },
     watchSimulator: { valid: ["udid"], invalid: [[""], [7]] },
     unwatchSimulator: { valid: ["udid"], invalid: [[null]] },

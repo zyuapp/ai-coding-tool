@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { loadWindowGlass, systemGlassTint, windowMaterial, windowMaterialOptions } from "../../src/main/window-backdrop.ts";
 
-const glass = { attach: () => true, regions: () => true, active: () => true };
+const glass = { attach: () => true, regions: () => true, active: () => true, track: () => true };
 
 test("only macOS draws a material under the window, and glass only where the addon offers it", () => {
   assert.equal(windowMaterial(glass, "darwin"), "glass");
@@ -21,7 +21,7 @@ test("glass falls back to none when the addon is missing, refuses, or the platfo
   const loaded: string[] = [];
   const addon = (available: boolean) => (file: string) => {
     loaded.push(file);
-    return { available: () => available, attach: () => true, regions: () => true, active: () => true };
+    return { available: () => available, attach: () => true, regions: () => true, active: () => true, track: () => true };
   };
   assert.equal(loadWindowGlass("/native", "linux", addon(true)), null);
   assert.deepEqual(loaded, [], "another desktop never opens the addon");

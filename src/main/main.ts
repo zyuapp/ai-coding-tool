@@ -451,6 +451,13 @@ async function createWindow() {
     glassLayer.setInUse(shown.isFocused());
     layer.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     layer.webContents.on("before-input-event", (event, input) => {
+      /** A zoom asked for while the layer has the keyboard is meant for the page, which the layer then follows. */
+      const zoom = input.type === "keyDown" && input.meta && !input.alt && !input.control ? ({ "=": 0.5, "+": 0.5, "-": -0.5, "0": 0 } as Record<string, number>)[input.key] : undefined;
+      if (zoom !== undefined) {
+        event.preventDefault();
+        if (!shown.isDestroyed()) shown.webContents.setZoomLevel(zoom === 0 ? 0 : shown.webContents.getZoomLevel() + zoom);
+        return;
+      }
       if (keyboard.handleKey(input, "any")) event.preventDefault();
     });
     layer.on("focus", active);
@@ -683,7 +690,6 @@ serveWindowDesktop({
   },
   glassLayer: {
     setRegions: (regions) => glassLayer?.setRegions(regions),
-    setInteractive: (interactive) => glassLayer?.setInteractive(interactive),
     focus: (focused) => {
       if (focused) glassLayer?.focus();
       else if (window && !window.isDestroyed()) window.focus();

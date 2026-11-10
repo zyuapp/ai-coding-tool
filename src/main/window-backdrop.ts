@@ -12,9 +12,11 @@ export type WindowGlass = {
   regions(handle: Buffer, regions: readonly GlassRegion[]): boolean;
   /** Has a window draw its glass as the window in use does, or as one out of use. */
   active(handle: Buffer, active: boolean): boolean;
+  /** Makes a window the see-through layer, which takes the pointer only over its panes. */
+  track(handle: Buffer): boolean;
 };
 
-type GlassAddon = { available(): boolean; attach(handle: Buffer): boolean; regions(handle: Buffer, flat: number[]): boolean; active(handle: Buffer, active: boolean): boolean };
+type GlassAddon = { available(): boolean; attach(handle: Buffer): boolean; regions(handle: Buffer, flat: number[]): boolean; active(handle: Buffer, active: boolean): boolean; track(handle: Buffer): boolean };
 
 /**
  * Glass needs the addon and a macOS that has it. A build without the addon, or one that will not
@@ -29,6 +31,7 @@ export function loadWindowGlass(nativeDirectory: string, platform: NodeJS.Platfo
       attach: (handle) => addon.attach(handle),
       regions: (handle, regions) => addon.regions(handle, regions.flatMap(({ x, y, width, height, radius, clear }) => [x, y, width, height, radius, clear ? 1 : 0])),
       active: (handle, active) => addon.active(handle, active),
+      track: (handle) => addon.track(handle),
     };
   } catch {
     return null;
