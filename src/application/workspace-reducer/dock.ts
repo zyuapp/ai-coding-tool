@@ -1,6 +1,7 @@
 /** The dock itself: its tabs, its panels, and how much of the window it takes. */
 import { reduceBrowser } from "./browser.js";
 import { reduceTerminal } from "./terminal.js";
+import { owned } from "./slice.js";
 import { reduceSettings } from "./settings.js";
 import { reduceSideChats } from "./side-chats.js";
 import { browserEffectsForTab } from "./browser-tabs.js";
@@ -42,8 +43,8 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
       const kind = dockTabKind(state, owner, dock.tab);
       /** Overview does not close, so ⌘W on it hides the dock the way it does on the picker. */
       const closed = kind === "picker" || dock.tab === OVERVIEW_PANEL ? settled(withDock(state, owner, { open: false }))
-        : kind === "browser" ? reduceBrowser(state, { type: "browser.close-tab", tabId: dock.tab })
-        : kind === "terminal" ? reduceTerminal(state, { type: "terminal.close", terminalId: dock.tab })
+        : kind === "browser" ? owned(reduceBrowser)(state, { type: "browser.close-tab", tabId: dock.tab })
+        : kind === "terminal" ? owned(reduceTerminal)(state, { type: "terminal.close", terminalId: dock.tab })
         : kind === "side-chat" ? reduceSideChats(state, { type: "side-chat.close", chatId: dock.tab })
         : kind === "thread" ? reduceDock(state, { type: "view.close-thread-tab", taskId: dock.tab })
         : reduceDock(state, { type: "view.close-dock-panel", panel: dock.tab });
@@ -56,7 +57,7 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
       if (state.settingsOpen) return settled(state);
       const { owner, dock } = frontDock(state);
       const kind = dock.open ? dockTabKind(state, owner, dock.tab) : "picker";
-      return kind === "browser" ? reduceBrowser(state, { type: "browser.new-tab" }) : reduceTerminal(state, { type: "terminal.open" });
+      return kind === "browser" ? owned(reduceBrowser)(state, { type: "browser.new-tab" }) : owned(reduceTerminal)(state, { type: "terminal.open" });
     }
 
     case "view.select-dock-index": {

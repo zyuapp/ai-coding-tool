@@ -85,7 +85,7 @@ export function focusComposer(state: WorkspaceState): WorkspaceState {
 }
 
 /** The caret goes to the tab a side chat is drawn in, because its composer is not the thread's own. */
-export function focusedTab(state: WorkspaceState, owner: string, tab: string): WorkspaceState {
+export function focusedTab<S extends Pick<WorkspaceState, "dockFocus">>(state: S, owner: string, tab: string): S {
   return { ...state, dockFocus: { owner, tab, count: (state.dockFocus?.count ?? 0) + 1 } };
 }
 

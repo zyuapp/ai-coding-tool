@@ -77,12 +77,12 @@ export const CLAIMS = [
   claim(APP_UPDATE_INPUTS, reduceAppUpdate),
   claim(SETTINGS_INPUTS, reduceSettings),
   claim(DOCK_INPUTS, reduceDock),
-  claim(BROWSER_INPUTS, reduceBrowser),
+  claim(BROWSER_INPUTS, owned(reduceBrowser)),
   claim(BROWSER_IMPORT_INPUTS, owned(reduceBrowserImport)),
-  claim(SIMULATOR_INPUTS, reduceSimulator),
+  claim(SIMULATOR_INPUTS, owned(reduceSimulator)),
   claim(DICTATION_INPUTS, reduceDictation),
   claim(DESKTOP_INPUTS, reduceDesktop),
-  claim(TERMINAL_INPUTS, reduceTerminal),
+  claim(TERMINAL_INPUTS, owned(reduceTerminal)),
   claim(VIEW_INPUTS, reduceView),
 ];
 

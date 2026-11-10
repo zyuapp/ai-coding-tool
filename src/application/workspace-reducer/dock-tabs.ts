@@ -4,11 +4,40 @@ import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import { focusedTab } from "../composer-drafts.js";
 import { viewPreferences } from "../view-preferences.js";
 import { isCoordinator } from "../../domain/coordination.js";
-import { DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, dockFor, dockTabAfterClosing, withDock, type WorkspaceState } from "../workspace-state.js";
+import { DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, dockFor, dockTabAfterClosing, withDock, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
 import { workflowById } from "../state/runs.js";
 
 /** The window has the keys again, which a page in the panel is otherwise holding. */
 export const TAKE_KEYS: WorkspaceEffect[] = [{ type: "focus-window" }];
+
+type DocksView = Pick<WorkspaceState, "docks" | "dockFocus">;
+
+/** The docks as one input leaves them. Only the functions here make one, so a slice changes a dock through them. */
+class DocksChange {
+  private declare readonly owned: never;
+  constructor(readonly view: DocksView) {}
+}
+
+export type DocksEdit = DocksChange;
+
+export function docksOf(state: DocksView): DocksEdit {
+  return new DocksChange({ docks: state.docks, dockFocus: state.dockFocus });
+}
+
+export function editDock(edit: DocksEdit, owner: string, patch: Partial<ThreadDock>): DocksEdit {
+  return new DocksChange(withDock(edit.view, owner, patch));
+}
+
+export function showDockTabIn(edit: DocksEdit, owner: string, tab: string): DocksEdit {
+  return editDock(edit, owner, { open: true, tab });
+}
+
+/** {@link focusDockTab}, on the docks an input is changing. */
+export function focusDockTabIn(edit: DocksEdit, owner: string, tab: string): { docks: DocksEdit; effects: WorkspaceEffect[] } {
+  const focused = new DocksChange(focusedTab(edit.view, owner, tab));
+  const page = dockFor(focused.view, owner).browserTabs.find((item) => item.id === tab);
+  return { docks: focused, effects: page?.url ? [] : TAKE_KEYS };
+}
 
 /** Brings a tab to the front of its own dock, so a page or a shell nobody asked to see still lands somewhere. */
 export function showDockTab(state: WorkspaceState, owner: string, tab: string): WorkspaceState {
