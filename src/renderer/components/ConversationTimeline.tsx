@@ -100,11 +100,11 @@ function retryLabel(retry: RetryNotice) {
  */
 function ThinkingRow({ since, blocked }: { since: number | undefined; blocked: boolean }) {
   const [shownAt] = useState(Date.now);
-  if (blocked) return <div className="thinking-row" role="status"><span className="thinking-label">Waiting for your approval</span></div>;
+  if (blocked) return <div className="thinking-row" role="status"><i className="run-bead held" aria-hidden="true" /><span>Waiting for your approval</span></div>;
   return (
     <div className="thinking-row" role="status">
-      <i aria-hidden="true" /><i aria-hidden="true" /><i aria-hidden="true" />
-      <span className="thinking-label text-sweep">Working<SweepBand>Working</SweepBand></span>
+      <i className="run-bead" aria-hidden="true" />
+      <span className="text-sweep">Working<SweepBand>Working</SweepBand></span>
       <span className="thinking-elapsed" aria-hidden="true"><Elapsed startedAt={Math.min(since ?? shownAt, shownAt)} endsAt={null} /></span>
     </div>
   );
@@ -260,11 +260,13 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
       {status !== "running" && limitPause && currentThread && <LimitRow pause={limitPause} taskId={currentThread.id} />}
       {status === "running" && compacting && (
         <div className="compacting-row" role="status" aria-live="polite">
+          <i className="run-bead" aria-hidden="true" />
           <span className="text-sweep">Compacting messages…<SweepBand>Compacting messages…</SweepBand></span>
         </div>
       )}
       {status === "running" && !compacting && retrying && (
         <div className="retrying-row" role="status" aria-live="polite">
+          <i className="run-bead" aria-hidden="true" />
           <span className="text-sweep">{retryLabel(retrying)}<SweepBand>{retryLabel(retrying)}</SweepBand></span>
         </div>
       )}
