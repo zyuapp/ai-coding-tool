@@ -1326,6 +1326,8 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 }
 .right-dock-tabs [role="tab"] { cursor: pointer; }
 .right-dock-tabs [role="tab"]:hover, .right-dock-tab:hover { background: color-mix(in srgb, var(--surface-hover) 60%, transparent); color: var(--ink-faint); }
+/** The tab is one shape under the pointer: its label never takes a wash of its own over the tab's. */
+.right-dock-tabs .right-dock-tab > [role="tab"]:hover { background: transparent; }
 .right-dock-tab.active { color: var(--ink); }
 /** Drawn over the strip's own bottom border, so the tab reads as the head of the panel under it. */
 .right-dock-tab.active::after {
