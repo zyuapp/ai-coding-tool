@@ -5,10 +5,10 @@
  */
 import { reduceEngine } from "./engine-access.js";
 import { engineReadinessOf } from "./state/engines.js";
-import { reduceToasts } from "./toasts.js";
-import { owned } from "./workspace-reducer/slice.js";
+import { toastIn, toastsOf } from "./toasts.js";
+import { applied, type SliceTransition } from "./workspace-reducer/slice.js";
+import type { AppUpdatesState } from "./state/app-updates.js";
 import { threadActivity } from "./thread-activity.js";
-import { rejected, settled } from "./workspace-reducer/shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import { AGENT_ENGINES, engineUpdate } from "../domain/agent-engine.js";
@@ -45,35 +45,36 @@ export function runningThreads(state: WorkspaceState): number {
   return count;
 }
 
-export function reduceAppUpdate(state: WorkspaceState, input: AppUpdateInput): WorkspaceTransition {
+export function reduceAppUpdate(state: WorkspaceState, input: AppUpdateInput): SliceTransition<AppUpdatesState> {
   switch (input.type) {
     case "app.check-for-updates":
-      return settled(state, [input.quiet ? { type: "app.check-for-updates", quiet: true } : { type: "app.check-for-updates" }]);
+      return { effects: [input.quiet ? { type: "app.check-for-updates", quiet: true } : { type: "app.check-for-updates" }] };
 
     /** Main answers with the stage it moved to, so neither command writes the update itself. */
     case "app.download-update":
-      return settled(state, state.appUpdate.status === "available" ? [{ type: "app.download-update" }] : []);
+      return { effects: state.appUpdate.status === "available" ? [{ type: "app.download-update" }] : [] };
 
     case "app.install-update":
-      return settled(state, state.appUpdate.status === "ready" ? [{ type: "app.install-update" }] : []);
+      return { effects: state.appUpdate.status === "ready" ? [{ type: "app.install-update" }] : [] };
 
     case "app.update-changed":
-      return settled({ ...state, appUpdate: input.update });
+      return { patch: { appUpdate: input.update } };
 
     case "app.build":
-      return settled({ ...state, appBuild: input.build });
+      return { patch: { appBuild: input.build } };
     /** The launch an update brought owes the engines that build needs, once they have been read. */
-    case "app.launched":
-      return owned(reduceToasts)({ ...state, engineUpgradesOwed: true }, input);
+    case "app.launched": {
+      const shown = toastIn(toastsOf(state), { tone: "success", title: "AI Coding Tool updated", message: `Now on ${input.version}.` });
+      return { patch: { engineUpgradesOwed: true }, toasts: shown.toasts, effects: shown.effects };
+    }
     /** An install already under way cannot be called back. */
     case "app.cancel-update":
-      return settled(state.appUpdateRequest?.status === "installing" ? state : { ...state, appUpdateRequest: null });
+      return state.appUpdateRequest?.status === "installing" ? {} : { patch: { appUpdateRequest: null } };
     case "app.update": {
       const { appUpdate, appUpdateRequest } = state;
-      if (appUpdate.status === "idle") return rejected(state, NO_UPDATE_TO_INSTALL);
-      if (appUpdateRequest?.status === "waiting" || appUpdateRequest?.status === "installing") return settled(state);
-      const waiting: WorkspaceState = { ...state, appUpdateRequest: { status: "waiting" } };
-      return settled(waiting, appUpdate.status === "available" ? [{ type: "app.download-update", unattended: true }] : []);
+      if (appUpdate.status === "idle") return { refusal: NO_UPDATE_TO_INSTALL };
+      if (appUpdateRequest?.status === "waiting" || appUpdateRequest?.status === "installing") return {};
+      return { patch: { appUpdateRequest: { status: "waiting" } }, effects: appUpdate.status === "available" ? [{ type: "app.download-update", unattended: true }] : [] };
     }
   }
 }
@@ -84,7 +85,7 @@ function upgradeNeededEngines(transition: WorkspaceTransition): WorkspaceTransit
   return AGENT_ENGINES.reduce<WorkspaceTransition>((current, engine) => {
     const readiness = engineReadinessOf(current.state, engine);
     if (!readiness.required || !engineUpdate(readiness)?.command) return current;
-    const next = reduceEngine(current.state, { type: "engine.update", engine });
+    const next = applied(current.state, reduceEngine(current.state, { type: "engine.update", engine }));
     return { ...current, state: next.state, effects: [...current.effects, ...next.effects] };
   }, owed);
 }

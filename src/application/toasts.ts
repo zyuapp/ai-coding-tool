@@ -21,12 +21,18 @@ export function toastsOf(state: ToastsState): ToastsEdit {
   return new ToastsChange({ toasts, toastSequence, toastsHeld, dismissedToasts });
 }
 
+/** {@link withToast}, on the toasts an input is changing. */
+export function toastIn(edit: ToastsEdit, toast: Omit<Toast, "id">, now = Date.now()): { toasts: ToastsEdit; effects: ToastEffect[] } {
+  const raised = raisedToast(edit.view, toast, now);
+  return { toasts: new ToastsChange({ ...edit.view, ...raised.patch }), effects: raised.effects };
+}
+
 /** The pointer or the caret left the toasts, so each leaves on its own time again. */
 export function releasedToasts(edit: ToastsEdit): ToastsEdit {
   return edit.view.toastsHeld ? new ToastsChange({ ...edit.view, toastsHeld: false }) : edit;
 }
 
-type ToastInput = Extract<WorkspaceInput, { type: "view.dismiss-toast" | "view.hold-toasts" | "app.launched" }>;
+type ToastInput = Extract<WorkspaceInput, { type: "view.dismiss-toast" | "view.hold-toasts" }>;
 
 export type ToastEffect = Extract<WorkspaceEffect, { type: "schedule-toast-dismissal" }>;
 
@@ -80,7 +86,6 @@ export function visibleToasts(state: Pick<WorkspaceState, "toasts" | "zen">): To
 }
 
 export function reduceToasts(state: ToastsState, input: ToastInput): SliceTransition<ToastsState> {
-  if (input.type === "app.launched") return raisedToast(state, { tone: "success", title: "AI Coding Tool updated", message: `Now on ${input.version}.` }, Date.now());
   if (input.type === "view.hold-toasts") {
     if (input.held === state.toastsHeld) return {};
     return { patch: { toastsHeld: input.held }, effects: rescheduledToasts({ toasts: state.toasts, toastsHeld: input.held }) };

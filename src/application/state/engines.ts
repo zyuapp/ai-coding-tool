@@ -12,8 +12,6 @@ export type EnginesState = {
   engineUpdateQueue: AgentEngine[];
   /** True once the launch's first answer about the engines has offered their updates. */
   engineUpdatesOffered: boolean;
-  /** True from the first launch after an app update until every engine it needs has been upgraded. */
-  engineUpgradesOwed: boolean;
   agentSettingsReload: "idle" | "reloading" | "pending" | "reloaded" | "failed";
 };
 
@@ -24,7 +22,6 @@ export function initialEnginesState(): EnginesState {
     engineUpdating: null,
     engineUpdateQueue: [],
     engineUpdatesOffered: false,
-    engineUpgradesOwed: false,
     agentSettingsReload: "idle",
   };
 }

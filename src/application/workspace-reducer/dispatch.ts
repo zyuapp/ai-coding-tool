@@ -33,7 +33,7 @@ import { isEngineInput, reduceEngine, type EngineInput } from "../engine-access.
 import { reduceToasts } from "../toasts.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { cancelPause, resumeThread } from "../limit-pauses.js";
-import { reduceErrorDismissed, settled } from "./shared.js";
+import { reduceErrorDismissed } from "./shared.js";
 import { owned } from "./slice.js";
 import { APP_UPDATE_INPUTS, reduceAppUpdate } from "../app-updates.js";
 
@@ -76,7 +76,7 @@ export const CLAIMS = [
   claim(["view.set-model-favorite"], owned(reduceModelFavorite)),
   claim(["view.remember-project"], owned(reduceRememberProject)),
   claim(["view.dismiss-toast", "view.hold-toasts"], owned(reduceToasts)),
-  claim(APP_UPDATE_INPUTS, reduceAppUpdate),
+  claim(APP_UPDATE_INPUTS, owned(reduceAppUpdate)),
   claim(SETTINGS_INPUTS, reduceSettings),
   claim(DOCK_INPUTS, reduceDock),
   claim(BROWSER_INPUTS, owned(reduceBrowser)),
@@ -92,6 +92,7 @@ type ClaimedInput = Extract<WorkspaceInput, { type: (typeof CLAIMS)[number]["typ
 type ClaimedReducer = (state: WorkspaceState, input: ClaimedInput) => WorkspaceTransition;
 
 const remote = owned(reduceRemote);
+const engine = owned(reduceEngine);
 
 const REDUCERS = new Map<string, ClaimedReducer>(CLAIMS.flatMap(({ types, reducer }) => types.map((type) => [type, reducer as ClaimedReducer] as const)));
 
@@ -102,6 +103,6 @@ const REDUCERS = new Map<string, ClaimedReducer>(CLAIMS.flatMap(({ types, reduce
 export function apply(state: WorkspaceState, input: RemoteInput | ComputerInput | EngineInput | ClaimedInput): WorkspaceTransition {
   if (isRemoteInput(input)) return remote(state, input);
   if (isComputerInput(input)) return reduceComputers(state, input);
-  if (isEngineInput(input)) return reduceEngine(state, input);
+  if (isEngineInput(input)) return engine(state, input);
   return REDUCERS.get(input.type)!(state, input);
 }

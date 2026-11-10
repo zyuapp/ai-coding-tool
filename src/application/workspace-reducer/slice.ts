@@ -5,6 +5,7 @@ import type { ComposerEdit } from "../composer-drafts.js";
 import type { ToastsEdit } from "../toasts.js";
 import type { WorkspaceCommandResult } from "../../contracts/workspace-result.js";
 import type { WorkspaceState } from "../workspace-state.js";
+import type { SettingsSection } from "../../domain/settings-section.js";
 import { viewPreferences } from "../view-preferences.js";
 
 /** Fields of the slice's own state. Naming any other field of the workspace does not compile. */
@@ -24,6 +25,8 @@ export type SliceTransition<Own> = {
   refusal?: string;
   /** Takes down the error the window shows, which belongs to no slice that asks. */
   clearsError?: true;
+  /** Puts up, or takes down, the error the window shows and the settings page that clears it, without refusing the input. */
+  error?: { message: string | null; page: SettingsSection | null };
   /** Closes whatever menu is open, which belongs to no slice that asks. */
   closesMenu?: true;
   /** Saves the window's preferences as they stand once the patch is in, after the slice's own effects. */
@@ -31,8 +34,14 @@ export type SliceTransition<Own> = {
 };
 
 /** The state a slice's answer leaves, for reading what its own effects describe. */
-export function afterward<Own>(state: WorkspaceState, { patch, docks, composer, toasts, clearsError, closesMenu }: Omit<SliceTransition<Own>, "effects" | "result" | "refusal" | "persists">): WorkspaceState {
-  let next = patch || clearsError || closesMenu ? { ...state, ...patch, ...(clearsError ? { actionError: null } : {}), ...(closesMenu ? { openMenu: null } : {}) } : state;
+export function afterward<Own>(state: WorkspaceState, { patch, docks, composer, toasts, clearsError, error, closesMenu }: Omit<SliceTransition<Own>, "effects" | "result" | "refusal" | "persists">): WorkspaceState {
+  let next = patch || clearsError || error || closesMenu ? {
+    ...state,
+    ...patch,
+    ...(clearsError ? { actionError: null } : {}),
+    ...(error ? { actionError: error.message, actionErrorPage: error.page } : {}),
+    ...(closesMenu ? { openMenu: null } : {}),
+  } : state;
   for (const edit of [docks, composer, toasts]) {
     if (edit && Object.entries(edit.view).some(([field, value]) => next[field as keyof WorkspaceState] !== value)) next = { ...next, ...edit.view };
   }
