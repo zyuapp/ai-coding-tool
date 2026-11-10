@@ -145,7 +145,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
             stoppable={stoppable}
             onStopAll={onStopAll}
           />
-          {!folder && <button type="button" className="heading-choose-folder" onClick={onChooseFolder}><FolderOpen size={14} aria-hidden="true" />Choose a project folder</button>}
+          {!folder && <button type="button" className="heading-choose-folder" data-tip="Choose a project folder" aria-label="Choose a project folder" onClick={onChooseFolder}><FolderOpen size={14} aria-hidden="true" /><span>Choose a project folder</span></button>}
         </div>
       </div>
       <div className="workspace-controls">
