@@ -7,7 +7,7 @@ import { libraryOpening, modelLibrary, type LibraryFilter } from "../../domain/m
 import { useModelCatalog } from "../model-catalog";
 import { POLICIES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 import { useDismissibleLayer } from "../focus";
-import { MenuGroup, MenuItem, MenuNote, MenuSurface, MenuTrigger, useListKeys } from "../ui/Menu";
+import { MenuGroup, MenuItem, MenuNote, MenuSurface, MenuTrigger, useListKeys, useMenuAnchor } from "../ui/Menu";
 import { Button, IconButton, Segmented } from "../ui/Button";
 import { SearchField } from "../ui/Field";
 import { NavItem, NavList, NavSeparator } from "../ui/NavList";
@@ -55,6 +55,16 @@ function ReadinessHint({ notice, onOpenSettings }: { notice: EngineNotice; onOpe
   </div>;
 }
 
+/** The widest the library is drawn; a narrower window takes it to its own width. */
+const LIBRARY_WIDTH = 760;
+
+/** The library is placed against the window, so a composer narrowed by a panel beside it does not narrow the library too. */
+function LibraryPopover({ anchor, heading, onKeyDown, children }: { anchor: HTMLElement | null; heading: string; onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void; children: ReactNode }) {
+  const surface = useRef<HTMLDivElement>(null);
+  const placed = useMenuAnchor(anchor, surface, { minWidth: LIBRARY_WIDTH, maxWidth: LIBRARY_WIDTH });
+  return <div ref={surface} className="glass-popover model-library" style={placed} role="dialog" aria-label={heading} onKeyDown={onKeyDown}>{children}</div>;
+}
+
 function SettingMenu({ label, axis, heading, value, detail, danger = false, onOpen, onKeyDown, library = false, children }: {
   /** The menu's name with its current value, as a screen reader says the chip. */
   label: string;
@@ -86,7 +96,7 @@ function SettingMenu({ label, axis, heading, value, detail, danger = false, onOp
       {detail !== undefined && <span className="setting-detail"><span aria-hidden="true">·</span>{detail}</span>}
     </MenuTrigger>
     {open && (library
-      ? <div className="glass-popover setting-popover model-library" role="dialog" aria-label={heading} onKeyDown={onKeyDown}>{children(close)}</div>
+      ? <LibraryPopover anchor={summary.current} heading={heading} {...(onKeyDown ? { onKeyDown } : {})}>{children(close)}</LibraryPopover>
       : <MenuSurface checkable className="setting-popover" role="listbox" aria-label={heading} onKeyDown={onKeyDown ?? listKeys}>
         <MenuGroup label={heading}>{children(close)}</MenuGroup>
       </MenuSurface>)}

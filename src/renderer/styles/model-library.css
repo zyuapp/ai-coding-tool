@@ -1,12 +1,14 @@
 /** A picker read closely, so its glass is thick: what passes behind tints it but never shows as words. */
-.model-library { --library-rail: 188px; width: min(760px, calc(100cqw - 40px)); padding: 0; overflow: hidden; display: flex; flex-direction: column; background: var(--glass-edge), var(--glass-sheen), rgb(from var(--p-bg-4) r g b / calc(0.9 + 0.06 * var(--glass-tint))); background-clip: border-area, border-box, border-box; }
+.model-library { --library-rail: 188px; position: fixed; z-index: 1000; max-height: min(720px, var(--menu-room, 100vh)); padding: 0; overflow: hidden; display: flex; flex-direction: column; --glass-radius: 14px; background: var(--glass-edge), var(--glass-sheen), rgb(from var(--p-bg-4) r g b / calc(0.9 + 0.06 * var(--glass-tint))); background-clip: border-area, border-box, border-box; }
 @media (prefers-reduced-transparency: reduce) {
   .model-library { background: var(--glass-edge), var(--surface-menu); background-clip: border-area, border-box, border-box; backdrop-filter: none; }
 }
 .model-search { position: relative; flex-shrink: 0; }
 .model-search .search-field-box { padding-right: 48px; }
 .model-search > .icon-btn { position: absolute; top: 10px; right: 10px; }
-.model-library-body { display: grid; grid-template-columns: var(--library-rail) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); max-height: min(460px, calc(100vh - 300px)); min-height: 0; }
+/** The list gives up height first when the window is short, down to a few rows. */
+.model-library-body { flex: 0 1 auto; display: grid; grid-template-columns: var(--library-rail) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); max-height: 460px; min-height: 150px; }
+.model-search, .library-settings, .model-library-footer { flex-shrink: 0; }
 .model-provider-rail { padding: 10px 8px; border-right: 1px solid var(--line-soft); overflow-y: auto; }
 .model-provider-rail .nav-item { padding-block: 10px; font-size: var(--text-control); }
 .model-provider-glyph { flex-shrink: 0; width: 16px; }
@@ -72,25 +74,22 @@
 .effort-slider.dragging .effort-fill, .effort-slider.dragging .effort-knob { transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background 160ms ease; }
 .effort-slider.delegates .effort-fill { background: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .effort-fill, .effort-knob, .effort-stop { transition: none; } }
-@container (max-width: 540px) {
-  .model-library { --library-rail: 124px; }
-  .model-provider-rail .nav-item { gap: 6px; padding-inline: 5px; }
-  .model-choice .menu-icon { display: none; }
-  .model-library-footer span { display: none; }
-  .library-setting-axis small { display: none; }
-  .library-modes > button { padding-inline: 6px; }
-}
-/** At composer widths that wrap controls, give the models the full menu width. */
-@container (max-width: 300px) {
-  .model-library { width: calc(100cqw - 16px); }
+/** The layout follows the pane's own width, so it holds wherever the pane is drawn. */
+.model-library { container: model-library / inline-size; }
+/** Too narrow for a column beside the list: the providers run along the top, and each setting's name sits over it. */
+@container model-library (max-width: 600px) {
   .model-library-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  .model-provider-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-right: 0; border-bottom: 1px solid var(--line-soft); }
-  .model-provider-rail .nav-item { gap: 4px; padding-inline: 3px; }
-  .model-provider-rail :is(.nav-item-count, .nav-separator) { display: none; }
-  .model-results { padding-inline: 6px; }
-  .library-setting { grid-template-columns: minmax(0, 1fr); gap: 6px; padding-left: 14px; padding-right: 14px; }
-  .library-setting-axis { padding: 0; }
+  .model-provider-rail { flex-direction: row; gap: 2px; padding: 8px; border-right: 0; border-bottom: 1px solid var(--line-soft); overflow: auto hidden; scrollbar-width: none; }
+  .model-provider-rail .nav-item { flex: none; width: auto; padding: 7px 10px; }
+  .model-provider-rail .nav-separator { margin: 6px 4px; border-top: 0; border-left: 1px solid var(--line-soft); }
+  .model-results { padding: 10px 8px; }
+  .library-setting { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 10px 16px; }
+  .library-setting-axis, .effort-strip > .library-setting-axis { padding: 0; }
   .library-setting > :last-child { margin-left: 0; }
-  .library-modes > button svg { display: none; }
+  .model-library-footer span { display: none; }
+}
+@container model-library (max-width: 460px) {
+  .model-choice .menu-icon, .library-modes > button svg { display: none; }
+  .library-modes > button { padding-inline: 4px; }
   .effort-stop:not(.current) { visibility: hidden; }
 }
