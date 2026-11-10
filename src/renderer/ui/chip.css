@@ -47,21 +47,3 @@
   transition: background-color 120ms ease, color 120ms ease;
 }
 .chip[data-variant="link"]:hover { background: var(--glass-control-hover); color: var(--accent-soft); }
-
-/** A status set in the flow: one capsule of glass. */
-.chip[data-variant="capsule"] {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: fit-content;
-  max-width: 100%;
-  min-height: 28px;
-  border-radius: 999px;
-  padding: 0 12px 0 7px;
-  background: var(--glass-control);
-  color: var(--muted);
-  font-size: var(--text-meta);
-  line-height: 1;
-}
-.chip[data-variant="capsule"][data-tone] { color: var(--tone-text); }

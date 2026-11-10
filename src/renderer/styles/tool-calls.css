@@ -106,9 +106,9 @@ pre {
   justify-content: center;
 }
 .scroll-to-end { position: absolute; bottom: 10px; box-shadow: var(--glass-rim), var(--shadow-float); }
-/** A run's status is one capsule, set where the reply will begin. */
+/** A run's status is one line of words, set where the reply will begin. */
+.run-status { display: flex; align-items: center; gap: 8px; max-width: 100%; min-height: 28px; color: var(--muted); font-size: var(--text-meta); line-height: 1; }
 .thinking-row, .compacting-row, .retrying-row, .waiting-row, .limit-row { margin-bottom: 28px; }
-.chip.waiting-row { padding-left: 10px; }
 .waiting-row > svg { flex: none; color: var(--muted-strong); }
 /** A marble of glass: the accent circles inside it as light, under a highlight that stays put. */
 .run-bead, .task-spinner {
@@ -136,8 +136,7 @@ pre {
 }
 .run-bead.held { background: rgb(from var(--warning) r g b / 0.2); box-shadow: var(--glass-rim); }
 .run-bead.held::before { background: radial-gradient(circle at 62% 74%, var(--warning), rgb(from var(--warning) r g b / 0.35) 72%); animation: none; }
-/** The time sits past a hairline, as the capsule's second cell. */
-.thinking-elapsed { margin-left: 2px; border-left: 1px solid var(--line-soft); padding-left: 10px; color: var(--quiet-strong); font-variant-numeric: tabular-nums; line-height: 14px; }
+.thinking-elapsed { color: var(--quiet-strong); font-variant-numeric: tabular-nums; }
 /* Stopping a run reads the same here as on a workflow or subagent. */
 /** A band of brighter ink travels across the letters, so a wait reads as motion in the word itself. */
 .text-sweep { position: relative; color: var(--muted); }

@@ -13,7 +13,6 @@ import type { RetryNotice } from "../../domain/run";
 import { liftTime, resumesOnItsOwn, type LimitPause } from "../../domain/usage-limit";
 import { CommandButton } from "./CommandControl";
 import { IconButton } from "../ui/Button";
-import { Chip } from "../ui/Chip";
 import { Notice } from "../ui/Notice";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import type { Thread } from "../../domain/thread";
@@ -105,13 +104,13 @@ function retryLabel(retry: RetryNotice) {
  */
 function ThinkingRow({ since, blocked }: { since: number | undefined; blocked: boolean }) {
   const [shownAt] = useState(Date.now);
-  if (blocked) return <Chip as="div" variant="capsule" className="thinking-row" role="status"><i className="run-bead held" aria-hidden="true" /><span>Waiting for your approval</span></Chip>;
+  if (blocked) return <div className="run-status thinking-row" role="status"><i className="run-bead held" aria-hidden="true" /><span>Waiting for your approval</span></div>;
   return (
-    <Chip as="div" variant="capsule" className="thinking-row" role="status">
+    <div className="run-status thinking-row" role="status">
       <i className="run-bead" aria-hidden="true" />
       <span className="text-sweep">Working<SweepBand>Working</SweepBand></span>
       <span className="thinking-elapsed" aria-hidden="true"><Elapsed startedAt={Math.min(since ?? shownAt, shownAt)} endsAt={null} /></span>
-    </Chip>
+    </div>
   );
 }
 
@@ -119,11 +118,11 @@ function ThinkingRow({ since, blocked }: { since: number | undefined; blocked: b
 function WaitingRow({ wait }: { wait: ThreadWait }) {
   const [shownAt] = useState(Date.now);
   return (
-    <Chip as="div" variant="capsule" className="waiting-row" role="status" aria-live="polite">
+    <div className="run-status waiting-row" role="status" aria-live="polite">
       <FolderSymlink size={14} strokeWidth={1.8} aria-hidden="true" />
       <span className="text-sweep">{WAIT_LABELS[wait]}<SweepBand>{WAIT_LABELS[wait]}</SweepBand></span>
       <span className="thinking-elapsed" aria-hidden="true"><Elapsed startedAt={shownAt} endsAt={null} /></span>
-    </Chip>
+    </div>
   );
 }
 
@@ -263,16 +262,16 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
       {waitingOn && <WaitingRow key={waitingOn} wait={waitingOn} />}
       {status !== "running" && limitPause && currentThread && <LimitRow pause={limitPause} taskId={currentThread.id} />}
       {status === "running" && compacting && (
-        <Chip as="div" variant="capsule" className="compacting-row" role="status" aria-live="polite">
+        <div className="run-status compacting-row" role="status" aria-live="polite">
           <i className="run-bead" aria-hidden="true" />
           <span className="text-sweep">Compacting messages…<SweepBand>Compacting messages…</SweepBand></span>
-        </Chip>
+        </div>
       )}
       {status === "running" && !compacting && retrying && (
-        <Chip as="div" variant="capsule" className="retrying-row" role="status" aria-live="polite">
+        <div className="run-status retrying-row" role="status" aria-live="polite">
           <i className="run-bead" aria-hidden="true" />
           <span className="text-sweep">{retryLabel(retrying)}<SweepBand>{retryLabel(retrying)}</SweepBand></span>
-        </Chip>
+        </div>
       )}
       {status === "running" && !compacting && !retrying && (
         <ThinkingRow since={liveSince} blocked={blocked} />
