@@ -319,6 +319,19 @@
     --frame-label: var(--quiet);
   }
 }
+/**
+ * Where the panes are real glass, nothing needs a solid page behind it, so the window is one sheet:
+ * the page takes the frame's own tint and loses its edge, and the sidebar and the conversation are
+ * the same colour.
+ */
+@media (prefers-reduced-transparency: no-preference) {
+  :root[data-glass-panes] {
+    --frame: rgb(from var(--canvas) r g b / calc(0.5 + 0.38 * var(--glass-tint)));
+    --page: transparent;
+    --shadow-page: none;
+  }
+  :root[data-glass-panes] .composer-wrap:has(> .glass-slot) { background: none; }
+}
 /** And keeps solid panes in place of glass ones. */
 @media (prefers-reduced-transparency: reduce) {
   :root, [data-theme] {

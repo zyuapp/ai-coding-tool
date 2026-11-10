@@ -53,6 +53,8 @@ function left(event: Event) {
  */
 export function shareListenersWithGlassLayer() {
   if (!window.desktop.glassLayer) return;
+  /** With its panes on real glass, the page itself can be glass too, and says so for the stylesheet. */
+  document.documentElement.dataset.glassPanes = "";
   for (const on of ["window", "document"] as const) {
     const target: Window | Document = on === "window" ? window : document;
     const add = target.addEventListener.bind(target);
