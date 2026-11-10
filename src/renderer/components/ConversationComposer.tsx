@@ -345,9 +345,9 @@ export function ConversationComposer({
   const controls = useCommandControls();
   const sendCommand: AppCommand = { type: "attachments.send", taskId, attachments: attachments.items };
 
-  const { talk, dictating, handsFree } = useComposerTalk(dictation, () => void submit());
+  const { talk, dictating, handsFree } = useComposerTalk(dictation, () => void submit(runActive));
 
-  /** While a run is going the message joins the queue, so only steering needs the run to be active. Hands-free dictation sends once its words are in. */
+  /** While a run is going the message joins the queue, so only steering needs the run to be active. Hands-free dictation sends once its words are in, steering as Enter does. */
   async function submit(steer = false) {
     if (handsFree) return dictation?.onStop(true);
     if (attachments.sending || waiting || disabled || (steer && !runActive)) return;
@@ -364,6 +364,7 @@ export function ConversationComposer({
       <QueuedRow messages={queuedMessages} surface={surface} canSteer={runActive} onEdit={onEditQueued} onSteer={onSteerQueued} onDrop={onDropQueued} />
       {planUsage && model !== undefined && <PlanUsageWarning engine={engine} engineLabel={engineLabel} model={model} {...planUsage} />}
       {surface === "main" && startOptions}
+      <SendNotice error={attachments.error} note={attachments.note} onDismiss={attachments.dismissNotice} />
       {unopenable ? <UnopenableComposer reason={unopenable} taskId={taskId} surface={surface} runActive={runActive} updateAvailable={updateAvailable} onCancel={onCancel} /> : <div className="composer">
         {reviewPicker && (
           <ReviewPicker
@@ -382,7 +383,6 @@ export function ConversationComposer({
         {onPasteRemove && <PasteRow pastes={pastes} onRemove={onPasteRemove} />}
         {onFileRemove && <FileRow files={files} onRemove={onFileRemove} />}
         <AttachmentStrip attachments={attachments} />
-        <SendNotice error={attachments.error} note={attachments.note} onDismiss={attachments.dismissNotice} />
         <textarea
           ref={caret.textareaRef}
           value={prompt}

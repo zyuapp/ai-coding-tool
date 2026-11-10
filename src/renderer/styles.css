@@ -245,6 +245,9 @@
   /* A control cut from it: a wash of ink under the same sheen. */
   --glass-control: var(--glass-sheen), var(--wash);
   --glass-control-hover: var(--glass-sheen), var(--surface-hover);
+  /* The row a menu is about to take: the accent thinned to a pane, under the same sheen. */
+  --glass-pick: var(--glass-sheen), rgb(from var(--accent) r g b / 0.26);
+  --glass-pick-danger: var(--glass-sheen), rgb(from var(--danger) r g b / 0.22);
   --shadow-menu: var(--glint), 0 2px 6px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale))), 0 14px 36px rgb(var(--p-shadow) / calc(0.34 * var(--p-shadow-scale)));
   --shadow-popover: var(--glint), 0 2px 8px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale))), 0 18px 46px rgb(var(--p-shadow) / calc(0.38 * var(--p-shadow-scale)));
   --shadow-panel: var(--glint), 0 3px 10px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale))), 0 24px 64px rgb(var(--p-shadow) / calc(0.42 * var(--p-shadow-scale)));
@@ -799,10 +802,10 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 }
 .menu-popover button:hover:not([aria-disabled="true"]),
 .menu-popover button[aria-expanded="true"],
-.menu-popover button:focus-visible:not([aria-disabled="true"]):where(:root:not([data-focus-appearance="quiet"]) *) { background: var(--accent); color: var(--accent-ink); outline: none; }
+.menu-popover button:focus-visible:not([aria-disabled="true"]):where(:root:not([data-focus-appearance="quiet"]) *) { background: var(--glass-pick); box-shadow: var(--glass-rim); color: var(--ink); outline: none; }
 .menu-popover .danger-menu-item { color: var(--danger); }
 .menu-popover .danger-menu-item:hover:not([aria-disabled="true"]),
-.menu-popover .danger-menu-item:focus-visible:not([aria-disabled="true"]):where(:root:not([data-focus-appearance="quiet"]) *) { background: var(--danger); color: var(--danger-ink); }
+.menu-popover .danger-menu-item:focus-visible:not([aria-disabled="true"]):where(:root:not([data-focus-appearance="quiet"]) *) { background: var(--glass-pick-danger); color: var(--danger); }
 /** An item that cannot be chosen keeps readable words in the quietest text colour, and still takes the keyboard so its reason shows. */
 .menu-popover button[aria-disabled="true"] { opacity: 1; color: var(--quiet); }
 .menu-popover button[aria-disabled="true"] :is(.menu-shortcut, .menu-chevron) { color: var(--quiet); }
@@ -819,7 +822,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .menu-separator { height: 1px; margin: 5px 8px; background: var(--line-glass); }
 /** A searchable menu's field stays put while its items scroll under it. */
 .menu-search { position: sticky; top: -5px; z-index: 1; margin: -5px -5px 0; border-radius: 9px 9px 0 0; padding: 6px 6px 4px; background: var(--surface-glass); backdrop-filter: var(--glass-menu-blur); }
-.menu-search-field { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border: 1px solid var(--line-input); border-radius: 5px; background: var(--surface-input); color: var(--quiet); cursor: text; }
+.menu-search-field { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border: 1px solid var(--line-glass); border-radius: 7px; background: var(--frame-field); color: var(--quiet); cursor: text; }
 .menu-search-field > svg { flex: none; }
 .menu-search-field:focus-within { border-color: var(--focus-ring); box-shadow: 0 0 0 1px var(--focus-ring); }
 .menu-search input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-size: var(--text-menu); outline: none; }
@@ -1094,7 +1097,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .open-in-popover button:hover .open-in-icon, .open-in-popover button:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .open-in-icon { color: var(--accent-ink); }
 .open-in-icon img { width: 20px; height: 20px; object-fit: contain; }
 /** Headings carry their own gap above and none below, so each one sits with the rows it names. */
-.open-in-group { margin: 7px 0 0; padding: 0 12px 3px; color: var(--muted); font-size: var(--text-badge); letter-spacing: 0.06em; text-transform: uppercase; }
+.open-in-group { margin: 7px 0 0; padding: 0 12px 3px; color: var(--quiet); font-size: var(--text-meta); font-weight: 500; }
 .open-in-group:first-child { margin-top: 1px; }
 .open-in-empty { margin: 0; padding: 3px 12px; color: var(--quiet); font-size: var(--text-menu); }
 .session-toggle.sidebar-toggle { display: grid; }
@@ -1791,7 +1794,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .picker-option[aria-selected="true"], .picker-option[aria-checked="true"] { color: var(--ink); }
 /** The row under the pointer or caret wears the same highlight as a menu item. */
 .picker-option:hover:not(:disabled),
-.picker-option:focus-visible:not(:disabled):where(:root:not([data-focus-appearance="quiet"]) *) { background: var(--accent); color: var(--accent-ink); outline: none; }
+.picker-option:focus-visible:not(:disabled):where(:root:not([data-focus-appearance="quiet"]) *) { background: var(--glass-pick); box-shadow: var(--glass-rim); color: var(--ink); outline: none; }
 .picker-option:hover:not(:disabled) :is(svg, small),
 .picker-option:focus-visible:not(:disabled):where(:root:not([data-focus-appearance="quiet"]) *) :is(svg, small) { color: currentColor; }
 /** A name too long for the list is cut off; it is never worth a second line. */
@@ -1802,7 +1805,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   white-space: nowrap;
 }
 .picker-popover svg { flex: none; color: var(--quiet-strong); }
-.picker-search-field { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; border: 1px solid var(--line-mid); border-radius: 7px; padding: 0 8px; background: var(--surface-input); color: var(--quiet); }
+.picker-search-field { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; border: 1px solid var(--line-glass); border-radius: 7px; padding: 0 8px; background: var(--frame-field); color: var(--quiet); }
 .picker-search-field .picker-search {
   width: 100%;
   min-width: 0;
@@ -1844,7 +1847,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 /** Titled the way the command menu is, since both are a list a keyboard walks. */
 .branch-menu-title { display: flex; align-items: center; gap: 8px; padding: 4px 8px 8px; color: var(--quiet-strong); font-size: var(--text-meta); font-weight: 600; letter-spacing: 0.02em; }
 /** Groups say what a name is, so `origin/main` is never mistaken for a branch the checkout holds. */
-.branch-menu-group { padding: 8px 8px 3px; color: var(--muted); font-size: var(--text-badge); letter-spacing: 0.06em; text-transform: uppercase; }
+.branch-menu-group { padding: 8px 8px 4px; color: var(--quiet); font-size: var(--text-meta); font-weight: 500; }
 .branch-menu-group:first-child { padding-top: 3px; }
 /** Leaving the projects behind is set apart from them. */
 .picker-option.thread-start-no-project { margin-bottom: 4px; box-shadow: 0 1px 0 var(--line-soft); border-radius: 6px 6px 0 0; }
@@ -2026,7 +2029,20 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 /* A link into the app or the checkout carries a glyph, so it reads apart from a web address. */
 .message-link-glyph { width: 0.85em; height: 0.85em; vertical-align: -0.08em; }
 .message-link-file > .message-link-glyph { margin-right: 0.2em; }
-.message-link-thread > .message-link-glyph { margin-left: 0.1em; }
+.message-link-thread > .message-link-glyph { margin-left: 0.25em; opacity: 0.8; }
+/* A link to a thread is a chip of glass set in the line, cut whole on each line it wraps onto. */
+.markdown-body a.message-link-thread {
+  border-radius: 7px;
+  padding: 2px 7px;
+  background: var(--glass-control);
+  box-shadow: var(--glass-rim);
+  text-decoration: none;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.markdown-body a.message-link-thread:hover { background: var(--glass-control-hover); }
+.markdown-body a.message-link-thread:hover > .message-link-glyph { opacity: 1; }
 .markdown-body ul, .markdown-body ol { margin: 0 0 16px; padding-left: 25px; }
 .markdown-body li { margin: 5px 0; padding-left: 2px; }
 .markdown-body li > ul, .markdown-body li > ol { margin: 5px 0 0; }
@@ -4380,8 +4396,9 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   cursor: pointer;
 }
 .attachment-remove:hover { background-color: var(--control-hover); color: var(--ink); }
-.attachment-error { display: flex; align-items: center; gap: 8px; margin: 10px 12px 0; padding: 2px 2px 2px 10px; border: 1px solid var(--danger-line); border-radius: 9px; background: var(--danger-surface); color: var(--danger); font-size: var(--text-meta); }
-.attachment-error.note { border-color: var(--line-mid); background: transparent; color: var(--ink-dim); }
+/** What a send or a dictation has to say, on a pane of glass over the composer. */
+.attachment-error { display: flex; align-items: center; gap: 8px; max-width: 860px; min-height: 38px; box-sizing: border-box; margin: 0 auto 8px; padding: 4px 5px 4px 12px; border: 1px solid var(--danger-line); border-radius: 12px; background: var(--glass-sheen), color-mix(in srgb, var(--danger) 12%, rgb(from var(--p-bg-2) r g b / 0.62)); backdrop-filter: var(--glass-menu-blur); box-shadow: var(--glass-rim), var(--shadow-float); color: var(--danger); font-size: var(--text-control); }
+.attachment-error.note { border-color: var(--line-glass); background: var(--glass); color: var(--ink-dim); }
 .attachment-error > svg { flex: none; }
 .attachment-error > span { flex: 1; min-width: 0; }
 .attachment-error > button {

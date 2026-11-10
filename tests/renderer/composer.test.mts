@@ -728,4 +728,10 @@ test("hands-free dictation keeps a send button while a run is going, which adds 
   assert.equal(view.container.querySelector('button[aria-label="Stop task"]'), null, "the stop button is not what stands beside the microphone");
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Send task"]').click(); });
   assert.deepEqual(stops, [true]);
+
+  const steers: boolean[] = [];
+  const landed = { ...dictation, phase: null, handsFree: false, sends: 1 };
+  await view.render(renderConversationComposer({ runActive: true, dictation: landed, prompt: "Spoken words", outbox: outbox({ send: (_attachments, steer) => { steers.push(steer); } }) }));
+  assert.deepEqual(steers, [true], "the spoken words steer the run, as Enter does");
+  await view.unmount();
 });
