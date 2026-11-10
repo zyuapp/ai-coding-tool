@@ -302,6 +302,7 @@ export function useMenuAnchor(anchor: HTMLElement | null | undefined, menu: RefO
     };
   }, [anchor, menu, align, minWidth, maxWidth]);
 
-  if (!placed) return { visibility: "hidden", left: 0, top: 0 };
+  /** Unplaced, the menu is see-through rather than hidden, so a field or row that takes focus as it mounts still can. */
+  if (!placed) return { opacity: 0, pointerEvents: "none", left: 0, top: 0 };
   return { left: placed.left, top: placed.top, bottom: placed.bottom, width: placed.width, "--menu-room": `${placed.room}px` } as CSSProperties;
 }

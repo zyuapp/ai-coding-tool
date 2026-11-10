@@ -661,7 +661,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 }
 .section-heading > .section-toggle { height: 30px; margin-left: -6px; padding: 0 6px; border-radius: 7px; }
 .section-heading > .section-toggle:hover { background: var(--wash); color: var(--ink-dim); }
-.section-toggle[aria-expanded="false"] .section-chevron,
+.section-toggle[aria-expanded="false"] .section-chevron { transform: rotate(-45deg); }
 /** A heading's action stays in view, centred on the rail slot below it with a wider target than the slot. */
 .section-action { width: 28px; height: 34px; margin: 0 -3px; padding: 0; display: grid; place-items: center; border-radius: 6px; color: var(--quiet); }
 .section-heading:hover .section-action { color: var(--muted-strong); }
