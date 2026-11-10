@@ -1,10 +1,10 @@
 import { SettingsPanel } from "./SettingsPanel";
 import { displayShortcut } from "../../domain/shortcuts";
-import { MAC } from "../platform";
+import { platformCapabilities } from "../platform";
 import { dictationBinding } from "./ComposerDictation";
 
 function displayBinding(binding: string | null) {
-  return binding ? displayShortcut(binding, MAC) : null;
+  return binding ? displayShortcut(binding, platformCapabilities().commandKey) : null;
 }
 import { useComputerUseReads } from "../task-workspace/computer-use-reads";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";

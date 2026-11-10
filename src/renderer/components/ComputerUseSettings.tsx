@@ -4,6 +4,7 @@ import { AvailabilitySection } from "./AvailabilitySection";
 import { SettingRow } from "./SettingRow";
 import { SettingsPage, SettingsSection } from "./SettingsLayout";
 import { Button } from "../ui/Button";
+import { platformCapabilities } from "../platform";
 
 export type ComputerUseSettingsProps = {
   /** Whether a run may see and operate other applications. */
@@ -17,17 +18,17 @@ export type ComputerUseSettingsProps = {
 
 export function ComputerUseSettings({ computerUse, onSetComputerUse, access: { permissions, busy, error, restartRequired }, onEnable, onRestart }: ComputerUseSettingsProps) {
   const linux = permissions?.linuxRuntime;
-  const mac = window.desktop.platform === "macos";
+  const askPermissions = platformCapabilities().computerUsePermissions;
   const ready = linux ? linux.status !== "unavailable" : Boolean(permissions?.accessibility && permissions.screenRecording);
   const failure = error && <p className="settings-error" role="alert">{error}</p>;
   return (
     <SettingsPage title="Computer use" description="Let AI Coding Tool see and control other applications when you ask it to.">
       <AvailabilitySection id="computer-use.availability" enabled={computerUse} onChange={onSetComputerUse}
-        description={mac
+        description={askPermissions
           ? "The agent can see and operate other applications. Off leaves it no way to reach them, whatever the permissions below say."
           : "The agent can see and operate other applications. Off leaves it no way to reach them, whatever the platform setup below says."} />
 
-      {!permissions && !mac ? (
+      {!permissions && !askPermissions ? (
       <SettingsSection title="Platform setup" description="Checking what this computer can use…" aria-live="polite" badge={<span className="neutral">Checking…</span>}>
         {failure}
       </SettingsSection>
@@ -35,7 +36,7 @@ export function ComputerUseSettings({ computerUse, onSetComputerUse, access: { p
       <SettingsSection title="Linux runtime" description={linux.message} aria-live="polite" badge={<span className={ready ? "ready" : ""}>{linux.status === "available" ? "Ready" : linux.status === "limited" ? "Compositor-dependent" : "Unavailable"}</span>}>
         {failure}
       </SettingsSection>
-      ) : mac ? (
+      ) : askPermissions ? (
       <SettingsSection title="Permissions" description="AI Coding Tool needs both macOS permissions to operate other apps." aria-live="polite" badge={<span className={ready ? "ready" : ""}>{ready ? "Setup complete" : "Setup required"}</span>}>
         <SettingRow id="computer-use.accessibility" status={Boolean(permissions?.accessibility)} description="Allows AI Coding Tool to click, type, and navigate apps.">
           {permissions?.accessibility ? <em className="granted">Done</em> : !permissions && <em>Checking…</em>}
@@ -56,7 +57,7 @@ export function ComputerUseSettings({ computerUse, onSetComputerUse, access: { p
       </SettingsSection>
       )}
 
-      {mac && <p className="settings-privacy">Permission checks capture one frame and discard it immediately.</p>}
+      {askPermissions && <p className="settings-privacy">Permission checks capture one frame and discard it immediately.</p>}
     </SettingsPage>
   );
 }

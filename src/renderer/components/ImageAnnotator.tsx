@@ -2,7 +2,7 @@ import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuPencil as Pencil, L
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useModalFocus } from "../focus";
-import { MAC } from "../platform";
+import { modHeld, platformCapabilities } from "../platform";
 import { shortcutTip } from "./TooltipLayer";
 import { renderAnnotated, type Annotation, type AnnotationKind, type Frame } from "../annotate/marks";
 import { useAnnotatorImage, useMarkPointer, usePaintedMarks } from "../annotate/use-annotator";
@@ -244,7 +244,7 @@ function useAnnotatorKeys({ composing, onEscape, onUndo, onTool }: {
         return;
       }
       if (typing(event.target) || composing) return;
-      if (event.key.toLowerCase() === "z" && (MAC ? event.metaKey : event.ctrlKey) && !event.shiftKey && !event.altKey) {
+      if (event.key.toLowerCase() === "z" && modHeld(event) && !event.shiftKey && !event.altKey) {
         event.preventDefault();
         onUndo();
         return;
@@ -309,7 +309,7 @@ function AnnotatorFooter({ discarding, canUndo, hint, ready, onUndo, onKeep, onC
   }
   return (
     <footer className="annotator-bar">
-      <IconButton className="annotator-undo" variant="soft" size="md" label="Undo" aria-keyshortcuts={MAC ? "Meta+Z" : "Control+Z"} tip={shortcutTip("Undo", "Mod+Z")} disabled={!canUndo} onClick={onUndo}>
+      <IconButton className="annotator-undo" variant="soft" size="md" label="Undo" aria-keyshortcuts={`${platformCapabilities().modKey}+Z`} tip={shortcutTip("Undo", "Mod+Z")} disabled={!canUndo} onClick={onUndo}>
         <Undo size={16} aria-hidden="true" />
       </IconButton>
       <span className="annotator-count">{hint}</span>

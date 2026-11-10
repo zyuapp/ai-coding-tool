@@ -7,7 +7,7 @@ import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
 import { TextField } from "../ui/Field";
 import { PanelHeader } from "../ui/PanelHeader";
-import { MAC } from "../platform";
+import { modHeld, platformCapabilities } from "../platform";
 import { shortcutTip } from "./TooltipLayer";
 import { LuAlarmClock as AlarmClock, LuPause as Pause, LuPlay as Play, LuPlus as Plus, LuTrash2 as Trash2 } from "react-icons/lu";
 import { automationFields, editedAutomationFields, isOneShotSchedule, sameAutomationFields, scheduleFieldCount, type AutomationEdit, type AutomationFields, type AutomationPatch, type AutomationView } from "../../domain/automation";
@@ -210,7 +210,7 @@ export function AutomationPanel({ automation, edit, lastFoundAt, lastChecked, on
       <AutomationHeading status={status} />
 
       <div className="automation-body" onKeyDown={(event) => {
-        if (event.key === "Enter" && (MAC ? event.metaKey : event.ctrlKey) && !event.nativeEvent.isComposing) {
+        if (event.key === "Enter" && modHeld(event) && !event.nativeEvent.isComposing) {
           event.preventDefault();
           if (!canSave) return;
           const command = automation ? { type: "automation.update", patch } as const : { type: "automation.save", draft } as const;
@@ -263,7 +263,7 @@ export function AutomationPanel({ automation, edit, lastFoundAt, lastChecked, on
 
         {automation ? (
           <div className="automation-actions">
-            <CommandButton command={{ type: "automation.update", patch }} className="automation-save" variant="primary" aria-keyshortcuts={MAC ? "Meta+Enter" : "Control+Enter"} data-tip={shortcutTip("Save", "Mod+Enter")} disabled={!canSave} onClick={() => onUpdate(patch)}>Save</CommandButton>
+            <CommandButton command={{ type: "automation.update", patch }} className="automation-save" variant="primary" aria-keyshortcuts={`${platformCapabilities().modKey}+Enter`} data-tip={shortcutTip("Save", "Mod+Enter")} disabled={!canSave} onClick={() => onUpdate(patch)}>Save</CommandButton>
             <CommandButton command={{ type: "automation.run-now" }} variant="secondary" onClick={onRunNow}>Run now</CommandButton>
             <CommandButton
               command={{ type: "automation.update", patch: { paused: !automation.paused } }}
@@ -278,7 +278,7 @@ export function AutomationPanel({ automation, edit, lastFoundAt, lastChecked, on
           </div>
         ) : (
           <div className="automation-actions">
-            <CommandButton command={{ type: "automation.save", draft }} className="automation-save" variant="primary" aria-keyshortcuts={MAC ? "Meta+Enter" : "Control+Enter"} data-tip={shortcutTip("Create", "Mod+Enter")} disabled={!canSave}>Create</CommandButton>
+            <CommandButton command={{ type: "automation.save", draft }} className="automation-save" variant="primary" aria-keyshortcuts={`${platformCapabilities().modKey}+Enter`} data-tip={shortcutTip("Create", "Mod+Enter")} disabled={!canSave}>Create</CommandButton>
             <Button onClick={cancelCreate}>Cancel</Button>
           </div>
         )}

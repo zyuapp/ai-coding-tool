@@ -412,7 +412,7 @@ test("an unavailable desktop shortcut is explained in Settings without a startup
 
 test("a desktop shortcut owned by another app remains an actionable error", async () => {
   localStorage.clear();
-  const desktop = fakeDesktop();
+  const desktop = fakeDesktop({ platform: "linux" });
   window.desktop = desktop;
   const view = await mount(React.createElement(App));
 
@@ -426,7 +426,7 @@ test("a desktop shortcut owned by another app remains an actionable error", asyn
 
 test("settings rebind a shortcut, and the window is told what to match", async () => {
   seedTaskWithSubagent();
-  const desktop = fakeDesktop();
+  const desktop = fakeDesktop({ platform: "linux" });
   window.desktop = desktop;
   const view = await mount(React.createElement(App));
   assert.deepEqual(desktop.shortcuts, [{}], "the window starts out matching the defaults");
@@ -436,7 +436,7 @@ test("settings rebind a shortcut, and the window is told what to match", async (
   await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === "Shortcuts")).click(); });
   const row = (label: string) => item([...view.container.querySelectorAll<HTMLElement>(".shortcut-row")].find((element) => query(element, "strong").textContent === label));
   const keys = (label: string) => [...query(row(label), "kbd").querySelectorAll(".kbd-key")].map((key) => key.textContent);
-  /** jsdom is no Mac, so the panel spells its modifiers out rather than drawing them. */
+  /** Off macOS the panel spells its modifiers out rather than drawing them. */
   assert.deepEqual(keys("Allow"), ["Ctrl", "Shift", "A"]);
 
   const buttons = (label: string) => [...row(label).querySelectorAll<HTMLButtonElement>("button")].map((button) => button.textContent);

@@ -18,7 +18,7 @@ import { ModelMenu } from "./ComposerSettings";
 import { HostMark } from "./HostMark";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { PULL_REQUEST_ICONS } from "./SessionPanel";
-import { MAC } from "../platform";
+import { platformCapabilities } from "../platform";
 import { ConfirmAction } from "../ui/ConfirmAction";
 import { REMOTE_UNSUPPORTED } from "../../contracts/computer-capabilities";
 import { placeOf, useKeyboardPlace } from "../focus";
@@ -635,7 +635,7 @@ export function MemberWorktreeList({ worktrees, onReveal, onDelete }: {
               title={<span>{worktree.name}</span>}
               detail={worktree.deleting ? <span className="text-sweep">{detail}<SweepBand>{detail}</SweepBand></span> : detail}
               trailing={<>
-                {onReveal && <IconButton label={`Reveal ${worktree.name}`} tip={MAC ? "Reveal in Finder" : "Show in file manager"} disabled={worktree.deleting} onClick={() => onReveal(worktree.root)}>
+                {onReveal && <IconButton label={`Reveal ${worktree.name}`} tip={platformCapabilities().revealLabel} disabled={worktree.deleting} onClick={() => onReveal(worktree.root)}>
                   <FolderOpen size={14} aria-hidden="true" />
                 </IconButton>}
                 <IconButton

@@ -128,7 +128,8 @@ test("a web link opens externally by default, and its right-click menu opens it 
 });
 
 test("a web link opens in the browser panel when clicked with the command key held", async () => {
-  const { MAC } = await import("../../../src/renderer/platform.ts");
+  const { platformCapabilities } = await import("../../../src/renderer/platform.ts");
+  const MAC = platformCapabilities().commandKey;
   const opened: string[] = [];
   const view = await mountMessage("Read https://example.com/docs for the rest.", { openUrlInApp: (url) => opened.push(url) });
   const link = query<HTMLAnchorElement>(view.container, "a");

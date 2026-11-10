@@ -4,7 +4,7 @@ import type { CliState } from "../../application/cli-installation";
 import { CLI_COMMAND, CLI_INSTALL_PATH, type CliStatus } from "../../domain/cli";
 import { NO_APP_UPDATE, type AppUpdate } from "../../domain/app-update";
 import type { DictationModel } from "../../domain/dictation";
-import { MAC } from "../platform";
+import { platformCapabilities } from "../platform";
 import { SettingRow, SettingSwitch } from "./SettingRow";
 import { ConfirmAction } from "../ui/ConfirmAction";
 import { SpinningIcon } from "./SpinningIcon";
@@ -43,17 +43,14 @@ function updateDescription(update: AppUpdate, current: string | null | undefined
 /** The speech model holding to talk reads, and the step that fetches it. */
 export type DictationSettings = { model: DictationModel; message: string | null; progress: number | null; binding: string | null; onDownload: () => void; onCancelDownload: () => void };
 
-const THIS_COMPUTER = MAC ? "this Mac" : "this computer";
-const MODEL_SIZE = MAC ? "about 450 MB" : "about 660 MB";
-
-/** Only macOS shares the model with other apps, through FluidAudio's folder. */
 function dictationDescription(dictation: DictationSettings) {
   const { model, message } = dictation;
+  const { computerName, dictationModel: { size, shared } } = platformCapabilities();
   switch (model) {
-    case "ready": return MAC ? "Parakeet, on this Mac. Shared with other apps that use it." : "Parakeet, on this computer.";
-    case "downloading": return dictation.progress === null ? `Getting Parakeet ready for ${THIS_COMPUTER}.` : `Downloading Parakeet, ${MODEL_SIZE}.`;
+    case "ready": return `Parakeet, on ${computerName}.${shared ? " Shared with other apps that use it." : ""}`;
+    case "downloading": return dictation.progress === null ? `Getting Parakeet ready for ${computerName}.` : `Downloading Parakeet, ${size}.`;
     case "failed": return message ?? "The download stopped.";
-    default: return `Parakeet, ${MODEL_SIZE}. Downloaded once${MAC ? " and shared with other apps that use it" : ""}.`;
+    default: return `Parakeet, ${size}. Downloaded once${shared ? " and shared with other apps that use it" : ""}.`;
   }
 }
 
@@ -100,7 +97,7 @@ export function GeneralSettings({ dictation, cli: { status, busy, error }, onRea
         {error && <p className="settings-error" role="alert">{error}</p>}
       </SettingsSection>
 
-      {dictation && dictation.model !== "unsupported" && <SettingsSection title="Dictation" description={<>Hold the microphone{dictation.binding ? <> or <Kbd keys={[dictation.binding]} size="inline" /></> : null} and let go to add the words to your message, or tap it to talk hands-free. What you say stays on {THIS_COMPUTER}.</>}>
+      {dictation && dictation.model !== "unsupported" && <SettingsSection title="Dictation" description={<>Hold the microphone{dictation.binding ? <> or <Kbd keys={[dictation.binding]} size="inline" /></> : null} and let go to add the words to your message, or tap it to talk hands-free. What you say stays on {platformCapabilities().computerName}.</>}>
         <SettingRow id="general.dictation" status={dictation.model === "ready"} description={dictationDescription(dictation)}>
           {(dictation.model === "missing" || dictation.model === "failed") && <Button onClick={dictation.onDownload}>{dictation.model === "failed" ? "Try again" : "Download"}</Button>}
           {dictation.model === "downloading" && <em role="status"><SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />{dictation.progress === null ? "Preparing…" : `${Math.round(dictation.progress * 100)}%`}</em>}

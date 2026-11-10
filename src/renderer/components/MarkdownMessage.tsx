@@ -12,7 +12,7 @@ import { isCommitHash, messageImagePath, messageImageUrl } from "../../domain/me
 import { messageImages, type MessageImage } from "../../application/message-images";
 import { useKnownCommit } from "../known-commits";
 import { MAX_VISUAL_SOURCE, VISUAL_LANGUAGE } from "../../domain/visual-frame";
-import { MAC } from "../platform";
+import { modHeld, platformCapabilities } from "../platform";
 import { copyText } from "../clipboard";
 
 const APP_HREF = /^aicodingtool:/i;
@@ -109,7 +109,7 @@ export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> &
   const href = props.href ?? "";
   const entries: MenuEntry[] = [
     { label: "Open in browser", onSelect: () => { window.open(href, "_blank", "noreferrer"); } },
-    ...(openInApp ? [{ label: "Open in AI Coding Tool", shortcut: `${MAC ? "⌘" : "Ctrl+"}Click`, onSelect: openInApp }] : []),
+    ...(openInApp ? [{ label: "Open in AI Coding Tool", shortcut: `${platformCapabilities().modLabel}Click`, onSelect: openInApp }] : []),
     "separator",
     { label: "Copy link", onSelect: () => { void copyText(href); } },
   ];
@@ -122,7 +122,7 @@ export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> &
         rel="noreferrer"
         onClick={(event) => {
           props.onClick?.(event);
-          if (!openInApp || event.defaultPrevented || !(MAC ? event.metaKey : event.ctrlKey)) return;
+          if (!openInApp || event.defaultPrevented || !modHeld(event)) return;
           event.preventDefault();
           openInApp();
         }}

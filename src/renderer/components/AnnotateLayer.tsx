@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { Annotation } from "../../domain/conversation";
 import type { AnnotationMarker, NoteDraft, Selected } from "../timeline/use-annotations";
-import { MAC } from "../platform";
+import { modHeld, platformCapabilities } from "../platform";
 import { shortcutTip } from "./TooltipLayer";
 import { Button, IconButton } from "../ui/Button";
 import "../ui/glass.css";
@@ -63,7 +63,7 @@ export function AnnotatePopover({ selection, toolbarRef, noteReturn, onNote, onS
       if (event.key !== "Enter" || event.defaultPrevented || event.shiftKey || event.altKey || event.isComposing) return;
       if (event.target instanceof Element && event.target.closest(ANSWERS_KEYS)) return;
       const { selection, onNote, onSide } = latest.current;
-      const mod = MAC ? event.metaKey : event.ctrlKey;
+      const mod = modHeld(event);
       if (mod && !onSide) return;
       if (!mod && (event.metaKey || event.ctrlKey)) return;
       event.preventDefault();
@@ -82,7 +82,7 @@ export function AnnotatePopover({ selection, toolbarRef, noteReturn, onNote, onS
         Add to chat
       </Button>
       {onSide && (
-        <Button variant="ghost" pill icon={<GitFork size={14} aria-hidden="true" />} aria-keyshortcuts={MAC ? "Meta+Enter" : "Control+Enter"} data-tip={shortcutTip("Add to side chat", "Mod+Enter")} onMouseDown={(event) => event.preventDefault()} onClick={() => onSide(selection)}>
+        <Button variant="ghost" pill icon={<GitFork size={14} aria-hidden="true" />} aria-keyshortcuts={`${platformCapabilities().modKey}+Enter`} data-tip={shortcutTip("Add to side chat", "Mod+Enter")} onMouseDown={(event) => event.preventDefault()} onClick={() => onSide(selection)}>
           Add to side chat
         </Button>
       )}

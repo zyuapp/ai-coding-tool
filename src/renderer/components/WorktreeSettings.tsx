@@ -13,6 +13,7 @@ import { Select } from "../ui/Field";
 import { Chip } from "../ui/Chip";
 import { ListHeading } from "../ui/List";
 import "../ui/glass.css";
+import { platformCapabilities } from "../platform";
 
 type Dispatch = (command: WorktreeCommand) => void;
 
@@ -63,7 +64,7 @@ function WorktreeThreads({ worktree, expanded, dispatch, listId }: { worktree: W
 function WorktreeRow({ worktree, expanded, dispatch }: { worktree: WorktreeSettingsView; expanded: boolean; dispatch: Dispatch }) {
   const statusId = useId();
   const listId = useId();
-  const reveal = window.desktop.platform === "macos" ? "Reveal in Finder" : "Show in file manager";
+  const reveal = platformCapabilities().revealLabel;
   return <SettingRowBase role="article" aria-label={worktree.title} className={`worktree-setting-row${worktree.available ? "" : " missing"}`}
     leading={<span className="setting-glyph" aria-hidden="true"><FolderGit2 size={16} /></span>}
     title={<strong data-tip={worktree.title} data-tip-overflow>{worktree.title}</strong>}

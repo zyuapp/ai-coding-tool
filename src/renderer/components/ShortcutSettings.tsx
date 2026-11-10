@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { displayShortcut, shortcutKeys, type ShortcutSetting } from "../../domain/shortcuts";
 import type { DesktopShortcutUnavailable } from "../../application/workspace-state";
-import { MAC } from "../platform";
+import { platformCapabilities } from "../platform";
 import { shortcutSettingId } from "../../domain/settings-catalog";
 import { SettingRowBase } from "./SettingRow";
 import { SettingsPage, SettingsSection } from "./SettingsLayout";
@@ -71,9 +71,9 @@ function ShortcutRow({ shortcut, capturing, unavailable, onCaptureShortcut, onSe
         </>
       : <>
           {shortcut.binding
-            ? <Kbd className="shortcut-keys" keys={shortcutKeys(shortcut.binding, MAC)} />
+            ? <Kbd className="shortcut-keys" keys={shortcutKeys(shortcut.binding, platformCapabilities().commandKey)} />
             : <em>Not set</em>}
-          {shortcut.changed && <Button aria-label={`Reset ${shortcut.label}`} data-tip={shortcut.defaultBinding ? `Reset to ${displayShortcut(shortcut.defaultBinding, MAC)}` : undefined} onClick={() => onSetShortcut(shortcut.id, shortcut.defaultBinding)}>Reset</Button>}
+          {shortcut.changed && <Button aria-label={`Reset ${shortcut.label}`} data-tip={shortcut.defaultBinding ? `Reset to ${displayShortcut(shortcut.defaultBinding, platformCapabilities().commandKey)}` : undefined} onClick={() => onSetShortcut(shortcut.id, shortcut.defaultBinding)}>Reset</Button>}
           <Button ref={change} aria-label={`Change ${shortcut.label}`} onClick={() => onCaptureShortcut(shortcut.id)}>Change</Button>
           <Button aria-label={`Clear ${shortcut.label}`} disabled={!shortcut.binding} onClick={() => onSetShortcut(shortcut.id, null)}>Clear</Button>
         </>}

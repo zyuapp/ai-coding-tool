@@ -3,7 +3,7 @@ import { shortcutCommands, type WorkspaceInput } from "../../application/workspa
 import type { WorkspaceState } from "../../application/workspace-state";
 import { DICTATION_TAP_MS } from "../../domain/dictation";
 import { displayShortcut, keystrokeOf, resolveShortcuts, shortcutFor } from "../../domain/shortcuts";
-import { MAC } from "../platform";
+import { platformCapabilities } from "../platform";
 import { installFocusAppearance } from "../focus-appearance";
 import { installGlassTint, installWindowActivity, WINDOW_ACTIVITY_EVENT, windowInUse } from "../window-activity";
 import { onTerminalFindResults, onTerminalResize } from "./terminal-views";
@@ -22,7 +22,7 @@ export function useWorkspaceSubscriptions(host: SubscriptionHost) {
   /** Main hears the dictation keystroke but leaves it to the page, so its character is never typed. */
   useEffect(() => {
     function swallow(event: KeyboardEvent) {
-      const stroke = keystrokeOf({ key: event.key, code: event.code, meta: event.metaKey, control: event.ctrlKey, alt: event.altKey, shift: event.shiftKey }, MAC);
+      const stroke = keystrokeOf({ key: event.key, code: event.code, meta: event.metaKey, control: event.ctrlKey, alt: event.altKey, shift: event.shiftKey }, platformCapabilities().commandKey);
       if (stroke && shortcutFor(resolveShortcuts(host.displayedState().shortcuts), stroke, "any")?.action === "dictation.hold") event.preventDefault();
     }
     window.addEventListener("keydown", swallow, true);
@@ -98,7 +98,7 @@ export function useWorkspaceSubscriptions(host: SubscriptionHost) {
     const stopCapturing = window.desktop.onShortcutCaptured((binding) => void host.dispatch({ type: "shortcut.captured", binding }));
     const stopRefusals = window.desktop.onDesktopShortcutRefused((refusal) => void host.dispatch(refusal.reason === "unsupported"
       ? { type: "shortcut.unavailable", refusal }
-      : { type: "action.failed", message: `${displayShortcut(refusal.binding, MAC)} belongs to another app, so grabbing a window has no shortcut.` }));
+      : { type: "action.failed", message: `${displayShortcut(refusal.binding, platformCapabilities().commandKey)} belongs to another app, so grabbing a window has no shortcut.` }));
     return () => {
       stopListening();
       stopCapturing();

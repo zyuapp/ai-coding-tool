@@ -2,7 +2,7 @@ import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from "r
 import { createPortal } from "react-dom";
 import { keyboardFocusVisible } from "../focus-appearance";
 import { displayShortcut } from "../../domain/shortcuts";
-import { MAC } from "../platform";
+import { platformCapabilities } from "../platform";
 import { Kbd } from "../ui/Kbd";
 import "../ui/glass.css";
 
@@ -29,7 +29,7 @@ type Tip = { text: string; rect: DOMRect; hoverable: boolean };
 
 /** A control's tooltip: its name, with the keystroke that does the same. */
 export function shortcutTip(label: string, binding: string) {
-  return `${label} (${displayShortcut(binding, MAC)})`;
+  return `${label} (${displayShortcut(binding, platformCapabilities().commandKey)})`;
 }
 
 /** A trailing parenthetical that names keys rather than words: a modifier glyph or name, or a lone key. */
