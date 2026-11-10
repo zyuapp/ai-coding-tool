@@ -1,9 +1,10 @@
 import type { KeyValueStorage } from "../application/task-store.js";
-import type { WorkspaceCommandResult, WorkspaceInput } from "../application/workspace-reducer.js";
+import type { WorkspaceInput } from "../application/workspace-reducer.js";
+import type { WorkspaceCommandResult } from "../contracts/workspace-result.js";
 import type { WorkspaceState } from "../application/workspace-state.js";
 import type { DesktopPorts, ThreadNotice } from "../contracts/ipc.js";
 import type { JoinedPorts } from "../contracts/desktop-port.js";
-import type { WorkspaceSurfaceEffect } from "../contracts/workspace-runtime.js";
+import type { WorkspaceSurfaceEffect } from "../application/workspace-runtime.js";
 import type { ComputerLink, DiscoveredComputer } from "../domain/computers.js";
 import type { ComputerThreadQuery } from "../contracts/computers.js";
 

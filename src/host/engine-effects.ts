@@ -1,7 +1,7 @@
 import type { EngineStatus } from "../domain/agent-engine.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { EffectHandlers, EffectHost } from "./effect-host.js";
-import { errorMessage, reportedMessage } from "./errors.js";
+import { errorMessage, reportedMessage } from "../contracts/errors.js";
 import type { HostModule } from "./host-module.js";
 
 /** Where every engine stands: asked outright, or answered by an engine's own sign-in once it is over. An update answers apart, naming its engine. */

@@ -1,12 +1,12 @@
 import { MAX_ATTACHMENTS, MAX_ATTACHMENT_ENCODED_BYTES } from "../domain/conversation.js";
 import { isCommitHashes, isMessageImageReference } from "../domain/message-artifacts.js";
-import type { WorkspaceCommandResult, WorkspaceInput } from "../application/workspace-reducer.js";
-import { isAppCommandType, isWorkspaceViewInput } from "./workspace-view-input.js";
+import type { WorkspaceCommandResult } from "./workspace-result.js";
 import { isAgentEngine, type AgentEngine } from "../domain/agent-engine.js";
 import { isDiffRange, type DiffRange } from "../domain/diff.js";
+import { isAppCommandType, isWorkspaceViewInput } from "./workspace-view-input.js";
 import type { ThreadNotice } from "./ipc.js";
 import type { MobileErrorCode } from "./mobile.js";
-import type { WorkspacePatch } from "./workspace-runtime.js";
+import type { WorkspacePatch } from "./workspace-patch.js";
 import type { ThreadListQuery } from "./threads.js";
 
 /** These reads stop at the receiving computer; they never follow its own paired links. */
@@ -41,17 +41,7 @@ export type ComputerQuery =
 
 export type ComputerPairRequest = { kind: "pair"; version: number; code: string; deviceName: string };
 export type ComputerResumeRequest = { kind: "resume"; version: number; token: string; sessionId?: string; lastSequence: number };
-/** Inputs run one after another by the other computer's reducer, answered once by the last one's result. */
-export type ComputerInputRequest = { kind: "input"; requestId: string; inputs: WorkspaceInput[] };
 export type ComputerQueryRequest = { kind: "query"; requestId: string; query: ComputerQuery };
-/** A transfer announcement precedes the large frame so its upload also gets the longer deadline. */
-export type ComputerClientMessage = ComputerPairRequest | ComputerResumeRequest | ComputerInputRequest | ComputerQueryRequest | { kind: "transfer"; requestId: string } | { kind: "pong"; at: number };
-
-/** Requests that need the transfer deadline rather than the ordinary request deadline. */
-export function isComputerTransfer(message: ComputerClientMessage): boolean {
-  return message.kind === "input" ? message.inputs.some((input) => input.type === "attachments.send" && input.attachments.length > 0)
-    : message.kind === "query" && (message.query.kind === "attachment" || message.query.kind === "message-image");
-}
 
 /** Data from an independently updated host is decoded before becoming this build's workspace state. */
 export type ComputerWorkspaceUpdate = { revision: number; state: unknown } | { revision: number; patches: WorkspacePatch[] };
@@ -125,8 +115,11 @@ export function isComputerQuery(value: unknown): value is ComputerQuery {
   return value.kind !== "message-image" || isMessageImageReference(value.path, value.root, value.message);
 }
 
-/** What another computer sends is the security boundary, so every field of it is read defensively. */
-export function isComputerClientMessage(value: unknown): value is ComputerClientMessage {
+/**
+ * What another computer sends is the security boundary, so every field of it is read defensively.
+ * Its inputs are only ever commands a window could send.
+ */
+export function isComputerClientRequest(value: unknown): boolean {
   if (!isRecord(value)) return false;
   if (value.kind === "pair") return isCount(value.version) && isString(value.code, MAX_TOKEN_LENGTH) && isString(value.deviceName, MAX_DEVICE_NAME_LENGTH);
   if (value.kind === "resume") {

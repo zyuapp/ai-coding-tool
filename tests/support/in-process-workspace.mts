@@ -1,5 +1,5 @@
 import type { DesktopAPI } from "../../src/contracts/ipc.ts";
-import type { WorkspaceSurfaceEffect } from "../../src/contracts/workspace-runtime.ts";
+import type { WorkspaceSurfaceEffect } from "../../src/application/workspace-runtime.ts";
 import { noComputers } from "../../src/host/no-computers.ts";
 import { createWorkspaceRuntime } from "../../src/host/workspace-runtime.ts";
 import { clearTerminalSearch, disposeTerminalView, searchTerminalView } from "../../src/renderer/task-workspace/terminal-views.ts";

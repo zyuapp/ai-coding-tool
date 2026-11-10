@@ -12,7 +12,7 @@ import { screenOf } from "../application/input-scope.js";
 import { createSnoozeTimer } from "./snooze-timer.js";
 import { createToastTimers } from "./toast-timers.js";
 import { createRuntimeHistory } from "./runtime-history.js";
-import { errorMessage } from "./errors.js";
+import { errorMessage } from "../contracts/errors.js";
 import { releaseThreadWaiters, type ThreadWaiter } from "./thread-requests.js";
 import { nextMobileUpdate, noMobileView } from "./mobile-bridge.js";
 import type { EnvironmentRefreshEffect } from "./effect-host.js";

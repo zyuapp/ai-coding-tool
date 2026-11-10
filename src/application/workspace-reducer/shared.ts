@@ -1,5 +1,6 @@
 /** The plumbing every handler in this folder shares: how a transition is made, and who it is about. */
-import type { WorkspaceCommandResult, WorkspaceEffect, WorkspaceTransition } from "./types.js";
+import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
+import type { WorkspaceCommandResult } from "../../contracts/workspace-result.js";
 import type { WorkspaceState } from "../workspace-state.js";
 
 export function now() {

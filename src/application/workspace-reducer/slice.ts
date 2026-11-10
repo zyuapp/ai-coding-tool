@@ -1,5 +1,6 @@
 /** How a slice's reducer answers when it changes only the state it owns, which the compiler holds it to. */
-import type { WorkspaceCommandResult, WorkspaceEffect, WorkspaceTransition } from "./types.js";
+import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
+import type { WorkspaceCommandResult } from "../../contracts/workspace-result.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { viewPreferences } from "../view-preferences.js";
 

@@ -1,6 +1,6 @@
 import { WORKSPACE_ERRORS } from "../application/workspace-reducer.js";
 import { reportFailure, type EffectHandlers } from "./effect-host.js";
-import { errorMessage } from "./errors.js";
+import { errorMessage } from "../contracts/errors.js";
 import type { HostModule } from "./host-module.js";
 
 /** Scheduled runs: changing them, and the ticks that fire them. */

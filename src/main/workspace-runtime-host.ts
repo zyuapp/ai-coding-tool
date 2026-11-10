@@ -1,7 +1,7 @@
 import { ipcMain, type BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { isWorkspaceViewInput } from "../contracts/workspace-view-input.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
-import type { WorkspaceResponse, WorkspaceSurfaceEffect, WorkspaceUpdate } from "../contracts/workspace-runtime.js";
+import type { WorkspaceResponse, WorkspaceSurfaceEffect, WorkspaceUpdate } from "../application/workspace-runtime.js";
 import { createRuntimePublisher } from "../host/runtime-publisher.js";
 import type { RuntimeDesktop } from "../host/runtime-desktop.js";
 import { createWorkspaceRuntime } from "../host/workspace-runtime.js";

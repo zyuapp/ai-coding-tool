@@ -2,11 +2,10 @@ import { emptyWorkspaceState } from "../../application/workspace-state";
 import { applyOptimisticEdits, optimisticEdit, type OptimisticEdit } from "../../application/optimistic-edits";
 import { applyWorkspacePatches } from "../../application/workspace-patches";
 import { reduce, type WorkspaceInput } from "../../application/workspace-reducer";
-import { VIEW_PREFERENCES_KEY } from "../../application/view-preferences";
-import { DRAFT_PROMPTS_KEY } from "../../host/draft-persistence";
-import type { WorkspaceSurfaceEffect } from "../../contracts/workspace-runtime";
+import { DRAFT_PROMPTS_KEY, VIEW_PREFERENCES_KEY } from "../../application/view-preferences";
+import type { WorkspaceSurfaceEffect } from "../../application/workspace-runtime";
 import { clearTerminalSearch, disposeTerminalView, searchTerminalView } from "./terminal-views";
-import { errorMessage } from "../../host/errors";
+import { errorMessage } from "../../contracts/errors";
 
 /** Set once the window's own stored preferences have been handed to the host, so they are never handed over twice. */
 const MIGRATED_KEY = "aicodingtool.host-migrated.v1";

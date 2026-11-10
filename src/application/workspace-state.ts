@@ -35,7 +35,6 @@ export type { ReadingPoint, ThreadWait };
 export type { ProjectEdit } from "./state/projects.js";
 export type { DraftBranch } from "./state/new-thread-draft.js";
 export type { ForkName, ReviewPicker } from "./state/dialogs.js";
-export type { DesktopShortcutUnavailable } from "./state/settings.js";
 export type { FindState, JumpState } from "./state/find.js";
 export type { PendingRun, QueuedMessage } from "./state/runs.js";
 export type { SideChat } from "./state/side-chats.js";

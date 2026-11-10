@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test, afterAll, beforeAll } from "vitest";
 import { registered, startMainProcess, waitFor, type MainHarness } from "../../support/electron-harness.mjs";
 import type { AutomationRequest, AutomationResponse, StartRunCommand } from "../../../src/contracts/ipc.js";
-import type { WorkspaceCommandResult, WorkspaceInput } from "../../../src/application/workspace-reducer.js";
+import type { WorkspaceInput } from "../../../src/application/workspace-reducer.js";
+import type { WorkspaceCommandResult } from "../../../src/contracts/workspace-result.js";
 import type { AutomationDraft, AutomationView } from "../../../src/domain/automation.js";
 import type { RunStatus } from "../../../src/domain/run.js";
 

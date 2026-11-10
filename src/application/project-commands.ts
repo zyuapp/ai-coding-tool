@@ -3,7 +3,7 @@ import { legacyProjectId, sameRoot } from "../domain/project.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import { nameProject, nextProjectSortIndex } from "./project-order.js";
 import type { WorkspaceState } from "./workspace-state.js";
-import type { WorkspaceCommandResult } from "./workspace-reducer/types.js";
+import type { WorkspaceCommandResult } from "../contracts/workspace-result.js";
 
 /** What opening a folder answered with, which is the only thing that ever moves a project into one. */
 export type ProjectEvent =

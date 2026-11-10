@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { KeyValueStorage } from "../../src/application/task-store.ts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
-import { createDraftPersistence, DRAFT_PROMPTS_KEY } from "../../src/host/draft-persistence.ts";
+import { createDraftPersistence } from "../../src/host/draft-persistence.ts";
+import { DRAFT_PROMPTS_KEY } from "../../src/application/view-preferences.ts";
 import { PROJECT, task, workspace } from "../application/workspace-reducer-fixtures.mts";
 
 function memory(entries: Record<string, string>) {

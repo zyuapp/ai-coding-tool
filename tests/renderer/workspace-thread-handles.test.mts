@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import React, { act } from "react";
 import { item, mount } from "../support/renderer-dom.mts";
-import type { WorkspaceBridge, WorkspacePatch, WorkspaceUpdate } from "../../src/contracts/workspace-runtime.ts";
+import type { WorkspaceBridge, WorkspaceUpdate } from "../../src/application/workspace-runtime.ts";
+import type { WorkspacePatch } from "../../src/contracts/workspace-patch.ts";
 import { emptyWorkspaceState } from "../../src/application/workspace-state.ts";
 import { activeRun, task } from "../application/workspace-reducer-fixtures.mts";
 

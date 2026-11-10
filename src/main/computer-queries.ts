@@ -8,7 +8,7 @@ import type { BranchesResult } from "../contracts/git.js";
 import type { CommandDiscoveryResult, DiffPatchResult } from "../contracts/ipc.js";
 import { isTerminalOutputRead, type TerminalOutputRead } from "../contracts/terminal.js";
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_ENCODED_BYTES } from "../domain/conversation.js";
-import { errorMessage } from "../host/errors.js";
+import { errorMessage } from "../contracts/errors.js";
 import { readSavedAttachment } from "./attachment-store.js";
 import { messageImageBytes, preserveMessageImage, readMessageImage } from "./message-image-store.js";
 import { readTerminalOutput } from "./terminal-host.js";

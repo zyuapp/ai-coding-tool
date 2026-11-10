@@ -1,4 +1,5 @@
-import { reduce, type WorkspaceCommandResult, type WorkspaceEffect, type WorkspaceInput } from "./workspace-reducer.js";
+import { reduce, type WorkspaceEffect, type WorkspaceInput } from "./workspace-reducer.js";
+import { type WorkspaceCommandResult } from "../contracts/workspace-result.js";
 import type { WorkspaceState } from "./workspace-state.js";
 
 export type WorkspaceExecution = {

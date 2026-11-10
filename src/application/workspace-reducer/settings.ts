@@ -15,7 +15,6 @@ import { isSidebarSection } from "../../domain/sidebar.js";
 import { rememberProject } from "../../domain/project.js";
 import { isThemeMode, themeById, themeFor, themeOrDefault, variantFor } from "../../domain/theme.js";
 import { READING_SIZE, TERMINAL_SIZE, monoFontById, sizeById, uiFontById } from "../../domain/typography.js";
-import type { DesktopShortcutUnavailable } from "../workspace-state.js";
 import type { CaptureOptions } from "../../domain/capture.js";
 import type { ShortcutOverrides } from "../../domain/shortcuts.js";
 
@@ -28,12 +27,6 @@ export const SETTINGS_INPUTS = [
   "view.set-section-open"
 ] as const;
 type SettingsInput = Extract<WorkspaceInput, { type: (typeof SETTINGS_INPUTS)[number] }>;
-
-export type ShortcutEvent =
-  /** The keystroke settings were waiting for, or null when the user pressed Escape instead. */
-  | { type: "shortcut.captured"; binding: string | null }
-  /** An expected platform limitation for a desktop-wide shortcut, shown with that setting. */
-  | { type: "shortcut.unavailable"; refusal: DesktopShortcutUnavailable };
 
 export type ShortcutEffect =
   /** The keystrokes the window matches. Only main sees the ones a page in the panel swallows. */

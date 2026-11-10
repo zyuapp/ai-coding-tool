@@ -1,7 +1,8 @@
 import type { AppCommand } from "./commands.js";
-import type { WorkspaceEvent } from "../application/workspace-reducer.js";
 import type { ExternalCommand } from "./threads.js";
-import { isSettingsSection } from "../domain/settings-section.js";
+import { isSettingsSection, type SettingsSection } from "../domain/settings-section.js";
+import type { FindResults, FindTarget } from "../domain/find.js";
+import type { DesktopShortcutUnavailable } from "./ipc.js";
 import { hasFields, literals, nullableText, number, object, optional, optionalBoolean, record, text, type CommandPlacement, type Declarations, type Shape, type Validator } from "./command-declaration.js";
 import type { PhoneRule } from "./phone-commands.js";
 import { externalAppCommands } from "./app-commands.js";
@@ -27,7 +28,19 @@ import { worktreeCommands } from "./worktree-commands.js";
 
 export type { CommandPlacement } from "./command-declaration.js";
 
-type ViewEvent = Extract<WorkspaceEvent, { type: "action.failed" | "find.results" | "shortcut.captured" | "shortcut.unavailable" }>;
+export type ActionFailedEvent = { type: "action.failed"; message: string; page?: SettingsSection };
+
+/** What a page or a shell found, counted by whoever holds the text. `index` counts from zero. */
+export type FindResultsEvent = { type: "find.results"; target: FindTarget; results: FindResults };
+
+export type ShortcutEvent =
+  /** The keystroke settings were waiting for, or null when the user pressed Escape instead. */
+  | { type: "shortcut.captured"; binding: string | null }
+  /** An expected platform limitation for a desktop-wide shortcut, shown with that setting. */
+  | { type: "shortcut.unavailable"; refusal: DesktopShortcutUnavailable };
+
+/** What a window reports back besides its commands. */
+type ViewEvent = ActionFailedEvent | FindResultsEvent | ShortcutEvent;
 export type WorkspaceViewInput = AppCommand | ViewEvent;
 type EventShapes = { [Type in ViewEvent["type"]]: Shape<Omit<Extract<ViewEvent, { type: Type }>, "type">> };
 type Declared = { fields: Record<string, Validator<unknown>>; at: CommandPlacement; leaves?: true; agent?: (command: never) => boolean; phone?: PhoneRule };

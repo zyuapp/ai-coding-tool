@@ -1,4 +1,4 @@
-import type { DesktopShortcutRefusal } from "../../contracts/ipc.js";
+import type { DesktopShortcutUnavailable } from "../../contracts/ipc.js";
 import type { EngineModel } from "../../domain/agent-engine.js";
 import { OPEN_SUBAGENT_GROUPS, type SubagentGroups } from "../../domain/run.js";
 import type { SettingMark } from "../../domain/settings-catalog.js";
@@ -7,9 +7,6 @@ import type { ShortcutOverrides } from "../../domain/shortcuts.js";
 import { OPEN_SIDEBAR_SECTIONS, type SidebarSections } from "../../domain/sidebar.js";
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../../domain/typography.js";
-
-/** A desktop-wide binding whose action this session cannot safely perform on the active platform. */
-export type DesktopShortcutUnavailable = Extract<DesktopShortcutRefusal, { reason: "unsupported" }>;
 
 /** How the user set the window up, and the settings sheet itself. */
 export type SettingsState = {

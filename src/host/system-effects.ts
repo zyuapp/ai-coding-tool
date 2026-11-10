@@ -1,6 +1,6 @@
 import type { CliStatus } from "../domain/cli.js";
 import type { ComputerUsePermissions } from "../domain/computer-use.js";
-import { reportedMessage } from "./errors.js";
+import { reportedMessage } from "../contracts/errors.js";
 import type { EffectHandlers, EffectHost } from "./effect-host.js";
 import type { HostModule } from "./host-module.js";
 

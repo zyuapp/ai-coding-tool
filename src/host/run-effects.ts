@@ -1,4 +1,4 @@
-import { errorMessage } from "./errors.js";
+import { errorMessage } from "../contracts/errors.js";
 import { saveViewPreferences } from "./view-preferences-store.js";
 import { resolveRunWorkspace } from "./resolve-run-workspace.js";
 import type { EffectHandlers } from "./effect-host.js";

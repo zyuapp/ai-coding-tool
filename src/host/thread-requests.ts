@@ -1,4 +1,5 @@
-import { browserPermissions, coordinatorAskRefusal, type CoordinationAnswer } from "../application/workspace-reducer.js";
+import { browserPermissions, coordinatorAskRefusal } from "../application/workspace-reducer.js";
+import { type CoordinationAnswer } from "../contracts/workspace-result.js";
 import type { MoveAfterRun } from "../domain/worktree.js";
 import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState } from "../application/workspace-state.js";
 import { threadSummary, threadWaitResult } from "../application/thread-projection.js";
@@ -18,7 +19,7 @@ import type { ExternalCommand, FindingReport, FindingResult, SimulatorRead, Simu
 import { REMOTE_UNSUPPORTED } from "../contracts/computer-capabilities.js";
 import { terminalLineLimit } from "../domain/terminal.js";
 import { isCoordinator, MAX_PROPOSALS, type CoordinationState, type DecisionRequest, type MemoryChange, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
-import { errorMessage } from "./errors.js";
+import { errorMessage } from "../contracts/errors.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
 
 /** How much page text a read returns when the caller does not say. */

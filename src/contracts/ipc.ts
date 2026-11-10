@@ -265,6 +265,9 @@ export type WindowScreenshot = { app: string; title: string; path: string };
 
 export type DesktopShortcutRefusal = { binding: string; reason: "taken" } | { binding: string; reason: "unsupported"; message: string };
 
+/** A desktop-wide binding whose action this session cannot safely perform on the active platform. */
+export type DesktopShortcutUnavailable = Extract<DesktopShortcutRefusal, { reason: "unsupported" }>;
+
 /** What a thread wants in front of the user: the thread a click lands on, the name it is shown under, and the line itself. */
 export type ThreadNotice = { taskId: string; title: string; headline: string };
 

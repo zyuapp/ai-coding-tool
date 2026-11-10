@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, test, vi } from "vitest";
 import "../support/renderer-dom.mts";
 import { emptyWorkspaceState } from "../../src/application/workspace-state.ts";
-import type { WorkspaceBridge, WorkspaceUpdate, WorkspaceResponse } from "../../src/contracts/workspace-runtime.ts";
+import type { WorkspaceBridge, WorkspaceUpdate, WorkspaceResponse } from "../../src/application/workspace-runtime.ts";
 import { task } from "../application/workspace-reducer-fixtures.mts";
 
 vi.mock("../../src/host/workspace-runtime.ts", () => ({ createWorkspaceRuntime: vi.fn() }));

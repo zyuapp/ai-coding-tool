@@ -1,10 +1,8 @@
-import type { WorkspaceInput, WorkspaceEffect, WorkspaceCommandResult } from "../application/workspace-reducer.js";
-import type { WorkspaceState } from "../application/workspace-state.js";
+import type { WorkspaceInput, WorkspaceEffect } from "./workspace-reducer.js";
+import type { WorkspaceCommandResult } from "../contracts/workspace-result.js";
+import type { WorkspaceState } from "./workspace-state.js";
+import type { WorkspacePatch } from "../contracts/workspace-patch.js";
 
-export type WorkspaceSplice = { index: number; deleteCount: number; items: unknown[] };
-export type WorkspacePatch =
-  | { path: Array<string | number>; value?: unknown; remove?: true }
-  | { path: Array<string | number>; splice: WorkspaceSplice };
 export type WorkspaceUpdate = { revision: number; state: WorkspaceState } | { revision: number; patches: WorkspacePatch[] };
 export type WorkspaceResponse = { id: string; result: WorkspaceCommandResult & { revision: number } };
 export type WorkspaceSurfaceEffect = Extract<WorkspaceEffect, { type: "terminal.close" | "find-in-terminal" | "stop-find-in-terminal" }>;

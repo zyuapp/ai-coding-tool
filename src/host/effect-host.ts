@@ -1,8 +1,8 @@
 import type { WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
-import type { WorkspaceSurfaceEffect } from "../contracts/workspace-runtime.js";
+import type { WorkspaceSurfaceEffect } from "../application/workspace-runtime.js";
 import type { KeyValueStorage } from "../application/task-store.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
-import { errorMessage } from "./errors.js";
+import { errorMessage } from "../contracts/errors.js";
 
 export type EnvironmentRefreshEffect = Extract<WorkspaceEffect, { type: "refresh-environment" }>;
 

@@ -2,10 +2,9 @@ import { TaskStore, type KeyValueStorage } from "../application/task-store.js";
 import type { WorkspaceState } from "../application/workspace-state.js";
 import { sideChatIds } from "../application/state/side-chats.js";
 import { NEW_THREAD_DRAFT } from "../application/state/composer.js";
+import { DRAFT_PROMPTS_KEY } from "../application/view-preferences.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
-import { errorMessage } from "./errors.js";
-
-export const DRAFT_PROMPTS_KEY = "aicodingtool.draft-prompts.v1";
+import { errorMessage } from "../contracts/errors.js";
 
 function loadDraftPrompts(storage: KeyValueStorage): Record<string, string> {
   const raw = storage.getItem(DRAFT_PROMPTS_KEY);

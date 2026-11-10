@@ -5,6 +5,8 @@ import type { EngineEffect, EngineEvent } from "../engine-access.js";
 import type { AppUpdateEffect, AppUpdateEvent } from "../app-updates.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import type { AppCommand } from "../../contracts/commands.js";
+import type { WorkspaceCommandResult } from "../../contracts/workspace-result.js";
+import type { ActionFailedEvent, FindResultsEvent, ShortcutEvent } from "../../contracts/workspace-view-input.js";
 import type { AgentEvent, AnswerQuestionCommand, ApprovalDecisionCommand, ArchiveThreadCommand, CancelRunCommand, CreatedWorktree, LabelThreadCommand, RunEvent, StartRunCommand, SteerRunCommand, StopProcessCommand, ThreadEvent, ThreadNotice, ThreadRoleCommand } from "../../contracts/ipc.js";
 import type { ViewPreferences } from "../../contracts/preferences.js";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine.js";
@@ -22,10 +24,10 @@ import type { ComputerUseEffect, ComputerUseEvent } from "./computer-use.js";
 import type { DesktopEffect, DesktopEvent } from "./desktop.js";
 import type { DictationEffect, DictationEvent } from "./dictation.js";
 import type { DiffEffect, DiffEvent } from "./diffs.js";
-import type { FindEffect, FindEvent } from "./find.js";
+import type { FindEffect } from "./find.js";
 import type { PlanUsageEffect, PlanUsageEvent } from "./plan-usage.js";
 import type { PullRequestEffect, PullRequestEvent } from "./pull-requests.js";
-import type { ShortcutEffect, ShortcutEvent } from "./settings.js";
+import type { ShortcutEffect } from "./settings.js";
 import type { SimulatorEffect, SimulatorEvent } from "./simulator.js";
 import type { TerminalEffect, TerminalEvent } from "./terminal.js";
 import type { WorktreeEffect, WorktreeEvent } from "./worktrees.js";
@@ -45,7 +47,7 @@ export type WorkspaceEvent =
   | { type: "store.persisted" }
   | { type: "preferences.loaded"; preferences: ViewPreferences }
   | { type: "store.failed"; message: string }
-  | { type: "action.failed"; message: string; page?: import("../../domain/settings-section.js").SettingsSection }
+  | ActionFailedEvent
   | import("../project-add.js").ProjectAddEvent
   | ProjectEvent
   | { type: "run.event"; event: RunEvent }
@@ -83,7 +85,7 @@ export type WorkspaceEvent =
   | PullRequestEvent
   | BrowserEvent
   | BrowserImportEvent
-  | FindEvent
+  | FindResultsEvent
   | SimulatorEvent
   | DictationEvent
   | TerminalEvent
@@ -162,12 +164,6 @@ type WorkspaceWork =
   | ShortcutEffect;
 
 export type WorkspaceInput = AppCommand | WorkspaceEvent;
-
-/** What a thread's own report, decision or memory change came to: recorded, naming the note it saved, or why nothing was. */
-export type CoordinationAnswer = { recorded: true; noteId?: string } | { recorded: false; reason: string };
-
-/** `answer` is the reducer's word back to a thread's own coordination request; a refusal there is no failure of the input. */
-export type WorkspaceCommandResult = { ok: true; taskId?: string; answer?: CoordinationAnswer } | { ok: false; message: string };
 
 export type WorkspaceTransition = {
   state: WorkspaceState;

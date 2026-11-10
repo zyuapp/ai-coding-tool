@@ -1,7 +1,7 @@
 import { workspacePatches } from "../application/workspace-patches.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
-import type { WorkspaceResponse, WorkspaceUpdate } from "../contracts/workspace-runtime.js";
-import { errorMessage } from "./errors.js";
+import type { WorkspaceResponse, WorkspaceUpdate } from "../application/workspace-runtime.js";
+import { errorMessage } from "../contracts/errors.js";
 import type { WorkspaceRuntime } from "./workspace-runtime.js";
 
 /** One thing that watches the runtime's state: a window, or a paired computer on the other end of a socket. */

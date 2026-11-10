@@ -1,4 +1,4 @@
-import { errorMessage } from "./errors.js";
+import { errorMessage } from "../contracts/errors.js";
 import type { EffectHandlers, EffectHost, EnvironmentRefreshEffect } from "./effect-host.js";
 import type { HostModule } from "./host-module.js";
 

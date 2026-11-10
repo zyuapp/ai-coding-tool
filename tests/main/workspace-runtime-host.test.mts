@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import type { WorkspaceInput, WorkspaceCommandResult } from "../../src/application/workspace-reducer.ts";
+import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
+import type { WorkspaceCommandResult } from "../../src/contracts/workspace-result.ts";
 import { VIEW_PREFERENCES_KEY } from "../../src/application/view-preferences.ts";
-import type { WorkspaceUpdate } from "../../src/contracts/workspace-runtime.ts";
+import type { WorkspaceUpdate } from "../../src/application/workspace-runtime.ts";
 import { registered, startMainProcess } from "../support/electron-harness.mjs";
 
 type IpcEvent = { sender: unknown };

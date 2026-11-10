@@ -1,4 +1,4 @@
-import type { WorkspaceBridge } from "../contracts/workspace-runtime";
+import type { WorkspaceBridge } from "../application/workspace-runtime";
 import type { WindowDesktopAPI } from "../contracts/ipc";
 
 declare global {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test, afterAll, beforeAll } from "vitest";
-import type { WorkspaceCommandResult, WorkspaceInput } from "../../src/application/workspace-reducer.ts";
+import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
+import type { WorkspaceCommandResult } from "../../src/contracts/workspace-result.ts";
 import { registered, startMainProcess, waitFor, type MainHarness } from "../support/electron-harness.mjs";
 
 type IpcEvent = { sender: unknown };

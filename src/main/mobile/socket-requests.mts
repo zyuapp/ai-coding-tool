@@ -1,7 +1,7 @@
 import type { IncomingMessage, Server } from "node:http";
 import type { WebSocket } from "ws";
 import { isMobileClientMessage, type MobileClientMessage } from "../../contracts/mobile.js";
-import { isComputerClientMessage, type ComputerClientMessage } from "../../contracts/computers.js";
+import { isComputerClientMessage, type ComputerClientMessage } from "../../application/computer-requests.js";
 import type { PairedDeviceKind } from "../../domain/mobile.js";
 
 /**

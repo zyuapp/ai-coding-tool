@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { TestContext } from "vitest";
 import type { WindowDesktopAPI, WindowDesktopCall } from "../../src/contracts/ipc.js";
-import type { WorkspaceUpdate } from "../../src/contracts/workspace-runtime.js";
+import type { WorkspaceUpdate } from "../../src/application/workspace-runtime.js";
 import type { RuntimeDesktop } from "../../src/host/runtime-desktop.js";
 import { fakeElectron } from "./electron-app-stub.mjs";
 import { fakePlugins } from "./electron-vite-plugins.mjs";

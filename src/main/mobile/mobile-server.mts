@@ -35,9 +35,11 @@ import { MOBILE_HEALTH_PATH, MOBILE_HEALTH_RESPONSE, MOBILE_INSTANCE, MOBILE_INS
 import type { PairingStore } from "./pairing.mjs";
 import { forwardedHost, forwardedScheme, listen, readClientMessage, rejectedComputerRequest, rejectedPhoneRequest, sourceOf } from "./socket-requests.mjs";
 import type { ThreadNotice } from "../../contracts/ipc.js";
-import { COMPUTER_TRANSFER_TIMEOUT_MS, MAX_COMPUTER_MESSAGE_BYTES, isComputerTransfer, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
-import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/workspace-reducer.js";
-import type { WorkspaceUpdate } from "../../contracts/workspace-runtime.js";
+import { COMPUTER_TRANSFER_TIMEOUT_MS, MAX_COMPUTER_MESSAGE_BYTES, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
+import { isComputerTransfer, type ComputerClientMessage } from "../../application/computer-requests.js";
+import type { WorkspaceInput } from "../../application/workspace-reducer.js";
+import type { WorkspaceCommandResult } from "../../contracts/workspace-result.js";
+import type { WorkspaceUpdate } from "../../application/workspace-runtime.js";
 import { stringifyWorkspaceJson } from "../../application/workspace-json.js";
 import { applyMobilePatch, MOBILE_VOCABULARY } from "../../application/mobile-projection.js";
 import type { PairedDeviceKind } from "../../domain/mobile.js";

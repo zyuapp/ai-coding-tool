@@ -15,7 +15,7 @@ import { test, vi } from "vitest";
 import { emptyWorkspaceState, type WorkspaceState } from "../../../src/application/workspace-state.ts";
 import { parseWorkspaceJson, stringifyWorkspaceJson } from "../../../src/application/workspace-json.ts";
 import type { WorkspaceInput } from "../../../src/application/workspace-reducer.ts";
-import type { WorkspaceUpdate } from "../../../src/contracts/workspace-runtime.ts";
+import type { WorkspaceUpdate } from "../../../src/application/workspace-runtime.ts";
 import type { ComputerStatus } from "../../../src/domain/computers.ts";
 import { MobileServer, WORKSPACE_SOCKET_PATH } from "../../../src/main/mobile/mobile-server.mts";
 import { PairingStore } from "../../../src/main/mobile/pairing.mts";

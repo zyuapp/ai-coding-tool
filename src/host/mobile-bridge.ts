@@ -2,7 +2,8 @@ import { applyMobilePatch, diffMobileView, mobileArchivedThreads, mobileThreadHi
 import { promptKey, type WorkspaceState } from "../application/workspace-state.js";
 import { NEW_THREAD_DRAFT } from "../application/state/composer.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
-import type { WorkspaceCommandResult, WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
+import type { WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
+import type { WorkspaceCommandResult } from "../contracts/workspace-result.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type { CommandDiscoveryResult } from "../contracts/ipc.js";
 import { isMobileQuery, isMobileRequest, type MobileQuery, type MobileRequest, type MobileResponse, type MobileView, type MobileViewUpdate } from "../contracts/mobile.js";
@@ -15,7 +16,7 @@ import { attachmentSendFor } from "../application/composer-attachments.js";
 import { drainingQueued } from "../application/workspace-reducer/run-queue.js";
 import { editableQueued, QUEUED_SENT } from "../application/state/runs.js";
 import { REMOTE_UNSUPPORTED } from "../contracts/computer-capabilities.js";
-import { errorMessage } from "./errors.js";
+import { errorMessage } from "../contracts/errors.js";
 import type { EffectHandlers, EffectHost } from "./effect-host.js";
 import type { HostModule } from "./host-module.js";
 

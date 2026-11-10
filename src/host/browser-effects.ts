@@ -1,5 +1,5 @@
 import { reportFailure, type EffectHandlers, type EffectHost } from "./effect-host.js";
-import { errorMessage } from "./errors.js";
+import { errorMessage } from "../contracts/errors.js";
 import type { HostModule } from "./host-module.js";
 
 /** A failed import step is reported beside the import, not in the workspace error banner. */

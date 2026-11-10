@@ -24,7 +24,7 @@ import { useFocusReturn } from "../focus";
 import type { CliState } from "../../application/cli-installation";
 import type { ComputerUseAccessState } from "../../application/computer-use-access";
 import type { ComputerUsage, PlanUsageState } from "../../application/plan-limits";
-import type { DesktopShortcutUnavailable } from "../../application/workspace-state";
+import type { DesktopShortcutUnavailable } from "../../contracts/ipc";
 import type { ComputerUsePermission } from "../../contracts/ipc";
 import type { WorktreeSettingsPage } from "../../application/worktree-settings";
 import type { WorktreeCommand } from "../../contracts/commands";

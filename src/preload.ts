@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { DesktopShortcutRefusal, ShortcutInvocation, TerminalDataEvent, WindowDesktopAPI, WindowDesktopCall, WindowScreenshot } from "./contracts/ipc";
 import type { SimulatorFrame } from "./domain/simulator";
-import type { WorkspaceBridge, WorkspaceSurfaceEffect, WorkspaceUpdate } from "./contracts/workspace-runtime";
+import type { WorkspaceBridge, WorkspaceSurfaceEffect, WorkspaceUpdate } from "./application/workspace-runtime";
 
 /** Every call crosses on one channel under its name, which main checks against its one table. */
 function relay<Name extends WindowDesktopCall>(name: Name) {

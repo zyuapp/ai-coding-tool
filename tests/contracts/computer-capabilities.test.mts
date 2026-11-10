@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { COMPUTER_CAPABILITIES, supportsComputerCommand, supportsComputerQuery } from "../../src/contracts/computer-capabilities.ts";
-import { isComputerClientMessage, isComputerQuery } from "../../src/contracts/computers.ts";
+import { isComputerClientRequest, isComputerQuery } from "../../src/contracts/computers.ts";
 import { isExternalCommand, isPhoneCommand, isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
 
 test("dismiss-all scope is validated and advertised across command entry points", () => {
@@ -10,7 +10,7 @@ test("dismiss-all scope is validated and advertised across command entry points"
     const valid = localOnly === undefined || typeof localOnly === "boolean";
     assert.equal(isWorkspaceViewInput(command), valid);
     assert.equal(isPhoneCommand(command), valid);
-    assert.equal(isComputerClientMessage({ kind: "input", requestId: "dismiss", inputs: [command] }), valid);
+    assert.equal(isComputerClientRequest({ kind: "input", requestId: "dismiss", inputs: [command] }), valid);
   }
   assert.ok(supportsComputerCommand(COMPUTER_CAPABILITIES, { type: "task.dismiss-all", localOnly: true }));
 });
@@ -35,7 +35,7 @@ test("unknown names are harmless, absent discovery is best effort, and an empty 
   assert.ok(supportsComputerCommand(undefined, command));
   assert.equal(supportsComputerCommand([], command), false);
   assert.equal(supportsComputerCommand(["command:task.rename"], command), false);
-  assert.equal(isComputerClientMessage({ kind: "input", requestId: "id", inputs: [{ type: "action.failed", message: "injected" }] }), false);
+  assert.equal(isComputerClientRequest({ kind: "input", requestId: "id", inputs: [{ type: "action.failed", message: "injected" }] }), false);
 });
 
 test("a computer says it takes threads under a coordinator elsewhere, and reads their pull requests, only by name", () => {

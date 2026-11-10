@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { chmod, readFile } from "node:fs/promises";
 import { test } from "vitest";
-import type { WorkspaceCommandResult, WorkspaceInput } from "../../src/application/workspace-reducer.ts";
+import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
+import type { WorkspaceCommandResult } from "../../src/contracts/workspace-result.ts";
 import { TaskDatabase } from "../../src/main/task-database.mts";
 import { registered, startMainProcess, waitFor, type MainHarness } from "../support/electron-harness.mjs";
 

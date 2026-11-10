@@ -1,7 +1,8 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import type { ThreadNotice } from "../../contracts/ipc.js";
 import path from "node:path";
-import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/workspace-reducer.js";
+import type { WorkspaceInput } from "../../application/workspace-reducer.js";
+import type { WorkspaceCommandResult } from "../../contracts/workspace-result.js";
 import type { WorkspaceState } from "../../application/workspace-state.js";
 import type { ComputerQuery } from "../../contracts/computers.js";
 import { MAX_COMPUTER_NAME, type ComputerLink, type ComputerStatus, type DiscoveredComputer } from "../../domain/computers.js";

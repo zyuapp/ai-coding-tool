@@ -13,6 +13,7 @@ import { isThemeMode, themeById, themeModeOrDefault, themeOrDefault } from "../d
 import { READING_SIZE, TERMINAL_SIZE, monoFontById, monoFontOrDefault, sizeById, sizeOrDefault, uiFontById, uiFontOrDefault } from "../domain/typography.js";
 
 export const VIEW_PREFERENCES_KEY = "aicodingtool.view-preferences.v1";
+export const DRAFT_PROMPTS_KEY = "aicodingtool.draft-prompts.v1";
 
 const MAX_REMEMBERED = 50;
 

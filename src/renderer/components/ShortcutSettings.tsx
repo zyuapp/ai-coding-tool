@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { displayShortcut, shortcutKeys, type ShortcutSetting } from "../../domain/shortcuts";
-import type { DesktopShortcutUnavailable } from "../../application/workspace-state";
+import type { DesktopShortcutUnavailable } from "../../contracts/ipc";
 import { platformCapabilities } from "../platform";
 import { shortcutSettingId } from "../../domain/settings-catalog";
 import { SettingRowBase } from "./SettingRow";

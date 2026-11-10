@@ -5,7 +5,7 @@ import type { Toast } from "../domain/toast.js";
 import { withToast, type ToastEffect } from "./toasts.js";
 import { engineReadinessOf } from "./state/engines.js";
 import type { WorkspaceState } from "./workspace-state.js";
-import type { WorkspaceCommandResult } from "./workspace-reducer/types.js";
+import type { WorkspaceCommandResult } from "../contracts/workspace-result.js";
 
 /** What main found out about an engine's access, on asking, after a sign-in or after an update, or why it could not. */
 export type EngineEvent =

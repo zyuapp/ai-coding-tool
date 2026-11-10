@@ -1,4 +1,4 @@
-import type { WorkspacePatch, WorkspaceSplice } from "../contracts/workspace-runtime.js";
+import type { WorkspacePatch, WorkspaceSplice } from "../contracts/workspace-patch.js";
 
 function container(value: unknown): value is Record<string, unknown> | unknown[] {
   return value !== null && typeof value === "object" && (Array.isArray(value) || Object.getPrototypeOf(value) === Object.prototype);

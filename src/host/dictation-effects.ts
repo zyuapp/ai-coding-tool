@@ -1,5 +1,5 @@
 import type { EffectHandlers } from "./effect-host.js";
-import { errorMessage } from "./errors.js";
+import { errorMessage } from "../contracts/errors.js";
 import type { HostModule } from "./host-module.js";
 
 /** The microphone and speech model, each answer carried back under the hold it belongs to. */

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { emptyWorkspaceState } from "../../src/application/workspace-state.ts";
-import type { WorkspaceUpdate } from "../../src/contracts/workspace-runtime.ts";
+import type { WorkspaceUpdate } from "../../src/application/workspace-runtime.ts";
 import { createRuntimePublisher } from "../../src/host/runtime-publisher.ts";
 import type { WorkspaceRuntime } from "../../src/host/workspace-runtime.ts";
 

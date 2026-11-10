@@ -6,7 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { test } from "vitest";
-import type { WorkspaceCommandResult, WorkspaceInput } from "../../../src/application/workspace-reducer.ts";
+import type { WorkspaceInput } from "../../../src/application/workspace-reducer.ts";
+import type { WorkspaceCommandResult } from "../../../src/contracts/workspace-result.ts";
 import { registered, startMainProcess, waitFor } from "../../support/electron-harness.mjs";
 
 type IpcEvent = { sender: unknown };

@@ -1,4 +1,4 @@
-import { errorMessage } from "./errors.js";
+import { errorMessage } from "../contracts/errors.js";
 import type { OutgoingAttachment, RunAttachment } from "../domain/conversation.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
 import type { EffectHandlers } from "./effect-host.js";
