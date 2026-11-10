@@ -4,7 +4,8 @@ import { clearedDraft, drainingQueued, fileThread, forkableContinuation, handedB
 import { editableQueued, QUEUED_SENT } from "../state/runs.js";
 import { settled, targetId, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { annotationsFor, filesFor, focusComposer, focusedTab, pastesFor } from "../composer-drafts.js";
+import { annotationsFor, filesFor, focusComposer, pastesFor } from "../composer-drafts.js";
+import { focusedTab } from "./dock-tabs.js";
 import { tabHolderOf } from "../workspace-dock.js";
 import { queueHolder } from "../computers.js";
 import { threadHandleOptions } from "../thread-projection.js";

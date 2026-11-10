@@ -1,12 +1,16 @@
 /** Which tab a dock shows, which of them has the keys, and what a dock leaves behind. */
 import { settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
-import { focusedTab } from "../composer-drafts.js";
 import { viewPreferences } from "../view-preferences.js";
 import { isCoordinator } from "../../domain/coordination.js";
 import { DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, dockFor, dockTabAfterClosing, withDock, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
 import { workflowById } from "../state/runs.js";
 import type { DocksState } from "../state/dock.js";
+
+/** The caret goes to the tab a side chat is drawn in, because its composer is not the thread's own. */
+export function focusedTab<S extends Pick<WorkspaceState, "dockFocus">>(state: S, owner: string, tab: string): S {
+  return { ...state, dockFocus: { owner, tab, count: (state.dockFocus?.count ?? 0) + 1 } };
+}
 
 /** The window has the keys again, which a page in the panel is otherwise holding. */
 export const TAKE_KEYS: WorkspaceEffect[] = [{ type: "focus-window" }];
@@ -31,6 +35,11 @@ export function editDock(edit: DocksEdit, owner: string, patch: Partial<ThreadDo
 
 export function showDockTabIn(edit: DocksEdit, owner: string, tab: string): DocksEdit {
   return editDock(edit, owner, { open: true, tab });
+}
+
+/** {@link focusedTab}, on the docks an input is changing. */
+export function focusedTabIn(edit: DocksEdit, owner: string, tab: string): DocksEdit {
+  return new DocksChange(focusedTab(edit.view, owner, tab));
 }
 
 /** {@link focusDockTab}, on the docks an input is changing. */

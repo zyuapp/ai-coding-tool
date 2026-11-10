@@ -15,7 +15,7 @@ import { reduceRuns, RUN_INPUTS } from "./runs.js";
 import { AUTOMATION_INPUTS, reduceAutomations } from "./automations.js";
 import { reduceSideChats, SIDE_CHAT_INPUTS } from "./side-chats.js";
 import { DIFF_INPUTS, reduceDiffs } from "./diffs.js";
-import { reduceStore, STORE_INPUTS } from "./store.js";
+import { reduceHiddenThreadsDismissed, reduceStore, STORE_INPUTS } from "./store.js";
 import { COMPOSER_INPUTS, reduceComposer } from "./composer.js";
 import { reduceSettings, reduceModelFavorite, reduceRememberProject, SETTINGS_INPUTS } from "./settings.js";
 import { DOCK_INPUTS, reduceDock } from "./dock.js";
@@ -33,7 +33,7 @@ import { isEngineInput, reduceEngine, type EngineInput } from "../engine-access.
 import { reduceToasts } from "../toasts.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { cancelPause, resumeThread } from "../limit-pauses.js";
-import { settled } from "./shared.js";
+import { reduceErrorDismissed, settled } from "./shared.js";
 import { owned } from "./slice.js";
 import { APP_UPDATE_INPUTS, reduceAppUpdate } from "../app-updates.js";
 
@@ -58,7 +58,7 @@ export const CLAIMS = [
   claim(PROJECT_ADD_INPUTS, reduceProjectAdd),
   claim(PROJECT_INPUTS, reduceProjectCommands),
   /** The line itself moves in {@link reconcileLimitPauses}, which every input passes through. */
-  claim(["limits.elapsed"], (state) => settled(state)),
+  claim(["limits.elapsed"], owned(() => ({}))),
   claim(["limit.resume"], (state, input) => resumeThread(state, input.taskId)),
   claim(["limit.cancel"], (state, input) => cancelPause(state, input.taskId)),
   claim(RUN_INPUTS, reduceRuns),
@@ -70,9 +70,11 @@ export const CLAIMS = [
   claim(CLI_INPUTS, owned(reduceCli)),
   claim(DIFF_INPUTS, reduceDiffs),
   claim(STORE_INPUTS, reduceStore),
-  claim(COMPOSER_INPUTS, reduceComposer),
-  claim(["view.set-model-favorite"], reduceModelFavorite),
-  claim(["view.remember-project"], reduceRememberProject),
+  claim(COMPOSER_INPUTS, owned(reduceComposer)),
+  claim(["view.dismiss-action-error"], owned(reduceErrorDismissed)),
+  claim(["view.dismiss-hidden-tasks"], owned(reduceHiddenThreadsDismissed)),
+  claim(["view.set-model-favorite"], owned(reduceModelFavorite)),
+  claim(["view.remember-project"], owned(reduceRememberProject)),
   claim(["view.dismiss-toast", "view.hold-toasts"], owned(reduceToasts)),
   claim(APP_UPDATE_INPUTS, reduceAppUpdate),
   claim(SETTINGS_INPUTS, reduceSettings),

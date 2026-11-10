@@ -2,6 +2,8 @@
 import { discardedLeads } from "./coordination-remote.js";
 import { settled, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
+import type { SliceTransition } from "./slice.js";
+import type { StoreState } from "../state/store.js";
 import { viewPreferenceState } from "../view-preferences.js";
 import { dockFor, type WorkspaceState } from "../workspace-state.js";
 import { withStoreData } from "../workspace-load.js";
@@ -59,4 +61,9 @@ export function reduceStore(state: WorkspaceState, input: StoreInput): Workspace
       return { ...transition, state: { ...transition.state, actionErrorPage: input.page ?? null } };
     }
   }
+}
+
+/** The note about threads this build cannot read, put away by the user. */
+export function reduceHiddenThreadsDismissed(_state: StoreState): SliceTransition<StoreState> {
+  return { patch: { hiddenThreads: 0 } };
 }

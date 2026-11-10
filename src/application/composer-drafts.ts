@@ -7,8 +7,6 @@ import { clampQuote } from "./annotations.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import { withPrompt, type ComposerState } from "./state/composer.js";
 import type { AttachmentSendState } from "./composer-attachments.js";
-import { tabHolderOf } from "./workspace-dock.js";
-import type { WorkspaceTransition } from "./workspace-reducer/types.js";
 import type { AnnotationCommand, FileCommand, ImageCommand, PasteCommand } from "../contracts/commands.js";
 import { MAX_ATTACHED_FILES, MAX_ATTACHMENTS, type Annotation, type AttachedFile, type AttachedFileDraft, type PastedText, type StagedImage } from "../domain/conversation.js";
 
@@ -112,22 +110,6 @@ export function focusComposer<S extends Pick<WorkspaceState, "composerFocus">>(s
   return { ...state, composerFocus: state.composerFocus + 1 };
 }
 
-/** The caret goes to the tab a side chat is drawn in, because its composer is not the thread's own. */
-export function focusedTab<S extends Pick<WorkspaceState, "dockFocus">>(state: S, owner: string, tab: string): S {
-  return { ...state, dockFocus: { owner, tab, count: (state.dockFocus?.count ?? 0) + 1 } };
-}
-
-/**
- * Where the caret lands once a draft changes. A fresh annotation is written to be sent, so it hands
- * the caret to the composer that will carry it. A comment on the diff keeps it, because the review
- * is worked down a row at a time and each comment would otherwise cost the reviewer their place.
- */
-function focusAfter(state: WorkspaceState, input: ComposerDraftCommand, key: string): WorkspaceState {
-  if (input.type !== "annotation.add" || input.anchor?.kind === "diff") return state;
-  const holder = tabHolderOf(state, key);
-  return holder ? focusedTab(state, holder, key) : focusComposer(state);
-}
-
 /** An image the app already holds, put back in a composer. What it is of is lost with the send. */
 function stagedImage(path: string): StagedImage {
   return { id: crypto.randomUUID(), path, label: "" };
@@ -146,16 +128,8 @@ export type ComposerDraftCommand =
   | ImageCommand
   | Extract<FileCommand, { type: "file.attach" | "file.detach" | "file.recall" }>;
 
-/** Every change to one composer's drafts. `key` is the composer: a thread's id, or the draft's. */
-export function composerDraft(state: WorkspaceState, input: ComposerDraftCommand, key: string): WorkspaceTransition {
-  const drafted = draftedComposer(state, input, key);
-  if ("error" in drafted) {
-    return { state: { ...drafted.state, actionError: drafted.error }, effects: [], result: { ok: false, message: drafted.error } };
-  }
-  return { state: drafted === state ? state : focusAfter(drafted, input, key), effects: [] };
-}
-
-function draftedComposer(state: WorkspaceState, input: ComposerDraftCommand, key: string): WorkspaceState | { state: WorkspaceState; error: string } {
+/** Every change to one composer's drafts, or why the change is refused. `key` is the composer: a thread's id, or the draft's. */
+export function draftedComposer(state: WorkspaceState, input: ComposerDraftCommand, key: string): WorkspaceState | { state: WorkspaceState; error: string } {
   switch (input.type) {
     case "annotation.add": {
       const quote = clampQuote(input.quote);

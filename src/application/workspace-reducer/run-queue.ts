@@ -3,7 +3,9 @@ import { now, settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import { promptWithAnnotations } from "../annotations.js";
 import { promptWithAttachments } from "../attachments.js";
-import { annotationsFor, composerDraft, filesFor, imagesFor, pastesFor, textAfterSend, withAnnotations, withFiles, withImages, withPastes } from "../composer-drafts.js";
+import { annotationsFor, filesFor, imagesFor, pastesFor, textAfterSend, withAnnotations, withFiles, withImages, withPastes } from "../composer-drafts.js";
+import { composerDraft } from "./composer.js";
+import { applied } from "./slice.js";
 import { promptWithFiles } from "../files.js";
 import { promptWithPastes } from "../pastes.js";
 import { ATTENDED_RUN, threadMark, updateThread, withActiveRun, withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type ActiveRun, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
@@ -316,7 +318,7 @@ export function handedBack(state: WorkspaceState, taskId: string, messages: Queu
   const files = [...messages.flatMap((message) => message.files ?? []), ...filesFor(state, taskId)];
   const images = messages.flatMap((message) => message.attachments);
   const handed = withFiles(withPastes(withAnnotations(withPrompt(state, taskId, text), taskId, annotations), taskId, pastes), taskId, files);
-  return images.length ? composerDraft(handed, { type: "image.recall", taskId, paths: [...images, ...imagesFor(state, taskId).map((image) => image.path)] }, taskId) : settled(handed);
+  return images.length ? applied(handed, composerDraft(handed, { type: "image.recall", taskId, paths: [...images, ...imagesFor(state, taskId).map((image) => image.path)] }, taskId)) : settled(handed);
 }
 
 /**

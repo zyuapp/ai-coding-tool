@@ -2,6 +2,8 @@
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import type { WorkspaceCommandResult } from "../../contracts/workspace-result.js";
 import type { WorkspaceState } from "../workspace-state.js";
+import type { ErrorsState } from "../state/store.js";
+import type { SliceTransition } from "./slice.js";
 
 export function now() {
   return Date.now();
@@ -41,4 +43,9 @@ export function recorded(transition: WorkspaceTransition, noteId?: string): Work
 export function targetId(state: WorkspaceState, taskId: string | undefined): string | null {
   if (taskId === undefined) return state.currentId;
   return state.threads.some((thread) => thread.id === taskId) ? taskId : null;
+}
+
+/** The error the window shows, put away by the user. */
+export function reduceErrorDismissed(_state: ErrorsState): SliceTransition<ErrorsState> {
+  return { patch: { actionError: null, actionErrorPage: null } };
 }

@@ -41,13 +41,15 @@ export function afterward<Own>(state: WorkspaceState, { patch, docks, composer, 
 
 /** A slice's reducer run on the whole state, with its patch joined in. One that changed nothing leaves the state as it was. */
 export function owned<Own, Input>(reducer: (state: WorkspaceState, input: Input) => SliceTransition<Own>): (state: WorkspaceState, input: Input) => WorkspaceTransition {
-  return (state, input) => {
-    const transition = reducer(state, input);
-    const { effects: own = [], refusal, persists } = transition;
-    const changed = afterward(state, transition);
-    const next = refusal === undefined ? changed : { ...changed, actionError: refusal };
-    const effects = persists ? [...own, { type: "persist-preferences" as const, preferences: viewPreferences(next) }] : own;
-    const result = refusal === undefined ? transition.result : { ok: false as const, message: refusal };
-    return result ? { state: next, effects, result } : { state: next, effects };
-  };
+  return (state, input) => applied(state, reducer(state, input));
+}
+
+/** A slice's answer joined into the state it was given. */
+export function applied<Own>(state: WorkspaceState, transition: SliceTransition<Own>): WorkspaceTransition {
+  const { effects: own = [], refusal, persists } = transition;
+  const changed = afterward(state, transition);
+  const next = refusal === undefined ? changed : { ...changed, actionError: refusal };
+  const effects = persists ? [...own, { type: "persist-preferences" as const, preferences: viewPreferences(next) }] : own;
+  const result = refusal === undefined ? transition.result : { ok: false as const, message: refusal };
+  return result ? { state: next, effects, result } : { state: next, effects };
 }

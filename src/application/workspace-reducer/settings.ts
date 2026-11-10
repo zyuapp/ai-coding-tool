@@ -1,5 +1,7 @@
 /** Settings: appearance, keystrokes, and the switches that change what a run may do. */
 import { TAKE_KEYS, persistView } from "./dock-tabs.js";
+import type { SliceTransition } from "./slice.js";
+import type { SettingsState } from "../state/settings.js";
 import { settled, targetId, rejected } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
@@ -35,18 +37,16 @@ export type ShortcutEffect =
   /** While settings wait for a keystroke, main hands every one of them over instead of acting. */
   | { type: "capture-shortcut"; capturing: boolean };
 
-export function reduceModelFavorite(state: WorkspaceState, input: Extract<WorkspaceInput, { type: "view.set-model-favorite" }>): WorkspaceTransition {
-  if (!isAgentEngine(input.engine) || !isModelId(input.model) || typeof input.favorite !== "boolean" || isFavorite(state.favoriteModels, input.engine, input.model) === input.favorite) return settled(state);
+export function reduceModelFavorite(state: SettingsState, input: Extract<WorkspaceInput, { type: "view.set-model-favorite" }>): SliceTransition<SettingsState> {
+  if (!isAgentEngine(input.engine) || !isModelId(input.model) || typeof input.favorite !== "boolean" || isFavorite(state.favoriteModels, input.engine, input.model) === input.favorite) return {};
   const favoriteModels = state.favoriteModels.filter((pinned) => pinned.engine !== input.engine || pinned.model !== input.model);
   if (input.favorite) favoriteModels.push({ engine: input.engine, model: input.model });
-  const next = { ...state, favoriteModels };
-  return settled(next, persistView(next));
+  return { patch: { favoriteModels }, persists: true };
 }
 
-export function reduceRememberProject(state: WorkspaceState, input: Extract<WorkspaceInput, { type: "view.remember-project" }>): WorkspaceTransition {
-  if (state.recentProjects[0] === input.projectId) return settled(state);
-  const next = { ...state, recentProjects: rememberProject(state.recentProjects, input.projectId) };
-  return settled(next, persistView(next));
+export function reduceRememberProject(state: SettingsState, input: Extract<WorkspaceInput, { type: "view.remember-project" }>): SliceTransition<SettingsState> {
+  if (state.recentProjects[0] === input.projectId) return {};
+  return { patch: { recentProjects: rememberProject(state.recentProjects, input.projectId) }, persists: true };
 }
 
 /** Opening a child loads its log and fills settings that older app versions did not capture. */
