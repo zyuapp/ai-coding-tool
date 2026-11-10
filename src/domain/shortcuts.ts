@@ -178,7 +178,7 @@ export function displayShortcut(binding: string, mac: boolean): string {
  */
 export const FIXED_SHORTCUTS: readonly ShortcutBinding[] = [
   { action: "thread.new", binding: "Mod+N", surface: "any" },
-  { action: "thread.new-worktree", binding: "Mod+Shift+N", surface: "any" },
+  { action: "thread.new-pick-project", binding: "Mod+Shift+N", surface: "any" },
   { action: "composer.focus", binding: "Mod+L", surface: "any" },
 
   { action: "find.open", binding: "Mod+F", surface: "any" },

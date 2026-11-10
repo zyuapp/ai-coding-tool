@@ -603,6 +603,9 @@ export function withDraft(state: WorkspaceState, change: Partial<AgentDraft>): W
 /** The new-thread composer's one draft, kept whichever project or computer it is pointed at. */
 export const NEW_THREAD_DRAFT = "draft:";
 
+/** The new-thread composer's project picker, as an `openMenu` value. */
+export const THREAD_START_PROJECT_MENU = "thread-start:project";
+
 /** The main composer's dictation: whether it can, and what the recording on this draft is doing. */
 function dictationView(state: WorkspaceState) {
   const { model, message, progress, session, sends } = state.dictation;

@@ -17,7 +17,7 @@ import {
   type KeyInput,
 } from "../../src/domain/shortcuts.ts";
 import { reduce, shortcutCommands, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
-import { deriveView, dockFor, dockOwner, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView, dockFor, dockOwner, emptyWorkspaceState, THREAD_START_PROJECT_MENU, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 
 function input(code: string, { key = "", meta = false, control = false, alt = false, shift = false }: Partial<Omit<KeyInput, "code">> = {}): KeyInput {
@@ -128,11 +128,20 @@ test("a keystroke means whatever the user could have clicked", () => {
   assert.deepEqual(shortcutCommands(state, "settings.toggle", "any"), [{ type: "view.set-settings-open", open: true }]);
   assert.deepEqual(shortcutCommands(state, "app.check-for-updates", "any"), [{ type: "app.check-for-updates" }]);
   assert.deepEqual(shortcutCommands(state, "app.open-source-licenses", "any"), [{ type: "app.open-source-licenses" }]);
-  assert.deepEqual(shortcutCommands(state, "thread.new-worktree", "any"), [{ type: "task.new" }, { type: "task.set-worktree", worktree: true }]);
   assert.deepEqual(shortcutCommands(state, "nothing.at.all", "any"), [], "an action the app does not have asks for nothing");
 
   const inProject = workspace({ threads: [thread("a", { projectId: "p1" })], currentId: "a" });
   assert.deepEqual(shortcutCommands(inProject, "thread.new", "any"), [{ type: "task.new", projectId: "p1" }], "a new thread starts where the last one was");
+});
+
+test("a new thread can open on its project picker, which closes once the thread is left", () => {
+  const state = workspace({ threads: [thread("a", { projectId: "p1" }), thread("b")], currentId: "a" });
+  const picking = reduce(state, { type: "view.shortcut", action: "thread.new-pick-project", surface: "any" }).state;
+  assert.equal(picking.currentId, null);
+  assert.equal(picking.draftProjectId, "p1");
+  assert.equal(picking.openMenu, THREAD_START_PROJECT_MENU);
+  assert.equal(reduce(picking, { type: "task.select", taskId: "b" }).state.openMenu, null);
+  assert.equal(reduce(picking, { type: "task.new" }).state.openMenu, null);
 });
 
 test("going back with a keystroke moves the cursor rather than recording a visit", () => {

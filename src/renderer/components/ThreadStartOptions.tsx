@@ -61,6 +61,8 @@ export type ThreadStartOptionsProps = {
   projects: Project[];
   projectHosts?: ReadonlyMap<string, ThreadHost>;
   projectId: string | null;
+  projectsOpen: boolean;
+  onSetProjectsOpen: (open: boolean) => void;
   /** Project ids last picked here, newest first. Ids with no project are skipped. */
   recentProjectIds?: readonly string[];
   /** The project's registered workspace, which is what the branches are read from. */
@@ -69,7 +71,7 @@ export type ThreadStartOptionsProps = {
   worktree: boolean;
   /** Names the checkout the thread starts in when the user picked one the project already has. */
   startsInWorktree?: string;
-  /** No project starts the thread as a chat, in a scratch workspace of its own. */
+  /** No project starts the thread as a chat, in a scratch workspace of its own. Every pick is reported, the current one included. */
   onSelectProject: (projectId?: string) => void;
   onAddProject: () => void;
   /** `create` names a branch the repository does not have yet, made when the thread starts. */
@@ -137,24 +139,82 @@ function CoordinatorToggle({ coordinator, onSetCoordinator }: Pick<ThreadStartOp
   );
 }
 
+type ProjectPickerProps = Pick<ThreadStartOptionsProps, "projects" | "projectHosts" | "projectId" | "onAddProject"> & {
+  recentProjectIds: readonly string[];
+  onPick: (projectId?: string) => void;
+};
+
+/** The project list, whose search starts empty each time it opens. */
+function ProjectPicker({ projects, projectHosts, projectId, recentProjectIds, onPick, onAddProject }: ProjectPickerProps) {
+  const [query, setQuery] = useState("");
+  const matched = matchProjects(projects, query, projectHosts);
+  const showComputers = projects.some((item) => projectHosts?.has(item.id));
+  const recent = query.trim() ? [] : recentProjects(projects, recentProjectIds);
+  const hostName = (item: Project) => projectHosts?.get(item.id)?.name ?? "This computer";
+  const sharedNames = namesakes(projects, projectHosts);
+  /** Recent rows sit under no computer heading, so they name their computer themselves. */
+  const option = (item: Project, showsHost = false) => {
+    const itemHost = projectHosts?.get(item.id);
+    const parent = sharedNames.has(item.id) ? parentFolder(item.root) : undefined;
+    return (
+      <PickerOption
+        key={item.id}
+        aria-label={showComputers || parent ? `${projectName(item)}${parent ? ` in ${parent}` : ""}${showComputers ? ` on ${hostName(item)}` : ""}` : undefined}
+        selected={item.id === projectId}
+        onClick={() => onPick(item.id)}
+      >
+        <span className="thread-start-project-name" data-tip={projectName(item)} data-tip-overflow>{projectName(item)}</span>
+        {parent && <small data-tip={parent} data-tip-overflow>{parent}</small>}
+        {showsHost && showComputers && <HostMark name={hostName(item)} offline={itemHost?.offline} reconnecting={itemHost?.reconnecting} />}
+      </PickerOption>
+    );
+  };
+  return (
+    <PickerPopover className="thread-start-popover">
+      <PickerSearch label="Search projects" value={query} onChange={setQuery} />
+      <div role="listbox" aria-label="Projects">
+        {/** Leaving the project behind is how a chat is started, so it leads the list rather than hiding in it. */}
+        {!query.trim() && <PickerOption className="thread-start-no-project" selected={!projectId} onClick={() => onPick(undefined)}>No project</PickerOption>}
+        {recent.length > 0 && (
+          <div role="group" aria-label="Recent">
+            <div className="thread-start-group-heading" aria-hidden="true"><span className="thread-start-group-label"><Clock size={12} /><span>Recent</span></span></div>
+            {recent.map((item) => option(item, true))}
+          </div>
+        )}
+        {matched.length === 0 && <p className="thread-start-empty">No project matches</p>}
+        {/** Below Recent, an unlabelled list would read as more of it, so it is named when no computer names it. */}
+        {groupProjects(matched, projectHosts).map(({ host, projects: grouped }) => (
+          <div key={host ? `remote:${host.id}` : "local"} role={showComputers || recent.length ? "group" : undefined} aria-label={showComputers ? host?.name ?? "This computer" : recent.length ? "All projects" : undefined}>
+            {showComputers
+              ? <div className="thread-start-group-heading" aria-hidden="true"><HostMark name={host?.name ?? "This computer"} offline={host?.offline} reconnecting={host?.reconnecting} /></div>
+              : recent.length > 0 && <div className="thread-start-group-heading" aria-hidden="true"><span className="thread-start-group-label"><span>All projects</span></span></div>}
+            {grouped.map((item) => option(item))}
+          </div>
+        ))}
+      </div>
+      <button type="button" className="picker-option thread-start-add-project" onClick={onAddProject}>
+        <span className="picker-mark" aria-hidden="true"><Plus size={14} /></span>
+        <span className="picker-label">Add project…</span>
+      </button>
+    </PickerPopover>
+  );
+}
+
 /**
  * What the user is about to start still needs to know: which project, if any, which branch it starts
  * from, and whether it gets a checkout of its own. No project makes it a chat. Nothing here touches
  * disk — the first message does that.
  */
-export function ThreadStartOptions({ projects, projectHosts, projectId, recentProjectIds = [], workspaceId, branch, worktree, startsInWorktree, onSelectProject, onAddProject, onSelectBranch, onSetWorktree, worktreeChoices = NO_CHOICES, onStartInWorktree, coordinator, onSetCoordinator }: ThreadStartOptionsProps) {
-  const [projectsOpen, setProjectsOpen] = useState(false);
-  const [projectQuery, setProjectQuery] = useState("");
+export function ThreadStartOptions({ projects, projectHosts, projectId, projectsOpen, onSetProjectsOpen, recentProjectIds = [], workspaceId, branch, worktree, startsInWorktree, onSelectProject, onAddProject, onSelectBranch, onSetWorktree, worktreeChoices = NO_CHOICES, onStartInWorktree, coordinator, onSetCoordinator }: ThreadStartOptionsProps) {
   const [branchesOpen, setBranchesOpen] = useState(false);
   const projectRef = useRef<HTMLDivElement>(null);
   const projectTrigger = useRef<HTMLButtonElement>(null);
   const branchRef = useRef<HTMLDivElement>(null);
   const branchTrigger = useRef<HTMLButtonElement>(null);
   const branchMenu = useRef<HTMLDivElement>(null);
-  useDismissibleLayer(projectsOpen, [projectRef], () => setProjectsOpen(false), projectTrigger);
+  useDismissibleLayer(projectsOpen, [projectRef], () => onSetProjectsOpen(false), projectTrigger);
   useDismissibleLayer(branchesOpen, [branchRef, branchMenu], () => setBranchesOpen(false), branchTrigger);
   const project = projects.find((item) => item.id === projectId);
-  const matched = matchProjects(projects, projectQuery, projectHosts);
   const branches = useBranches(workspaceId);
 
   const current = branches?.status === "available" ? branches.current : null;
@@ -177,34 +237,11 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, recentPr
   const host = project && projectHosts?.get(project.id);
   const showComputers = projects.some((item) => projectHosts?.has(item.id));
   const label = project ? projectName(project) : "No project";
-  const recent = projectQuery.trim() ? [] : recentProjects(projects, recentProjectIds);
-  const hostName = (item: Project) => projectHosts?.get(item.id)?.name ?? "This computer";
-  const sharedNames = namesakes(projects, projectHosts);
-  /** Recent rows sit under no computer heading, so they name their computer themselves. */
-  const option = (item: Project, showsHost = false) => {
-    const itemHost = projectHosts?.get(item.id);
-    const parent = sharedNames.has(item.id) ? parentFolder(item.root) : undefined;
-    return (
-      <PickerOption
-        key={item.id}
-        aria-label={showComputers || parent ? `${projectName(item)}${parent ? ` in ${parent}` : ""}${showComputers ? ` on ${hostName(item)}` : ""}` : undefined}
-        selected={item.id === projectId}
-        onClick={() => {
-          setProjectsOpen(false);
-          onSelectProject(item.id);
-        }}
-      >
-        <span className="thread-start-project-name" data-tip={projectName(item)} data-tip-overflow>{projectName(item)}</span>
-        {parent && <small data-tip={parent} data-tip-overflow>{parent}</small>}
-        {showsHost && showComputers && <HostMark name={hostName(item)} offline={itemHost?.offline} reconnecting={itemHost?.reconnecting} />}
-      </PickerOption>
-    );
-  };
 
   return (
     <div className="thread-start" aria-label="How this thread starts">
       <div className={`thread-start-field thread-start-project ${projectsOpen ? "open" : ""}`} ref={projectRef}>
-        <button ref={projectTrigger} type="button" aria-label={`Project: ${label}${showComputers && project ? ` on ${host?.name ?? "This computer"}` : ""}`} aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => { setProjectQuery(""); setProjectsOpen(!projectsOpen); }}>
+        <button ref={projectTrigger} type="button" aria-label={`Project: ${label}${showComputers && project ? ` on ${host?.name ?? "This computer"}` : ""}`} aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => onSetProjectsOpen(!projectsOpen)}>
           {project ? <FolderGit2 size={14} /> : <MessageCircle size={14} />}
           <span className="thread-start-project-label">
             <span>{label}</span>
@@ -212,33 +249,14 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, recentPr
           </span>
           <ChevronDown size={14} />
         </button>
-        {projectsOpen && <PickerPopover className="thread-start-popover">
-          <PickerSearch label="Search projects" value={projectQuery} onChange={setProjectQuery} />
-          <div role="listbox" aria-label="Projects">
-            {/** Leaving the project behind is how a chat is started, so it leads the list rather than hiding in it. */}
-            {!projectQuery.trim() && <PickerOption className="thread-start-no-project" selected={!project} onClick={() => { setProjectsOpen(false); if (project) onSelectProject(undefined); }}>No project</PickerOption>}
-            {recent.length > 0 && (
-              <div role="group" aria-label="Recent">
-                <div className="thread-start-group-heading" aria-hidden="true"><span className="thread-start-group-label"><Clock size={12} /><span>Recent</span></span></div>
-                {recent.map((item) => option(item, true))}
-              </div>
-            )}
-            {matched.length === 0 && <p className="thread-start-empty">No project matches</p>}
-            {/** Below Recent, an unlabelled list would read as more of it, so it is named when no computer names it. */}
-            {groupProjects(matched, projectHosts).map(({ host, projects: grouped }) => (
-              <div key={host ? `remote:${host.id}` : "local"} role={showComputers || recent.length ? "group" : undefined} aria-label={showComputers ? host?.name ?? "This computer" : recent.length ? "All projects" : undefined}>
-                {showComputers
-                  ? <div className="thread-start-group-heading" aria-hidden="true"><HostMark name={host?.name ?? "This computer"} offline={host?.offline} reconnecting={host?.reconnecting} /></div>
-                  : recent.length > 0 && <div className="thread-start-group-heading" aria-hidden="true"><span className="thread-start-group-label"><span>All projects</span></span></div>}
-                {grouped.map((item) => option(item))}
-              </div>
-            ))}
-          </div>
-          <button type="button" className="picker-option thread-start-add-project" onClick={() => { setProjectsOpen(false); onAddProject(); }}>
-            <span className="picker-mark" aria-hidden="true"><Plus size={14} /></span>
-            <span className="picker-label">Add project…</span>
-          </button>
-        </PickerPopover>}
+        {projectsOpen && <ProjectPicker
+          projects={projects}
+          projectHosts={projectHosts}
+          projectId={project?.id ?? null}
+          recentProjectIds={recentProjectIds}
+          onPick={(id) => { onSetProjectsOpen(false); onSelectProject(id); }}
+          onAddProject={() => { onSetProjectsOpen(false); onAddProject(); }}
+        />}
       </div>
 
       <div className="thread-start-git">

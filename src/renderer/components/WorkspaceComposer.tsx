@@ -2,6 +2,7 @@ import { ConversationComposer, type ComposerAction } from "./ConversationCompose
 import { dictationBinding } from "./ComposerDictation";
 import { NeedsYouCard } from "./NeedsYouCard";
 import { ThreadStartOptions } from "./ThreadStartOptions";
+import { THREAD_START_PROJECT_MENU } from "../../application/workspace-state";
 import { attachDroppedFiles, imageSources } from "../dropped-files";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { sentPrompts } from "../../domain/conversation";
@@ -82,6 +83,8 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
           projects={workspace.startProjects}
           projectHosts={workspace.projectHosts}
           projectId={workspace.currentProject?.id ?? null}
+          projectsOpen={workspace.openMenu === THREAD_START_PROJECT_MENU}
+          onSetProjectsOpen={(open) => void workspace.dispatch({ type: "view.set-menu", menu: open ? THREAD_START_PROJECT_MENU : null })}
           recentProjectIds={workspace.recentProjects}
           {...(workspace.currentProject?.workspaceId ? { workspaceId: workspace.currentProject.workspaceId } : {})}
           branch={workspace.draftBranch}
@@ -89,7 +92,8 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
           {...(workspace.draftWorktreeName ? { startsInWorktree: workspace.draftWorktreeName } : {})}
           onSelectProject={(projectId) => {
             if (projectId) void workspace.dispatch({ type: "view.remember-project", projectId });
-            void workspace.actions.newThread(projectId);
+            if ((projectId ?? null) === (workspace.currentProject?.id ?? null)) void workspace.dispatch({ type: "view.focus-composer" });
+            else void workspace.actions.newThread(projectId);
           }}
           onAddProject={workspace.actions.openFolder}
           onSelectBranch={workspace.actions.setBranch}

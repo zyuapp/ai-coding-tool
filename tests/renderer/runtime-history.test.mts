@@ -132,7 +132,7 @@ test("keyboard navigation lands without waiting and an explicit find target hydr
   assert.deepEqual(history.needed({ type: "view.go-back" }), []);
   assert.deepEqual(history.needed({ type: "view.shortcut", action: "nav.back", surface: "any" }), []);
   assert.deepEqual(history.needed({ type: "view.find-open", target: { kind: "thread", taskId: "second" } }), ["second"]);
-  assert.deepEqual(history.needed({ type: "view.shortcut", action: "thread.new-worktree", surface: "any" }), []);
+  assert.deepEqual(history.needed({ type: "view.shortcut", action: "thread.new-pick-project", surface: "any" }), []);
 });
 
 test("transcript references resolve titles and ID prefixes before loading", async () => {

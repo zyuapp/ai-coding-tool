@@ -67,6 +67,20 @@ test("context usage stays within 100% when the window shrinks below the used tok
   await view.unmount();
 });
 
+test("asking for the composer leaves the keys in a menu that took them as it opened", async () => {
+  window.desktop = fakeDesktop();
+  const picker = (open: boolean) => open && React.createElement("div", { "data-popover-menu": true }, React.createElement("input", { "aria-label": "Search projects", autoFocus: true }));
+  const view = await mount(renderConversationComposer({ focusToken: 0, startOptions: picker(false) }));
+  const field = query<HTMLTextAreaElement>(view.container, "textarea");
+
+  await view.render(renderConversationComposer({ focusToken: 1, startOptions: picker(true) }));
+  assert.equal(dom.window.document.activeElement, query(view.container, 'input[aria-label="Search projects"]'));
+
+  await view.render(renderConversationComposer({ focusToken: 2, startOptions: picker(false) }));
+  assert.equal(dom.window.document.activeElement, field, "once the menu is gone the composer takes them");
+  await view.unmount();
+});
+
 test("one outside pointer press dismisses the slash menu until the draft changes", async () => {
   window.desktop = fakeDesktop({ commands: async () => ({ status: "available", commands: [{ name: "review", description: "Review this change.", argumentHint: "" }] }) });
   function Harness() {

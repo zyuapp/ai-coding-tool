@@ -11,8 +11,17 @@ function fakeDesktop() {
   return { branches: async () => branches } as unknown as typeof window.desktop;
 }
 
-test("the start options say where a thread begins, and searching narrows the branches", async () => {
+/** The start options with the project list's open state held the way the workspace holds it. */
+async function heldStartOptions() {
   const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  return function Held(props: Omit<React.ComponentProps<typeof ThreadStartOptions>, "projectsOpen" | "onSetProjectsOpen">) {
+    const [open, setOpen] = React.useState(false);
+    return React.createElement(ThreadStartOptions, { ...props, projectsOpen: open, onSetProjectsOpen: setOpen });
+  };
+}
+
+test("the start options say where a thread begins, and searching narrows the branches", async () => {
+  const ThreadStartOptions = await heldStartOptions();
   window.desktop = fakeDesktop();
   type StartOptionsProps = React.ComponentProps<typeof ThreadStartOptions>;
   const chosen: {
@@ -95,7 +104,7 @@ test("the start options say where a thread begins, and searching narrows the bra
 });
 
 test("no project makes a chat, which is left only with whether it coordinates", async () => {
-  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  const ThreadStartOptions = await heldStartOptions();
   window.desktop = fakeDesktop();
   const chosen: Array<string | undefined> = [];
   const coordinating: boolean[] = [];
@@ -126,10 +135,10 @@ test("no project makes a chat, which is left only with whether it coordinates", 
   await open();
   assert.equal(rows()[0]?.getAttribute("aria-selected"), "true");
   await act(async () => { item(rows()[0]).click(); });
-  assert.deepEqual([...chosen], [], "the chat it already is asks for nothing");
+  assert.deepEqual([...chosen], [undefined], "picking the chat it already is still answers the pick");
   await open();
   await act(async () => { item(rows()[1]).click(); });
-  assert.deepEqual([...chosen], ["project-a"], "picking a project turns the chat into work");
+  assert.deepEqual([...chosen], [undefined, "project-a"], "picking a project turns the chat into work");
 
   await view.render(options(null, []));
   assert.deepEqual([...view.container.querySelectorAll(".thread-start button")].map((button) => button.textContent), ["Add project", "Coordinator"], "with nowhere to work there is no project to pick, only one to add");
@@ -150,7 +159,7 @@ test("a new thread's empty transcript asks for work only once the threads are re
 });
 
 test("the drafted project is shown wherever it sits in the list", async () => {
-  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  const ThreadStartOptions = await heldStartOptions();
   window.desktop = fakeDesktop();
   const projects = [{ id: "local", root: "/mac/ai-coding-tool" }, { id: "remote", root: "/linux/just-speak" }];
   const view = await mount(React.createElement(ThreadStartOptions, {
@@ -170,7 +179,7 @@ test("the drafted project is shown wherever it sits in the list", async () => {
 });
 
 test("a branch the repository does not have is offered as one to create", async () => {
-  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  const ThreadStartOptions = await heldStartOptions();
   window.desktop = fakeDesktop();
   type StartOptionsProps = React.ComponentProps<typeof ThreadStartOptions>;
   const chosen: Array<{ name: string | null; create: boolean | undefined }> = [];
@@ -243,7 +252,7 @@ test("a project search keeps what the query names, by name, path, and computer",
 });
 
 test("the project picker labels and groups duplicate repository names by computer", async () => {
-  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  const ThreadStartOptions = await heldStartOptions();
   window.desktop = fakeDesktop();
   const projects = [
     { id: "studio-one", root: "/repo/shared" },
@@ -326,7 +335,7 @@ test("a branch search keeps what the query names, and everything when it is empt
 });
 
 test("a branch picker that cannot read branches yet says where the thread starts instead", async () => {
-  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  const ThreadStartOptions = await heldStartOptions();
   window.desktop = fakeDesktop();
   const options = (workspaceId?: string) => React.createElement(ThreadStartOptions, {
     projects: [{ id: "project-a", root: "/repo/ai-coding-tool" }],
@@ -357,7 +366,7 @@ test("a branch picker that cannot read branches yet says where the thread starts
 });
 
 test("a branch list that cannot be read says so on the picker, which still opens to the reason", async () => {
-  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  const ThreadStartOptions = await heldStartOptions();
   window.desktop = { branches: async () => ({ status: "error", message: "not a git repository" }) } as unknown as typeof window.desktop;
   const view = await mount(React.createElement(ThreadStartOptions, {
     projects: [{ id: "project-a", root: "/repo/ai-coding-tool" }],
@@ -383,7 +392,7 @@ test("a branch list that cannot be read says so on the picker, which still opens
 });
 
 test("the project picker leads with recent projects until a search starts", async () => {
-  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  const ThreadStartOptions = await heldStartOptions();
   window.desktop = fakeDesktop();
   const projects = [{ id: "alpha", root: "/repo/alpha" }, { id: "beta", root: "/repo/beta" }, { id: "gamma", root: "/repo/gamma" }];
   const chosen: Array<string | undefined> = [];
@@ -439,7 +448,7 @@ test("the project picker leads with recent projects until a search starts", asyn
 });
 
 test("the project picker ends with adding a project, and with none to pick the start options offer adding one", async () => {
-  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  const ThreadStartOptions = await heldStartOptions();
   window.desktop = fakeDesktop();
   let added = 0;
   const chosen: Array<string | undefined> = [];
@@ -468,7 +477,7 @@ test("the project picker ends with adding a project, and with none to pick the s
 });
 
 test("with checkouts the project already has, the worktree control picks none, a new one, or one of them", async () => {
-  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  const ThreadStartOptions = await heldStartOptions();
   window.desktop = fakeDesktop();
   const toggled: boolean[] = [];
   const startedIn: string[] = [];

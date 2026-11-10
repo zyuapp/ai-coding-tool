@@ -15,7 +15,7 @@ import { activeComputer, computerOfThread, selectedComputer, leavesComputer, rou
 import { supportsComputerCommand } from "../contracts/computer-capabilities.js";
 import { clampTitle } from "../domain/thread.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
-import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, keyboardThreadId, recordVisit, threadSlots, type WorkspaceState } from "./workspace-state.js";
+import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, keyboardThreadId, recordVisit, THREAD_START_PROJECT_MENU, threadSlots, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type { AgentEvent } from "../contracts/ipc.js";
 import { slotShortcutIndex, type ShortcutSurface } from "../domain/shortcuts.js";
@@ -61,7 +61,7 @@ function reduceInput(state: WorkspaceState, input: WorkspaceInput): WorkspaceTra
     transition.effects = [{ type: "browser.permissions", permissions: browserPermissions(transition.state) }, ...transition.effects];
   }
   if (transition.state.currentId === state.currentId) return transition;
-  if (transition.state.openMenu === "session:location") transition.state = { ...transition.state, openMenu: null };
+  if (transition.state.openMenu === "session:location" || transition.state.openMenu === THREAD_START_PROJECT_MENU) transition.state = { ...transition.state, openMenu: null };
   /** A dock tab asked for the keys only on that visit, so coming back later finds the caret in the composer. */
   if (transition.state.dockFocus && transition.state.dockFocus === state.dockFocus) transition.state = { ...transition.state, dockFocus: null };
   const landed = transition.state.currentId !== null && input.type !== "view.go-back" && input.type !== "view.go-forward"
@@ -199,7 +199,7 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "app.check-for-updates": return [{ type: "app.check-for-updates" }];
     case "app.open-source-licenses": return [{ type: "app.open-source-licenses" }];
     case "thread.new": return [...leaving, newThread];
-    case "thread.new-worktree": return [...leaving, newThread, { type: "task.set-worktree", worktree: true }];
+    case "thread.new-pick-project": return [...leaving, newThread, { type: "view.set-menu", menu: THREAD_START_PROJECT_MENU }];
     case "run.cancel": return [{ type: "run.cancel" }];
     case "run.allow":
     case "run.deny": {

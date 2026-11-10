@@ -252,6 +252,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
         draftWorktreeId: worktree?.id ?? null,
         draftRole: null,
         actionError: null,
+        openMenu: null,
         lastFolder: project?.root ?? state.lastFolder,
       }), TAKE_KEYS);
     }
