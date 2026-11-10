@@ -320,12 +320,11 @@
   }
 }
 /**
- * Where the panes are real glass, nothing needs a solid page behind it, so the window is one sheet:
- * the page takes the frame's own tint and loses its edge, and the sidebar and the conversation are
- * the same colour.
+ * Over Liquid Glass the window is one sheet: the page takes the frame's own tint and loses its edge,
+ * and the sidebar and the conversation are the same colour.
  */
 @media (prefers-reduced-transparency: no-preference) {
-  :root[data-glass-panes] {
+  :root[data-glass-sheet] {
     --frame: rgb(from var(--canvas) r g b / calc(0.5 + 0.38 * var(--glass-tint)));
     --page: transparent;
     --shadow-page: none;
@@ -370,17 +369,17 @@
     --diff-selected-line: rgb(from var(--p-info) r g b / 0.32);
   }
   /** A float drawn in the page blurs what the page drew under it. */
-  :root[data-glass-panes] :is(.theme-select-popover, .font-select-popover, .toast, .usage-card, .thread-jump-panel, .tooltip, .annotation-card, .annotate-editor, .right-dock-add > div) { backdrop-filter: var(--glass-menu-blur); }
-  :root[data-glass-panes] .composer-wrap:has(> .glass-slot) { background: none; }
+  :root[data-glass-sheet] :is(.theme-select-popover, .font-select-popover, .toast, .usage-card, .thread-jump-panel, .tooltip, .annotation-card, .annotate-editor, .right-dock-add > div) { backdrop-filter: var(--glass-menu-blur); }
+  :root[data-glass-sheet] .composer-wrap { background: none; }
   /** On one sheet nothing else parts the sidebar from the conversation, so a hairline does, where the sidebar is dragged wider. */
-  :root[data-glass-panes] .sidebar-resizer::before { content: ""; position: absolute; inset: 0 auto 0 calc(50% - 0.5px); width: 1px; background: var(--line-glass); }
-  :root[data-glass-panes] .settings-sidebar { box-shadow: 4px 0 0 -3px var(--line-glass); }
+  :root[data-glass-sheet] .sidebar-resizer::before { content: ""; position: absolute; inset: 0 auto 0 calc(50% - 0.5px); width: 1px; background: var(--line-glass); }
+  :root[data-glass-sheet] .settings-sidebar { box-shadow: 4px 0 0 -3px var(--line-glass); }
   /** The dock and the inspector are part of the same sheet: no ground of their own, and a hairline where they begin. */
-  :root[data-glass-panes] :is(.right-dock, .subagent-inspector) { --sunken: transparent; border-radius: 0; background: none; box-shadow: none; }
-  :root[data-glass-panes] .right-dock { top: 0; grid-template-rows: var(--chrome-head) minmax(0, 1fr); }
-  :root[data-glass-panes] .workspace.dock-full .right-dock { inset: 0; }
-  :root[data-glass-panes] .subagent-inspector { margin: 0 0 0 var(--frame-gap); grid-template-rows: var(--chrome-head) minmax(0, 1fr); }
-  :root[data-glass-panes] :is(.right-dock, .subagent-inspector)::before { content: ""; position: absolute; z-index: 6; inset: 0 auto 0 calc(var(--frame-gap) / -2); width: 1px; background: var(--line-glass); pointer-events: none; }
+  :root[data-glass-sheet] :is(.right-dock, .subagent-inspector) { --sunken: transparent; border-radius: 0; background: none; box-shadow: none; }
+  :root[data-glass-sheet] .right-dock { top: 0; grid-template-rows: var(--chrome-head) minmax(0, 1fr); }
+  :root[data-glass-sheet] .workspace.dock-full .right-dock { inset: 0; }
+  :root[data-glass-sheet] .subagent-inspector { margin: 0 0 0 var(--frame-gap); grid-template-rows: var(--chrome-head) minmax(0, 1fr); }
+  :root[data-glass-sheet] :is(.right-dock, .subagent-inspector)::before { content: ""; position: absolute; z-index: 6; inset: 0 auto 0 calc(var(--frame-gap) / -2); width: 1px; background: var(--line-glass); pointer-events: none; }
 }
 /** And keeps solid panes in place of glass ones. */
 @media (prefers-reduced-transparency: reduce) {

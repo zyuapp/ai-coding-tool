@@ -18,4 +18,7 @@ export function applyWindowChrome(platform: DesktopPlatform, material: WindowMat
   root.dataset.windowChrome = windowChrome(platform);
   if (material === "none") delete root.dataset.windowMaterial;
   else root.dataset.windowMaterial = material;
+  /** Over Liquid Glass the whole window is drawn as one sheet. */
+  if (material === "glass") root.dataset.glassSheet = "";
+  else delete root.dataset.glassSheet;
 }

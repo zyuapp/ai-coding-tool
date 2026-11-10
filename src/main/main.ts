@@ -686,7 +686,7 @@ serveWindowDesktop({
   reads: computerReads,
   setTheme: setWindowTheme,
   setWindowGlassRegions: (regions) => {
-    if (glassLayerOffered && window && !window.isDestroyed()) windowGlass?.regions(window.getNativeWindowHandle(), glassRegionsInPoints(regions, window.webContents.getZoomFactor()));
+    if (window && !window.isDestroyed()) windowGlass?.regions(window.getNativeWindowHandle(), glassRegionsInPoints(regions, window.webContents.getZoomFactor()));
   },
   glassLayer: {
     setRegions: (regions) => glassLayer?.setRegions(regions),

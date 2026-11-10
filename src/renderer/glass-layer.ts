@@ -53,9 +53,6 @@ function left(event: Event) {
  */
 export function shareListenersWithGlassLayer() {
   if (!window.desktop.glassLayer) return;
-  /** With its panes on real glass, the page itself can be glass too, and says so for the stylesheet. */
-  document.documentElement.dataset.glassPanes = "";
-  followFramePanes();
   for (const on of ["window", "document"] as const) {
     const target: Window | Document = on === "window" ? window : document;
     const add = target.addEventListener.bind(target);
@@ -104,7 +101,7 @@ const FRAME_PANES = ".task-row.active, .settings-sidebar button.active, .new-tas
 const FRAME_SIDES = ".sidebar, .settings-sidebar";
 
 /** Keeps a pane of glass under each of the frame's panes as they are chosen, scrolled and resized. */
-function followFramePanes() {
+export function followFramePanes() {
   let frame = 0;
   let told = "";
   const report = () => {
