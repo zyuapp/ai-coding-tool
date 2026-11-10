@@ -194,21 +194,21 @@ struct ComputerMenu: View {
                         if computers.filter({ $0.title == computer.title }).count > 1 { Text(computer.address) }
                     }
                 }
+                Button { panel = .pairing } label: { Text("Pair a Computer…") }
             }
-            if model.live, let upkeep = model.view.upkeep {
-                Section("Updates") { UpkeepRows(model: model, items: model.view.pendingUpkeep, all: upkeep) }
-            }
-            if model.live, let usage = model.view.usage {
+            if model.live, model.view.upkeep != nil || model.view.usage != nil {
                 Section {
-                    Button { panel = .usage } label: {
-                        Text("Usage")
-                        if let summary = usage.summary { Text(summary) }
+                    if let upkeep = model.view.upkeep { UpkeepRows(model: model, items: model.view.pendingUpkeep, all: upkeep) }
+                    if let usage = model.view.usage {
+                        Button { panel = .usage } label: {
+                            Text("Usage")
+                            if let summary = usage.summary { Text(summary) }
+                        }
                     }
                 }
             }
-            Section {
-                Button { panel = .pairing } label: { Text("Pair a Computer…") }
-                if let current {
+            if let current {
+                Section {
                     Button(role: .destructive) { forgetting = current } label: { Text("Forget \(current.title)…") }
                 }
             }
@@ -272,7 +272,7 @@ struct ComputerMenu: View {
     }
 }
 
-/// The computer's app and engines that want the user, each a step when there is one; "Up to date" when none do.
+/// The computer's app and engines that want the user: one row inline, several behind an Updates submenu; "Up to Date" when none do.
 private struct UpkeepRows: View {
     var model: PhoneModel
     var items: [MobileUpkeepItem]
@@ -285,23 +285,31 @@ private struct UpkeepRows: View {
                 if let app = all.first(where: { $0.key == "app" }), let version = app.version { Text("\(app.label) \(version)") }
             }
             .disabled(true)
-        }
-        ForEach(items) { item in
-            if let action = item.action {
-                Button { model.send(action.command) } label: {
-                    if action.label == "Update" {
-                        Text("Update \(item.label)")
-                        Text(item.state.text)
-                        Image(systemName: "arrow.down.circle")
-                    } else {
-                        Text(action.label)
-                        Text("\(item.label) · \(item.state.text)")
-                        Image(systemName: action.label == "Cancel" ? "xmark.circle" : "arrow.clockwise")
-                    }
-                }
-            } else {
-                Button {} label: { Text(item.label); Text(item.state.text) }.disabled(true)
+        } else if items.count == 1, let item = items.first {
+            row(item)
+        } else {
+            Menu {
+                ForEach(items) { row($0) }
+            } label: {
+                Text("Updates")
+                Text(summary)
             }
+        }
+    }
+
+    private var summary: String {
+        if let busy = items.first(where: { $0.state.tone == "progress" || $0.state.tone == "error" }) { return "\(busy.label) · \(busy.state.text)" }
+        return "\(items.count) available"
+    }
+
+    @ViewBuilder private func row(_ item: MobileUpkeepItem) -> some View {
+        if let action = item.action {
+            Button { model.send(action.command) } label: {
+                Text(action.label == "Update" ? "Update \(item.label)" : action.label)
+                Text(action.label == "Update" ? item.state.text : "\(item.label) · \(item.state.text)")
+            }
+        } else {
+            Button {} label: { Text(item.label); Text(item.state.text) }.disabled(true)
         }
     }
 }
