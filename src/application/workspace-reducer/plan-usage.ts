@@ -4,9 +4,16 @@ import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./typ
 import type { WorkspaceState } from "../workspace-state.js";
 import { AGENT_ENGINES } from "../../domain/agent-engine.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
+import type { AgentEngine } from "../../domain/agent-engine.js";
+import type { PlanUsage } from "../../domain/plan-usage.js";
 
 export const PLAN_USAGE_INPUTS = ["usage.read", "usage.reported", "usage.dismiss-warning"] as const;
 type PlanUsageInput = Extract<WorkspaceInput, { type: (typeof PLAN_USAGE_INPUTS)[number] }>;
+
+/** What one provider says about its plan, named by the read it answers. */
+export type PlanUsageEvent = { type: "usage.reported"; engine: AgentEngine; read: number; usage: PlanUsage };
+
+export type PlanUsageEffect = { type: "read-plan-usage"; engine: AgentEngine; read: number };
 
 /**
  * Each connected computer is asked for its own limits, which arrive with its state. The ask goes

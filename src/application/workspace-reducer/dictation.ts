@@ -5,12 +5,28 @@ import { focusComposer } from "../composer-drafts.js";
 import { promptKey, withPrompt, type WorkspaceState } from "../workspace-state.js";
 import { rejected, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
+import type { DictationModel } from "../../domain/dictation.js";
 
 export const DICTATION_INPUTS = [
   "dictation.start", "dictation.hands-free", "dictation.stop", "dictation.cancel", "dictation.download", "dictation.cancel-download",
   "dictation.model", "dictation.started", "dictation.transcribed", "dictation.failed",
 ] as const;
 type DictationInput = Extract<WorkspaceInput, { type: (typeof DICTATION_INPUTS)[number] }>;
+
+/** Where this computer's speech model stands, and how a hold went. `id` names the hold. */
+export type DictationEvent =
+  | { type: "dictation.model"; model: DictationModel; message?: string; progress?: number }
+  | { type: "dictation.started"; id: string }
+  | { type: "dictation.transcribed"; id: string; text: string }
+  | { type: "dictation.failed"; id: string; message: string };
+
+/** The microphone and speech model. `stop` answers with the words heard since `start`. */
+export type DictationEffect =
+  | { type: "dictation.start"; id: string }
+  | { type: "dictation.stop"; id: string }
+  | { type: "dictation.cancel"; id: string }
+  | { type: "dictation.download" }
+  | { type: "dictation.cancel-download" };
 
 function withDictation(state: WorkspaceState, patch: Partial<DictationState>): WorkspaceState {
   return { ...state, dictation: { ...state.dictation, ...patch } };

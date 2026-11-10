@@ -3,6 +3,20 @@ import type { WorkspaceEffect } from "./types.js";
 import { selectedComputer } from "../computers.js";
 import { DIFF_PANEL, dockHoldsTab, dockSideChats, frontDock, ownerOfBrowserTab, ownerOfTerminal, type FindState, type WorkspaceState } from "../workspace-state.js";
 import { searchesItself, type FindTarget } from "../../domain/find.js";
+import type { FindResults } from "../../domain/find.js";
+
+/** What a page or a shell found, counted by whoever holds the text. `index` counts from zero. */
+export type FindEvent = { type: "find.results"; target: FindTarget; results: FindResults };
+
+/**
+ * Find, in the things that hold their own text. The transcript needs no effect: the timeline reads
+ * the match out of state and reveals it, folds and virtual rows and all.
+ */
+export type FindEffect =
+  | { type: "find-in-page"; tabId: string; query: string; forward: boolean; findNext: boolean }
+  | { type: "stop-find-in-page"; tabId: string }
+  | { type: "find-in-terminal"; terminalId: string; query: string; forward: boolean }
+  | { type: "stop-find-in-terminal"; terminalId: string };
 
 /** What a search asks of whoever holds the text. A thread and a review are counted where they are drawn. */
 export function searchEffects(find: FindState, { findNext, forward }: { findNext: boolean; forward: boolean }): WorkspaceEffect[] {

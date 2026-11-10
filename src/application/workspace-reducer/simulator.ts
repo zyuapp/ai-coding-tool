@@ -5,12 +5,31 @@ import type { WorkspaceState } from "../workspace-state.js";
 import { focusDockTab, persistView, showDockTab } from "./dock-tabs.js";
 import { settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
+import type { SimulatorAvailability, SimulatorInput as SimulatorGesture } from "../../domain/simulator.js";
 
 export const SIMULATOR_INPUTS = [
   "simulator.open", "simulator.refresh", "simulator.select", "simulator.input",
   "simulator.listed", "simulator.booted", "simulator.failed", "simulator.refused", "simulator.turned", "simulator.idle",
 ] as const;
 type SimulatorInput = Extract<WorkspaceInput, { type: (typeof SIMULATOR_INPUTS)[number] }>;
+
+/** What the Mac said about its simulators, and how a boot or a gesture went. */
+export type SimulatorEvent =
+  | { type: "simulator.listed"; availability: SimulatorAvailability; devices: SimulatorDevice[] }
+  | { type: "simulator.booted"; udid: string }
+  | { type: "simulator.failed"; udid: string; message: string }
+  | { type: "simulator.refused"; message: string }
+  /** A device took a rotation, which is when the panel starts drawing it that way up. */
+  | { type: "simulator.turned"; udid: string; orientation: SimulatorOrientation }
+  /** A run stopped driving a device a moment ago. `seq` names the stretch of driving that ended. */
+  | { type: "simulator.idle"; seq: number };
+
+/** The simulator panel's devices. `boot` answers once the device can take input. */
+export type SimulatorEffect =
+  | { type: "simulator.list" }
+  | { type: "simulator.boot"; udid: string }
+  /** `seq` is set for a run's gesture, whose driving ends a moment after the last one. */
+  | { type: "simulator.input"; udid: string; input: SimulatorGesture; taskId?: string; seq?: number };
 
 export const SIMULATOR_UNSUPPORTED = "The simulator needs Xcode on a Mac.";
 export const SIMULATOR_NOT_OPEN = "Open the simulator first.";

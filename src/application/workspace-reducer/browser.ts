@@ -6,12 +6,31 @@ import { settled, rejected } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { browserTarget, dockFor, dockOwner, ownerOfBrowserTab, withDock, type WorkspaceState } from "../workspace-state.js";
 import { browserOrigin, browserUrl } from "../../domain/browser.js";
+import type { BrowserPageEvent } from "../../contracts/ipc.js";
+import type { BrowserAction, BrowserPermissions } from "../../domain/browser.js";
 
 export const BROWSER_INPUTS = [
   "browser.open", "browser.new-tab", "browser.decide", "browser.select-tab", "browser.close-tab", "browser.go", "browser.reload", "browser.act",
   "browser.clear-data", "browser.updated"
 ] as const;
 type BrowserInput = Extract<WorkspaceInput, { type: (typeof BROWSER_INPUTS)[number] }>;
+
+/** What a page in the browser panel did. Main watches the page; the reducer keeps the record. */
+export type BrowserEvent = { type: "browser.updated"; page: BrowserPageEvent };
+
+/** The browser panel's pages. `open` is idempotent: a tab that already has a view keeps it. */
+export type BrowserEffect =
+  | { type: "browser.permissions"; permissions: BrowserPermissions }
+  | { type: "browser.open"; taskId?: string; tabId: string; url?: string }
+  | { type: "browser.navigate"; taskId?: string; tabId: string; url: string }
+  | { type: "browser.history"; taskId?: string; tabId: string; delta: -1 | 1 }
+  | { type: "browser.reload"; taskId?: string; tabId: string }
+  | { type: "browser.act"; taskId?: string; tabId: string; action: BrowserAction }
+  | { type: "browser.close"; tabId: string }
+  /** Which tab the panel shows. Where it shows is the panel's own to report. */
+  | { type: "browser.show"; tabId: string | null }
+  | { type: "browser.clear-data" }
+  | { type: "focus-browser"; tabId: string };
 
 export function reduceBrowser(state: WorkspaceState, input: BrowserInput): WorkspaceTransition {
   switch (input.type) {

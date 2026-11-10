@@ -1,22 +1,32 @@
-/** The machine around the thread: its shells, its files, and the applications that open them. */
+/** The machine around the thread: its files, and the applications that open them. */
 import { shownPageEffects } from "./browser-tabs.js";
-import { focusDockTab, showDockTab } from "./dock-tabs.js";
-import { APP_FOLDER_ERROR, FILE_FOLDER_ERROR, TERMINAL_FOLDER_ERROR } from "./errors.js";
+import { APP_FOLDER_ERROR, FILE_FOLDER_ERROR } from "./errors.js";
 import { settled, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { threadFileRoots } from "../thread-location.js";
-import { currentFolder, dockFor, dockOwner, dockTabAfterClosing, ownerOfTerminal, withDock, type WorkspaceState } from "../workspace-state.js";
+import { currentFolder, type WorkspaceState } from "../workspace-state.js";
 import { isAbsoluteFilePath } from "../../domain/markdown-links.js";
-import { terminalTitle, type TerminalSession } from "../../domain/terminal.js";
+import type { InstalledApp } from "../../contracts/ipc.js";
 import { DOCK_PICKER } from "../workspace-dock.js";
 import { rescheduledToasts } from "../toasts.js";
 
 export const DESKTOP_INPUTS = [
-  "image.open", "image.step", "image.close", "image.download", "file.open", "app.list", "apps.listed", "app.open-folder", "app.check-for-updates",
-  "app.download-update", "app.install-update", "app.update-changed", "app.open-source-licenses", "terminal.open", "terminal.select", "terminal.close",
-  "terminal.restart", "terminal.input", "terminal.resize", "terminal.updated", "view.closed", "view.mounted"
+  "image.open", "image.step", "image.close", "image.download", "file.open", "app.list", "apps.listed", "app.open-folder",
+  "app.open-source-licenses", "view.closed", "view.mounted"
 ] as const;
 type DesktopInput = Extract<WorkspaceInput, { type: (typeof DESKTOP_INPUTS)[number] }>;
+
+/** The applications this machine has, as the main process last found them. */
+export type DesktopEvent = { type: "apps.listed"; apps: InstalledApp[] };
+
+export type DesktopEffect =
+  | { type: "image.download"; source: string }
+  /** A file the desktop opens for the reader. `roots` are the checkouts to look for it in, nearest first. */
+  | { type: "file.open"; roots: string[]; path: string; line: number | null }
+  | { type: "app.list" }
+  /** The thread's checkout, opened in another application on the machine. */
+  | { type: "app.open-folder"; root: string; appId: string }
+  | { type: "app.open-source-licenses" };
 
 export function reduceDesktop(state: WorkspaceState, input: DesktopInput): WorkspaceTransition {
   switch (input.type) {
@@ -74,91 +84,7 @@ export function reduceDesktop(state: WorkspaceState, input: DesktopInput): Works
       return settled({ ...state, actionError: null, openMenu: null }, [{ type: "app.open-folder", root, appId: input.appId }]);
     }
 
-    case "app.check-for-updates":
-      return settled(state, [input.quiet ? { type: "app.check-for-updates", quiet: true } : { type: "app.check-for-updates" }]);
-
-    /** Main answers with the stage it moved to, so neither command writes the update itself. */
-    case "app.download-update":
-      return settled(state, state.appUpdate.status === "available" ? [{ type: "app.download-update" }] : []);
-
-    case "app.install-update":
-      return settled(state, state.appUpdate.status === "ready" ? [{ type: "app.install-update" }] : []);
-
-    case "app.update-changed":
-      return settled({ ...state, appUpdate: input.update });
-
     case "app.open-source-licenses":
       return settled(state, [{ type: "app.open-source-licenses" }]);
-
-    case "terminal.open": {
-      const owner = dockOwner(state);
-      const cwd = input.cwd ?? currentFolder(state);
-      if (!cwd) return rejected(state, TERMINAL_FOLDER_ERROR);
-      const terminal: TerminalSession = {
-        id: crypto.randomUUID(),
-        title: terminalTitle(cwd),
-        cwd,
-        taskId: state.currentId,
-        status: "running",
-      };
-      const dock = dockFor(state, owner);
-      const opened = withDock({ ...state, actionError: null }, owner, {
-        open: true,
-        tab: terminal.id,
-        terminals: [...dock.terminals, terminal],
-        terminalId: terminal.id,
-      });
-      const focused = focusDockTab(opened, owner, terminal.id);
-      return settled(focused.state, [{ type: "terminal.start", terminalId: terminal.id, cwd }, ...focused.effects]);
-    }
-
-    /** A shell that is asked for is a shell to type in, so it takes the keyboard as a side chat does. */
-    case "terminal.select": {
-      const owner = ownerOfTerminal(state, input.terminalId);
-      if (!owner) return settled(state);
-      const shown = withDock(showDockTab(state, owner, input.terminalId), owner, { terminalId: input.terminalId });
-      return focusDockTab(shown, owner, input.terminalId);
-    }
-
-    case "terminal.close": {
-      const owner = ownerOfTerminal(state, input.terminalId);
-      if (!owner) return settled(state);
-      const dock = dockFor(state, owner);
-      const index = dock.terminals.findIndex((terminal) => terminal.id === input.terminalId);
-      const tab = dock.tab === input.terminalId ? dockTabAfterClosing(state, owner, input.terminalId) : dock.tab;
-      const terminals = dock.terminals.filter((terminal) => terminal.id !== input.terminalId);
-      const next = dock.terminalId === input.terminalId
-        ? terminals[index - 1] ?? terminals[index] ?? null
-        : terminals.find((terminal) => terminal.id === dock.terminalId) ?? null;
-      return settled(withDock(state, owner, { terminals, terminalId: next?.id ?? null, tab }), [{ type: "terminal.close", terminalId: input.terminalId }]);
-    }
-
-    case "terminal.restart": {
-      const owner = ownerOfTerminal(state, input.terminalId);
-      if (!owner) return settled(state);
-      const dock = dockFor(state, owner);
-      const old = dock.terminals.find((terminal) => terminal.id === input.terminalId)!;
-      const terminal: TerminalSession = { id: crypto.randomUUID(), title: terminalTitle(old.cwd), cwd: old.cwd, taskId: old.taskId, status: "running" };
-      const replaced = withDock({ ...state, actionError: null }, owner, { terminals: dock.terminals.map((item) => item === old ? terminal : item), terminalId: terminal.id });
-      const restarted = showDockTab(replaced, owner, terminal.id);
-      const focused = focusDockTab(restarted, owner, terminal.id);
-      return settled(focused.state, [{ type: "terminal.close", terminalId: old.id }, { type: "terminal.start", terminalId: terminal.id, cwd: old.cwd }, ...focused.effects]);
-    }
-
-    /** Keystrokes and the size the shell believes it has. Neither is state, so only the effect happens. */
-    case "terminal.input":
-      return settled(state, [{ type: "terminal.write", terminalId: input.terminalId, data: input.data }]);
-
-    case "terminal.resize":
-      return settled(state, [{ type: "terminal.resize", terminalId: input.terminalId, cols: input.cols, rows: input.rows }]);
-
-    case "terminal.updated": {
-      const { terminalId, ...patch } = input.update;
-      const owner = ownerOfTerminal(state, terminalId);
-      if (!owner) return settled(state);
-      return settled(withDock(state, owner, {
-        terminals: dockFor(state, owner).terminals.map((terminal) => terminal.id === terminalId ? { ...terminal, ...patch } : terminal),
-      }));
-    }
   }
 }

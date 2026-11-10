@@ -5,12 +5,24 @@ import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { importNotice, sourceName, type BrowserImportState } from "../browser-import.js";
 import { MAX_IMPORT_SITES } from "../../domain/browser-import.js";
+import type { BrowserImportResult, BrowserImportSite, BrowserImportSource } from "../../domain/browser-import.js";
 
 export const BROWSER_IMPORT_INPUTS = [
   "browser-import.read", "browser-import.sources", "browser-import.choose", "browser-import.sites", "browser-import.toggle",
   "browser-import.filter", "browser-import.run", "browser-import.again", "browser-import.done", "browser-import.failed"
 ] as const;
 type BrowserImportInput = Extract<WorkspaceInput, { type: (typeof BROWSER_IMPORT_INPUTS)[number] }>;
+
+export type BrowserImportEvent =
+  | { type: "browser-import.sources"; sources: BrowserImportSource[] }
+  | { type: "browser-import.sites"; sourceId: string; sites: BrowserImportSite[] }
+  | { type: "browser-import.done"; sourceId: string; sites: string[]; result: BrowserImportResult }
+  | { type: "browser-import.failed"; message: string };
+
+export type BrowserImportEffect =
+  | { type: "browser-import.list-sources" }
+  | { type: "browser-import.list-sites"; sourceId: string }
+  | { type: "browser-import.import"; sourceId: string; sites: string[] };
 
 function patch(state: WorkspaceState, change: Partial<BrowserImportState>): WorkspaceState {
   return { ...state, browserImport: { ...state.browserImport, ...change } };

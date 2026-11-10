@@ -24,6 +24,7 @@ import { BROWSER_IMPORT_INPUTS, reduceBrowserImport } from "./browser-import.js"
 import { reduceSimulator, SIMULATOR_INPUTS } from "./simulator.js";
 import { DICTATION_INPUTS, reduceDictation } from "./dictation.js";
 import { DESKTOP_INPUTS, reduceDesktop } from "./desktop.js";
+import { reduceTerminal, TERMINAL_INPUTS } from "./terminal.js";
 import { reduceView, VIEW_INPUTS } from "./view.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { isRemoteInput, reduceRemote, type RemoteInput } from "../remote-commands.js";
@@ -80,6 +81,7 @@ export const CLAIMS = [
   claim(SIMULATOR_INPUTS, reduceSimulator),
   claim(DICTATION_INPUTS, reduceDictation),
   claim(DESKTOP_INPUTS, reduceDesktop),
+  claim(TERMINAL_INPUTS, reduceTerminal),
   claim(VIEW_INPUTS, reduceView),
 ];
 

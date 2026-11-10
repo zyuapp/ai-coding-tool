@@ -11,12 +11,23 @@ import { threadWorkspaceId } from "../thread-location.js";
 import { DIFF_PANEL, diffFor, diffMatches, dockFor, dockOwner, dockSubject, foldedOnLoad, retainedViews, withDiff, withDock, type WorkspaceState } from "../workspace-state.js";
 import { fileFingerprint, modeForRange, rangeKey, UNCOMMITTED } from "../../domain/diff.js";
 import { isCommitHash } from "../../domain/message-artifacts.js";
+import type { ChangedFilesResult, DiffSummaryResult } from "../../contracts/ipc.js";
+import type { DiffRange } from "../../domain/diff.js";
 
 export const DIFF_INPUTS = [
   "view.refresh-environment", "diff.toggle", "diff.refresh", "diff.open-commit", "diff.set-range", "diff.set-collapsed", "diff.set-mode",
   "diff.set-viewed", "diff.set-split", "diff.set-ignore-whitespace", "diff.loaded", "environment.updated"
 ] as const;
 type DiffInput = Extract<WorkspaceInput, { type: (typeof DIFF_INPUTS)[number] }>;
+
+export type DiffEvent =
+  | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult }
+  /** A comparison's file list, named by the dock that asked so a slow read cannot land in another. */
+  | { type: "diff.loaded"; owner: string; workspaceId: string; range: DiffRange; result: DiffSummaryResult };
+
+export type DiffEffect =
+  | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
+  | { type: "read-diff"; owner: string; workspaceId: string; range: DiffRange; ignoreWhitespace: boolean };
 
 export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceTransition {
   switch (input.type) {

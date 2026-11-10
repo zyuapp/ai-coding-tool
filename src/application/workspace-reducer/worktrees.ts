@@ -18,6 +18,8 @@ import { withoutWorktreeRoot, type WorkspaceState } from "../workspace-state.js"
 import { createConversationMessage } from "../../domain/conversation.js";
 import { dismissed } from "../../domain/attention.js";
 import type { Worktree } from "../../domain/worktree.js";
+import type { CreatedWorktree, WorktreeSnapshotResult } from "../../contracts/ipc.js";
+import type { ManagedWorktree } from "../../domain/worktree.js";
 
 export const WORKTREE_INPUTS = [
   "worktree.filter-project", "worktree.confirm-delete", "worktree.confirm-delete-safe", "worktree.delete-safe", "worktree.set-missing-open", "worktree.set-threads-open", "worktree.open-thread",
@@ -26,6 +28,26 @@ export const WORKTREE_INPUTS = [
   "worktree.deleted", "checkout.finished"
 ] as const;
 type WorktreeInput = Extract<WorkspaceInput, { type: (typeof WORKTREE_INPUTS)[number] }>;
+
+export type WorktreeEvent =
+  | { type: "worktree.created"; taskId: string; worktree: CreatedWorktree; move?: boolean; projectId?: string; then?: string }
+  | { type: "worktree.failed"; taskId: string; message: string }
+  | { type: "worktrees.loaded"; worktrees: ManagedWorktree[] }
+  | { type: "worktrees.failed"; message: string; root?: string }
+  | { type: "worktree.released"; taskId: string; snapshot: WorktreeSnapshotResult }
+  | { type: "worktree.release-failed"; taskId: string; message: string }
+  /** A branch checkout is over, with what went wrong when it did not happen. */
+  | { type: "checkout.finished"; message?: string }
+  | { type: "worktree.deleted"; worktreeId: string; root: string; snapshot: WorktreeSnapshotResult; missingOnly?: boolean };
+
+export type WorktreeEffect =
+  | { type: "create-worktree"; taskId: string; projectRoot: string; move?: boolean; name?: string; projectId?: string; then?: string }
+  | { type: "release-worktree"; taskId: string; worktreeId: string; root: string; title: string }
+  | { type: "list-worktrees" }
+  | { type: "reveal-worktree"; root: string }
+  | { type: "delete-worktree"; worktreeId: string; root: string; title: string; missingOnly?: boolean }
+  /** Moves a checkout onto a branch, making it at that checkout's HEAD first when `create`. */
+  | { type: "checkout-branch"; workspaceId: string; branch: string; create?: boolean };
 
 export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): WorkspaceTransition {
   /** A move that goes ahead answers the confirmation, so the question never outlives its answer. */

@@ -15,6 +15,9 @@ import { isSidebarSection } from "../../domain/sidebar.js";
 import { rememberProject } from "../../domain/project.js";
 import { isThemeMode, themeById, themeFor, themeOrDefault, variantFor } from "../../domain/theme.js";
 import { READING_SIZE, TERMINAL_SIZE, monoFontById, sizeById, uiFontById } from "../../domain/typography.js";
+import type { DesktopShortcutUnavailable } from "../workspace-state.js";
+import type { CaptureOptions } from "../../domain/capture.js";
+import type { ShortcutOverrides } from "../../domain/shortcuts.js";
 
 export const SETTINGS_INPUTS = [
   "view.set-theme", "view.set-theme-family", "view.set-theme-mode", "view.system-scheme", "view.set-ui-font", "view.set-mono-font",
@@ -25,6 +28,19 @@ export const SETTINGS_INPUTS = [
   "view.set-section-open"
 ] as const;
 type SettingsInput = Extract<WorkspaceInput, { type: (typeof SETTINGS_INPUTS)[number] }>;
+
+export type ShortcutEvent =
+  /** The keystroke settings were waiting for, or null when the user pressed Escape instead. */
+  | { type: "shortcut.captured"; binding: string | null }
+  /** An expected platform limitation for a desktop-wide shortcut, shown with that setting. */
+  | { type: "shortcut.unavailable"; refusal: DesktopShortcutUnavailable };
+
+export type ShortcutEffect =
+  /** The keystrokes the window matches. Only main sees the ones a page in the panel swallows. */
+  | { type: "apply-shortcuts"; overrides: ShortcutOverrides }
+  | { type: "apply-capture-options"; options: CaptureOptions }
+  /** While settings wait for a keystroke, main hands every one of them over instead of acting. */
+  | { type: "capture-shortcut"; capturing: boolean };
 
 export function reduceModelFavorite(state: WorkspaceState, input: Extract<WorkspaceInput, { type: "view.set-model-favorite" }>): WorkspaceTransition {
   if (!isAgentEngine(input.engine) || !isModelId(input.model) || typeof input.favorite !== "boolean" || isFavorite(state.favoriteModels, input.engine, input.model) === input.favorite) return settled(state);

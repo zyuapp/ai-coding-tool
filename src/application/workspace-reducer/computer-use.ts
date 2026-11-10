@@ -3,11 +3,22 @@ import { settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { sameComputerUsePermissions } from "../../domain/computer-use.js";
 import type { WorkspaceState } from "../workspace-state.js";
+import type { ComputerUsePermission, ComputerUsePermissions } from "../../domain/computer-use.js";
 
 export const COMPUTER_USE_INPUTS = [
   "computer-use.read", "computer-use.enable", "computer-use.restart", "computer-use.permissions", "computer-use.failed"
 ] as const;
 type ComputerUseInput = Extract<WorkspaceInput, { type: (typeof COMPUTER_USE_INPUTS)[number] }>;
+
+/** What the platform lets the app see and operate, and whether an enable was waiting on it. */
+export type ComputerUseEvent =
+  | { type: "computer-use.permissions"; permissions: ComputerUsePermissions; enabling?: true }
+  | { type: "computer-use.failed"; message: string; enabling?: true };
+
+export type ComputerUseEffect =
+  | { type: "computer-use.read" }
+  | { type: "computer-use.enable"; permission: ComputerUsePermission }
+  | { type: "computer-use.restart" };
 
 export function reduceComputerUse(state: WorkspaceState, input: ComputerUseInput): WorkspaceTransition {
   const access = state.computerUsePermissions;

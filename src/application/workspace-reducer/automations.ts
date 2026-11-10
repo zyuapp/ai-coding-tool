@@ -12,12 +12,25 @@ import type { Thread } from "../../domain/thread.js";
 import { automationRunPrompt, updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
+import type { AutomationAck, AutomationFire } from "../../contracts/ipc.js";
+import type { AutomationDraft, AutomationPatch } from "../../domain/automation.js";
 
 export const AUTOMATION_INPUTS = [
   "automation.fired", "automation.notify", "automation.nothing-to-report", "automation.save", "automation.update", "automation.delete",
   "automation.run-now", "automations.changed", "view.edit-automation"
 ] as const;
 type AutomationInput = Extract<WorkspaceInput, { type: (typeof AUTOMATION_INPUTS)[number] }>;
+
+export type AutomationEvent =
+  | { type: "automation.fired"; fire: AutomationFire }
+  | { type: "automations.changed"; automations: AutomationView[] };
+
+export type AutomationEffect =
+  | { type: "automation.save"; draft: AutomationDraft }
+  | { type: "automation.update"; taskId: string; patch: AutomationPatch }
+  | { type: "automation.delete"; taskId: string }
+  | { type: "automation.run-now"; taskId: string }
+  | { type: "automation.ack"; ack: AutomationAck };
 
 export function reduceAutomations(state: WorkspaceState, input: AutomationInput): WorkspaceTransition {
   switch (input.type) {

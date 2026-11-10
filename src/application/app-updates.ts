@@ -10,9 +10,25 @@ import { rejected, settled } from "./workspace-reducer/shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import { AGENT_ENGINES, engineUpdate } from "../domain/agent-engine.js";
+import type { AppBuild, AppUpdate } from "../domain/app-update.js";
 
-export const APP_UPDATE_INPUTS = ["app.update", "app.cancel-update", "app.build", "app.launched"] as const;
+export const APP_UPDATE_INPUTS = [
+  "app.update", "app.cancel-update", "app.build", "app.launched", "app.check-for-updates", "app.download-update", "app.install-update", "app.update-changed"
+] as const;
 type AppUpdateInput = Extract<WorkspaceInput, { type: (typeof APP_UPDATE_INPUTS)[number] }>;
+
+export type AppUpdateEvent =
+  | { type: "app.update-changed"; update: AppUpdate }
+  /** The build this computer runs, as main reports it once on the way up. */
+  | { type: "app.build"; build: AppBuild | null }
+  /** This launch is the first since the app was updated to `version`. */
+  | { type: "app.launched"; version: string };
+
+export type AppUpdateEffect =
+  | { type: "app.check-for-updates"; quiet?: true }
+  /** `unattended` is for an update asked from another computer: nobody may be at this screen to answer a dialog. */
+  | { type: "app.download-update"; unattended?: true }
+  | { type: "app.install-update"; unattended?: true };
 
 export const NO_UPDATE_TO_INSTALL = "There is no newer version to install.";
 
@@ -29,6 +45,19 @@ export function runningThreads(state: WorkspaceState): number {
 
 export function reduceAppUpdate(state: WorkspaceState, input: AppUpdateInput): WorkspaceTransition {
   switch (input.type) {
+    case "app.check-for-updates":
+      return settled(state, [input.quiet ? { type: "app.check-for-updates", quiet: true } : { type: "app.check-for-updates" }]);
+
+    /** Main answers with the stage it moved to, so neither command writes the update itself. */
+    case "app.download-update":
+      return settled(state, state.appUpdate.status === "available" ? [{ type: "app.download-update" }] : []);
+
+    case "app.install-update":
+      return settled(state, state.appUpdate.status === "ready" ? [{ type: "app.install-update" }] : []);
+
+    case "app.update-changed":
+      return settled({ ...state, appUpdate: input.update });
+
     case "app.build":
       return settled({ ...state, appBuild: input.build });
     /** The launch an update brought owes the engines that build needs, once they have been read. */

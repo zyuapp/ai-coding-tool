@@ -17,6 +17,12 @@ import type { Thread } from "../../domain/thread.js";
 export const PULL_REQUEST_INPUTS = ["pull-request.read", "pull-request.read-members", "pull-request.read-member", "pull-request.answered"] as const;
 type PullRequestInput = Extract<WorkspaceInput, { type: (typeof PULL_REQUEST_INPUTS)[number] }>;
 
+/** What GitHub says about a checkout, named by the ask it answers so an overtaken one is dropped. */
+export type PullRequestEvent = { type: "pull-request.answered"; workspaceId: string; branch: string | null; read: number; members?: true; answer: PullRequestAnswer };
+
+/** `members` marks an ask for a coordinator's threads, which counts its reads apart from the checkout in front. */
+export type PullRequestEffect = { type: "read-pull-request"; workspaceId: string; branch: string | null; read: number; members?: true };
+
 export function reducePullRequests(state: WorkspaceState, input: PullRequestInput): WorkspaceTransition {
   switch (input.type) {
     case "pull-request.read": {

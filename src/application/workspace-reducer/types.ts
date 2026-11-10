@@ -2,33 +2,33 @@ import type { ProjectEvent, RegisterProjectEffect } from "../project-commands.js
 import type { RemoteEffect, RemoteEvent } from "../remote-commands.js";
 import type { ComputerEffect, ComputerEvent } from "../computer-commands.js";
 import type { EngineEffect, EngineEvent } from "../engine-access.js";
-import type { DesktopShortcutUnavailable, WorkspaceState } from "../workspace-state.js";
+import type { AppUpdateEffect, AppUpdateEvent } from "../app-updates.js";
+import type { WorkspaceState } from "../workspace-state.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import type { InstalledApp } from "../../contracts/ipc.js";
-import type { CliStatus } from "../../domain/cli.js";
-import type { ComputerUsePermission, ComputerUsePermissions } from "../../domain/computer-use.js";
-import type { PlanUsage } from "../../domain/plan-usage.js";
-import type { AgentEvent, AnswerQuestionCommand, ApprovalDecisionCommand, ArchiveThreadCommand, AutomationAck, AutomationFire, BrowserPageEvent, CancelRunCommand, ChangedFilesResult, CreatedWorktree, DiffSummaryResult, LabelThreadCommand, RunEvent, StartRunCommand, SteerRunCommand, StopProcessCommand, ThreadEvent, ThreadNotice, ThreadRoleCommand, WorktreeSnapshotResult } from "../../contracts/ipc.js";
+import type { AgentEvent, AnswerQuestionCommand, ApprovalDecisionCommand, ArchiveThreadCommand, CancelRunCommand, CreatedWorktree, LabelThreadCommand, RunEvent, StartRunCommand, SteerRunCommand, StopProcessCommand, ThreadEvent, ThreadNotice, ThreadRoleCommand } from "../../contracts/ipc.js";
 import type { ViewPreferences } from "../../contracts/preferences.js";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine.js";
-import type { AppBuild, AppUpdate } from "../../domain/app-update.js";
-import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
-import type { BrowserAction, BrowserPermissions } from "../../domain/browser.js";
-import type { BrowserImportResult, BrowserImportSite, BrowserImportSource } from "../../domain/browser-import.js";
-import type { SimulatorAvailability, SimulatorDevice, SimulatorInput, SimulatorOrientation } from "../../domain/simulator.js";
-import type { CaptureOptions } from "../../domain/capture.js";
-import type { DictationModel } from "../../domain/dictation.js";
-import type { ConversationMessage, OutgoingAttachment, RunAttachment } from "../../domain/conversation.js";
-import type { DiffRange } from "../../domain/diff.js";
-import type { FindResults, FindTarget } from "../../domain/find.js";
+import type { ConversationMessage } from "../../domain/conversation.js";
 import type { SubagentActivity } from "../../domain/run.js";
-import type { ShortcutOverrides } from "../../domain/shortcuts.js";
 import type { ThreadStoreData } from "../../domain/thread-storage.js";
-import type { TerminalUpdate } from "../../domain/terminal.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
-import type { PullRequestAnswer } from "../../domain/pull-request.js";
-import type { ManagedWorktree } from "../../domain/worktree.js";
 import type { CoordinationState, DecisionRequest, MemoryChange, ThreadProposal } from "../../domain/coordination.js";
+import type { AttachmentEffect, AttachmentEvent } from "./composer-attachments.js";
+import type { AutomationEffect, AutomationEvent } from "./automations.js";
+import type { BrowserEffect, BrowserEvent } from "./browser.js";
+import type { BrowserImportEffect, BrowserImportEvent } from "./browser-import.js";
+import type { CliEffect, CliEvent } from "./cli.js";
+import type { ComputerUseEffect, ComputerUseEvent } from "./computer-use.js";
+import type { DesktopEffect, DesktopEvent } from "./desktop.js";
+import type { DictationEffect, DictationEvent } from "./dictation.js";
+import type { DiffEffect, DiffEvent } from "./diffs.js";
+import type { FindEffect, FindEvent } from "./find.js";
+import type { PlanUsageEffect, PlanUsageEvent } from "./plan-usage.js";
+import type { PullRequestEffect, PullRequestEvent } from "./pull-requests.js";
+import type { ShortcutEffect, ShortcutEvent } from "./settings.js";
+import type { SimulatorEffect, SimulatorEvent } from "./simulator.js";
+import type { TerminalEffect, TerminalEvent } from "./terminal.js";
+import type { WorktreeEffect, WorktreeEvent } from "./worktrees.js";
 
 /** Things that happened: replies to effects, and pushes from the main process. */
 export type WorkspaceEvent =
@@ -58,8 +58,6 @@ export type WorkspaceEvent =
   | { type: "agent.events"; events: AgentEvent[] }
   | { type: "run.resolved"; pendingId: string; workspace: WorkspaceRecord; worktree?: CreatedWorktree }
   | { type: "run.unresolved"; pendingId: string; message: string }
-  | { type: "automation.fired"; fire: AutomationFire }
-  | { type: "automations.changed"; automations: AutomationView[] }
   | { type: "title.suggested"; taskId: string; title: string }
   /** A thread under a coordinator saying where its work stands. */
   | { type: "coordination.reported"; taskId: string; state: CoordinationState; summary: string }
@@ -74,71 +72,28 @@ export type WorkspaceEvent =
    * or its answer was lost. `refused` is that computer saying it started nothing.
    */
   | { type: "proposal.settled"; taskId: string; proposalId: string; threadId?: string; message?: string; refused?: true }
-  | { type: "worktree.created"; taskId: string; worktree: CreatedWorktree; move?: boolean; projectId?: string; then?: string }
-  | { type: "worktree.failed"; taskId: string; message: string }
-  | { type: "worktrees.loaded"; worktrees: ManagedWorktree[] }
-  | { type: "worktrees.failed"; message: string; root?: string }
-  | { type: "worktree.released"; taskId: string; snapshot: WorktreeSnapshotResult }
-  | { type: "worktree.release-failed"; taskId: string; message: string }
-  /** A branch checkout is over, with what went wrong when it did not happen. */
-  | { type: "checkout.finished"; message?: string }
-  | { type: "worktree.deleted"; worktreeId: string; root: string; snapshot: WorktreeSnapshotResult; missingOnly?: boolean }
-  | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult }
-  /** What GitHub says about a checkout, named by the ask it answers so an overtaken one is dropped. */
-  | { type: "pull-request.answered"; workspaceId: string; branch: string | null; read: number; members?: true; answer: PullRequestAnswer }
-  /** A comparison's file list, named by the dock that asked so a slow read cannot land in another. */
-  | { type: "diff.loaded"; owner: string; workspaceId: string; range: DiffRange; result: DiffSummaryResult }
-  | { type: "browser-import.sources"; sources: BrowserImportSource[] }
-  | { type: "browser-import.sites"; sourceId: string; sites: BrowserImportSite[] }
-  | { type: "browser-import.done"; sourceId: string; sites: string[]; result: BrowserImportResult }
-  | { type: "browser-import.failed"; message: string }
-  /** What a page in the browser panel did. Main watches the page; the reducer keeps the record. */
-  | { type: "browser.updated"; page: BrowserPageEvent }
-  /** What the Mac said about its simulators, and how a boot or a gesture went. */
-  | { type: "simulator.listed"; availability: SimulatorAvailability; devices: SimulatorDevice[] }
-  | { type: "simulator.booted"; udid: string }
-  | { type: "simulator.failed"; udid: string; message: string }
-  | { type: "simulator.refused"; message: string }
-  /** A device took a rotation, which is when the panel starts drawing it that way up. */
-  | { type: "simulator.turned"; udid: string; orientation: SimulatorOrientation }
-  /** A run stopped driving a device a moment ago. `seq` names the stretch of driving that ended. */
-  | { type: "simulator.idle"; seq: number }
-  /** Where this computer's speech model stands, and how a hold went. `id` names the hold. */
-  | { type: "dictation.model"; model: DictationModel; message?: string; progress?: number }
-  | { type: "dictation.started"; id: string }
-  | { type: "dictation.transcribed"; id: string; text: string }
-  | { type: "dictation.failed"; id: string; message: string }
-  /** What a shell did. Its output is not here: that goes straight to the view and never becomes state. */
-  | { type: "terminal.updated"; update: TerminalUpdate }
   | { type: "subagent.activity.loaded"; taskId: string; subagentId: string; activity: SubagentActivity[] }
-  /** The composer's images, now on disk, and the ids of the ones the strip can let go of. */
-  | { type: "attachments.saved"; taskId?: string; steer?: boolean; text?: string; ids: string[]; attachments: RunAttachment[] }
-  | { type: "attachments.failed"; taskId?: string; message: string }
-  /** The applications this machine has, as the main process last found them. */
-  | { type: "apps.listed"; apps: InstalledApp[] }
-  | { type: "app.update-changed"; update: AppUpdate }
-  /** The build this computer runs, as main reports it once on the way up. */
-  | { type: "app.build"; build: AppBuild | null }
-  /** This launch is the first since the app was updated to `version`. */
-  | { type: "app.launched"; version: string }
-  /** What the platform lets the app see and operate, and whether an enable was waiting on it. */
-  | { type: "computer-use.permissions"; permissions: ComputerUsePermissions; enabling?: true }
-  | { type: "computer-use.failed"; message: string; enabling?: true }
-  /** What one provider says about its plan, named by the read it answers. */
-  | { type: "usage.reported"; engine: AgentEngine; read: number; usage: PlanUsage }
-  /** Where the terminal command stands after a read, an install or a removal, or why none could happen. */
-  | { type: "cli.read-status"; status: CliStatus }
-  | { type: "cli.failed"; message: string }
-  /** The keystroke settings were waiting for, or null when the user pressed Escape instead. */
-  | { type: "shortcut.captured"; binding: string | null }
-  /** An expected platform limitation for a desktop-wide shortcut, shown with that setting. */
-  | { type: "shortcut.unavailable"; refusal: DesktopShortcutUnavailable }
-  /** What a page or a shell found, counted by whoever holds the text. `index` counts from zero. */
-  | { type: "find.results"; target: FindTarget; results: FindResults }
   /** What the main process says the phone bridge now is, after anything at all moved it. */
   | RemoteEvent
   | ComputerEvent
-  | EngineEvent;
+  | EngineEvent
+  | AutomationEvent
+  | WorktreeEvent
+  | DiffEvent
+  | PullRequestEvent
+  | BrowserEvent
+  | BrowserImportEvent
+  | FindEvent
+  | SimulatorEvent
+  | DictationEvent
+  | TerminalEvent
+  | AttachmentEvent
+  | DesktopEvent
+  | AppUpdateEvent
+  | ComputerUseEvent
+  | PlanUsageEvent
+  | CliEvent
+  | ShortcutEvent;
 
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
 export type WorkspaceEffect = WorkspaceWork & {
@@ -172,94 +127,14 @@ type WorkspaceWork =
       /** Moves the project checkout onto a branch first, for a thread that is not getting its own. */
       checkout?: { workspaceId: string; branch: string };
     }
-  | { type: "create-worktree"; taskId: string; projectRoot: string; move?: boolean; name?: string; projectId?: string; then?: string }
-  | { type: "release-worktree"; taskId: string; worktreeId: string; root: string; title: string }
-  | { type: "list-worktrees" }
-  | { type: "reveal-worktree"; root: string }
-  | { type: "delete-worktree"; worktreeId: string; root: string; title: string; missingOnly?: boolean }
   | { type: "start-run"; command: StartRunCommand }
   | { type: "send-run-command"; command: CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand | ArchiveThreadCommand | ThreadRoleCommand }
-  | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
-  /** Writes a composer's images out, then sends the message they ride, in that order. */
-  | { type: "send-attachments"; taskId?: string; steer?: boolean; text?: string; attachments: OutgoingAttachment[] }
-  /** `members` marks an ask for a coordinator's threads, which counts its reads apart from the checkout in front. */
-  | { type: "read-pull-request"; workspaceId: string; branch: string | null; read: number; members?: true }
-  | { type: "read-diff"; owner: string; workspaceId: string; range: DiffRange; ignoreWhitespace: boolean }
-  /** Moves a checkout onto a branch, making it at that checkout's HEAD first when `create`. */
-  | { type: "checkout-branch"; workspaceId: string; branch: string; create?: boolean }
   | { type: "suggest-title"; taskId: string; engine: AgentEngine; model: AgentModel; text: string; attachments: string[] }
   | { type: "preserve-message-images"; text: string; root: string; messageId: string }
-  | { type: "image.download"; source: string }
   | { type: "load-subagent-activity"; taskId: string; subagentId: string }
   | { type: "load-subagent-metadata"; taskId: string; subagentId: string; engine: AgentEngine; sessionId?: string }
-  | { type: "automation.save"; draft: AutomationDraft }
-  | { type: "automation.update"; taskId: string; patch: AutomationPatch }
-  | { type: "automation.delete"; taskId: string }
-  | { type: "automation.run-now"; taskId: string }
-  | { type: "automation.ack"; ack: AutomationAck }
-  /** The browser panel's pages. `open` is idempotent: a tab that already has a view keeps it. */
-  | { type: "browser.permissions"; permissions: BrowserPermissions }
-  | { type: "browser.open"; taskId?: string; tabId: string; url?: string }
-  | { type: "browser.navigate"; taskId?: string; tabId: string; url: string }
-  | { type: "browser.history"; taskId?: string; tabId: string; delta: -1 | 1 }
-  | { type: "browser.reload"; taskId?: string; tabId: string }
-  | { type: "browser.act"; taskId?: string; tabId: string; action: BrowserAction }
-  | { type: "browser.close"; tabId: string }
-  /** Which tab the panel shows. Where it shows is the panel's own to report. */
-  | { type: "browser.show"; tabId: string | null }
-  | { type: "browser.clear-data" }
-  | { type: "browser-import.list-sources" }
-  | { type: "browser-import.list-sites"; sourceId: string }
-  | { type: "browser-import.import"; sourceId: string; sites: string[] }
-  /** The simulator panel's devices. `boot` answers once the device can take input. */
-  | { type: "simulator.list" }
-  | { type: "simulator.boot"; udid: string }
-  /** `seq` is set for a run's gesture, whose driving ends a moment after the last one. */
-  | { type: "simulator.input"; udid: string; input: SimulatorInput; taskId?: string; seq?: number }
-  /** The microphone and speech model. `stop` answers with the words heard since `start`. */
-  | { type: "dictation.start"; id: string }
-  | { type: "dictation.stop"; id: string }
-  | { type: "dictation.cancel"; id: string }
-  | { type: "dictation.download" }
-  | { type: "dictation.cancel-download" }
-  /** A file the desktop opens for the reader. `roots` are the checkouts to look for it in, nearest first. */
-  | { type: "file.open"; roots: string[]; path: string; line: number | null }
-  | { type: "app.list" }
-  | { type: "computer-use.read" }
-  | { type: "computer-use.enable"; permission: ComputerUsePermission }
-  | { type: "computer-use.restart" }
-  | { type: "read-plan-usage"; engine: AgentEngine; read: number }
-  | { type: "cli.read" }
-  | { type: "cli.install" }
-  | { type: "cli.uninstall" }
-  /** The thread's checkout, opened in another application on the machine. */
-  | { type: "app.open-folder"; root: string; appId: string }
-  | { type: "app.check-for-updates"; quiet?: true }
-  /** `unattended` is for an update asked from another computer: nobody may be at this screen to answer a dialog. */
-  | { type: "app.download-update"; unattended?: true }
-  | { type: "app.install-update"; unattended?: true }
-  | { type: "app.open-source-licenses" }
-  /** The terminal panel's shells. `start` is idempotent: a terminal that already runs keeps its process. */
-  | { type: "terminal.start"; terminalId: string; cwd: string }
-  | { type: "terminal.write"; terminalId: string; data: string }
-  | { type: "terminal.resize"; terminalId: string; cols: number; rows: number }
-  | { type: "terminal.close"; terminalId: string }
   /** Nothing was left in front of the window, so ⌘W means what it always means. */
   | { type: "close-window" }
-  /** The keystrokes the window matches. Only main sees the ones a page in the panel swallows. */
-  | { type: "apply-shortcuts"; overrides: ShortcutOverrides }
-  | { type: "apply-capture-options"; options: CaptureOptions }
-  /** While settings wait for a keystroke, main hands every one of them over instead of acting. */
-  | { type: "capture-shortcut"; capturing: boolean }
-  /**
-   * Find, in the things that hold their own text. The transcript needs no effect: the timeline reads
-   * the match out of state and reveals it, folds and virtual rows and all.
-   */
-  | { type: "find-in-page"; tabId: string; query: string; forward: boolean; findNext: boolean }
-  | { type: "stop-find-in-page"; tabId: string }
-  | { type: "focus-browser"; tabId: string }
-  | { type: "find-in-terminal"; terminalId: string; query: string; forward: boolean }
-  | { type: "stop-find-in-terminal"; terminalId: string }
   /** Takes the keyboard off a page in the panel, which is the only way the find bar can have it. */
   | { type: "focus-window" }
   /** A finding on its way to the desktop, which is the only place a user who is elsewhere can be reached. */
@@ -267,7 +142,24 @@ type WorkspaceWork =
   /** A change to the phone bridge, which only the main process can actually make. */
   | RemoteEffect
   | ComputerEffect
-  | EngineEffect;
+  | EngineEffect
+  | AutomationEffect
+  | WorktreeEffect
+  | DiffEffect
+  | PullRequestEffect
+  | BrowserEffect
+  | BrowserImportEffect
+  | FindEffect
+  | SimulatorEffect
+  | DictationEffect
+  | TerminalEffect
+  | AttachmentEffect
+  | DesktopEffect
+  | AppUpdateEffect
+  | ComputerUseEffect
+  | PlanUsageEffect
+  | CliEffect
+  | ShortcutEffect;
 
 export type WorkspaceInput = AppCommand | WorkspaceEvent;
 

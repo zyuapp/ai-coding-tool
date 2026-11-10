@@ -6,11 +6,20 @@ import { attachmentSendFor, MAIN_COMPOSER, type AttachmentSendState } from "../c
 import { imagesFor, withImages } from "../composer-drafts.js";
 import { promptKey, type WorkspaceState } from "../workspace-state.js";
 import { MAX_ATTACHMENTS, type RunAttachment } from "../../domain/conversation.js";
+import type { OutgoingAttachment } from "../../domain/conversation.js";
 
 const MOVED_DRAFT_ERROR = "The images were not sent because you left the new thread. Send them again from there.";
 
 export const ATTACHMENT_INPUTS = ["attachments.send", "attachments.saved", "attachments.failed", "attachments.notice"] as const;
 type AttachmentInput = Extract<WorkspaceInput, { type: (typeof ATTACHMENT_INPUTS)[number] }>;
+
+export type AttachmentEvent =
+  /** The composer's images, now on disk, and the ids of the ones the strip can let go of. */
+  | { type: "attachments.saved"; taskId?: string; steer?: boolean; text?: string; ids: string[]; attachments: RunAttachment[] }
+  | { type: "attachments.failed"; taskId?: string; message: string };
+
+/** Writes a composer's images out, then sends the message they ride, in that order. */
+export type AttachmentEffect = { type: "send-attachments"; taskId?: string; steer?: boolean; text?: string; attachments: OutgoingAttachment[] };
 
 function withSend(state: WorkspaceState, taskId: string | undefined, send: AttachmentSendState): WorkspaceState {
   return { ...state, attachmentSends: { ...state.attachmentSends, [taskId ?? MAIN_COMPOSER]: send } };
