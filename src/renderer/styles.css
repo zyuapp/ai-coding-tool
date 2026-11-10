@@ -4804,10 +4804,11 @@ button.setting-hint:hover { color: var(--ink); }
   display: grid;
   gap: 14px;
   padding: 14px 16px 16px;
-  border: 1px solid var(--line-strong);
-  border-radius: 12px;
-  background: var(--surface-menu);
-  box-shadow: var(--shadow-popover);
+  border: 1px solid var(--line-glass);
+  border-radius: 14px;
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-popover);
   color: var(--ink);
   font-size: var(--text-control);
   line-height: 1.3;
@@ -4823,9 +4824,10 @@ button.setting-hint:hover { color: var(--ink); }
 .usage-card-row { display: grid; gap: 7px; }
 .usage-card-label { display: flex; justify-content: space-between; gap: 12px; color: var(--ink-faint); font-size: var(--text-meta); }
 .usage-card-label span:first-child { color: var(--ink-dim); font-weight: 500; }
-.usage-card-track { height: 8px; overflow: hidden; border-radius: 4px; background: var(--meter-track); box-shadow: inset 0 0 0 1px var(--line-strong); }
-.usage-card-track span { display: block; height: 100%; border-radius: 4px; background: var(--info); }
-.usage-card-track span.high { background: var(--accent); }
+/** A groove cut into the glass, and a bar of light lying in it. */
+.usage-card-track { height: 8px; overflow: hidden; border-radius: 999px; background: var(--meter-track); box-shadow: inset 0 1px 2px rgb(var(--p-shadow) / calc(0.3 * var(--p-shadow-scale))), inset 0 0 0 1px var(--line-glass); }
+.usage-card-track span { display: block; height: 100%; border-radius: 999px; background: var(--glass-sheen), var(--info); }
+.usage-card-track span.high { background: var(--glass-sheen), var(--accent); }
 .usage-card-detail { color: var(--quiet-strong); font-size: var(--text-meta); }
 .context-usage-gauge:hover .usage-card, .plan-usage:hover .usage-card,
 :is(.context-usage-meter, .plan-usage-meter):focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) + .usage-card,
