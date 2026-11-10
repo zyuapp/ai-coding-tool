@@ -6,22 +6,23 @@ import { viewPreferences } from "../view-preferences.js";
 import { isCoordinator } from "../../domain/coordination.js";
 import { DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, dockFor, dockTabAfterClosing, withDock, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
 import { workflowById } from "../state/runs.js";
+import type { DocksState } from "../state/dock.js";
 
 /** The window has the keys again, which a page in the panel is otherwise holding. */
 export const TAKE_KEYS: WorkspaceEffect[] = [{ type: "focus-window" }];
 
-type DocksView = Pick<WorkspaceState, "docks" | "dockFocus">;
 
 /** The docks as one input leaves them. Only the functions here make one, so a slice changes a dock through them. */
 class DocksChange {
   private declare readonly owned: never;
-  constructor(readonly view: DocksView) {}
+  constructor(readonly view: DocksState) {}
 }
 
 export type DocksEdit = DocksChange;
 
-export function docksOf(state: DocksView): DocksEdit {
-  return new DocksChange({ docks: state.docks, dockFocus: state.dockFocus });
+export function docksOf(state: DocksState): DocksEdit {
+  const { overviewFolds, dockFocus, docks, diffs, keyboardTab } = state;
+  return new DocksChange({ overviewFolds, dockFocus, docks, diffs, keyboardTab });
 }
 
 export function editDock(edit: DocksEdit, owner: string, patch: Partial<ThreadDock>): DocksEdit {
@@ -52,6 +53,22 @@ export function focusDockTab(state: WorkspaceState, owner: string, tab: string):
   const focused = focusedTab(state, owner, tab);
   const page = dockFor(focused, owner).browserTabs.find((item) => item.id === tab);
   return settled(focused, page?.url ? [] : TAKE_KEYS);
+}
+
+/** The window is gone: its shells went with it, and its pages wait to be drawn again. */
+export function closedWindowDocks(edit: DocksEdit): DocksEdit {
+  const docks = { ...edit.view.docks };
+  for (const [owner, dock] of Object.entries(docks)) {
+    const tab = dock.terminals.some((terminal) => terminal.id === dock.tab) ? DOCK_PICKER : dock.tab;
+    docks[owner] = {
+      ...dock,
+      tab,
+      terminals: [],
+      terminalId: null,
+      browserTabs: dock.browserTabs.map(({ error: _error, ...page }) => ({ ...page, loading: false, canGoBack: false, canGoForward: false })),
+    };
+  }
+  return new DocksChange({ ...edit.view, docks, keyboardTab: null });
 }
 
 export function persistView(state: WorkspaceState): WorkspaceEffect[] {

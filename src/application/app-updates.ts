@@ -6,6 +6,7 @@
 import { reduceEngine } from "./engine-access.js";
 import { engineReadinessOf } from "./state/engines.js";
 import { reduceToasts } from "./toasts.js";
+import { owned } from "./workspace-reducer/slice.js";
 import { threadActivity } from "./thread-activity.js";
 import { rejected, settled } from "./workspace-reducer/shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
@@ -63,7 +64,7 @@ export function reduceAppUpdate(state: WorkspaceState, input: AppUpdateInput): W
       return settled({ ...state, appBuild: input.build });
     /** The launch an update brought owes the engines that build needs, once they have been read. */
     case "app.launched":
-      return reduceToasts({ ...state, engineUpgradesOwed: true }, input);
+      return owned(reduceToasts)({ ...state, engineUpgradesOwed: true }, input);
     /** An install already under way cannot be called back. */
     case "app.cancel-update":
       return settled(state.appUpdateRequest?.status === "installing" ? state : { ...state, appUpdateRequest: null });

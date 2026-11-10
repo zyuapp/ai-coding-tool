@@ -1,11 +1,11 @@
 /** Dictating into the main composer: the recording, the words it brought back, and the send they ride. */
 import { DICTATION_HEARD_NOTHING, dictationRefusal, withSpokenWords, type DictationState } from "../../domain/dictation.js";
 import { MAIN_COMPOSER, NO_ATTACHMENT_SEND } from "../composer-attachments.js";
-import { focusComposer } from "../composer-drafts.js";
+import { composerOf, focusComposerIn, withAttachmentSendIn, withPromptIn, type ComposerEdit } from "../composer-drafts.js";
 import { promptKey, type WorkspaceState } from "../workspace-state.js";
-import { withPrompt } from "../state/composer.js";
-import { rejected, settled } from "./shared.js";
-import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
+import type { DictationSliceState } from "../state/dictation.js";
+import type { SliceTransition } from "./slice.js";
+import type { WorkspaceInput } from "./types.js";
 import type { DictationModel } from "../../domain/dictation.js";
 
 export const DICTATION_INPUTS = [
@@ -29,15 +29,17 @@ export type DictationEffect =
   | { type: "dictation.download" }
   | { type: "dictation.cancel-download" };
 
-function withDictation(state: WorkspaceState, patch: Partial<DictationState>): WorkspaceState {
-  return { ...state, dictation: { ...state.dictation, ...patch } };
+type Own = DictationSliceState;
+
+function withDictation(dictation: DictationState, patch: Partial<DictationState>): DictationState {
+  return { ...dictation, ...patch };
 }
 
 /** What the hold has to say, on the line under the main composer that its own sends use. Null clears it. */
-function noticed(state: WorkspaceState, message: string | null): WorkspaceState {
-  const held = state.attachmentSends[MAIN_COMPOSER] ?? NO_ATTACHMENT_SEND;
-  if (held.error === message) return state;
-  return { ...state, attachmentSends: { ...state.attachmentSends, [MAIN_COMPOSER]: { ...held, error: message } } };
+function noticed(composer: ComposerEdit, message: string | null): ComposerEdit {
+  const held = composer.view.attachmentSends[MAIN_COMPOSER] ?? NO_ATTACHMENT_SEND;
+  if (held.error === message) return composer;
+  return withAttachmentSendIn(composer, MAIN_COMPOSER, { ...held, error: message });
 }
 
 function current(state: WorkspaceState, id: string) {
@@ -45,56 +47,57 @@ function current(state: WorkspaceState, id: string) {
   return session?.id === id ? session : null;
 }
 
-export function reduceDictation(state: WorkspaceState, input: DictationInput): WorkspaceTransition {
+export function reduceDictation(state: WorkspaceState, input: DictationInput): SliceTransition<Own> {
+  const { dictation } = state;
   switch (input.type) {
     case "dictation.start": {
-      const refusal = dictationRefusal(state.dictation);
-      if (refusal) return rejected(state, refusal);
-      if (state.dictation.session) return settled(state);
+      const refusal = dictationRefusal(dictation);
+      if (refusal) return { refusal };
+      if (dictation.session) return {};
       const session = { id: crypto.randomUUID(), key: promptKey(state), phase: "starting" as const, handsFree: false, send: false };
-      return settled(withDictation(state, { session }), [{ type: "dictation.start", id: session.id }]);
+      return { patch: { dictation: withDictation(dictation, { session }) }, effects: [{ type: "dictation.start", id: session.id }] };
     }
 
     case "dictation.hands-free": {
-      const session = state.dictation.session;
-      if (!session || session.phase === "transcribing" || session.handsFree) return settled(state);
-      const freed = withDictation(state, { session: { ...session, handsFree: true } });
-      return settled(session.key === promptKey(freed) ? focusComposer(freed) : freed);
+      const session = dictation.session;
+      if (!session || session.phase === "transcribing" || session.handsFree) return {};
+      const freed = { dictation: withDictation(dictation, { session: { ...session, handsFree: true } }) };
+      return session.key === promptKey(state) ? { patch: freed, composer: focusComposerIn(composerOf(state)) } : { patch: freed };
     }
 
     case "dictation.stop": {
-      const session = state.dictation.session;
-      if (!session || session.phase === "transcribing") return settled(state);
+      const session = dictation.session;
+      if (!session || session.phase === "transcribing") return {};
       const stopped = { ...session, phase: "transcribing" as const, send: input.send === true };
-      return settled(withDictation(state, { session: stopped }), [{ type: "dictation.stop", id: session.id }]);
+      return { patch: { dictation: withDictation(dictation, { session: stopped }) }, effects: [{ type: "dictation.stop", id: session.id }] };
     }
 
     case "dictation.cancel": {
-      const session = state.dictation.session;
-      if (!session) return settled(state);
-      return settled(withDictation(state, { session: null }), [{ type: "dictation.cancel", id: session.id }]);
+      const session = dictation.session;
+      if (!session) return {};
+      return { patch: { dictation: withDictation(dictation, { session: null }) }, effects: [{ type: "dictation.cancel", id: session.id }] };
     }
 
     case "dictation.download":
-      if (state.dictation.model !== "missing" && state.dictation.model !== "failed") return settled(state);
-      return settled(withDictation(state, { model: "downloading", message: null, progress: 0 }), [{ type: "dictation.download" }]);
+      if (dictation.model !== "missing" && dictation.model !== "failed") return {};
+      return { patch: { dictation: withDictation(dictation, { model: "downloading", message: null, progress: 0 }) }, effects: [{ type: "dictation.download" }] };
 
     case "dictation.cancel-download":
-      if (state.dictation.model !== "downloading") return settled(state);
-      return settled(withDictation(state, { model: "missing", message: null, progress: null }), [{ type: "dictation.cancel-download" }]);
+      if (dictation.model !== "downloading") return {};
+      return { patch: { dictation: withDictation(dictation, { model: "missing", message: null, progress: null }) }, effects: [{ type: "dictation.cancel-download" }] };
 
     case "dictation.model":
-      return settled(withDictation(state, { model: input.model, message: input.message ?? null, progress: input.model === "downloading" ? input.progress ?? null : null }));
+      return { patch: { dictation: withDictation(dictation, { model: input.model, message: input.message ?? null, progress: input.model === "downloading" ? input.progress ?? null : null }) } };
 
     case "dictation.started": {
       const session = current(state, input.id);
-      if (!session || session.phase !== "starting") return settled(state);
-      return settled(withDictation(state, { session: { ...session, phase: "recording" } }));
+      if (!session || session.phase !== "starting") return {};
+      return { patch: { dictation: withDictation(dictation, { session: { ...session, phase: "recording" } }) } };
     }
 
     case "dictation.failed": {
-      if (!current(state, input.id)) return settled(state);
-      return settled(noticed(withDictation(state, { session: null }), input.message));
+      if (!current(state, input.id)) return {};
+      return { patch: { dictation: withDictation(dictation, { session: null }) }, composer: noticed(composerOf(state), input.message) };
     }
 
     /**
@@ -103,12 +106,14 @@ export function reduceDictation(state: WorkspaceState, input: DictationInput): W
      */
     case "dictation.transcribed": {
       const session = current(state, input.id);
-      if (!session) return settled(state);
-      const ended = withDictation(state, { session: null });
-      if (!input.text.trim()) return settled(noticed(ended, DICTATION_HEARD_NOTHING));
-      const written = noticed(withPrompt(ended, session.key, withSpokenWords(ended.prompts[session.key] ?? "", input.text)), null);
-      if (session.key !== promptKey(written)) return settled(written);
-      return settled(session.send ? withDictation(written, { sends: written.dictation.sends + 1 }) : focusComposer(written));
+      if (!session) return {};
+      const ended = withDictation(dictation, { session: null });
+      if (!input.text.trim()) return { patch: { dictation: ended }, composer: noticed(composerOf(state), DICTATION_HEARD_NOTHING) };
+      const written = noticed(withPromptIn(composerOf(state), session.key, withSpokenWords(state.prompts[session.key] ?? "", input.text)), null);
+      if (session.key !== promptKey(state)) return { patch: { dictation: ended }, composer: written };
+      return session.send
+        ? { patch: { dictation: withDictation(ended, { sends: ended.sends + 1 }) }, composer: written }
+        : { patch: { dictation: ended }, composer: focusComposerIn(written) };
     }
   }
 }

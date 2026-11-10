@@ -1,14 +1,15 @@
 /** The machine around the thread: its files, and the applications that open them. */
 import { shownPageEffects } from "./browser-tabs.js";
 import { APP_FOLDER_ERROR, FILE_FOLDER_ERROR } from "./errors.js";
-import { settled, rejected } from "./shared.js";
-import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
+import { docksOf, closedWindowDocks } from "./dock-tabs.js";
+import type { SliceTransition } from "./slice.js";
+import type { WorkspaceInput } from "./types.js";
+import type { DesktopState } from "../state/desktop.js";
 import { threadFileRoots } from "../thread-location.js";
 import { currentFolder, type WorkspaceState } from "../workspace-state.js";
 import { isAbsoluteFilePath } from "../../domain/markdown-links.js";
 import type { InstalledApp } from "../../contracts/ipc.js";
-import { DOCK_PICKER } from "../workspace-dock.js";
-import { rescheduledToasts } from "../toasts.js";
+import { releasedToasts, rescheduledToasts, toastsOf } from "../toasts.js";
 
 export const DESKTOP_INPUTS = [
   "image.open", "image.step", "image.close", "image.download", "file.open", "app.list", "apps.listed", "app.open-folder",
@@ -28,63 +29,56 @@ export type DesktopEffect =
   | { type: "app.open-folder"; root: string; appId: string }
   | { type: "app.open-source-licenses" };
 
-export function reduceDesktop(state: WorkspaceState, input: DesktopInput): WorkspaceTransition {
+type Own = DesktopState;
+
+export function reduceDesktop(state: WorkspaceState, input: DesktopInput): SliceTransition<Own> {
   switch (input.type) {
     case "image.open":
-      return settled({ ...state, viewingImage: input.source, viewingGallery: input.gallery?.includes(input.source) ? input.gallery : [] });
+      return { patch: { viewingImage: input.source, viewingGallery: input.gallery?.includes(input.source) ? input.gallery : [] } };
     case "image.step": {
       const next = state.viewingImage === null ? undefined : state.viewingGallery[state.viewingGallery.indexOf(state.viewingImage) + input.delta];
-      return settled(next ? { ...state, viewingImage: next } : state);
+      return next ? { patch: { viewingImage: next } } : {};
     }
     case "image.close":
-      return settled({ ...state, viewingImage: null, viewingGallery: [] });
+      return { patch: { viewingImage: null, viewingGallery: [] } };
     case "image.download":
-      return settled({ ...state, actionError: null }, state.viewingImage ? [{ type: "image.download", source: state.viewingImage }] : []);
+      return { clearsError: true, effects: state.viewingImage ? [{ type: "image.download", source: state.viewingImage }] : [] };
     case "view.mounted": {
-      const mounted = state.toastsHeld ? { ...state, toastsHeld: false } : state;
-      return settled(mounted, [
-        { type: "apply-shortcuts", overrides: state.shortcuts },
-        { type: "apply-capture-options", options: { sound: state.captureSound, focus: state.captureFocus } },
-        ...shownPageEffects(state),
-        ...rescheduledToasts(mounted),
-      ]);
+      const toasts = releasedToasts(toastsOf(state));
+      return {
+        toasts,
+        effects: [
+          { type: "apply-shortcuts", overrides: state.shortcuts },
+          { type: "apply-capture-options", options: { sound: state.captureSound, focus: state.captureFocus } },
+          ...shownPageEffects(state),
+          ...rescheduledToasts(toasts.view),
+        ],
+      };
     }
 
-    case "view.closed": {
-      const docks = { ...state.docks };
-      for (const [owner, dock] of Object.entries(docks)) {
-        const tab = dock.terminals.some((terminal) => terminal.id === dock.tab) ? DOCK_PICKER : dock.tab;
-        docks[owner] = {
-          ...dock,
-          tab,
-          terminals: [],
-          terminalId: null,
-          browserTabs: dock.browserTabs.map(({ error: _error, ...page }) => ({ ...page, loading: false, canGoBack: false, canGoForward: false })),
-        };
-      }
-      return settled({ ...state, docks, focused: false, keyboardTab: null, viewingImage: null, viewingGallery: [] });
-    }
+    case "view.closed":
+      return { patch: { focused: false, viewingImage: null, viewingGallery: [] }, docks: closedWindowDocks(docksOf(state)) };
 
     case "file.open": {
       const roots = threadFileRoots(state, state.threads.find((item) => item.id === (input.taskId ?? state.currentId)));
-      if (!roots.length && !isAbsoluteFilePath(input.path)) return rejected(state, FILE_FOLDER_ERROR);
-      return settled({ ...state, actionError: null }, [{ type: "file.open", roots, path: input.path, line: input.line ?? null }]);
+      if (!roots.length && !isAbsoluteFilePath(input.path)) return { refusal: FILE_FOLDER_ERROR };
+      return { clearsError: true, effects: [{ type: "file.open", roots, path: input.path, line: input.line ?? null }] };
     }
 
     /** The list a menu draws stays as it was while a fresh one is read, so opening it never blanks. */
     case "app.list":
-      return settled(state, [{ type: "app.list" }]);
+      return { effects: [{ type: "app.list" }] };
 
     case "apps.listed":
-      return settled({ ...state, installedApps: input.apps });
+      return { patch: { installedApps: input.apps } };
 
     case "app.open-folder": {
       const root = currentFolder(state);
-      if (!root) return rejected(state, APP_FOLDER_ERROR);
-      return settled({ ...state, actionError: null, openMenu: null }, [{ type: "app.open-folder", root, appId: input.appId }]);
+      if (!root) return { refusal: APP_FOLDER_ERROR };
+      return { clearsError: true, closesMenu: true, effects: [{ type: "app.open-folder", root, appId: input.appId }] };
     }
 
     case "app.open-source-licenses":
-      return settled(state, [{ type: "app.open-source-licenses" }]);
+      return { effects: [{ type: "app.open-source-licenses" }] };
   }
 }

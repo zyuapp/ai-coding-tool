@@ -5,10 +5,38 @@
  */
 import { clampQuote } from "./annotations.js";
 import type { WorkspaceState } from "./workspace-state.js";
+import { withPrompt, type ComposerState } from "./state/composer.js";
+import type { AttachmentSendState } from "./composer-attachments.js";
 import { tabHolderOf } from "./workspace-dock.js";
 import type { WorkspaceTransition } from "./workspace-reducer/types.js";
 import type { AnnotationCommand, FileCommand, ImageCommand, PasteCommand } from "../contracts/commands.js";
 import { MAX_ATTACHED_FILES, MAX_ATTACHMENTS, type Annotation, type AttachedFile, type AttachedFileDraft, type PastedText, type StagedImage } from "../domain/conversation.js";
+
+/** The composers as one input leaves them. Only the functions here make one, so a slice changes a composer through them. */
+class ComposerChange {
+  private declare readonly owned: never;
+  constructor(readonly view: ComposerState) {}
+}
+
+export type ComposerEdit = ComposerChange;
+
+export function composerOf(state: ComposerState): ComposerEdit {
+  const { prompts, annotations, pastes, images, files, composerFocus, readingPoints, annotationReveal, attachmentSends } = state;
+  return new ComposerChange({ prompts, annotations, pastes, images, files, composerFocus, readingPoints, annotationReveal, attachmentSends });
+}
+
+export function withPromptIn(edit: ComposerEdit, key: string, prompt: string): ComposerEdit {
+  return new ComposerChange(withPrompt(edit.view, key, prompt));
+}
+
+export function focusComposerIn(edit: ComposerEdit): ComposerEdit {
+  return new ComposerChange(focusComposer(edit.view));
+}
+
+/** Where one composer's send stands, which also carries what a recording into it has to say. */
+export function withAttachmentSendIn(edit: ComposerEdit, key: string, send: AttachmentSendState): ComposerEdit {
+  return new ComposerChange({ ...edit.view, attachmentSends: { ...edit.view.attachmentSends, [key]: send } });
+}
 
 const TOO_MANY_IMAGES_ERROR = `You can attach up to ${MAX_ATTACHMENTS} images.`;
 const TOO_MANY_FILES_ERROR = `You can attach up to ${MAX_ATTACHED_FILES} files.`;
@@ -80,7 +108,7 @@ export function textAfterSend(typed: string, sent: string): string {
 }
 
 /** The caret goes back to the composer, which is where anything arriving in a draft is spoken about. */
-export function focusComposer(state: WorkspaceState): WorkspaceState {
+export function focusComposer<S extends Pick<WorkspaceState, "composerFocus">>(state: S): S {
   return { ...state, composerFocus: state.composerFocus + 1 };
 }
 
