@@ -238,6 +238,8 @@
   --glass-menu: var(--glass-sheen), rgb(from var(--p-bg-4) r g b / calc(0.4 + 0.44 * var(--glass-tint)));
   --glass-blur: blur(calc(9px + 18px * var(--glass-tint))) saturate(170%);
   --glass-menu-blur: blur(calc(20px + 8px * var(--glass-tint))) saturate(170%);
+  /* A bar pinned over a scrolling list: flat, with no sheen, so it reads as the page going out of focus under it. */
+  --glass-strip: rgb(from var(--canvas) r g b / calc(0.5 + 0.3 * var(--glass-tint)));
   --glass-rim: inset 0 1px 0 rgb(255 255 255 / 0.26), inset 0 0 0 1px rgb(255 255 255 / 0.08);
   /* A control cut from it: a wash of ink under the same sheen. */
   --glass-control: var(--glass-sheen), var(--wash);
@@ -375,9 +377,19 @@
   /** A float drawn in the page blurs what the page drew under it. */
   :root[data-glass-sheet] :is(.theme-select-popover, .font-select-popover, .toast, .usage-card, .thread-jump-panel, .tooltip, .annotation-card, .annotate-editor, .right-dock-add > div) { backdrop-filter: var(--glass-menu-blur); }
   :root[data-glass-sheet] :is(.composer-wrap, .coordination-head) { background: none; }
-  /** A bar that stays put while its list scrolls under it has no ground to hide the list with, so it is a strip of glass. */
-  :root[data-glass-sheet] :is(.coordination-group-head, .coordination-group-heading, .diff-file-row) { background: var(--glass-menu); backdrop-filter: var(--glass-menu-blur); }
-  :root[data-glass-sheet] .coordination-group-heading > .coordination-group-head { background: none; backdrop-filter: none; }
+  /**
+   * A heading that stays put while its list scrolls has no ground to hide the list with. It is
+   * plain where it rests, and a strip of frosted glass only while rows are passing under it.
+   */
+  :root[data-glass-sheet] :is(.coordination-group-head, .coordination-group-heading) { background: none; container-type: scroll-state; }
+  :root[data-glass-sheet] :is(.coordination-group-head, .coordination-group-heading)::before { content: ""; position: absolute; z-index: -1; inset: 0 -10px; opacity: 0; background: var(--glass-strip); backdrop-filter: var(--glass-menu-blur); box-shadow: 0 1px 0 var(--line-glass); transition: opacity var(--touch-time) var(--touch-ease); pointer-events: none; }
+  :root[data-glass-sheet] .coordination-group-heading > .coordination-group-head { container-type: normal; }
+  :root[data-glass-sheet] .coordination-group-heading > .coordination-group-head::before { content: none; }
+  @container scroll-state(stuck: top) {
+    :root[data-glass-sheet] :is(.coordination-group-head, .coordination-group-heading)::before { opacity: 1; }
+  }
+  /** The file header pinned over a diff is the same strip; the headers in the diff itself are part of the page. */
+  :root[data-glass-sheet] .diff-file-pinned > .diff-file-row { background: var(--glass-strip); backdrop-filter: var(--glass-menu-blur); box-shadow: 0 1px 0 var(--line-glass); }
   /** On one sheet nothing else parts the sidebar from the conversation, so a hairline does, where the sidebar is dragged wider. */
   :root[data-glass-sheet] .sidebar-resizer::before { content: ""; position: absolute; inset: 0 auto 0 calc(50% - 0.5px); width: 1px; background: var(--line-glass); }
   :root[data-glass-sheet] .settings-sidebar { box-shadow: 4px 0 0 -3px var(--line-glass); }
