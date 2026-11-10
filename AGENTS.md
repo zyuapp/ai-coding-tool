@@ -1,5 +1,5 @@
 # AI Coding Tool
-This app is designed to make it easier for people and agents to work together. For now, I’m building it only for macOS, Linux, Claude models, and GPT models because I don’t want to support platforms or models I don’t use every day. Still, structure the app so we can add other operating systems and more model providers later without major changes. Push back if I suggest anything that would make future expansion harder.
+This app is designed to make it easier for people and agents to work together. For now, I’m building it only for macOS, Linux, Claude models, GPT models, and models supported by OpenCode because I don’t want to support platforms or models I don’t use every day. Still, structure the app so we can add other operating systems and more model providers later without major changes. Push back if I suggest anything that would make future expansion harder.
 
 # What do I value
 1. Simplicity. The app should feel obvious. Users should understand each feature without having to stop and figure it out. Avoid lengthy explanations, especially in Settings. If a feature needs too much explanation, simplify the feature.
@@ -14,6 +14,7 @@ This app is designed to make it easier for people and agents to work together. F
 3. I use this AGENTS.md to define what matters for the project. Do not edit it unless I explicitly ask you to.
 4. Keep HTML mockups out of the repository. Write them to /tmp and serve them from there.
 5. Do not check in non-code related documents into this repo.
+6. Always verify your changes in dev build/ios simulator before calling it done. If the UI is verifyable, I expect you to attach screenshots to prove it works in various screen sizes. Always call out things that you are not able to verify, and explain why. 
 
 # Architecture intent
 The app has one control path for people and agents. This makes adding MCP tools and different frontends such as mobile and tablet easier without reinventing the backend.
