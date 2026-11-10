@@ -4,8 +4,8 @@
     "cua": {
       "inputs": {
         "repository": "trycua/cua",
-        "commit": "d96e1bc359b2cc638c7a406aad01a7276b1b416f",
-        "version": "0.45.4",
+        "commit": "93c9b500a0d4f9daa56063d3d3e3fb3c9e6070ee",
+        "version": "0.46.1",
         "manifest": "libs/cua-driver/rust/crates/cua-driver/Cargo.toml",
         "target": "aarch64-apple-darwin",
         "defaultFeatures": true,
@@ -18,11 +18,11 @@
         "uniffiVersion": "0.31.0",
         "recipeSha256": "1a846de18725ad9f28b68713db7315c9f01f5c9054fe7b69df655a1dc77a0e5e"
       },
-      "inputSha256": "70b383cba29f6060ee5f7e2f120a2e571b004f8e2ffaabc0987da1e59e138cb1",
-      "sourceArchiveSha256": "58dff82b95f13bf7e370cbed0ee4bc838258db109cb43ab53f76c32ee9b48d71",
-      "lockSha256": "a17cdbda77de4803b26cbaf2f56924d1fc550e49feb17eec18e657403b403b9a",
-      "reportSha256": "b7b09ab59facea43764f9407f124aca783a57df53bdc5b6f335a441ee70ed761",
-      "verifiedCuaCommit": "d96e1bc359b2cc638c7a406aad01a7276b1b416f"
+      "inputSha256": "e156dc49c0deed31b287578b8ec39d65d4bda0a2c541abece2817a2d0f3d00da",
+      "sourceArchiveSha256": "47362c3360bbf96306dafe9e5a078003c9feb4042dd8b3178b3c19845369f876",
+      "lockSha256": "ec1fbefd2c095b178375f598b455972ce2a6a1b072d2deeab6f3552263d4e5b0",
+      "reportSha256": "7f24db0b2681ae667d9961b957d128cd75d962bb2ca2af20e4f7b710ddbedebe",
+      "verifiedCuaCommit": "93c9b500a0d4f9daa56063d3d3e3fb3c9e6070ee"
     },
     "ubjs": {
       "inputs": {
@@ -49,7 +49,7 @@
       "sourceArchiveSha256": "4c7529a42a1a191107892cee09c3af888fd606f662e9f7ecfd3c025938bcc607",
       "lockSha256": "925e26f606cd906f74675c14687bbe4561844a86c935a4db77dd089a83449316",
       "reportSha256": "4925f4f692fc1cccb7546f3137ddd910fae3b13d45dc8b2313bbd4801b0a6780",
-      "verifiedCuaCommit": "d96e1bc359b2cc638c7a406aad01a7276b1b416f"
+      "verifiedCuaCommit": "93c9b500a0d4f9daa56063d3d3e3fb3c9e6070ee"
     }
   }
 }
