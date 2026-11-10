@@ -4,6 +4,7 @@ import { DictationStrip, MicButton, useComposerTalk, type ComposerDictation } fr
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "./QuestionPrompt";
 import { useComposerSpace } from "./use-composer-space";
+import { GlassPanel } from "./GlassPanel";
 import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
 import type { Annotation, AttachedFile, PastedText, RecalledMessage, StagedImage } from "../../domain/conversation";
 import { AnnotationRow } from "./AnnotationRow";
@@ -364,7 +365,7 @@ export function ConversationComposer({
       <QueuedRow messages={queuedMessages} surface={surface} canSteer={runActive} onEdit={onEditQueued} onSteer={onSteerQueued} onDrop={onDropQueued} />
       {planUsage && model !== undefined && <PlanUsageWarning engine={engine} engineLabel={engineLabel} model={model} {...planUsage} />}
       {surface === "main" && startOptions}
-      {unopenable ? <UnopenableComposer reason={unopenable} taskId={taskId} surface={surface} runActive={runActive} updateAvailable={updateAvailable} onCancel={onCancel} /> : <div className="composer">
+      {unopenable ? <UnopenableComposer reason={unopenable} taskId={taskId} surface={surface} runActive={runActive} updateAvailable={updateAvailable} onCancel={onCancel} /> : <GlassPanel layered={surface === "main"} className="composer" frame={`composer-wrap ${surface}`}>
         {reviewPicker && (
           <ReviewPicker
             picker={reviewPicker}
@@ -412,7 +413,7 @@ export function ConversationComposer({
             <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || (nothingToSend && !handsFree)} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} />
           </div>
         </div>
-      </div>}
+      </GlassPanel>}
       <AttachmentAnnotator attachments={attachments} />
     </ComposerWrap>
   );

@@ -30,6 +30,10 @@ const materialArgument = process.argv.find((argument) => argument.startsWith("--
 const api: WindowDesktopAPI = {
   platform: process.platform === "darwin" ? "macos" : process.platform === "linux" ? "linux" : "other",
   windowMaterial: materialArgument === "glass" || materialArgument === "vibrancy" ? materialArgument : "none",
+  glassLayer: process.argv.includes("--glass-layer"),
+  setGlassRegions: relay("setGlassRegions"),
+  setGlassLayerInteractive: relay("setGlassLayerInteractive"),
+  focusGlassLayer: relay("focusGlassLayer"),
   pathForFile: (file: File) => webUtils.getPathForFile(file),
   openFolder: relay("openFolder"),
   projectlessWorkspace: relay("projectlessWorkspace"),

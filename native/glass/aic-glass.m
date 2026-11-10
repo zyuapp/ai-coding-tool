@@ -7,6 +7,7 @@
 #include <node_api.h>
 
 static NSString *const kGlassIdentifier = @"aic-window-glass";
+static NSString *const kRegionIdentifier = @"aic-glass-region";
 
 /** Looked up by name, so the addon builds against an SDK older than the class. */
 static Class GlassClass(void) {
@@ -48,12 +49,67 @@ static napi_value Attach(napi_env env, napi_callback_info info) {
   return attached;
 }
 
+/**
+ * Lays one pane of glass per region under a see-through window's web contents, so what the page
+ * draws there sits on glass that bends whatever is behind the window. Takes the window's handle and
+ * a flat list of x, y from the top, width, height and corner radius; panes are reused, so a region
+ * that moves is not rebuilt.
+ */
+static napi_value Regions(napi_env env, napi_callback_info info) {
+  size_t argc = 2;
+  napi_value argv[2];
+  napi_value applied;
+  napi_get_boolean(env, false, &applied);
+  Class glass = GlassClass();
+  if (!glass || napi_get_cb_info(env, info, &argc, argv, NULL, NULL) != napi_ok || argc < 2) return applied;
+  void *data = NULL;
+  size_t length = 0;
+  if (napi_get_buffer_info(env, argv[0], &data, &length) != napi_ok || length < sizeof(void *)) return applied;
+  NSView *handle = (__bridge NSView *)(*(void **)data);
+  NSView *root = handle.window.contentView;
+  uint32_t count = 0;
+  if (!root || napi_get_array_length(env, argv[1], &count) != napi_ok) return applied;
+
+  NSMutableArray<NSView *> *panes = [NSMutableArray array];
+  for (NSView *view in root.subviews) {
+    if ([view.identifier isEqualToString:kRegionIdentifier]) [panes addObject:view];
+  }
+  NSUInteger wanted = count / 5;
+  while (panes.count > wanted) {
+    [panes.lastObject removeFromSuperview];
+    [panes removeLastObject];
+  }
+  for (NSUInteger index = 0; index < wanted; index++) {
+    double values[5] = {0, 0, 0, 0, 0};
+    for (uint32_t field = 0; field < 5; field++) {
+      napi_value element;
+      if (napi_get_element(env, argv[1], (uint32_t)index * 5 + field, &element) == napi_ok) napi_get_value_double(env, element, &values[field]);
+    }
+    CGFloat y = root.isFlipped ? values[1] : root.bounds.size.height - values[1] - values[3];
+    NSRect frame = NSMakeRect(values[0], y, values[2], values[3]);
+    NSView *pane = index < panes.count ? panes[index] : nil;
+    if (!pane) {
+      pane = [[glass alloc] initWithFrame:frame];
+      pane.identifier = kRegionIdentifier;
+      [root addSubview:pane positioned:NSWindowBelow relativeTo:nil];
+      [panes addObject:pane];
+    }
+    pane.frame = frame;
+    [pane setValue:@(values[4]) forKey:@"cornerRadius"];
+  }
+  napi_get_boolean(env, true, &applied);
+  return applied;
+}
+
 NAPI_MODULE_INIT() {
   napi_value available;
   napi_value attach;
+  napi_value regions;
   napi_create_function(env, "available", NAPI_AUTO_LENGTH, Available, NULL, &available);
   napi_create_function(env, "attach", NAPI_AUTO_LENGTH, Attach, NULL, &attach);
+  napi_create_function(env, "regions", NAPI_AUTO_LENGTH, Regions, NULL, &regions);
   napi_set_named_property(env, exports, "available", available);
   napi_set_named_property(env, exports, "attach", attach);
+  napi_set_named_property(env, exports, "regions", regions);
   return exports;
 }

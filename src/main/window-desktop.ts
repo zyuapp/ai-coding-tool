@@ -1,6 +1,7 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { isGlassRegions, type GlassRegion } from "../contracts/glass.js";
 import { isBrowserBounds, isString, isWindowTheme, type WindowDesktopAPI, type WindowDesktopCall, type WindowTheme } from "../contracts/ipc.js";
 import { isAgentEngine } from "../domain/agent-engine.js";
 import { isDiffRange } from "../domain/diff.js";
@@ -17,12 +18,14 @@ export type WindowDesktopHost = {
   desktop: Pick<RuntimeDesktop, "openFolder" | "projectlessWorkspace" | "diffPatch" | "saveAttachment" | "focusBrowserTab">;
   reads: Pick<ComputerReads, "read">;
   setTheme: (theme: WindowTheme) => void;
+  /** The see-through layer over the window, when it has one. */
+  glassLayer: { setRegions(regions: GlassRegion[]): void; setInteractive(interactive: boolean): void; focus(focused: boolean): void };
   /** Settles once the services behind the window's calls are up; the window can open before then. */
   ready?: Promise<void>;
 };
 
 /** Calls about the window's own frame, answered without waiting for the services. */
-const FRAME_CALLS: ReadonlySet<string> = new Set<WindowDesktopCall>(["setTheme", "setBrowserBounds"]);
+const FRAME_CALLS: ReadonlySet<string> = new Set<WindowDesktopCall>(["setTheme", "setBrowserBounds", "setGlassRegions", "setGlassLayerInteractive", "focusGlassLayer"]);
 
 type GuardEach<Args extends unknown[]> = { [Index in keyof Args]-?: (value: unknown) => boolean };
 type Guards<Name extends WindowDesktopCall> = GuardEach<Parameters<WindowDesktopAPI[Name]>>;
@@ -34,6 +37,7 @@ const MAX_PATH_LENGTH = 4_096;
 const MAX_DESCRIBED_FILES = 20;
 
 const isId = (value: unknown) => isString(value);
+const isBoolean = (value: unknown) => typeof value === "boolean";
 const isPath = (value: unknown) => isString(value, MAX_PATH_LENGTH);
 const optional = (guard: (value: unknown) => boolean) => (value: unknown) => value === undefined || guard(value);
 const isSequence = (value: unknown) => Number.isSafeInteger(value) && (value as number) >= 0;
@@ -83,6 +87,9 @@ export function windowDesktopCalls(host: WindowDesktopHost): { [Name in WindowDe
       run: (computerId, terminalId, after) => host.reads.read({ kind: "terminal-output", terminalId, ...(after === undefined ? {} : { after }) }, { computer: computerId }),
     },
     setTheme: { args: [isWindowTheme], run: (theme) => host.setTheme(theme) },
+    setGlassRegions: { args: [isGlassRegions], run: async (regions) => host.glassLayer.setRegions(regions) },
+    setGlassLayerInteractive: { args: [isBoolean], run: async (interactive) => host.glassLayer.setInteractive(interactive) },
+    focusGlassLayer: { args: [isBoolean], run: async (focused) => host.glassLayer.focus(focused) },
     watchSimulator: { args: [isId], run: (udid) => watchSimulator(udid) },
     unwatchSimulator: { args: [isId], run: (udid) => unwatchSimulator(udid) },
   };

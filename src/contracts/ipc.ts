@@ -1,4 +1,5 @@
 import type { SimulatorAvailability, SimulatorDevice, SimulatorFrame, SimulatorInput, SimulatorShot, SimulatorSnapshot } from "../domain/simulator.js";
+import type { GlassRegion } from "./glass.js";
 import type { BranchesResult } from "./git.js";
 export type { BranchesResult } from "./git.js";
 import type { AgentSettingsReloadEvent, ReloadAgentSettingsCommand } from "./agent-settings.js";
@@ -241,6 +242,14 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   readonly platform: DesktopPlatform;
   /** Static for the window's life, so the first paint already leaves the material showing. */
   readonly windowMaterial: WindowMaterial;
+  /** Whether the window can open a see-through layer over itself, whose panes sit on real glass. */
+  readonly glassLayer: boolean;
+  /** The panes of glass under the glass layer's page. */
+  setGlassRegions(regions: GlassRegion[]): Promise<void>;
+  /** Whether the glass layer takes the pointer, which it only does over what it draws. */
+  setGlassLayerInteractive(interactive: boolean): Promise<void>;
+  /** Hands the keyboard to the glass layer, or back to the window under it. */
+  focusGlassLayer(focused: boolean): Promise<void>;
   openFolder(): Promise<WorkspaceRecord | null>;
   /** Opens a folder named by path rather than picked, refusing anything that is not one to work in. */
   registerProject(root: string): Promise<WorkspaceRecord>;
@@ -441,11 +450,12 @@ export type WindowDesktopCall =
   | "openFolder" | "projectlessWorkspace" | "commands" | "branches" | "commits" | "diffPatch"
   | "describeFiles" | "saveAttachment" | "readAttachment" | "readAttachmentContext"
   | "setBrowserBounds" | "focusBrowserTab" | "terminalSnapshot" | "readRemoteTerminal" | "setTheme"
+  | "setGlassRegions" | "setGlassLayerInteractive" | "focusGlassLayer"
   | "watchSimulator" | "unwatchSimulator";
 
 /** What a window reaches directly: its calls, what main pushes at it, and what it answers itself. The rest is the runtime's. */
 export type WindowDesktopAPI = Pick<DesktopAPI, WindowDesktopCall
-  | "platform" | "windowMaterial" | "pathForFile"
+  | "platform" | "windowMaterial" | "glassLayer" | "pathForFile"
   | "onTerminalData" | "onSimulatorFrame" | "onWindowScreenshot" | "onDesktopShortcutRefused" | "onShortcut" | "onShortcutCaptured" | "onOpenThread" | "onWindowActive" | "onGlassTint" | "onDictationLevel"
 >;
 

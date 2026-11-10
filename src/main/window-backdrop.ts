@@ -1,15 +1,18 @@
 import { createRequire } from "node:module";
 import path from "node:path";
 import type { BrowserWindowConstructorOptions } from "electron";
+import type { GlassRegion } from "../contracts/glass.js";
 import type { WindowMaterial } from "../contracts/ipc.js";
 
-/** The native layer that lays Liquid Glass over a window's vibrancy. */
+/** The native layer that puts Liquid Glass under a window's page. */
 export type WindowGlass = {
   /** Whether glass went under the window that owns this handle. */
   attach(handle: Buffer): boolean;
+  /** Lays one pane of glass per region under a see-through window's page, in that window's own coordinates. */
+  regions(handle: Buffer, regions: readonly GlassRegion[]): boolean;
 };
 
-type GlassAddon = { available(): boolean; attach(handle: Buffer): boolean };
+type GlassAddon = { available(): boolean; attach(handle: Buffer): boolean; regions(handle: Buffer, flat: number[]): boolean };
 
 /**
  * Glass needs the addon and a macOS that has it. A build without the addon, or one that will not
@@ -19,7 +22,11 @@ export function loadWindowGlass(nativeDirectory: string, platform: NodeJS.Platfo
   if (platform !== "darwin") return null;
   try {
     const addon = (load ?? createRequire(__filename))(path.join(nativeDirectory, "aic-glass.node")) as GlassAddon;
-    return addon.available() ? { attach: (handle) => addon.attach(handle) } : null;
+    if (!addon.available()) return null;
+    return {
+      attach: (handle) => addon.attach(handle),
+      regions: (handle, regions) => addon.regions(handle, regions.flatMap(({ x, y, width, height, radius }) => [x, y, width, height, radius])),
+    };
   } catch {
     return null;
   }

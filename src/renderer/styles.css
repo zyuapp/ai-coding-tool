@@ -3690,6 +3690,21 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
   box-shadow: 0 0 0 1px var(--line-glass), var(--shadow-composer);
 }
 .composer::before { content: ""; position: absolute; z-index: -1; inset: 0; border-radius: inherit; background: var(--glass); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-rim); }
+
+/**
+ * The glass layer: a see-through window over the app. A pane mounted in it sits on glass the
+ * platform draws, so it drops the stylesheet's own, and the slot it left in the page draws nothing.
+ */
+:root[data-glass-layer], :root[data-glass-layer] body { overflow: hidden; background: none; }
+.glass-layer { position: fixed; inset: 0; pointer-events: none; }
+.glass-host { position: fixed; pointer-events: none; }
+.glass-host > * { pointer-events: auto; }
+.glass-host[data-covered] { visibility: hidden; }
+.glass-host.composer-wrap { border-radius: 0; padding-block: 0; background: none; }
+.glass-slot, [data-glass-region]:is(*, :focus-within, :has(*)) { box-shadow: none; }
+:is(.glass-slot, [data-glass-region])::before { content: none; }
+/** Nothing is behind a menu in the layer for it to blur, so it is solid there. */
+:root[data-glass-layer] { --glass-menu: var(--glass-sheen), var(--surface-menu); --glass-menu-blur: none; }
 .command-menu {
   position: absolute;
   z-index: 40;

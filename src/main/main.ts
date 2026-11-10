@@ -47,6 +47,7 @@ import { readAppLaunch } from "./app-launch.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
 import { windowFrameOptions } from "./platform-capabilities.js";
 import { loadWindowGlass, systemGlassTint, windowMaterial, windowMaterialOptions, WINDOW_MATERIAL_ARGUMENT } from "./window-backdrop.js";
+import { GLASS_LAYER_ARGUMENT, GLASS_LAYER_FRAME, glassLayerWindowOptions, startGlassLayer, type GlassLayer } from "./glass-layer.js";
 import { serveWindowDesktop } from "./window-desktop.js";
 import { recheckMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
 import * as browser from "./browser-host.js";
@@ -253,6 +254,9 @@ function grantAppWindowPermissions() {
 
 const windowGlass = loadWindowGlass(app.isPackaged ? path.join(process.resourcesPath, "native") : path.join(app.getAppPath(), "dist", "native"));
 const material = windowMaterial(windowGlass);
+/** Panes on real glass are still being proven, so a window only opens its glass layer when asked to. */
+const glassLayerOffered = windowGlass !== null && process.env.AIC_GLASS_LAYER === "1";
+let glassLayer: GlassLayer | null = null;
 
 function applyWindowTheme(theme: WindowTheme) {
   windowTheme = theme;
@@ -369,7 +373,7 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      additionalArguments: [`${WINDOW_MATERIAL_ARGUMENT}${material}`],
+      additionalArguments: [`${WINDOW_MATERIAL_ARGUMENT}${material}`, ...(glassLayerOffered ? [GLASS_LAYER_ARGUMENT] : [])],
     },
   });
   windowGlass?.attach(window.getNativeWindowHandle());
@@ -401,7 +405,11 @@ async function createWindow() {
   });
   guardVisualFrames(window.webContents);
   /** A normal link leaves AI Coding Tool. Its context menu offers the browser panel separately. */
-  window.webContents.setWindowOpenHandler(({ url }) => {
+  window.webContents.setWindowOpenHandler(({ url, frameName }) => {
+    /** The one window the page opens for itself: its glass layer, once. */
+    if (glassLayerOffered && windowGlass && !glassLayer && url === "about:blank" && frameName === GLASS_LAYER_FRAME && window) {
+      return { action: "allow", overrideBrowserWindowOptions: glassLayerWindowOptions(window) };
+    }
     try {
       void shell.openExternal(webPageUrl(url)).catch((error) => console.error("Could not open link:", error));
     } catch {
@@ -421,15 +429,30 @@ async function createWindow() {
   /** The native window keeps focus while its browser panel has it, which the page's own focus does not. */
   const active = () => {
     if (shown.isDestroyed()) return;
-    workspaceRuntime.setViewInUse(shown.isFocused());
-    shown.webContents.send("window:active", shown.isFocused());
+    /** The glass layer is part of the window, so the window is in use while the layer has the keyboard. */
+    const inUse = shown.isFocused() || Boolean(glassLayer?.focused());
+    workspaceRuntime.setViewInUse(inUse);
+    shown.webContents.send("window:active", inUse);
     /** The system redraws its glass when a window comes back into use, so that is when the page asks after it too. */
     if (material === "glass") shown.webContents.send("window:glass-tint", systemGlassTint((key, type) => systemPreferences.getUserDefault(key, type)));
   };
   window.on("focus", active);
-  window.on("blur", active);
+  /** Focus passing between the window and its glass layer leaves one before it reaches the other, so the answer waits for it to land. */
+  const settled = () => { setTimeout(active, glassLayer ? 40 : 0); };
+  window.on("blur", glassLayerOffered ? settled : active);
   window.webContents.on("did-finish-load", active);
   active();
+  window.webContents.on("did-create-window", (layer, details) => {
+    if (!windowGlass || glassLayer || details.frameName !== GLASS_LAYER_FRAME) return layer.destroy();
+    glassLayer = startGlassLayer(shown, layer, windowGlass);
+    layer.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    layer.webContents.on("before-input-event", (event, input) => {
+      if (keyboard.handleKey(input, "any")) event.preventDefault();
+    });
+    layer.on("focus", active);
+    layer.on("blur", settled);
+    layer.on("closed", () => { glassLayer = null; });
+  });
   window.on("closed", () => {
     workspaceRuntime.setViewVisible(false);
     browser.stopBrowserHost();
@@ -647,4 +670,17 @@ function setWindowTheme(theme: WindowTheme) {
   rememberWindowTheme(theme);
 }
 
-serveWindowDesktop({ desktop: runtimeDesktop, reads: computerReads, setTheme: setWindowTheme, ready: servicesReady }, trustedSender);
+serveWindowDesktop({
+  desktop: runtimeDesktop,
+  reads: computerReads,
+  setTheme: setWindowTheme,
+  glassLayer: {
+    setRegions: (regions) => glassLayer?.setRegions(regions),
+    setInteractive: (interactive) => glassLayer?.setInteractive(interactive),
+    focus: (focused) => {
+      if (focused) glassLayer?.focus();
+      else if (window && !window.isDestroyed()) window.focus();
+    },
+  },
+  ready: servicesReady,
+}, trustedSender);
