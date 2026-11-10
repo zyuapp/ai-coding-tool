@@ -30,6 +30,9 @@
 .setting-value { white-space: nowrap; }
 .setting-detail { display: flex; gap: 6px; color: var(--muted); white-space: nowrap; }
 .setting-detail > span:first-child { color: var(--quiet-soft); }
+.setting-detail > .setting-dot { color: var(--quiet-soft); }
+.setting-mode { display: flex; align-items: center; gap: 4px; }
+.setting-menu.danger .setting-mode { color: var(--danger-soft); }
 .setting-menu[open] .setting-detail, .setting-menu > .menu-opener:hover .setting-detail { color: var(--ink-faint); }
 .setting-detail .delegates { color: var(--accent-soft); }
 .setting-popover {

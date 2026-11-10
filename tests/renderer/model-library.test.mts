@@ -20,7 +20,7 @@ test("the library filters providers, searches globally, pins without choosing, a
     onModeChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onEngineRead() {}, onSignIn() {},
   };
   const view = await mount(React.createElement(ComposerSettings, props));
-  const menu = view.container.querySelectorAll(".setting-menu")[1]!;
+  const menu = view.container.querySelectorAll(".setting-menu")[0]!;
   await act(async () => { query<HTMLElement>(menu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.equal(query(menu, ".model-choice .menu-label").textContent, "Astra");
   assert.equal(menu.querySelectorAll(".model-choice").length, 1);
@@ -89,7 +89,7 @@ test("the Codex speed toggle follows effort and dispatches both speed changes", 
   assert.equal(view.container.querySelector('button[aria-label="Fast mode"]'), null);
   assert.equal(view.container.querySelector(".setting-menu.danger"), null);
   await view.render(React.createElement(ComposerSettings, { ...props, mode: "bypass" }));
-  assert.equal(query(view.container, ".setting-menu.danger summary").getAttribute("aria-label"), "Permission mode: Bypass", "bypass is marked on the chip, not only inside its menu");
+  assert.equal(query(view.container, ".setting-menu.danger summary").getAttribute("aria-label"), "Model, effort and mode: Sol, High, Bypass", "bypass is marked on the chip, not only inside its menu");
   await view.unmount();
 });
 
@@ -150,16 +150,12 @@ test("an engine that runs many providers' models lists them under each provider,
   };
   const view = await mount(React.createElement(ModelCatalogProvider, { value: catalog }, React.createElement(ComposerSettings, props)));
   const chips = [...view.container.querySelectorAll("summary")].map((node) => node.getAttribute("aria-label"));
-  assert.ok(chips.includes("Model: GLM-5.3-Flash"));
-  const mode = [...view.container.querySelectorAll<HTMLElement>("summary")].find((node) => node.getAttribute("aria-label")?.startsWith("Permission mode"))!;
-  await act(async () => { mode.click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  const modes = [...view.container.querySelectorAll('.setting-popover [role="option"] .menu-label')].map((node) => node.textContent);
-  assert.ok(!modes.includes("Auto"), "Auto is not offered on an engine with no reviewer to stand on");
-  assert.ok(modes.includes("Edits"));
-  await act(async () => { mode.click(); });
-
+  assert.ok(chips.includes("Model and mode: GLM-5.3-Flash, Edits"));
   const model = [...view.container.querySelectorAll<HTMLElement>("summary")].find((node) => node.getAttribute("aria-label")?.startsWith("Model"))!;
   await act(async () => { model.click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  const modes = [...view.container.querySelectorAll('.library-modes [role="radio"]')].map((node) => node.textContent);
+  assert.ok(!modes.includes("Auto"), "Auto is not offered on an engine with no reviewer to stand on");
+  assert.ok(modes.includes("Edits"));
   await act(async () => { [...view.container.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((node) => node.textContent?.includes("All models"))!.click(); });
   assert.equal(view.container.querySelectorAll(".model-results .setting-readiness").length, 1, "an engine behind the app says so once, not under every provider");
   await act(async () => { [...view.container.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((node) => node.textContent?.includes("OpenRouter"))!.click(); });

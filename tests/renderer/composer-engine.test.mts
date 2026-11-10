@@ -39,7 +39,7 @@ test("a thread that has an engine offers only its models, and says a new thread 
   }));
   await act(async () => {});
 
-  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
+  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[0]);
   assert.equal(query(modelMenu, ".setting-value").textContent, "Terra");
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.equal(query(modelMenu, ".model-results-heading > span").textContent, "Codex");
@@ -70,7 +70,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
   }));
   await act(async () => {});
 
-  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
+  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[0]);
   assert.equal(reads, 0, "nothing is asked until the menu opens");
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.equal(reads, 1, "opening the menu asks which engines can be picked");
@@ -110,7 +110,7 @@ test("an engine too old to speak to is inert, and its hint names both versions a
   }));
   await act(async () => {});
 
-  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
+  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[0]);
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   const codex = query(modelMenu, "[role=group][aria-label=Codex]");
   assert.equal(query(codex, ".setting-hint span").textContent, "Codex 0.147.0 is too old. Update to 0.150.1.");
@@ -131,7 +131,7 @@ test("a Claude behind the app offers only the models it knows, and says an upgra
   }));
   await act(async () => {});
 
-  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
+  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[0]);
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   const claude = query(modelMenu, "[role=group][aria-label=Claude]");
   assert.deepEqual([...claude.querySelectorAll(".model-choice .menu-label")].map((option) => option.textContent), ["Opus", "Sonnet"], "the models it never heard of are simply absent");
@@ -153,7 +153,7 @@ test("the hint about a broken engine opens the Engines page, which is where it i
   }));
   await act(async () => {});
 
-  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
+  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[0]);
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   const codex = query(modelMenu, "[role=group][aria-label=Codex]");
   await act(async () => { query<HTMLButtonElement>(codex, ".setting-readiness-link").click(); });
@@ -171,7 +171,7 @@ test("a thread that has its engine asks nothing when its model menu opens", asyn
     queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   }));
   await act(async () => {});
-  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
+  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[0]);
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.equal(reads, 0, "only a menu that offers another engine needs to know about it");
   await view.unmount();
@@ -364,7 +364,7 @@ test("the model menu's effort strip offers what the model takes, and says so for
   const efforts = async (engine: "claude" | "codex", model: AgentModel | undefined, coordinating = false) => {
     const view = await mount(composer(engine, model, coordinating));
     await act(async () => {});
-    const menu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
+    const menu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[0]);
     const chip = query(menu, "summary").textContent;
     await act(async () => { query<HTMLElement>(menu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
     const strip = query(menu, ".effort-strip");
@@ -377,13 +377,13 @@ test("the model menu's effort strip offers what the model takes, and says so for
   };
 
   const astra = await efforts("codex", "gpt-6-astra");
-  assert.equal(astra.chip, "ModelAstra·High");
+  assert.equal(astra.chip, "Astra·High·Confirm");
   assert.deepEqual(astra.labels, ["Low", "Medium", "High", "Extra high", "Max", "Ultra"]);
   assert.deepEqual(changes, ["xhigh"], "the slider steps to the next effort up");
   assert.equal((await efforts("codex", "gpt-6-astra", true)).labels.at(-1), "Max", "a coordinator hands work only to threads, so it has no ultra");
   assert.equal((await efforts("codex", "gpt-6-luna")).labels.includes("Ultra"), false, "a nondelegating model has no ultra");
   const haiku = await efforts("claude", "haiku");
-  assert.equal(haiku.chip, "ModelHaiku", "Haiku reasons at one depth, so its chip names no effort");
+  assert.equal(haiku.chip, "Haiku·Confirm", "Haiku reasons at one depth, so its chip names no effort");
   assert.equal(haiku.none, "Haiku has no effort setting");
   assert.equal((await efforts("codex", undefined)).none, undefined, "with no model chosen, there is no model to say so of");
 });

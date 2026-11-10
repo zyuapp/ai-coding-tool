@@ -1,24 +1,36 @@
-.model-library { width: min(620px, calc(100cqw - 40px)); padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+/** A picker read closely, so it is a solid pane: nothing behind it shows through its words. */
+.model-library { --library-rail: 176px; width: min(720px, calc(100cqw - 40px)); padding: 0; overflow: hidden; display: flex; flex-direction: column; background: var(--glass-edge), var(--glass-sheen), rgb(from var(--p-bg-3) r g b); background-clip: border-area, border-box, border-box; backdrop-filter: none; }
 .model-search { position: relative; flex-shrink: 0; }
 .model-search .search-field-box { padding-right: 48px; }
 .model-search > .icon-btn { position: absolute; top: 10px; right: 10px; }
-.model-library-body { display: grid; grid-template-columns: 150px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); max-height: 330px; min-height: 0; }
-.model-provider-rail { padding: 10px 7px; border-right: 1px solid var(--line-soft); overflow-y: auto; }
+.model-library-body { display: grid; grid-template-columns: var(--library-rail) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); max-height: min(400px, calc(100vh - 330px)); min-height: 0; }
+.model-provider-rail { padding: 10px 8px; border-right: 1px solid var(--line-soft); overflow-y: auto; }
+.model-provider-rail .nav-item { font-size: var(--text-menu); }
 .model-provider-glyph { flex-shrink: 0; width: 16px; }
-.model-results { padding: 14px 10px; overflow-y: auto; overscroll-behavior: contain; }
-.model-results-heading { display: flex; justify-content: space-between; gap: 10px; padding: 0 8px 10px; color: var(--quiet-strong); font-size: var(--text-meta); }
+.model-results { padding: 12px 10px; overflow-y: auto; overscroll-behavior: contain; }
+.model-results-heading { display: flex; justify-content: space-between; gap: 10px; padding: 0 10px 8px; color: var(--quiet-strong); font-size: var(--text-meta); }
 .model-results-heading > span:last-child { color: var(--quiet-soft); }
 .model-row { display: flex; align-items: center; gap: 2px; }
-.model-row > .model-choice { flex: 1; min-width: 0; }
+.model-row > .model-choice { flex: 1; min-width: 0; gap: 10px; min-height: 46px; padding: 6px 10px; border-radius: 8px; font-size: var(--text-control); }
+.model-choice .menu-label { font-weight: 500; }
+.model-choice .menu-description { font-size: var(--text-menu); }
 .model-favorite[aria-pressed="true"] { color: var(--accent); }
 .model-empty { margin: 12px 0; }
 .model-library-footer { display: flex; justify-content: space-between; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line-soft); color: var(--quiet); font-size: var(--text-badge); flex-shrink: 0; }
 .model-library-footer span { display: flex; align-items: center; gap: 6px; }
-.effort-strip { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 12px; padding: 8px 16px; border-top: 1px solid var(--line-soft); flex-shrink: 0; }
-.effort-strip-axis { display: flex; align-items: baseline; gap: 5px; min-width: 0; padding-top: 5px; color: var(--quiet-strong); font-size: var(--text-meta); }
-.effort-strip-axis small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-size: var(--text-meta); }
-.effort-strip-axis small::before { content: "· "; }
-.effort-strip-none { grid-column: 2 / -1; padding: 12px 8px; color: var(--quiet); font-size: var(--text-meta); }
+/** Effort and mode, each a row whose name lines up with the provider rail above. */
+.library-settings { display: grid; flex-shrink: 0; border-top: 1px solid var(--line-soft); background: rgb(from var(--p-bg-0) r g b / 0.22); }
+.library-setting { display: grid; grid-template-columns: var(--library-rail) minmax(0, 1fr); align-items: center; padding: 10px 18px 10px 0; }
+.library-setting + .library-setting { border-top: 1px solid var(--line-soft); }
+.library-setting-axis { display: flex; align-items: baseline; gap: 5px; min-width: 0; padding-left: 18px; color: var(--ink-soft); font-size: var(--text-menu); font-weight: 500; }
+.library-setting-axis small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-size: var(--text-meta); font-weight: 400; }
+.library-setting-axis small::before { content: "· "; }
+.effort-strip { align-items: start; }
+.effort-strip > .library-setting-axis { padding-top: 7px; }
+.effort-strip-none { padding: 6px 0; color: var(--quiet); font-size: var(--text-meta); }
+.library-setting > :last-child { margin-left: 8px; }
+.library-modes > button { flex: 1; justify-content: center; font-size: var(--text-menu); }
+.library-modes > button[aria-checked="true"][data-tone="danger"], .library-modes > button[aria-checked="true"][data-tone="danger"] svg { color: var(--danger); }
 /** A thick track whose fill runs to the knob's middle; the knob tracks the pointer while dragged and glides to an effort otherwise. */
 .effort-slider { --effort-at: 0; --effort-knob: 30px; --effort-travel: calc(100% - var(--effort-knob)); padding: 10px 0 2px; border-radius: 14px; outline: none; cursor: grab; touch-action: none; user-select: none; }
 .effort-slider.dragging { cursor: grabbing; }
@@ -56,13 +68,12 @@
 .effort-slider.delegates .effort-fill { background: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .effort-fill, .effort-knob, .effort-stop { transition: none; } }
 @container (max-width: 540px) {
-  .model-library-body { grid-template-columns: 116px minmax(0, 1fr); }
+  .model-library { --library-rail: 124px; }
   .model-provider-rail .nav-item { gap: 6px; padding-inline: 5px; }
   .model-choice .menu-icon { display: none; }
   .model-library-footer span { display: none; }
-  .effort-strip { grid-template-columns: minmax(0, 1fr); }
-  .effort-strip-axis { display: none; }
-  .effort-strip-none { grid-column: 1 / -1; }
+  .library-setting-axis small { display: none; }
+  .library-modes > button { padding-inline: 6px; }
 }
 /** At composer widths that wrap controls, give the models the full menu width. */
 @container (max-width: 300px) {
@@ -72,5 +83,9 @@
   .model-provider-rail .nav-item { gap: 4px; padding-inline: 3px; }
   .model-provider-rail :is(.nav-item-count, .nav-separator) { display: none; }
   .model-results { padding-inline: 6px; }
+  .library-setting { grid-template-columns: minmax(0, 1fr); gap: 6px; padding-left: 14px; padding-right: 14px; }
+  .library-setting-axis { padding: 0; }
+  .library-setting > :last-child { margin-left: 0; }
+  .library-modes > button svg { display: none; }
   .effort-stop:not(.current) { visibility: hidden; }
 }

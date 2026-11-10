@@ -153,13 +153,12 @@ test("a side chat composes with everything the main composer has", async () => {
   assert.match(usage.textContent, /120K \/ 200K tokens used/);
 
   const settings = view.container.querySelectorAll<HTMLDetailsElement>(".composer-settings .setting-menu");
-  assert.equal(settings.length, 2, "permission mode, and model with its effort");
-  assert.match(query(item(settings[1]), "summary").getAttribute("aria-label")!, /^Model and effort: .+, .+$/);
-  assert.equal(query(item(settings[0]), "summary").getAttribute("aria-label"), "Permission mode: Edits", "the chip says its current value aloud");
-  assert.equal(query(item(settings[0]), ".setting-value").textContent, "Edits", "the chat's own policy is selected, not the first one on offer");
+  assert.equal(settings.length, 1, "one chip for model, effort and mode");
+  assert.match(query(item(settings[0]), "summary").getAttribute("aria-label")!, /^Model, effort and mode: .+, .+, Edits$/, "the chat's own policy is chosen, not the first one on offer");
   await act(async () => { query<HTMLElement>(item(settings[0]), "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  await act(async () => { item([...item(settings[0]).querySelectorAll<HTMLButtonElement>('.setting-popover [role="option"]')].find((option) => option.textContent.includes("Auto"))).click(); });
+  await act(async () => { item([...item(settings[0]).querySelectorAll<HTMLButtonElement>('.library-modes [role="radio"]')].find((option) => option.textContent.includes("Auto"))).click(); });
   assert.deepEqual(policies, ["autonomous"]);
+  assert.equal(item(settings[0]).open, true, "picking a mode leaves the library open");
 
   const approval = query(view.container, ".approval-card");
   assert.match(approval.textContent, /Run a command/);
