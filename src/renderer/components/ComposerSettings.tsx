@@ -1,5 +1,4 @@
 import { CommandGate, CommandButton, useCommandControls } from "./CommandControl";
-import { focusedElement } from "../glass-layer";
 import type { IconType } from "react-icons";
 import { LuSearch as Search, LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuCheck as Check, LuChevronDown as ChevronDown, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
@@ -258,7 +257,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
     }
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
-    const index = buttons.indexOf(focusedElement() as HTMLButtonElement);
+    const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
     let next = index + (event.key === "ArrowDown" ? 1 : -1);
     if (index === -1) next = event.key === "ArrowDown" ? 0 : buttons.length - 1;
     buttons[(next + buttons.length) % buttons.length].focus();

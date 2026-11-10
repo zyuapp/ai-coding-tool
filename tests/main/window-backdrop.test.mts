@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { loadWindowGlass, systemGlassTint, windowMaterial, windowMaterialOptions } from "../../src/main/window-backdrop.ts";
+import { glassRegionsInPoints, loadWindowGlass, systemGlassTint, windowMaterial, windowMaterialOptions } from "../../src/main/window-backdrop.ts";
 
-const glass = { attach: () => true, regions: () => true, active: () => true, track: () => true };
+const glass = { attach: () => true, regions: () => true };
 
 test("only macOS draws a material under the window, and glass only where the addon offers it", () => {
   assert.equal(windowMaterial(glass, "darwin"), "glass");
@@ -21,7 +21,7 @@ test("glass falls back to none when the addon is missing, refuses, or the platfo
   const loaded: string[] = [];
   const addon = (available: boolean) => (file: string) => {
     loaded.push(file);
-    return { available: () => available, attach: () => true, regions: () => true, active: () => true, track: () => true };
+    return { available: () => available, attach: () => true, regions: () => true };
   };
   assert.equal(loadWindowGlass("/native", "linux", addon(true)), null);
   assert.deepEqual(loaded, [], "another desktop never opens the addon");
@@ -35,4 +35,10 @@ test("the system's glass tint is read as an amount between clear and full, and a
   assert.equal(systemGlassTint(() => 7), 1);
   assert.equal(systemGlassTint(() => -1), 0);
   assert.equal(systemGlassTint(() => undefined), 0);
+});
+
+test("panes named in a zoomed page's pixels are laid in the window's points", () => {
+  const pane = { x: 10, y: 20, width: 300, height: 100, radius: 10 };
+  assert.deepEqual(glassRegionsInPoints([pane], 1), [pane]);
+  assert.deepEqual(glassRegionsInPoints([pane], 1.2), [{ x: 12, y: 24, width: 360, height: 120, radius: 12 }]);
 });

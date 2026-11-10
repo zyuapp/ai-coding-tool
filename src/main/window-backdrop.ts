@@ -8,15 +8,11 @@ import type { WindowMaterial } from "../contracts/ipc.js";
 export type WindowGlass = {
   /** Whether glass went under the window that owns this handle. */
   attach(handle: Buffer): boolean;
-  /** Lays one pane of glass per region under a see-through window's page, in that window's own coordinates. */
+  /** Lays one pane of glass per region under the window's page, in the window's own points. */
   regions(handle: Buffer, regions: readonly GlassRegion[]): boolean;
-  /** Has a window draw its glass as the window in use does, or as one out of use. */
-  active(handle: Buffer, active: boolean): boolean;
-  /** Makes a window the see-through layer, which takes the pointer only over its panes. */
-  track(handle: Buffer): boolean;
 };
 
-type GlassAddon = { available(): boolean; attach(handle: Buffer): boolean; regions(handle: Buffer, flat: number[]): boolean; active(handle: Buffer, active: boolean): boolean; track(handle: Buffer): boolean };
+type GlassAddon = { available(): boolean; attach(handle: Buffer): boolean; regions(handle: Buffer, flat: number[]): boolean };
 
 /**
  * Glass needs the addon and a macOS that has it. A build without the addon, or one that will not
@@ -29,13 +25,17 @@ export function loadWindowGlass(nativeDirectory: string, platform: NodeJS.Platfo
     if (!addon.available()) return null;
     return {
       attach: (handle) => addon.attach(handle),
-      regions: (handle, regions) => addon.regions(handle, regions.flatMap(({ x, y, width, height, radius, clear }) => [x, y, width, height, radius, clear ? 1 : 0])),
-      active: (handle, active) => addon.active(handle, active),
-      track: (handle) => addon.track(handle),
+      regions: (handle, regions) => addon.regions(handle, regions.flatMap(({ x, y, width, height, radius }) => [x, y, width, height, radius])),
     };
   } catch {
     return null;
   }
+}
+
+/** A page names its panes in its own pixels, which a zoomed page draws larger than the window's points. */
+export function glassRegionsInPoints(regions: readonly GlassRegion[], zoom: number): GlassRegion[] {
+  if (zoom === 1) return [...regions];
+  return regions.map(({ x, y, width, height, radius }) => ({ x: x * zoom, y: y * zoom, width: width * zoom, height: height * zoom, radius: radius * zoom }));
 }
 
 /** macOS draws a material under the window; other desktops keep an opaque one. */

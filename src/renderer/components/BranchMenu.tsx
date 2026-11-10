@@ -1,5 +1,4 @@
 import { LuPlus as Plus } from "react-icons/lu";
-import { floatRoot } from "../glass-layer";
 import { Fragment, useEffect, useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { BranchesResult } from "../../contracts/ipc";
@@ -183,5 +182,5 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
     </PickerPopover>
   );
 
-  return anchor ? createPortal(menu, floatRoot()) : menu;
+  return anchor ? createPortal(menu, document.body) : menu;
 }

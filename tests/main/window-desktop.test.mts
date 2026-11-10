@@ -51,7 +51,6 @@ test("every call the window makes is relayed on one channel, refused from anyone
     desktop: { openFolder: record("openFolder"), projectlessWorkspace: record("projectlessWorkspace"), diffPatch: record("diffPatch"), saveAttachment: record("saveAttachment"), focusBrowserTab: record("focusBrowserTab") },
     reads: { read: record("read") },
     setTheme: (theme: unknown) => { electron.reached.push(["setTheme", theme]); },
-    glassLayer: { setRegions: record("setGlassRegions"), focus: record("focusGlassLayer") },
     setWindowGlassRegions: record("setWindowGlassRegions"),
   } as unknown as WindowDesktopHost;
   serveWindowDesktop(host, (event) => (event.sender as unknown) === window.sender);
@@ -78,9 +77,7 @@ test("every call the window makes is relayed on one channel, refused from anyone
     terminalSnapshot: { valid: ["terminal"], invalid: [[42]] },
     readRemoteTerminal: { valid: ["holder", "terminal", 3], invalid: [["holder", "terminal", -1], ["holder", "terminal", 1.5], ["", "terminal"]] },
     setTheme: { valid: [{ variant: "dark", canvas: "#0e1117" }], invalid: [[{ variant: "blue", canvas: "#0e1117" }], [{ variant: "dark", canvas: "red" }]] },
-    setGlassRegions: { valid: [[{ x: 1, y: 2, width: 300, height: 100, radius: 17, clear: true }]], invalid: [[[{ x: 1, y: 2, width: -3, height: 100, radius: 17, clear: true }]], [[{ x: 1, y: 2, width: 300, height: 100, radius: 17 }]], [undefined]] },
-    setWindowGlassRegions: { valid: [[{ x: 1, y: 2, width: 300, height: 100, radius: 17, clear: true }]], invalid: [[[{ x: 1 }]], [null]] },
-    focusGlassLayer: { valid: [false], invalid: [[1]] },
+    setWindowGlassRegions: { valid: [[{ x: 1, y: 2, width: 300, height: 100, radius: 17 }]], invalid: [[[{ x: 1, y: 2, width: -3, height: 100, radius: 17 }]], [[{ x: 1 }]], [null]] },
     watchSimulator: { valid: ["udid"], invalid: [[""], [7]] },
     unwatchSimulator: { valid: ["udid"], invalid: [[null]] },
   };
@@ -112,7 +109,7 @@ test("every call the window makes is relayed on one channel, refused from anyone
   const desktop = electron.exposed.get("desktop");
   assert.ok(desktop);
   assert.ok(electron.exposed.has("workspace"));
-  const relayed = Object.keys(desktop).filter((key) => key !== "platform" && key !== "windowMaterial" && key !== "glassLayer" && key !== "pathForFile" && !/^on[A-Z]/.test(key));
+  const relayed = Object.keys(desktop).filter((key) => key !== "platform" && key !== "windowMaterial" && key !== "pathForFile" && !/^on[A-Z]/.test(key));
   assert.deepEqual(relayed.sort(), Object.keys(rows).sort(), "the preload relays exactly the calls main answers");
   for (const [name, row] of Object.entries(rows)) {
     await (desktop[name] as (...args: unknown[]) => Promise<unknown>)(...row.valid);

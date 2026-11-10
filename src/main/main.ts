@@ -46,8 +46,7 @@ import { appProfile } from "./user-data.js";
 import { readAppLaunch } from "./app-launch.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
 import { windowFrameOptions } from "./platform-capabilities.js";
-import { loadWindowGlass, systemGlassTint, windowMaterial, windowMaterialOptions, WINDOW_MATERIAL_ARGUMENT } from "./window-backdrop.js";
-import { GLASS_LAYER_ARGUMENT, GLASS_LAYER_FRAME, glassLayerWindowOptions, glassRegionsInPoints, startGlassLayer, type GlassLayer } from "./glass-layer.js";
+import { glassRegionsInPoints, loadWindowGlass, systemGlassTint, windowMaterial, windowMaterialOptions, WINDOW_MATERIAL_ARGUMENT } from "./window-backdrop.js";
 import { serveWindowDesktop } from "./window-desktop.js";
 import { recheckMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
 import * as browser from "./browser-host.js";
@@ -254,9 +253,6 @@ function grantAppWindowPermissions() {
 
 const windowGlass = loadWindowGlass(app.isPackaged ? path.join(process.resourcesPath, "native") : path.join(app.getAppPath(), "dist", "native"));
 const material = windowMaterial(windowGlass);
-/** Panes on real glass are still being proven, so a window only opens its glass layer when asked to. */
-const glassLayerOffered = windowGlass !== null && process.env.AIC_GLASS_LAYER === "1";
-let glassLayer: GlassLayer | null = null;
 
 function applyWindowTheme(theme: WindowTheme) {
   windowTheme = theme;
@@ -373,7 +369,7 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      additionalArguments: [`${WINDOW_MATERIAL_ARGUMENT}${material}`, ...(glassLayerOffered ? [GLASS_LAYER_ARGUMENT] : [])],
+      additionalArguments: [`${WINDOW_MATERIAL_ARGUMENT}${material}`],
     },
   });
   windowGlass?.attach(window.getNativeWindowHandle());
@@ -405,11 +401,7 @@ async function createWindow() {
   });
   guardVisualFrames(window.webContents);
   /** A normal link leaves AI Coding Tool. Its context menu offers the browser panel separately. */
-  window.webContents.setWindowOpenHandler(({ url, frameName }) => {
-    /** The one window the page opens for itself: its glass layer, once. */
-    if (glassLayerOffered && windowGlass && !glassLayer && url === "about:blank" && frameName === GLASS_LAYER_FRAME && window) {
-      return { action: "allow", overrideBrowserWindowOptions: glassLayerWindowOptions(window) };
-    }
+  window.webContents.setWindowOpenHandler(({ url }) => {
     try {
       void shell.openExternal(webPageUrl(url)).catch((error) => console.error("Could not open link:", error));
     } catch {
@@ -429,41 +421,15 @@ async function createWindow() {
   /** The native window keeps focus while its browser panel has it, which the page's own focus does not. */
   const active = () => {
     if (shown.isDestroyed()) return;
-    /** The glass layer is part of the window, so the window is in use while the layer has the keyboard. */
-    const inUse = shown.isFocused() || Boolean(glassLayer?.focused());
-    workspaceRuntime.setViewInUse(inUse);
-    glassLayer?.setInUse(inUse);
-    /** The window's own panes stay clear while the layer over it has the keyboard, as the layer's do while the window has it. */
-    if (glassLayerOffered) windowGlass?.active(shown.getNativeWindowHandle(), inUse);
-    shown.webContents.send("window:active", inUse);
+    workspaceRuntime.setViewInUse(shown.isFocused());
+    shown.webContents.send("window:active", shown.isFocused());
     /** The system redraws its glass when a window comes back into use, so that is when the page asks after it too. */
     if (material === "glass") shown.webContents.send("window:glass-tint", systemGlassTint((key, type) => systemPreferences.getUserDefault(key, type)));
   };
   window.on("focus", active);
-  /** Focus passing between the window and its glass layer leaves one before it reaches the other, so the answer waits for it to land. */
-  const settled = () => { setTimeout(active, glassLayer ? 40 : 0); };
-  window.on("blur", glassLayerOffered ? settled : active);
+  window.on("blur", active);
   window.webContents.on("did-finish-load", active);
   active();
-  window.webContents.on("did-create-window", (layer, details) => {
-    if (!windowGlass || glassLayer || details.frameName !== GLASS_LAYER_FRAME) return layer.destroy();
-    glassLayer = startGlassLayer(shown, layer, windowGlass);
-    glassLayer.setInUse(shown.isFocused());
-    layer.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-    layer.webContents.on("before-input-event", (event, input) => {
-      /** A zoom asked for while the layer has the keyboard is meant for the page, which the layer then follows. */
-      const zoom = input.type === "keyDown" && input.meta && !input.alt && !input.control ? ({ "=": 0.5, "+": 0.5, "-": -0.5, "0": 0 } as Record<string, number>)[input.key] : undefined;
-      if (zoom !== undefined) {
-        event.preventDefault();
-        if (!shown.isDestroyed()) shown.webContents.setZoomLevel(zoom === 0 ? 0 : shown.webContents.getZoomLevel() + zoom);
-        return;
-      }
-      if (keyboard.handleKey(input, "any")) event.preventDefault();
-    });
-    layer.on("focus", active);
-    layer.on("blur", settled);
-    layer.on("closed", () => { glassLayer = null; });
-  });
   window.on("closed", () => {
     workspaceRuntime.setViewVisible(false);
     browser.stopBrowserHost();
@@ -687,13 +653,6 @@ serveWindowDesktop({
   setTheme: setWindowTheme,
   setWindowGlassRegions: (regions) => {
     if (window && !window.isDestroyed()) windowGlass?.regions(window.getNativeWindowHandle(), glassRegionsInPoints(regions, window.webContents.getZoomFactor()));
-  },
-  glassLayer: {
-    setRegions: (regions) => glassLayer?.setRegions(regions),
-    focus: (focused) => {
-      if (focused) glassLayer?.focus();
-      else if (window && !window.isDestroyed()) window.focus();
-    },
   },
   ready: servicesReady,
 }, trustedSender);

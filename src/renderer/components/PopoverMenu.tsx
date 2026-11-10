@@ -1,5 +1,4 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
-import { floatRoot, focusedElement } from "../glass-layer";
 import { createPortal } from "react-dom";
 import { LuCheck as Check, LuChevronDown as ChevronDown, LuChevronRight as ChevronRight, LuEllipsis as Ellipsis, LuSearch as Search } from "react-icons/lu";
 import { useDismissibleLayer } from "../focus";
@@ -57,7 +56,7 @@ export function useTypeahead() {
     const text = (fresh ? "" : typed.current.text) + event.key.toLowerCase();
     typed.current = { text, at: event.timeStamp };
     const usable = rows.filter((row): row is HTMLButtonElement => Boolean(row && !row.disabled && row.getAttribute("aria-disabled") !== "true"));
-    const at = usable.indexOf(focusedElement() as HTMLButtonElement);
+    const at = usable.indexOf(document.activeElement as HTMLButtonElement);
     const needle = [...text].every((letter) => letter === text[0]) ? text[0] : text;
     const start = needle.length === 1 ? at + 1 : Math.max(at, 0);
     const match = [...usable.slice(start), ...usable.slice(0, start)]
@@ -221,9 +220,9 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
 
   function move(delta: number) {
     if (!usable.length) return;
-    const at = usable.indexOf(buttons.current.findIndex((button) => button === focusedElement()));
+    const at = usable.indexOf(buttons.current.findIndex((button) => button === document.activeElement));
     /** Above the first item is the field, and the field goes down to the first item. */
-    if (search && ((at === 0 && delta < 0) || (at < 0 && delta < 0 && focusedElement() === field.current))) {
+    if (search && ((at === 0 && delta < 0) || (at < 0 && delta < 0 && document.activeElement === field.current))) {
       field.current?.focus();
       return;
     }
@@ -248,7 +247,7 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    const focused = buttons.current.findIndex((button) => button === focusedElement());
+    const focused = buttons.current.findIndex((button) => button === document.activeElement);
     const entry = entries[focused];
     /** Keys from a submenu drawn inside this list belong to that submenu. */
     const own = event.target === list.current || focused >= 0;
@@ -398,7 +397,7 @@ export function AnchoredMenuList({ entries, onClose, className, anchor, menuRef,
         ...(style ? { "--menu-room": `${style.room}px` } as CSSProperties : { visibility: "hidden" }),
       }}
     />,
-    floatRoot(),
+    document.body,
   );
 }
 
@@ -502,6 +501,6 @@ export function ContextMenu({ entries, at, onClose, returnFocus }: {
       /** Hidden until it has been measured, so it is never seen at the place it was measured from. */
       style={{ left: placed?.left ?? at.x, top: placed?.top ?? at.y, ...(placed ? {} : { visibility: "hidden" }) }}
     />,
-    floatRoot(),
+    document.body,
   );
 }
