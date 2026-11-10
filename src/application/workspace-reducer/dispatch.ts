@@ -78,7 +78,7 @@ export const CLAIMS = [
   claim(SETTINGS_INPUTS, reduceSettings),
   claim(DOCK_INPUTS, reduceDock),
   claim(BROWSER_INPUTS, reduceBrowser),
-  claim(BROWSER_IMPORT_INPUTS, reduceBrowserImport),
+  claim(BROWSER_IMPORT_INPUTS, owned(reduceBrowserImport)),
   claim(SIMULATOR_INPUTS, reduceSimulator),
   claim(DICTATION_INPUTS, reduceDictation),
   claim(DESKTOP_INPUTS, reduceDesktop),
