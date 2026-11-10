@@ -416,10 +416,7 @@ export type MobilePatch = {
   error?: string | null;
 };
 
-/**
- * Bumped when either side needs to know the other has a change, such as a field it now relies on.
- * The app's own copy in `ios/AICodingTool/Protocol/Messages.swift` moves with it.
- */
+/** Bumped when either side needs to know the other has a change, such as a field it now relies on. */
 export const MOBILE_PROTOCOL_VERSION = 8;
 
 /**

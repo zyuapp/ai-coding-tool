@@ -5,6 +5,8 @@
 
 import Foundation
 
+let mobileProtocolVersion = 8
+
 /// A comparison's file list. Patches are fetched one at a time and never travel with the list.
 enum DiffSummaryResult: Decodable, Equatable, Sendable {
     case available(range: DiffRange, files: [DiffFileSummary], additions: Int, deletions: Int)

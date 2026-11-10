@@ -339,10 +339,7 @@ test("a phone may send exactly the commands that declare a phone rule", () => {
   }
 });
 
-test("the iOS app speaks the protocol version the computer serves", () => {
-  const swift = readFileSync(new URL("../../ios/AICodingTool/Protocol/Messages.swift", import.meta.url), "utf8");
-  assert.equal(Number(/let mobileProtocolVersion = (\d+)/.exec(swift)?.[1]), MOBILE_PROTOCOL_VERSION);
-  assert.ok(Number(/let oldestComputerProtocolVersion = (\d+)/.exec(swift)?.[1]) <= MOBILE_PROTOCOL_VERSION, "the app reads the computer it ships beside");
+test("the computer serves its own protocol version, and the phone shrinks pictures to what it takes", () => {
   assert.ok(OLDEST_PHONE_PROTOCOL_VERSION <= MOBILE_PROTOCOL_VERSION);
   const composer = readFileSync(new URL("../../ios/AICodingTool/UI/ComposerView.swift", import.meta.url), "utf8");
   assert.equal(Number(/static let maxSourceLength = (\d+) \* 1024 \* 1024/.exec(composer)?.[1]) * 1024 * 1024, MAX_PHONE_IMAGE_LENGTH, "the phone shrinks pictures to what the computer takes");

@@ -1,8 +1,5 @@
 import Foundation
 
-/// Bumped with `MOBILE_PROTOCOL_VERSION` in `src/contracts/mobile.ts`.
-let mobileProtocolVersion = 8
-
 /// The oldest computer this app reads. Raised only when an older computer would leave out what the app needs.
 let oldestComputerProtocolVersion = 8
 

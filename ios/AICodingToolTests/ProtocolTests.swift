@@ -162,6 +162,7 @@ final class ProtocolTests: XCTestCase {
         let text = MobileClientMessage.pair(code: "c", deviceName: "d").text
         XCTAssertTrue(text.contains(#""version":\#(mobileProtocolVersion)"#))
         XCTAssertTrue(text.contains(#""oldestComputer":\#(oldestComputerProtocolVersion)"#))
+        XCTAssertLessThanOrEqual(oldestComputerProtocolVersion, mobileProtocolVersion, "the app reads the computer it ships beside")
     }
 
     func testClockFieldsTravelAsWholeNumbers() {

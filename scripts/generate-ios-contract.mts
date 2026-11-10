@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { API } from "typescript/unstable/sync";
-import { type Config, type Contract, ContractError, type Named, Reader, type Swift } from "./ios-contract/model.mts";
+import { type Config, type Contract, ContractError, type Named, Reader, type Struct, type Swift } from "./ios-contract/model.mts";
 import { renderCommands, renderTypes, type Uses } from "./ios-contract/swift.mts";
 
 /**
@@ -64,6 +64,8 @@ const CONFIG: Config = {
   filled: { "MobileClientMessage.version": "mobileProtocolVersion", "MobileClientMessage.oldestComputer": "oldestComputerProtocolVersion" },
   /** Constant lists of literal records the phone offers as they are, by the Swift struct that holds them. */
   tables: { SnoozeOption: { source: "src/domain/thread-snooze.ts", constant: "SNOOZE_OPTIONS" } },
+  /** Whole numbers the contract declares, by the Swift constant that carries them. */
+  constants: { mobileProtocolVersion: "MOBILE_PROTOCOL_VERSION" },
 };
 
 /** Conformances beyond the generated ones, by Swift type name. */
@@ -103,14 +105,14 @@ function references(swift: Swift): string[] {
 }
 
 function children(type: Named | undefined): string[] {
-  if (!type || type.kind === "enum") return [];
+  if (!type || type.kind === "enum" || type.kind === "table") return [];
   const structs = type.kind === "struct" ? [type, ...nestedOf(type)] : [];
   const fields = type.kind === "struct" ? structs.flatMap((struct) => struct.fields) : type.cases.flatMap((entry) => entry.fields);
   return fields.flatMap((field) => references(field.swift));
 }
 
-function nestedOf(type: Named): Named[] {
-  return type.kind === "struct" ? type.nested.flatMap((nested) => [nested, ...nestedOf(nested)]) : [];
+function nestedOf(struct: Struct): Struct[] {
+  return struct.nested.flatMap((nested) => [nested, ...nestedOf(nested)]);
 }
 
 function closure(contract: Contract, roots: string[]): Set<string> {

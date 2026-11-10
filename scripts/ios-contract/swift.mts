@@ -353,7 +353,7 @@ function renderStructJSON(struct: Struct): string[] {
 export function renderTypes(contract: Contract, uses: Uses): string[] {
   known = contract.types;
   const ordered = [...contract.types.values()].sort((left, right) => left.file.localeCompare(right.file) || left.position - right.position);
-  const blocks: string[][] = [];
+  const blocks: string[][] = [...contract.constants].map(([name, value]) => [`let ${name} = ${value}`]);
   for (const type of ordered) {
     if (type.kind === "struct") blocks.push(renderStruct(type, "", uses), ...(uses.sent.has(type.name) && !type.patch ? [renderStructJSON(type)] : []));
     if (type.kind === "union") blocks.push(renderUnion(type, uses));

@@ -12,6 +12,7 @@ import {
   isLiteralTypeNode,
   isParenthesizedTypeNode,
   isPropertySignatureDeclaration,
+  isStringLiteral,
   isTypeAliasDeclaration,
   isTypeLiteralNode,
   isTypeReferenceNode,
@@ -66,10 +67,12 @@ export type Config = {
   unsent: string[];
   filled: Record<string, string>;
   tables: Record<string, { source: string; constant: string }>;
+  constants: Record<string, string>;
 };
 
 /** `read` and `sent` are the roots by their Swift names. */
-export type Contract = { types: Map<string, Named>; commands: Command[]; read: string[]; sent: string[] };
+/** `constants` are whole numbers the contract declares, by the Swift name that carries them. */
+export type Contract = { types: Map<string, Named>; commands: Command[]; read: string[]; sent: string[]; constants: Map<string, number> };
 
 export class ContractError extends Error {}
 
@@ -129,7 +132,7 @@ export class Reader {
     const sent = this.config.sent.map((name) => this.named(this.declaration(name)));
     const commands = this.commands(this.declaration(this.config.commands));
     for (const [name, { source, constant }] of Object.entries(this.config.tables)) this.table(name, source, constant);
-    return { types: this.types, commands, read, sent };
+    return { types: this.types, commands, read, sent, constants: this.constants() };
   }
 
   /** `as const` keeps every value a literal the checker can read without running the module. */
@@ -153,6 +156,19 @@ export class Reader {
       table.rows.push(values);
     }
     this.types.set(name, table);
+  }
+
+  private constants(): Map<string, number> {
+    const file = this.project.program.getSourceFile(path.join(this.root, this.config.source))!;
+    const variables = file.statements.filter(isVariableStatement).flatMap((statement) => [...statement.declarationList.declarations]);
+    const constants = new Map<string, number>();
+    for (const [swift, constant] of Object.entries(this.config.constants)) {
+      const variable = variables.find((declaration) => isIdentifier(declaration.name) && declaration.name.text === constant);
+      const value = variable && this.checker.getTypeAtLocation(variable.name);
+      if (!value?.isNumberLiteralType() || !Number.isInteger(value.value)) throw new ContractError(`CONSTANTS.${swift}: ${this.config.source} declares no whole number ${constant}.`);
+      constants.set(swift, value.value);
+    }
+    return constants;
   }
 
   private declaration(name: string): Declaration {
@@ -292,14 +308,15 @@ export class Reader {
     const declaration = (property?.valueDeclaration ?? property?.declarations[0])?.resolve(this.project);
     if (!declaration || !isPropertySignatureDeclaration(declaration) || !declaration.type) return undefined;
     const node = unwrap(declaration.type);
-    return isLiteralTypeNode(node) && node.literal.kind === SyntaxKind.StringLiteral ? { value: node.literal.text, position: declaration.pos } : undefined;
+    return isLiteralTypeNode(node) && isStringLiteral(node.literal) ? { value: node.literal.text, position: declaration.pos } : undefined;
   }
 
   /** Members sharing a discriminator value are one case, holding every field any of them has; one only some have is optional. */
   private union(name: string, type: Type, declaration: Declaration): string {
     const union: Union = { kind: "union", ...this.placed(name, declaration), key: "", cases: [] };
     this.types.set(name, union);
-    const members = type.getTypes() ?? [];
+    const members = type.isUnionType() ? type.getTypes() : [];
+    const container: Container = { name, nested: [] };
     union.key = this.discriminator(name, members);
     const envelope = this.config.frames[name];
     const groups = new Map<string, { position: number; members: Type[] }>();
@@ -311,9 +328,10 @@ export class Reader {
       groups.set(value, group);
     }
     for (const [value, group] of [...groups].sort((left, right) => left[1].position - right[1].position)) {
-      union.cases.push({ name: camelCased(value), value, fields: this.caseFields(`${name}.${value}`, group.members, union, envelope), filled: this.filled(name, group.members) });
+      union.cases.push({ name: camelCased(value), value, fields: this.caseFields(`${name}.${value}`, group.members, container, union.key, envelope), filled: this.filled(name, group.members) });
     }
-    if (envelope !== undefined) union.frame = { envelope: this.envelope(name, members[0]!, envelope, union) };
+    if (envelope !== undefined) union.frame = { envelope: this.envelope(name, members[0]!, envelope, container) };
+    if (container.nested.length > 0) throw new ContractError(`${name}: name the shape of ${container.nested[0]!.name} so Swift can name it.`);
     const fallback = this.config.fallbacks[name];
     if (fallback !== undefined) {
       if (!groups.has(fallback)) throw new ContractError(`FALLBACKS.${name}: ${name} has no case "${fallback}".`);
@@ -339,10 +357,9 @@ export class Reader {
     return this.field(property, `${name}.${envelope}`, parent)!;
   }
 
-  private caseFields(prefix: string, members: Type[], parent: Container, envelope: string | undefined): Field[] {
+  private caseFields(prefix: string, members: Type[], parent: Container, discriminator: string, envelope: string | undefined): Field[] {
     const fields: Field[] = [];
     const seen = new Map<string, number>();
-    const discriminator = (parent as Union).key;
     for (const member of members) {
       for (const property of this.checker.getPropertiesOfType(member)) {
         if (property.name === discriminator || property.name === envelope || this.config.filled[`${parent.name}.${property.name}`] !== undefined) continue;
@@ -461,7 +478,10 @@ export class Reader {
     const name = node.typeName.text;
     const [first, second] = node.typeArguments ?? [];
     const hand = this.config.handWritten[name];
-    if (hand) return this.use("hand", name) && { kind: "named", name: hand };
+    if (hand) {
+      this.use("hand", name);
+      return { kind: "named", name: hand };
+    }
     if (name === "Array" && first) return { kind: "array", element: this.map(first, where, parent, property, true) };
     if (name === "Extract" && first) {
       const whole = this.map(first, where, parent, property, inArray);
