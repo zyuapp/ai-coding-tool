@@ -246,6 +246,8 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   readonly glassLayer: boolean;
   /** The panes of glass under the glass layer's page. */
   setGlassRegions(regions: GlassRegion[]): Promise<void>;
+  /** The panes of glass under the window's own page, for what sits on the frame with nothing of the page behind it. */
+  setWindowGlassRegions(regions: GlassRegion[]): Promise<void>;
   /** Whether the glass layer takes the pointer, which it only does over what it draws. */
   setGlassLayerInteractive(interactive: boolean): Promise<void>;
   /** Hands the keyboard to the glass layer, or back to the window under it. */
@@ -450,7 +452,7 @@ export type WindowDesktopCall =
   | "openFolder" | "projectlessWorkspace" | "commands" | "branches" | "commits" | "diffPatch"
   | "describeFiles" | "saveAttachment" | "readAttachment" | "readAttachmentContext"
   | "setBrowserBounds" | "focusBrowserTab" | "terminalSnapshot" | "readRemoteTerminal" | "setTheme"
-  | "setGlassRegions" | "setGlassLayerInteractive" | "focusGlassLayer"
+  | "setGlassRegions" | "setWindowGlassRegions" | "setGlassLayerInteractive" | "focusGlassLayer"
   | "watchSimulator" | "unwatchSimulator";
 
 /** What a window reaches directly: its calls, what main pushes at it, and what it answers itself. The rest is the runtime's. */

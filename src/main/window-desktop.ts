@@ -20,12 +20,14 @@ export type WindowDesktopHost = {
   setTheme: (theme: WindowTheme) => void;
   /** The see-through layer over the window, when it has one. */
   glassLayer: { setRegions(regions: GlassRegion[]): void; setInteractive(interactive: boolean): void; focus(focused: boolean): void };
+  /** Lays panes of glass under the window's own page. */
+  setWindowGlassRegions: (regions: GlassRegion[]) => void;
   /** Settles once the services behind the window's calls are up; the window can open before then. */
   ready?: Promise<void>;
 };
 
 /** Calls about the window's own frame, answered without waiting for the services. */
-const FRAME_CALLS: ReadonlySet<string> = new Set<WindowDesktopCall>(["setTheme", "setBrowserBounds", "setGlassRegions", "setGlassLayerInteractive", "focusGlassLayer"]);
+const FRAME_CALLS: ReadonlySet<string> = new Set<WindowDesktopCall>(["setTheme", "setBrowserBounds", "setGlassRegions", "setWindowGlassRegions", "setGlassLayerInteractive", "focusGlassLayer"]);
 
 type GuardEach<Args extends unknown[]> = { [Index in keyof Args]-?: (value: unknown) => boolean };
 type Guards<Name extends WindowDesktopCall> = GuardEach<Parameters<WindowDesktopAPI[Name]>>;
@@ -88,6 +90,7 @@ export function windowDesktopCalls(host: WindowDesktopHost): { [Name in WindowDe
     },
     setTheme: { args: [isWindowTheme], run: (theme) => host.setTheme(theme) },
     setGlassRegions: { args: [isGlassRegions], run: async (regions) => host.glassLayer.setRegions(regions) },
+    setWindowGlassRegions: { args: [isGlassRegions], run: async (regions) => host.setWindowGlassRegions(regions) },
     setGlassLayerInteractive: { args: [isBoolean], run: async (interactive) => host.glassLayer.setInteractive(interactive) },
     focusGlassLayer: { args: [isBoolean], run: async (focused) => host.glassLayer.focus(focused) },
     watchSimulator: { args: [isId], run: (udid) => watchSimulator(udid) },

@@ -329,8 +329,58 @@
     --frame: rgb(from var(--canvas) r g b / calc(0.5 + 0.38 * var(--glass-tint)));
     --page: transparent;
     --shadow-page: none;
+    /**
+     * Nothing on the sheet is a solid slab of the theme's ground any more. A raised thing is a wash
+     * of ink, lighter the higher it stands; a sunk one is a wash of the ground; a float is a pane
+     * thick enough to read on, which blurs what is under it.
+     */
+    --surface: rgb(from var(--p-fg-0) r g b / 0.045);
+    --surface-raised: rgb(from var(--p-fg-0) r g b / 0.075);
+    --surface-hover: rgb(from var(--p-fg-0) r g b / 0.1);
+    --surface-active: rgb(from var(--p-fg-0) r g b / 0.13);
+    --surface-input: rgb(from var(--p-bg-0) r g b / 0.3);
+    --surface-menu: rgb(from var(--p-bg-3) r g b / calc(0.62 + 0.3 * var(--glass-tint)));
+    --surface-menu-hover: rgb(from var(--p-fg-0) r g b / 0.12);
+    --sunken: rgb(from var(--p-bg-0) r g b / 0.28);
+    --control: rgb(from var(--p-fg-0) r g b / 0.1);
+    --control-soft: rgb(from var(--p-fg-0) r g b / 0.06);
+    --control-hover: rgb(from var(--p-fg-0) r g b / 0.15);
+    --chip: rgb(from var(--p-fg-0) r g b / 0.12);
+    --code-surface: rgb(from var(--p-fg-0) r g b / 0.07);
+    --row-hover: rgb(from var(--p-fg-0) r g b / 0.065);
+    --row-selected: rgb(from var(--p-fg-0) r g b / 0.13);
+    --meter-track: rgb(from var(--p-fg-0) r g b / 0.14);
+    /* A line is ink thinned, never a darker ground, so it reads the same over whatever shows through. */
+    --line: rgb(from var(--p-fg-0) r g b / 0.1);
+    --line-soft: rgb(from var(--p-fg-0) r g b / 0.065);
+    --line-mid: rgb(from var(--p-fg-0) r g b / 0.13);
+    --line-strong: rgb(from var(--p-fg-0) r g b / 0.19);
+    --line-control: rgb(from var(--p-fg-0) r g b / 0.15);
+    --line-bright: rgb(from var(--p-fg-0) r g b / 0.32);
+    /* A diff's fills are washes of its own hues for the same reason. */
+    --diff-add-surface: rgb(from var(--p-success) r g b / 0.1);
+    --diff-add-line: rgb(from var(--p-success) r g b / 0.26);
+    --diff-add-gutter: rgb(from var(--p-success) r g b / 0.15);
+    --diff-del-surface: rgb(from var(--p-danger) r g b / 0.1);
+    --diff-del-line: rgb(from var(--p-danger) r g b / 0.26);
+    --diff-del-gutter: rgb(from var(--p-danger) r g b / 0.15);
+    --diff-hunk-surface: rgb(from var(--p-fg-0) r g b / 0.05);
+    --diff-absent: rgb(from var(--p-fg-0) r g b / 0.025);
+    --diff-selected: rgb(from var(--p-info) r g b / 0.18);
+    --diff-selected-line: rgb(from var(--p-info) r g b / 0.32);
   }
+  /** A float drawn in the page blurs what the page drew under it. */
+  :root[data-glass-panes] :is(.theme-select-popover, .font-select-popover, .toast, .usage-card, .thread-jump-panel, .tooltip, .annotation-card, .annotate-editor, .right-dock-add > div) { backdrop-filter: var(--glass-menu-blur); }
   :root[data-glass-panes] .composer-wrap:has(> .glass-slot) { background: none; }
+  /** On one sheet nothing else parts the sidebar from the conversation, so a hairline does, where the sidebar is dragged wider. */
+  :root[data-glass-panes] .sidebar-resizer::before { content: ""; position: absolute; inset: 0 auto 0 calc(50% - 0.5px); width: 1px; background: var(--line-glass); }
+  :root[data-glass-panes] .settings-sidebar { box-shadow: 4px 0 0 -3px var(--line-glass); }
+  /** The dock and the inspector are part of the same sheet: no ground of their own, and a hairline where they begin. */
+  :root[data-glass-panes] :is(.right-dock, .subagent-inspector) { --sunken: transparent; border-radius: 0; background: none; box-shadow: none; }
+  :root[data-glass-panes] .right-dock { top: 0; grid-template-rows: var(--chrome-head) minmax(0, 1fr); }
+  :root[data-glass-panes] .workspace.dock-full .right-dock { inset: 0; }
+  :root[data-glass-panes] .subagent-inspector { margin: 0 0 0 var(--frame-gap); grid-template-rows: var(--chrome-head) minmax(0, 1fr); }
+  :root[data-glass-panes] :is(.right-dock, .subagent-inspector)::before { content: ""; position: absolute; z-index: 6; inset: 0 auto 0 calc(var(--frame-gap) / -2); width: 1px; background: var(--line-glass); pointer-events: none; }
 }
 /** And keeps solid panes in place of glass ones. */
 @media (prefers-reduced-transparency: reduce) {
@@ -2760,6 +2810,7 @@ pre {
 :is(.setting-row-action, .settings-group-action) .segmented button { padding: 5px 13px; }
 :is(.setting-row-action, .settings-group-action) .segmented button.chosen,
 :is(.setting-row-action, .settings-group-action) .segmented button.chosen:hover:not(:disabled) { background: var(--surface-menu-hover); }
+:is(.setting-row-action, .settings-group-action) :is(.size-stepper button, .segmented button:not(.chosen)) { box-shadow: none; }
 :is(.setting-row-action, .settings-group-action) .size-stepper button { padding: 0; }
 :is(.setting-row-action, .settings-group-action) .size-stepper button:hover:not(:disabled) { background: var(--surface-hover); }
 .phone-check { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 13px; border-top: 1px solid var(--line); padding: 13px 0; }

@@ -52,6 +52,7 @@ test("every call the window makes is relayed on one channel, refused from anyone
     reads: { read: record("read") },
     setTheme: (theme: unknown) => { electron.reached.push(["setTheme", theme]); },
     glassLayer: { setRegions: record("setGlassRegions"), setInteractive: record("setGlassLayerInteractive"), focus: record("focusGlassLayer") },
+    setWindowGlassRegions: record("setWindowGlassRegions"),
   } as unknown as WindowDesktopHost;
   serveWindowDesktop(host, (event) => (event.sender as unknown) === window.sender);
   const relay = electron.handlers.get("desktop:call");
@@ -78,6 +79,7 @@ test("every call the window makes is relayed on one channel, refused from anyone
     readRemoteTerminal: { valid: ["holder", "terminal", 3], invalid: [["holder", "terminal", -1], ["holder", "terminal", 1.5], ["", "terminal"]] },
     setTheme: { valid: [{ variant: "dark", canvas: "#0e1117" }], invalid: [[{ variant: "blue", canvas: "#0e1117" }], [{ variant: "dark", canvas: "red" }]] },
     setGlassRegions: { valid: [[{ x: 1, y: 2, width: 300, height: 100, radius: 17, clear: true }]], invalid: [[[{ x: 1, y: 2, width: -3, height: 100, radius: 17, clear: true }]], [[{ x: 1, y: 2, width: 300, height: 100, radius: 17 }]], [undefined]] },
+    setWindowGlassRegions: { valid: [[{ x: 1, y: 2, width: 300, height: 100, radius: 17, clear: true }]], invalid: [[[{ x: 1 }]], [null]] },
     setGlassLayerInteractive: { valid: [true], invalid: [["yes"]] },
     focusGlassLayer: { valid: [false], invalid: [[1]] },
     watchSimulator: { valid: ["udid"], invalid: [[""], [7]] },

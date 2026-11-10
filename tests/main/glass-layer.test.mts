@@ -16,8 +16,9 @@ function fakeWindow(content = { x: 10, y: 20, width: 800, height: 600 }) {
     getNativeWindowHandle: () => Buffer.alloc(8),
     focus: () => { calls.push(["focus"]); },
     isFocused: () => false,
+    webContents: { zoom: 1, getZoomFactor() { return this.zoom; }, setZoomFactor(zoom: number) { this.zoom = zoom; } },
   });
-  return { window: window as unknown as BrowserWindow & { content: typeof content }, calls };
+  return { window: window as unknown as BrowserWindow & { content: typeof content; webContents: { zoom: number } }, calls };
 }
 
 test("the glass layer stays over its window's page and lets the pointer through until it is told to take it", () => {
@@ -39,4 +40,9 @@ test("the glass layer stays over its window's page and lets the pointer through 
   const regions = [{ x: 1, y: 2, width: 300, height: 100, radius: 17, clear: true }];
   started.setRegions(regions);
   assert.deepEqual(glassed, [regions]);
+
+  parent.window.webContents.zoom = 1.2;
+  started.setRegions([{ x: 10, y: 20, width: 300, height: 100, radius: 10, clear: false }]);
+  assert.equal(layer.window.webContents.zoom, 1.2, "the layer takes the zoom of the page it floats over");
+  assert.deepEqual(glassed.at(-1), [{ x: 12, y: 24, width: 360, height: 120, radius: 12, clear: false }], "and its panes are laid where the zoomed page drew them");
 });

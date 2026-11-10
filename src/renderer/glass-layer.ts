@@ -55,6 +55,7 @@ export function shareListenersWithGlassLayer() {
   if (!window.desktop.glassLayer) return;
   /** With its panes on real glass, the page itself can be glass too, and says so for the stylesheet. */
   document.documentElement.dataset.glassPanes = "";
+  followFramePanes();
   for (const on of ["window", "document"] as const) {
     const target: Window | Document = on === "window" ? window : document;
     const add = target.addEventListener.bind(target);
@@ -91,6 +92,70 @@ function shareInstances(layer: Window & typeof globalThis) {
     if (typeof mine !== "function" || typeof theirs !== "function") continue;
     Object.defineProperty(mine, Symbol.hasInstance, { configurable: true, value: (value: unknown) => instance.call(mine, value) || instance.call(theirs, value) });
   }
+}
+
+/**
+ * What sits on the frame with nothing of the page behind it: the chosen row of a sidebar and the
+ * sidebar's own buttons. Each gets a pane of clear glass under the page, where it is, so it needs no
+ * place in the layer.
+ */
+const FRAME_PANES = ".task-row.active, .settings-sidebar button.active, .new-task-button, .sidebar-search";
+/** Where the frame's panes can change: the two sidebars. */
+const FRAME_SIDES = ".sidebar, .settings-sidebar";
+
+/** Keeps a pane of glass under each of the frame's panes as they are chosen, scrolled and resized. */
+function followFramePanes() {
+  let frame = 0;
+  let told = "";
+  const report = () => {
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      const regions = [...document.querySelectorAll<HTMLElement>(FRAME_PANES)].flatMap((pane) => {
+        if (!pane.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return [];
+        const box = pane.getBoundingClientRect();
+        /** A row scrolled part of the way out of its list keeps only the part still in it. */
+        const within = pane.closest(".sidebar-scroll, .settings-sidebar nav")?.getBoundingClientRect();
+        const top = Math.max(box.top, within?.top ?? box.top);
+        const bottom = Math.min(box.bottom, within?.bottom ?? box.bottom);
+        if (box.width === 0 || bottom - top < 8) return [];
+        return [{ x: box.left, y: top, width: box.width, height: bottom - top, radius: Number.parseFloat(getComputedStyle(pane).borderTopLeftRadius) || 0, clear: true }];
+      });
+      /** A zoom moves every pane on the screen without moving any on the page, so the page's scale is part of what is told. */
+      const telling = JSON.stringify([devicePixelRatio, regions]);
+      if (telling === told) return;
+      told = telling;
+      void window.desktop.setWindowGlassRegions(regions);
+    });
+  };
+  const watched = new WeakSet<Element>();
+  const sides = new MutationObserver(report);
+  const watch = () => {
+    for (const side of document.querySelectorAll(FRAME_SIDES)) {
+      if (watched.has(side)) continue;
+      watched.add(side);
+      sides.observe(side, { subtree: true, childList: true, attributes: true, attributeFilter: ["class"] });
+      new ResizeObserver(report).observe(side);
+    }
+    report();
+  };
+  /** The sidebars come and go with the views that own them, so the page is watched only for that. */
+  const shell = () => document.querySelector(".app-shell");
+  const mounted = new MutationObserver(() => {
+    const within = shell();
+    if (within && !watched.has(within)) {
+      watched.add(within);
+      new MutationObserver(watch).observe(within, { childList: true });
+    }
+    watch();
+  });
+  mounted.observe(document.body, { childList: true, subtree: false });
+  const root = document.getElementById("root");
+  if (root) mounted.observe(root, { childList: true });
+  document.addEventListener("scroll", report, true);
+  window.addEventListener("resize", report);
+  document.addEventListener("transitionrun", report);
+  document.addEventListener("transitionend", report);
 }
 
 let opening: Promise<GlassLayerView | null> | null = null;
@@ -212,7 +277,7 @@ function regionReporter(doc: Document) {
         if (width === 0 || height === 0 || style.visibility === "hidden") return [];
         return [{ x, y, width, height, radius: Number.parseFloat(style.borderTopLeftRadius) || 0, clear: pane.dataset.glassRegion === "clear" || pane.matches(BEADS) }];
       });
-      const telling = JSON.stringify(regions);
+      const telling = JSON.stringify([devicePixelRatio, regions]);
       if (telling === told) return;
       told = telling;
       void window.desktop.setGlassRegions(regions);
@@ -238,6 +303,7 @@ async function open(): Promise<GlassLayerView | null> {
   const reportRegions = regionReporter(doc);
   /** A menu opening, closing or growing is a pane coming, going or changing, so anything that changes in the layer is told. */
   new MutationObserver(reportRegions).observe(root, { subtree: true, childList: true, attributes: true });
+  window.addEventListener("resize", reportRegions);
   opened = { root, window: layer, reportRegions };
   return opened;
 }

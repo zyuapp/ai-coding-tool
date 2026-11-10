@@ -39,7 +39,13 @@ export function glassLayerWindowOptions(parent: BrowserWindow): BrowserWindowCon
   };
 }
 
-/** Keeps the layer over its window's page, lets the pointer through it, and puts glass under what it draws. */
+/** A page names its panes in its own pixels, which a zoomed page draws larger than the window's points. */
+export function glassRegionsInPoints(regions: readonly GlassRegion[], zoom: number): GlassRegion[] {
+  if (zoom === 1) return [...regions];
+  return regions.map(({ x, y, width, height, radius, clear }) => ({ x: x * zoom, y: y * zoom, width: width * zoom, height: height * zoom, radius: radius * zoom, clear }));
+}
+
+/** Keeps the layer over its window's page and at its zoom, lets the pointer through it, and puts glass under what it draws. */
 export function startGlassLayer(parent: BrowserWindow, layer: BrowserWindow, glass: WindowGlass): GlassLayer {
   const fit = () => {
     if (!parent.isDestroyed() && !layer.isDestroyed()) layer.setBounds(parent.getContentBounds());
@@ -50,7 +56,11 @@ export function startGlassLayer(parent: BrowserWindow, layer: BrowserWindow, gla
   layer.showInactive();
   return {
     setRegions: (regions) => {
-      if (!layer.isDestroyed()) glass.regions(layer.getNativeWindowHandle(), regions);
+      if (layer.isDestroyed() || parent.isDestroyed()) return;
+      /** The layer is a page of its own, so it is kept at the zoom of the page it floats over. */
+      const zoom = parent.webContents.getZoomFactor();
+      if (layer.webContents.getZoomFactor() !== zoom) layer.webContents.setZoomFactor(zoom);
+      glass.regions(layer.getNativeWindowHandle(), glassRegionsInPoints(regions, zoom));
     },
     setInteractive: (interactive) => {
       if (layer.isDestroyed()) return;

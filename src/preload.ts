@@ -32,6 +32,7 @@ const api: WindowDesktopAPI = {
   windowMaterial: materialArgument === "glass" || materialArgument === "vibrancy" ? materialArgument : "none",
   glassLayer: process.argv.includes("--glass-layer"),
   setGlassRegions: relay("setGlassRegions"),
+  setWindowGlassRegions: relay("setWindowGlassRegions"),
   setGlassLayerInteractive: relay("setGlassLayerInteractive"),
   focusGlassLayer: relay("focusGlassLayer"),
   pathForFile: (file: File) => webUtils.getPathForFile(file),

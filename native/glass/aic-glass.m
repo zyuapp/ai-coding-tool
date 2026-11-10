@@ -71,8 +71,11 @@ static napi_value Regions(napi_env env, napi_callback_info info) {
   if (!root || napi_get_array_length(env, argv[1], &count) != napi_ok) return applied;
 
   NSMutableArray<NSView *> *panes = [NSMutableArray array];
+  /** A window that is glass all over keeps its panes above that sheet, where they bend what shows through it. */
+  NSView *sheet = nil;
   for (NSView *view in root.subviews) {
     if ([view.identifier isEqualToString:kRegionIdentifier]) [panes addObject:view];
+    else if ([view.identifier isEqualToString:kGlassIdentifier]) sheet = view;
   }
   NSUInteger wanted = count / 6;
   while (panes.count > wanted) {
@@ -91,7 +94,8 @@ static napi_value Regions(napi_env env, napi_callback_info info) {
     if (!pane) {
       pane = [[glass alloc] initWithFrame:frame];
       pane.identifier = kRegionIdentifier;
-      [root addSubview:pane positioned:NSWindowBelow relativeTo:nil];
+      if (sheet) [root addSubview:pane positioned:NSWindowAbove relativeTo:sheet];
+      else [root addSubview:pane positioned:NSWindowBelow relativeTo:nil];
       [panes addObject:pane];
     }
     pane.frame = frame;

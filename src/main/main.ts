@@ -47,7 +47,7 @@ import { readAppLaunch } from "./app-launch.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
 import { windowFrameOptions } from "./platform-capabilities.js";
 import { loadWindowGlass, systemGlassTint, windowMaterial, windowMaterialOptions, WINDOW_MATERIAL_ARGUMENT } from "./window-backdrop.js";
-import { GLASS_LAYER_ARGUMENT, GLASS_LAYER_FRAME, glassLayerWindowOptions, startGlassLayer, type GlassLayer } from "./glass-layer.js";
+import { GLASS_LAYER_ARGUMENT, GLASS_LAYER_FRAME, glassLayerWindowOptions, glassRegionsInPoints, startGlassLayer, type GlassLayer } from "./glass-layer.js";
 import { serveWindowDesktop } from "./window-desktop.js";
 import { recheckMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
 import * as browser from "./browser-host.js";
@@ -433,6 +433,8 @@ async function createWindow() {
     const inUse = shown.isFocused() || Boolean(glassLayer?.focused());
     workspaceRuntime.setViewInUse(inUse);
     glassLayer?.setInUse(inUse);
+    /** The window's own panes stay clear while the layer over it has the keyboard, as the layer's do while the window has it. */
+    if (glassLayerOffered) windowGlass?.active(shown.getNativeWindowHandle(), inUse);
     shown.webContents.send("window:active", inUse);
     /** The system redraws its glass when a window comes back into use, so that is when the page asks after it too. */
     if (material === "glass") shown.webContents.send("window:glass-tint", systemGlassTint((key, type) => systemPreferences.getUserDefault(key, type)));
@@ -676,6 +678,9 @@ serveWindowDesktop({
   desktop: runtimeDesktop,
   reads: computerReads,
   setTheme: setWindowTheme,
+  setWindowGlassRegions: (regions) => {
+    if (glassLayerOffered && window && !window.isDestroyed()) windowGlass?.regions(window.getNativeWindowHandle(), glassRegionsInPoints(regions, window.webContents.getZoomFactor()));
+  },
   glassLayer: {
     setRegions: (regions) => glassLayer?.setRegions(regions),
     setInteractive: (interactive) => glassLayer?.setInteractive(interactive),
