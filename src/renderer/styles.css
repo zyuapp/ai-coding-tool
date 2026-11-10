@@ -256,6 +256,9 @@
   --shadow-tooltip: 0 12px 32px rgb(var(--p-shadow) / calc(0.32 * var(--p-shadow-scale)));
   --shadow-thumb: 0 1px 2px rgb(var(--p-shadow) / calc(0.4 * var(--p-shadow-scale))), 0 4px 10px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale)));
   --scrim: rgb(var(--p-scrim) / 0.85);
+  /* Behind a dialog: the window stays in sight, out of focus. */
+  --veil: rgb(var(--p-scrim) / 0.46);
+  --veil-blur: blur(10px) saturate(140%);
   --scrim-soft: rgb(var(--p-shadow) / calc(0.38 * var(--p-shadow-scale)));
 
   /* Motion. Every panel that slides in from a window edge shares this duration and curve. */
@@ -388,6 +391,8 @@
     --glass-menu: var(--surface-menu);
     --glass-blur: none;
     --glass-menu-blur: none;
+    --veil: var(--scrim);
+    --veil-blur: none;
     --surface-lens: var(--p-bg-5);
     --surface-lens-hover: var(--p-bg-6);
   }
@@ -1330,14 +1335,14 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .right-dock-add > button, .right-dock-hide { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 9px; background: transparent; color: var(--muted); cursor: pointer; }
 .right-dock-add > button:hover, .right-dock-add.open > button, .right-dock-hide:hover { background: var(--surface-hover); color: var(--ink-dim); }
 .right-dock-hide[aria-pressed="true"] { background: var(--surface-active); color: var(--ink); }
-.right-dock-add > div { position: absolute; z-index: 20; top: 40px; right: 0; width: 236px; display: grid; gap: 2px; border: 1px solid var(--line); border-radius: 11px; padding: 6px; background: var(--surface-menu); box-shadow: var(--shadow-popover); }
+.right-dock-add > div { position: absolute; z-index: 20; top: 40px; right: 0; width: 236px; display: grid; gap: 2px; border: 1px solid var(--line-glass); border-radius: 11px; padding: 6px; background: var(--glass-menu); backdrop-filter: var(--glass-menu-blur); box-shadow: var(--glass-rim), var(--shadow-popover); }
 .right-dock-overflow > div { width: max-content; min-width: 184px; max-width: 280px; max-height: min(420px, 70vh); overflow-y: auto; }
 .right-dock-add > div button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 32px; border: 0; border-radius: 7px; padding: 6px 10px; background: transparent; color: var(--ink-dim); text-align: left; cursor: pointer; }
 .right-dock-add > div button > svg { flex: none; color: var(--muted); }
 .right-dock-add > div button > span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .right-dock-add > div button > span > small { display: block; margin-top: 1px; color: var(--quiet); font-size: var(--text-meta); line-height: 1.35; white-space: normal; }
-.right-dock-add > div button:hover:not([aria-disabled="true"]), .right-dock-add > div button:focus-visible { background: var(--surface-hover); color: var(--ink); }
-.right-dock-add > div button[aria-checked="true"] { background: var(--surface-active); color: var(--ink); font-weight: 560; }
+.right-dock-add > div button:hover:not([aria-disabled="true"]), .right-dock-add > div button:focus-visible { background: var(--surface-menu-hover); color: var(--ink); }
+.right-dock-add > div button[aria-checked="true"] { background: var(--glass-control-hover); box-shadow: var(--glass-rim); color: var(--ink); font-weight: 560; }
 .right-dock-add > div button[aria-disabled="true"] { color: var(--quiet); cursor: default; }
 .right-dock-add > div button[aria-disabled="true"] > svg { color: var(--quiet); }
 .right-dock-add > div button > .right-dock-tab-attention { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--info); box-shadow: 0 0 0 3px var(--info-surface); }
@@ -1392,7 +1397,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .browser-empty p { max-width: 300px; margin: 0; color: var(--quiet-strong); font-size: var(--text-control); line-height: 1.5; }
 .browser-empty button { margin-top: 14px; min-height: 30px; border: 0; border-radius: 8px; padding: 0 12px; background: var(--control); color: var(--ink-dim); font-size: var(--text-control); cursor: pointer; }
 .browser-empty button:hover { background: var(--control-hover); color: var(--ink); }
-.browser-error { position: absolute; inset: auto 12px 12px; display: flex; align-items: center; gap: 10px; margin: 0; border: 1px solid var(--danger-line); border-radius: 9px; padding: 7px 7px 7px 11px; background: var(--danger-surface); color: var(--danger); font-size: var(--text-meta); }
+.browser-error { position: absolute; inset: auto 12px 12px; display: flex; align-items: center; gap: 10px; margin: 0; border: 1px solid var(--danger-line); border-radius: 11px; padding: 7px 7px 7px 11px; background: var(--glass-sheen), var(--danger-surface); box-shadow: var(--glass-rim), var(--shadow-float); color: var(--danger); font-size: var(--text-meta); }
 .browser-error > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .browser-error > button { flex: none; min-height: 24px; border: 0; border-radius: 6px; padding: 2px 9px; background: var(--control); color: var(--ink-dim); font: inherit; cursor: pointer; }
 .browser-error > button:hover { background: var(--control-hover); color: var(--ink); }
@@ -1411,7 +1416,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .simulator-device-trigger > svg { flex: none; color: var(--quiet-strong); }
 /** A roomy list: each device on a tall row under the runtime it runs, running ones first. */
 .picker-popover.simulator-device-popover { position: fixed; z-index: 1000; max-height: min(440px, var(--branch-menu-room, 100vh)); padding: 6px; }
-.picker-popover.simulator-device-popover > .picker-search-field { position: sticky; top: -6px; z-index: 1; margin: -6px -6px 4px; border-width: 0 0 1px; border-radius: 10px 10px 0 0; padding: 4px 12px; background: var(--surface-menu); }
+.picker-popover.simulator-device-popover > .picker-search-field { position: sticky; top: -6px; z-index: 1; margin: -6px -6px 4px; border-width: 0 0 1px; border-radius: 10px 10px 0 0; padding: 4px 12px; background: var(--surface-glass); backdrop-filter: var(--glass-menu-blur); }
 /** Every row shares the list's columns, so the state column is as wide as its widest entry and its dots line up. */
 .simulator-device-popover [role="listbox"] { display: grid; grid-template-columns: 16px 16px minmax(0, 1fr) auto; column-gap: 12px; }
 .simulator-device-popover [role="listbox"] > p { grid-column: 1 / -1; }
@@ -1483,7 +1488,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
  * searches — and takes no height of its own, so opening and closing find moves nothing.
  */
 .find-slot { position: relative; z-index: 12; height: 0; }
-.find-slot > .find-bar { position: absolute; top: 10px; right: 12px; width: min(340px, calc(100% - 24px)); border: 1px solid var(--line-glass); border-radius: 11px; padding: 6px 8px; background: var(--surface-lens); backdrop-filter: blur(20px) saturate(160%); box-shadow: var(--shadow-menu); }
+.find-slot > .find-bar { position: absolute; top: 10px; right: 12px; width: min(340px, calc(100% - 24px)); border: 1px solid var(--line-glass); border-radius: 11px; padding: 6px 8px; background: var(--surface-lens); backdrop-filter: blur(20px) saturate(160%); box-shadow: var(--glass-rim), var(--shadow-menu); }
 
 /* The transcript has no header of its own, so its bar floats from the top of the whole area. */
 .work-area > .find-slot { position: absolute; top: 0; right: 0; left: 0; }
@@ -1631,8 +1636,9 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   inset: 0;
   z-index: -1;
   border-radius: 17px 17px 0 0;
-  background: color-mix(in srgb, var(--surface) 50%, var(--canvas));
-  box-shadow: var(--shadow-float);
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-rim), var(--shadow-float);
 }
 .thread-start-field { position: relative; min-width: 0; max-width: 100%; }
 .thread-start-project { max-width: min(360px, 100%); }
@@ -1718,11 +1724,12 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   z-index: 20;
   max-height: min(280px, var(--branch-menu-room, 100vh));
   overflow: auto;
-  border: 1px solid var(--line-mid);
+  border: 1px solid var(--line-glass);
   border-radius: 10px;
   padding: 5px;
-  background: var(--surface-menu);
-  box-shadow: var(--shadow-popover);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-popover);
   text-align: left;
 }
 .picker-popover .picker-option {
@@ -2014,10 +2021,12 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
   width: 28px;
   height: 28px;
   place-items: center;
-  border: 1px solid var(--line-mid);
-  border-radius: 7px;
+  border: 1px solid var(--line-glass);
+  border-radius: 8px;
   padding: 0;
-  background: var(--surface-raised);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-rim);
   color: var(--muted);
   cursor: pointer;
   user-select: none;
@@ -2288,14 +2297,16 @@ pre {
   z-index: 3;
   max-width: 860px;
   margin: 10px auto 0;
-  box-shadow: var(--shadow-float);
+  /** Glass in the accent's own tint, so it reads as the one thing waiting on an answer. */
+  box-shadow: var(--glass-rim), var(--shadow-float);
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr);
   gap: 12px;
   border: 1px solid var(--accent-line-strong);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 14px;
-  background: var(--accent-surface);
+  background: var(--glass-sheen), color-mix(in srgb, var(--accent) 14%, rgb(from var(--p-bg-2) r g b / 0.7));
+  backdrop-filter: var(--glass-menu-blur);
 }
 .approval-icon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: var(--accent-chip); color: var(--accent-soft); font-weight: 750; }
 .approval-card strong { font-size: var(--text-control); }
@@ -2511,11 +2522,12 @@ pre {
   display: flex;
   flex-direction: column;
   gap: 9px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line-glass);
   border-radius: 12px;
   padding: 10px;
-  background: var(--surface-menu);
-  box-shadow: var(--shadow-popover);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-popover);
 }
 .theme-select-popover .theme-choices { max-height: 268px; overflow-y: auto; overscroll-behavior: contain; }
 
@@ -2616,11 +2628,12 @@ pre {
   flex-direction: column;
   gap: 8px;
   width: 300px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-glass);
   border-radius: 11px;
   padding: 8px;
-  background: var(--surface-menu);
-  box-shadow: var(--shadow-popover);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-popover);
 }
 .font-select-search, .settings-filter { flex: none; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 0 10px; background: var(--control-soft); }
 :is(.font-select-search, .settings-filter) svg { flex: none; color: var(--quiet-strong); }
@@ -2929,10 +2942,11 @@ pre {
   margin: 0 auto 8px;
   padding: 6px 8px 6px 11px;
   gap: 10px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-glass);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--surface) 88%, var(--accent));
-  box-shadow: var(--shadow-float);
+  background: var(--glass-sheen), color-mix(in srgb, var(--accent) 12%, rgb(from var(--p-bg-2) r g b / 0.62));
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-float);
 }
 .goal-target { display: grid; width: 16px; height: 16px; place-items: center; border: 1.5px solid var(--accent); border-radius: 50%; }
 .goal-target span { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
@@ -2968,10 +2982,12 @@ pre {
   align-items: center;
   gap: 8px;
   padding: 6px 6px 6px 12px;
-  border: 1px solid var(--line-mid);
+  border: 1px solid var(--line-glass);
   border-radius: 12px;
-  background: var(--surface);
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
   font-size: var(--text-control);
+  box-shadow: var(--glass-rim), var(--shadow-float);
 }
 .queued-mark { flex: none; color: var(--muted); }
 .queued-body { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; flex: 1; gap: 5px; }
@@ -3036,9 +3052,11 @@ pre {
   gap: 8px;
   margin: 0;
   border: 1px solid var(--danger-line);
-  border-radius: 9px;
+  border-radius: 11px;
   padding: 9px 12px;
-  background: var(--danger-surface);
+  background: var(--glass-sheen), rgb(from var(--p-danger) r g b / 0.16);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-float);
   color: var(--danger-soft);
   font-size: var(--text-control);
 }
@@ -3060,9 +3078,11 @@ pre {
   gap: 10px;
   margin: 0;
   border: 1px solid var(--info-line);
-  border-radius: 9px;
+  border-radius: 11px;
   padding: 7px 8px 7px 12px;
-  background: var(--info-surface-soft);
+  background: var(--glass-sheen), rgb(from var(--p-info) r g b / 0.14);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-float);
   color: var(--info-soft);
   font-size: var(--text-control);
 }
@@ -3091,11 +3111,12 @@ pre {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  border: 1px solid var(--line-mid);
+  border: 1px solid var(--line-glass);
   border-radius: 12px;
   padding: 11px 8px 11px 12px;
-  background: var(--surface-menu);
-  box-shadow: var(--shadow-menu);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-menu);
   color: var(--ink);
   pointer-events: auto;
   -webkit-app-region: no-drag;
@@ -4013,10 +4034,11 @@ button.annotation-pill-face { cursor: pointer; }
   left: 0;
   width: 320px;
   overflow: hidden;
-  border: 1px solid var(--line-mid);
+  border: 1px solid var(--line-glass);
   border-radius: 11px;
-  background: var(--surface-menu);
-  box-shadow: var(--shadow-panel);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-panel);
   opacity: 0;
   pointer-events: none;
   transform: translateY(3px);
@@ -4155,8 +4177,9 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   margin: 0;
   border-radius: 999px;
   padding: 6px 14px;
-  background: var(--surface-raised);
-  box-shadow: 0 6px 20px rgb(0 0 0 / 25%);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-float);
   color: var(--ink-soft);
   font-size: var(--text-meta);
   pointer-events: none;
@@ -4167,15 +4190,17 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   max-height: 100%;
   overflow: auto;
   margin: 0;
-  border: 1px solid var(--line-mid);
+  border: 1px solid var(--line-glass);
   border-radius: 10px;
   padding: 16px 18px;
-  background: var(--surface-raised);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
   color: var(--ink-soft);
   font: var(--text-meta)/1.55 var(--mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   cursor: text;
+  box-shadow: var(--glass-rim), var(--shadow-float);
 }
 
 .annotation-marker {
@@ -4374,7 +4399,8 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   display: grid;
   place-items: center;
   padding: 56px 32px 32px;
-  background: var(--scrim);
+  background: rgb(var(--p-scrim) / 0.7);
+  backdrop-filter: var(--veil-blur);
   cursor: zoom-out;
 }
 .viewer.paste { cursor: default; }
@@ -4431,11 +4457,13 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   transform: translateX(-50%);
   padding: 2px 8px;
   border-radius: 6px;
-  background: var(--control);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
   color: var(--ink-soft);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
+  box-shadow: var(--glass-rim), var(--shadow-float);
 }
 /* A zooming view brings its own scroller, which fills the shell rather than being centred as one fixed item. */
 .viewer.diagram, .viewer.image, .viewer.visual { display: block; }
@@ -4453,11 +4481,13 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   gap: 3px;
   border-radius: 8px;
   padding: 3px;
-  background: var(--control);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
   color: var(--muted-strong);
   font-size: var(--text-meta);
   font-variant-numeric: tabular-nums;
   cursor: default;
+  box-shadow: var(--glass-rim), var(--shadow-float);
 }
 .viewer-zoom button { width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
 .viewer-zoom button:hover:not(:disabled) { background: var(--control-hover); color: var(--ink); }
@@ -4475,7 +4505,8 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   display: grid;
   place-items: center;
   padding: 56px 28px 28px;
-  background: var(--scrim);
+  background: rgb(var(--p-scrim) / 0.7);
+  backdrop-filter: var(--veil-blur);
 }
 .annotator-panel {
   width: min(1080px, 100%);
@@ -4483,10 +4514,11 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-glass);
   border-radius: 16px;
-  background: var(--sunken);
-  box-shadow: var(--shadow-overlay);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-overlay);
 }
 .annotator-head {
   display: flex;
@@ -4564,10 +4596,12 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   height: 26px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--line-bright);
+  border: 1px solid var(--line-glass);
   border-radius: 999px;
   padding: 0;
-  background: var(--surface-menu);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-float);
   color: var(--ink);
   cursor: pointer;
 }
@@ -4585,10 +4619,11 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   border-radius: 8px;
   padding: 7px 9px;
   outline: 0;
-  background: var(--surface-menu);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
   color: var(--ink);
   font-size: var(--text-control);
-  box-shadow: var(--shadow-menu);
+  box-shadow: var(--glass-rim), var(--shadow-menu);
 }
 .annotator-label::placeholder { color: var(--quiet); }
 .annotator-bar {
@@ -4873,8 +4908,9 @@ button.plan-usage-meter:hover .plan-usage-share { text-decoration: underline; te
   gap: 10px;
   border: 1px solid var(--accent-line);
   border-radius: 12px;
-  background: var(--accent-surface);
-  box-shadow: var(--shadow-float);
+  background: var(--glass-sheen), color-mix(in srgb, var(--accent) 14%, rgb(from var(--p-bg-2) r g b / 0.62));
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-float);
   font-size: var(--text-control);
 }
 .plan-usage-warning strong { flex: none; font-weight: 560; }
@@ -4973,10 +5009,11 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
     z-index: 20;
     inset: 0 auto 0 0;
     padding-right: 10px;
-    background: var(--sidebar);
+    background: var(--glass-menu);
+    backdrop-filter: var(--glass-menu-blur);
     width: min(280px, calc(100% - 40px));
     max-width: none;
-    box-shadow: var(--shadow-sidebar);
+    box-shadow: var(--glass-rim), var(--shadow-sidebar);
     transform: translateX(-100%);
     transition: transform var(--panel-slide-time) var(--panel-slide-ease);
     visibility: hidden;
@@ -4995,7 +5032,8 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
     display: block;
     border: 0;
     padding: 0;
-    background: var(--scrim-soft);
+    background: var(--veil);
+    backdrop-filter: var(--veil-blur);
   }
 }
 
@@ -5202,16 +5240,18 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   display: grid;
   place-items: center;
   padding: 56px 28px 28px;
-  background: var(--scrim);
+  background: var(--veil);
+  backdrop-filter: var(--veil-blur);
   animation: modal-scrim-in 140ms ease-out;
 }
 .modal-panel {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-glass);
   border-radius: 16px;
-  background: var(--sunken);
-  box-shadow: var(--shadow-overlay);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-overlay);
   animation: modal-panel-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 @keyframes modal-scrim-in { from { opacity: 0; } }
@@ -5333,8 +5373,8 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   display: grid;
   place-items: start center;
   padding: 96px 28px 28px;
-  background: rgb(var(--p-scrim) / 0.42);
-  backdrop-filter: blur(3px);
+  background: var(--veil);
+  backdrop-filter: var(--veil-blur);
   animation: scrim-in 140ms ease-out;
 }
 @keyframes scrim-in { from { opacity: 0; } }
@@ -5412,11 +5452,12 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   z-index: 1100;
   width: max-content;
   max-width: min(280px, calc(100vw - 32px));
-  border: 1px solid var(--line-mid);
+  border: 1px solid var(--line-glass);
   border-radius: 8px;
   padding: 5px 9px;
-  background: var(--surface-menu);
-  box-shadow: var(--shadow-tooltip);
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-tooltip);
   color: var(--ink-soft);
   font-size: var(--text-meta);
   line-height: 1.35;
@@ -5477,7 +5518,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .effort-tick { position: absolute; top: 50%; left: calc(var(--effort-travel) * var(--effort-tick) + var(--effort-knob) / 2); width: 4px; height: 4px; border-radius: 50%; background: var(--quiet); transform: translate(-50%, -50%); transition: width 140ms ease, height 140ms ease, background 140ms; pointer-events: none; }
 .effort-tick.passed { background: color-mix(in srgb, var(--canvas) 55%, transparent); }
 .effort-tick.hovered { width: 7px; height: 7px; }
-.effort-tick.hovered::after { content: attr(data-label); position: absolute; bottom: 18px; left: 50%; padding: 4px 8px; border: 1px solid var(--line-mid); border-radius: 7px; background: var(--surface-raised); box-shadow: var(--shadow-tooltip); color: var(--ink-soft); font-size: 11px; line-height: 15px; white-space: nowrap; transform: translateX(-50%); }
+.effort-tick.hovered::after { content: attr(data-label); position: absolute; bottom: 18px; left: 50%; padding: 4px 8px; border: 1px solid var(--line-glass); border-radius: 7px; background: var(--glass-menu); backdrop-filter: var(--glass-menu-blur); box-shadow: var(--glass-rim), var(--shadow-tooltip); color: var(--ink-soft); font-size: 11px; line-height: 15px; white-space: nowrap; transform: translateX(-50%); }
 .effort-knob { position: absolute; top: -6px; left: calc(var(--effort-travel) * var(--effort-at)); width: var(--effort-knob); height: var(--effort-knob); border-radius: 50%; background: var(--surface-inverse); box-shadow: 0 0 0 1px var(--line-glass), var(--shadow-thumb); transition: left 180ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 140ms ease; }
 .effort-slider:hover .effort-knob, .effort-slider.dragging .effort-knob { transform: scale(1.08); }
 .effort-slider.dragging .effort-fill, .effort-slider.dragging .effort-knob { transition: transform 140ms ease, background 200ms; }
@@ -5615,3 +5656,27 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   .talk-halo, .talk-halo::after, .dictation-wave span { transition: none; }
   .dictation-strip.transcribing .dictation-wave span, .dictation-strip.hands-free .dictation-time::before { animation: none; }
 }
+
+/**
+ * Every raised control is cut from the same glass, so each carries the rim its top edge catches the
+ * light on. Written at no weight, so a control that draws an edge of its own keeps it. A filled
+ * action takes the plain glint instead: its fill is already the brightest thing beside it.
+ */
+:where(
+  .activity-filter-trigger, .sidebar-update, .thread-nav-button.active, .sidebar-settings.active, .heading-host-state,
+  .right-dock-picker button, .right-dock-hide[aria-pressed="true"], .browser-approval button, .browser-empty button, .browser-error > button,
+  .simulator-notice button, .terminal-new-shell, .agents-panel-none button, .agents-panel-empty button, .agent-status-strip button,
+  .thread-start-toggle, .thread-start-worktree, .message-origin-link, .decision-pager button, .suggestion-dismiss-slot > button, .process-stop-slot > button,
+  .settled-fold > summary, .updates-fold > summary, .limit-action, .part-fallback button,
+  .segmented, .settings-group-action button, .computer-software-action button, .phone-check-link, .browser-import-actions button,
+  .goal-actions button, .queued-steer, .composer-unopenable-check, .context-usage-compact, .paste-pill, .file-pill, .attachment-open, .attachment-edit, .annotation-pill,
+  .command-mark, .review-form-actions button, .project-edit-path button, .project-edit-actions button, .worktree-move-actions button,
+  .viewer-close, .viewer-download, .viewer-copy, .viewer-step, .annotator-tool.active, .annotator-action, .annotator-undo, .sidebar-empty-action, .thread-jump-empty button,
+  .automation-actions button, .agent-activity-earlier, .subagent-view-all, .process-stop, .workflow-stop,
+  .diff-mode-trigger, .diff-linked-commit, .diff-side-trigger, .diff-progress > button, .diff-status > button, .diff-error > button,
+  .model-provider-rail button[aria-pressed="true"], .model-row.selected
+) { box-shadow: var(--glass-rim); }
+:where(
+  .empty-state button, .approval-actions button, .question-answer button, .toast-action, .composer-unopenable-update,
+  button.primary, .terminal-new-shell.primary, .annotator-action.primary, .annotate-editor-save, .sidebar-update.ready
+) { box-shadow: var(--glint); }
