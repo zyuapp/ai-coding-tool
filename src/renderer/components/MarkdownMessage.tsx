@@ -3,6 +3,7 @@ import { LuArrowUpRight as ArrowUpRight, LuFileText as FileText } from "react-ic
 import Markdown, { defaultUrlTransform, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { parseFileHref, parseThreadHref } from "../../domain/markdown-links";
+import { Chip } from "../ui/Chip";
 import { Copyable } from "./CopyButton";
 import { MermaidBlock } from "./MermaidBlock";
 import { VisualBlock } from "./VisualBlock";
@@ -173,9 +174,9 @@ function MarkdownLink({ children, ...props }: ComponentProps<"a">) {
   const href = props.href ?? "";
   const threadId = parseThreadHref(href);
   if (threadId && actions.selectThread) return (
-    <a {...props} className="message-link-thread" onClick={(event) => { event.preventDefault(); actions.selectThread!(threadId); }}>
+    <Chip as="a" variant="link" {...props} className="message-link-thread" onClick={(event) => { event.preventDefault(); actions.selectThread!(threadId); }}>
       {children}<ArrowUpRight className="message-link-glyph" aria-hidden="true" />
-    </a>
+    </Chip>
   );
   /** Anything else under the scheme is text, never a live link. */
   if (APP_HREF.test(href)) return <>{children}</>;

@@ -45,14 +45,14 @@ async function press(target: Element, key: string, init: KeyboardEventInit = {})
 test("a commit is reviewed only once its SHA is hex, and anything else says so", async () => {
   const { view, calls } = await open("commit");
   const field = query<HTMLInputElement>(view.container, ".review-form input");
-  const start = query<HTMLButtonElement>(view.container, ".review-form-actions button.primary");
+  const start = query<HTMLButtonElement>(view.container, ".review-form-actions button[data-variant='primary']");
   assert.equal(start.disabled, true);
   assert.equal(start.textContent, "Start review");
 
   await type(field, "a1b");
   assert.equal(start.disabled, true, "three characters are still being typed");
   assert.equal(view.container.querySelector(".review-form-error"), null);
-  const hint = query(view.container, ".review-form-hint");
+  const hint = query(view.container, ".review-form .text-field-hint");
   assert.equal(hint.textContent, "At least 4 characters", "a short SHA says why it cannot start yet");
   assert.equal(field.getAttribute("aria-describedby"), hint.id);
 
@@ -66,7 +66,7 @@ test("a commit is reviewed only once its SHA is hex, and anything else says so",
   await type(field, " a1b2c3d ");
   assert.equal(start.disabled, false);
   assert.equal(view.container.querySelector(".review-form-error"), null);
-  assert.equal(view.container.querySelector(".review-form-hint"), null);
+  assert.equal(view.container.querySelector(".review-form .text-field-hint"), null);
   await act(async () => { query<HTMLFormElement>(view.container, ".review-form").requestSubmit(); });
   assert.deepEqual(calls.reviews, [{ type: "commit", sha: "a1b2c3d", title: null }]);
   await view.unmount();

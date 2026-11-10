@@ -1,10 +1,22 @@
 import { memo, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { LuBot as Bot, LuCircleCheckBig as CheckCircle2, LuCircleDot as CircleDot, LuCirclePause as CirclePause, LuCircleStop as CircleStop, LuCircleX as XCircle, LuSearch as Search, LuX as X } from "react-icons/lu";
+import { LuBot as Bot, LuCircleCheckBig as CheckCircle2, LuCircleDot as CircleDot, LuCirclePause as CirclePause, LuCircleStop as CircleStop, LuCircleX as XCircle } from "react-icons/lu";
 import { OPEN_SUBAGENT_GROUPS, orderSubagents, subagentLine, subagentStatusLabel as statusLabel, type Subagent, type SubagentGroup, type SubagentGroups, type SubagentStatus } from "../../domain/run";
 import { shortcutTip } from "./TooltipLayer";
+import { Button, Segmented } from "../ui/Button";
+import { Chip } from "../ui/Chip";
+import { EmptyState } from "../ui/EmptyState";
+import { SearchField } from "../ui/Field";
+import { ListHeading, ListRow } from "../ui/List";
+import { PanelHeader } from "../ui/PanelHeader";
 
 const STATUS_FILTERS: SubagentStatus[] = ["working", "idle", "failed", "stopped", "completed"];
+
+/** The tint a chosen status filter takes. */
+const STATUS_TONES: Partial<Record<SubagentStatus, string>> = { working: "info", failed: "danger", stopped: "danger" };
+
+/** The status filter's choice that filters nothing. */
+const ALL = "all";
 
 /** Above this many rows the list is windowed; a handful of rows are cheaper drawn whole. */
 const VIRTUALIZE_ABOVE = 50;
@@ -37,11 +49,14 @@ export function countByStatus(subagents: Subagent[]) {
 export const SubagentRow = memo(function SubagentRow({ subagent, onSelect }: { subagent: Subagent; onSelect: (id: string) => void }) {
   const line = subagentLine(subagent);
   return (
-    <button type="button" className="agent-row" onClick={() => onSelect(subagent.id)}>
-      <span className={`agent-orb ${subagent.status}`} aria-hidden="true"><Bot size={12} /></span>
-      <span><strong data-tip={subagent.description} data-tip-overflow>{subagent.description}</strong><small data-tip={line} data-tip-overflow>{line}</small></span>
-      <StatusIcon status={subagent.status} labelled />
-    </button>
+    <ListRow
+      className="agent-row"
+      leading={<span className={`agent-orb ${subagent.status}`} aria-hidden="true"><Bot size={12} /></span>}
+      title={subagent.description}
+      detail={line}
+      trailing={<StatusIcon status={subagent.status} labelled />}
+      onClick={() => onSelect(subagent.id)}
+    />
   );
 });
 
@@ -65,12 +80,7 @@ function rowsFor(subagents: Subagent[], grouped: boolean, groups: SubagentGroups
 
 function renderRow(row: Row, onSelect: (id: string) => void, onSetGroup: (group: SubagentGroup, open: boolean) => void) {
   if (row.kind === "agent") return <SubagentRow subagent={row.subagent} onSelect={onSelect} />;
-  return (
-    <button className="subagent-group" type="button" aria-expanded={row.open} onClick={() => onSetGroup(row.status, !row.open)}>
-      <span>{statusLabel(row.status)}<span className="section-chevron" aria-hidden="true" /></span>
-      <span className="subagent-group-count">{row.count}</span>
-    </button>
-  );
+  return <ListHeading className="subagent-group" label={statusLabel(row.status)} count={row.count} open={row.open} onToggle={() => onSetGroup(row.status, !row.open)} />;
 }
 
 export function AgentsPanel({ subagents, groups, finding = false, onSelect, onSetGroup }: {
@@ -106,55 +116,53 @@ export function AgentsPanel({ subagents, groups, finding = false, onSelect, onSe
   if (!subagents.length) {
     return (
       <section className="agents-panel" aria-label="Agents">
-        <header className="agents-panel-heading">
-          <h2>Subagents</h2>
-        </header>
-        <div className="agents-panel-empty">
-          <span className="agent-orb" aria-hidden="true"><Bot size={18} /></span>
-          <h2>No subagents yet</h2>
-        </div>
+        <PanelHeader title="Subagents" />
+        <EmptyState className="agents-panel-empty" icon={<Bot size={18} />} title="No subagents yet" />
       </section>
     );
   }
 
   return (
     <section className="agents-panel" aria-label="Agents">
-      <header className="agents-panel-heading">
-        <h2>Subagents</h2>
-        <span>{subagents.length}</span>
-      </header>
+      <PanelHeader title="Subagents" actions={<Chip variant="count">{subagents.length}</Chip>} />
       <div className="agents-filters">
-        <div className="agent-status-strip" role="group" aria-label="Filter subagents by status">
-          <button type="button" aria-pressed={!status} onClick={() => setStatus(null)}>All <span>{subagents.length}</span></button>
-          {STATUS_FILTERS.filter((candidate) => counts[candidate] > 0).map((candidate) => (
-            <button key={candidate} className={candidate} type="button" aria-pressed={status === candidate} onClick={() => setStatus(status === candidate ? null : candidate)}>
-              {statusLabel(candidate)} <span>{counts[candidate]}</span>
-            </button>
-          ))}
-        </div>
-        <label className="agent-search">
-          <Search size={14} aria-hidden="true" />
-          <input
-            ref={searchRef}
-            value={query}
-            onInput={(event) => setQuery(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Escape" || !query) return;
-              event.preventDefault();
-              event.stopPropagation();
-              setQuery("");
-            }}
-            placeholder="Search subagents"
-            aria-label="Search subagents"
-          />
-          {query && <button type="button" className="agent-search-clear" aria-label="Clear the search" data-tip={shortcutTip("Clear", "Escape")} onClick={() => { setQuery(""); searchRef.current?.focus(); }}><X size={12} aria-hidden="true" /></button>}
-        </label>
+        <Segmented
+          className="agent-status-strip"
+          variant="pills"
+          label="Filter subagents by status"
+          value={status ?? ALL}
+          options={[
+            { value: ALL, label: <>All <span>{subagents.length}</span></> },
+            ...STATUS_FILTERS.filter((candidate) => counts[candidate] > 0).map((candidate) => ({
+              value: candidate,
+              label: <>{statusLabel(candidate)} <span>{counts[candidate]}</span></>,
+              tone: STATUS_TONES[candidate],
+            })),
+          ]}
+          onChange={(picked) => setStatus(picked === ALL || picked === status ? null : picked)}
+        />
+        <SearchField
+          ref={searchRef}
+          label="Search subagents"
+          value={query}
+          onInput={(event) => setQuery(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Escape" || !query) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setQuery("");
+          }}
+          onClear={() => { setQuery(""); searchRef.current?.focus(); }}
+          clearTip={shortcutTip("Clear", "Escape")}
+        />
       </div>
       {rows.length === 0 ? (
-        <div className="agents-panel-none">
-          <p className="session-empty">No subagents match.</p>
-          <button type="button" onClick={() => { setStatus(null); setQuery(""); }}>Show all</button>
-        </div>
+        <EmptyState
+          size="inline"
+          className="agents-panel-none"
+          title="No subagents match."
+          action={<Button variant="soft" onClick={() => { setStatus(null); setQuery(""); }}>Show all</Button>}
+        />
       ) : (
         <div className="subagent-list agents-panel-list" ref={scrollRef} aria-live="polite">
           {virtual ? (

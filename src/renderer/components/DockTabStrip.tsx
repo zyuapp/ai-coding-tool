@@ -2,9 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type 
 import { LuChevronDown as ChevronDown, LuMaximize2 as Maximize2, LuMinimize2 as Minimize2, LuPanelRightClose as PanelRightClose, LuPlus as Plus, LuX as X } from "react-icons/lu";
 import { ADD_TAB_MENU, type DockLauncher, type DockTab } from "./dock-registry";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
-import { moveListFocus, useDismissibleLayer } from "../focus";
+import { useDismissibleLayer } from "../focus";
 import { shortcutTip } from "./TooltipLayer";
-import { useTypeahead } from "./PopoverMenu";
+import { IconButton } from "../ui/Button";
+import { Chip } from "../ui/Chip";
+import { MenuItem, MenuSurface, useListKeys } from "../ui/Menu";
 
 const TABS_MENU = "dock:tabs";
 
@@ -19,18 +21,6 @@ function moveTabFocus(event: KeyboardEvent<HTMLElement>) {
   const next = Number.isFinite(step) ? (at + step + tabs.length) % tabs.length : step < 0 ? 0 : tabs.length - 1;
   tabs[next].focus();
   tabs[next].scrollIntoView({ block: "nearest", inline: "nearest" });
-}
-
-/** Arrows, Home and End walk a menu's items, and typing jumps to the item whose name starts that way. */
-function useMenuKeys() {
-  const typeahead = useTypeahead();
-  return (event: KeyboardEvent<HTMLElement>) => {
-    const rows = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button")];
-    if ((event.key === "Home" || event.key === "End") && rows.length) {
-      event.preventDefault();
-      rows[event.key === "Home" ? 0 : rows.length - 1]!.focus();
-    } else if (!typeahead(event, rows)) moveListFocus(event);
-  };
 }
 
 /** A mouse wheel turns the strip sideways, so tabs past its edge are reached without a trackpad. */
@@ -63,7 +53,7 @@ function TabList({ workspace, tabs, activeTab }: { workspace: Workspace; tabs: D
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   useDismissibleLayer(open, [root], () => workspace.actions.setOpenMenu(null), trigger);
-  const menuKeys = useMenuKeys();
+  const menuKeys = useListKeys();
   return (
     <div ref={root} className={`right-dock-add right-dock-overflow ${open ? "open" : ""}`.trimEnd()} data-popover-menu>
       <button
@@ -78,23 +68,22 @@ function TabList({ workspace, tabs, activeTab }: { workspace: Workspace; tabs: D
         <ChevronDown size={16} />
       </button>
       {open && (
-        <div role="menu" aria-label="Open tabs" onKeyDown={menuKeys}>
+        <MenuSurface checkable scroll className="right-dock-menu" role="menu" aria-label="Open tabs" onKeyDown={menuKeys}>
           {tabs.map((tab, index) => (
-            <button
+            <MenuItem
               key={tab.id}
-              type="button"
               role="menuitemradio"
               className={tab.unread ? "unread" : undefined}
-              aria-checked={activeTab === tab.id}
+              checked={activeTab === tab.id}
+              icon={<tab.icon size={16} />}
+              detail={tab.unread ? <span className="right-dock-tab-attention" role="img" aria-label="Waiting for you" /> : undefined}
               autoFocus={activeTab === tab.id || (index === 0 && !tabs.some((other) => other.id === activeTab))}
               onClick={() => { workspace.actions.setOpenMenu(null); void workspace.actions.selectDockTab(tab.id); }}
             >
-              <tab.icon size={16} aria-hidden="true" />
-              <span>{tab.title}</span>
-              {tab.unread ? <span className="right-dock-tab-attention" role="img" aria-label="Waiting for you" /> : null}
-            </button>
+              {tab.title}
+            </MenuItem>
           ))}
-        </div>
+        </MenuSurface>
       )}
     </div>
   );
@@ -115,7 +104,7 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
 }) {
   const strip = useRef<HTMLDivElement>(null);
   const overflowing = useOverflowing(strip, tabs.length);
-  const menuKeys = useMenuKeys();
+  const menuKeys = useListKeys();
   /** Delete closes the focused tab, as the arrows move between them; a pinned tab stays. */
   const onStripKey = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== "Delete" || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return moveTabFocus(event);
@@ -150,10 +139,10 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
               onClick={() => void workspace.actions.selectDockTab(tab.id)}
             >
               <tab.icon size={16} aria-hidden="true" /><span>{tab.title}</span>
-              {tab.badge ? <em className={tab.badgeTone} role="img" aria-label={tab.badgeLabel ?? String(tab.badge)}>{tab.badge}</em> : null}
+              {tab.badge ? <Chip variant="count" tone={tab.badgeTone === "working" ? "info" : undefined} role="img" aria-label={tab.badgeLabel ?? String(tab.badge)}>{tab.badge}</Chip> : null}
               {tab.unread ? <span className="right-dock-tab-attention" role="img" aria-label="Waiting for you" /> : null}
             </button>
-            {!tab.pinned && <button type="button" tabIndex={-1} aria-label={`Close ${tab.title}`} data-tip={activeTab === tab.id && !expanded ? shortcutTip("Close tab", "Mod+W") : "Close tab"} onClick={() => onCloseTab(tab.id)}><X size={14} /></button>}
+            {!tab.pinned && <IconButton size="xs" tabIndex={-1} label={`Close ${tab.title}`} tip={activeTab === tab.id && !expanded ? shortcutTip("Close tab", "Mod+W") : "Close tab"} onClick={() => onCloseTab(tab.id)}><X size={14} /></IconButton>}
           </div>
         ))}
       </div>
@@ -171,35 +160,33 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
           <Plus size={18} />
         </button>
         {addMenuOpen && (
-          <div role="menu" onKeyDown={menuKeys}>
+          <MenuSurface className="right-dock-menu" role="menu" onKeyDown={menuKeys}>
             {launchers.map((launcher, index) => (
-              <button
+              <MenuItem
                 key={launcher.id}
-                type="button"
-                role="menuitem"
                 autoFocus={index === 0}
-                aria-disabled={launcher.disabled || undefined}
+                disabled={launcher.disabled}
+                icon={<launcher.icon size={16} />}
+                description={launcher.disabledLabel}
                 data-tip={launcher.disabledReason !== launcher.disabledLabel ? launcher.disabledReason : undefined}
-                onClick={launcher.disabled ? undefined : () => { workspace.actions.setOpenMenu(null); launcher.open(); }}
+                onClick={() => { workspace.actions.setOpenMenu(null); launcher.open(); }}
               >
-                <launcher.icon size={16} aria-hidden="true" />
-                <span>{launcher.title}{launcher.disabledLabel && <small>{launcher.disabledLabel}</small>}</span>
-              </button>
+                {launcher.title}
+              </MenuItem>
             ))}
-          </div>
+          </MenuSurface>
         )}
       </div>
-      <button
-        className="right-dock-hide"
-        type="button"
-        aria-label={`${expanded ? "Restore" : "Expand"} right panel`}
-        aria-pressed={expanded}
-        data-tip={shortcutTip(expanded ? "Restore panel" : "Expand panel", "Mod+Shift+\\")}
+      <IconButton
+        size="lg"
+        label={`${expanded ? "Restore" : "Expand"} right panel`}
+        pressed={expanded}
+        tip={shortcutTip(expanded ? "Restore panel" : "Expand panel", "Mod+Shift+\\")}
         onClick={() => void workspace.actions.setDockExpanded(!expanded)}
       >
         {expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-      </button>
-      <button className="right-dock-hide" type="button" aria-label="Hide right panel" data-tip={shortcutTip("Hide panel", "Mod+\\")} onClick={() => void workspace.actions.setDockOpen(false)}><PanelRightClose size={18} /></button>
+      </IconButton>
+      <IconButton size="lg" label="Hide right panel" tip={shortcutTip("Hide panel", "Mod+\\")} onClick={() => void workspace.actions.setDockOpen(false)}><PanelRightClose size={18} /></IconButton>
     </div>
   );
 }

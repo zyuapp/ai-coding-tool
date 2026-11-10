@@ -5,6 +5,8 @@ import type { AgentEngine } from "../../domain/agent-engine";
 import { handleTokenAt, rankThreadHandles, type ThreadHandleOption } from "../../domain/thread-handles";
 import { useDismissibleLayer } from "../focus";
 import type { ComposerCaret } from "./composer-caret";
+import { Chip } from "../ui/Chip";
+import "../ui/glass.css";
 
 /** An entry in the `/` menu that the app performs itself instead of sending. */
 export type ComposerAction = { name: string; description: string; run: () => void };
@@ -187,7 +189,7 @@ export function CommandMenu({ menus }: { menus: ComposerMenus }) {
   const { matchingCommands, selectedCommand } = menus;
 
   return (
-    <div className="command-menu" ref={menus.commandMenuRef} id="slash-command-menu" role="listbox" aria-label="Slash commands">
+    <div className="glass-popover command-menu" ref={menus.commandMenuRef} id="slash-command-menu" role="listbox" aria-label="Slash commands">
       <div className="command-menu-heading"><Command size={14} aria-hidden="true" /><span>Commands</span></div>
       <div className="command-menu-list">
         {matchingCommands.map((command, index) => {
@@ -203,9 +205,9 @@ export function CommandMenu({ menus }: { menus: ComposerMenus }) {
             onClick={() => menus.chooseCommand(command)}
             {...(description !== command.description.trim() ? { "data-tip": command.description } : {})}
           >
-            <span className={`command-mark ${command.kind}`} aria-hidden="true">{command.kind === "app" ? <Command size={16} /> : <Sparkles size={16} />}</span>
+            <span className={`raised command-mark ${command.kind}`} aria-hidden="true">{command.kind === "app" ? <Command size={16} /> : <Sparkles size={16} />}</span>
             <span className="command-copy"><strong>/{command.name}{command.argumentHint && <em> {command.argumentHint}</em>}</strong><small>{description}</small></span>
-            <span className="command-source">{command.kind === "app" ? "AI Coding Tool" : "Skill"}</span>
+            <Chip variant="tag" className="command-source">{command.kind === "app" ? "AI Coding Tool" : "Skill"}</Chip>
           </button>;
         })}
         {matchingCommands.length === 0 && <p className="command-empty">No matching commands</p>}
@@ -221,7 +223,7 @@ export function ThreadMenu({ menus }: { menus: ComposerMenus }) {
   const firstElsewhere = matchingThreads.findIndex((option) => !option.inScope);
 
   return (
-    <div className="command-menu thread-menu" ref={menus.threadMenuRef} id="thread-mention-menu" role="listbox" aria-label="Threads">
+    <div className="glass-popover command-menu thread-menu" ref={menus.threadMenuRef} id="thread-mention-menu" role="listbox" aria-label="Threads">
       <div className="command-menu-heading"><MessagesSquare size={14} aria-hidden="true" /><span>Threads</span></div>
       <div className="command-menu-list">
         {matchingThreads.map((option, index) => (
@@ -235,9 +237,9 @@ export function ThreadMenu({ menus }: { menus: ComposerMenus }) {
             onMouseEnter={() => menus.setSelectedThread(index)}
             onClick={() => menus.chooseThread(option)}
           >
-            <span className={`command-mark thread ${option.running ? "running" : ""}`} aria-hidden="true"><MessagesSquare size={16} /></span>
+            <span className={`raised command-mark thread ${option.running ? "running" : ""}`} aria-hidden="true"><MessagesSquare size={16} /></span>
             <span className="command-copy"><strong>{option.title}</strong><small>@{option.handle}{option.running && <span className="thread-running"> · Running</span>}</small></span>
-            {!option.inScope && <span className="command-source">{option.project ?? "No project"}</span>}
+            {!option.inScope && <Chip variant="tag" className="command-source">{option.project ?? "No project"}</Chip>}
           </button>
         ))}
         {matchingThreads.length === 0 && <p className="command-empty">{menus.anyThreads ? "No thread matches" : "No other threads yet"}</p>}

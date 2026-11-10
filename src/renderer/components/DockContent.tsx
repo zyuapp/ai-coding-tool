@@ -7,6 +7,7 @@ import type { DockLauncher, DockPanel } from "./dock-registry";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { usePanelFind } from "../find/use-panel-find";
 import { moveListFocus } from "../focus";
+import "../ui/glass.css";
 import { DIFF_PANEL, type FindView } from "../../application/workspace-state";
 import type { FindResults } from "../../domain/find";
 
@@ -91,6 +92,7 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
             <button
               key={launcher.id}
               type="button"
+              className="raised"
               aria-label={`Open ${launcher.title} panel`}
               aria-describedby={`${described}-${launcher.id}`}
               aria-disabled={launcher.disabled || undefined}

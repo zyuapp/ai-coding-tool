@@ -10,6 +10,9 @@ import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { useDismissibleLayer } from "../focus";
 import { SubagentRow } from "./SubagentList";
 import type { MemberPullRequest } from "../../application/pull-request-view";
+import { Button } from "../ui/Button";
+import { ListHeading } from "../ui/List";
+import "../ui/glass.css";
 
 export type SessionPanelProps = {
   environment: ChangedFilesResult | null;
@@ -220,7 +223,7 @@ export function MemberPullRequestList({ pullRequests, onSelect }: { pullRequests
   const links = useMessageLinks();
   return (
     <section className="subagent-section coordination-section coordination-pull-requests" aria-label="Pull requests from these threads">
-      <div className="subagent-heading"><div className="coordination-heading">Pull requests</div></div>
+      <ListHeading className="session-heading" label="Pull requests" />
       <div className="subagent-list">
         {pullRequests.map(({ pullRequest, threads }) => {
           const Icon = PULL_REQUEST_ICONS[pullRequest.state];
@@ -262,7 +265,7 @@ export function SessionPanel({ environment, hasProject, workspaceId, pullRequest
 
   return (
     <aside className="session-panel" aria-label="Session panel">
-      <div className="session-card">
+      <div className="session-card glass-pane">
         <SessionEnvironment
           environment={environment}
           hasProject={hasProject}
@@ -279,18 +282,18 @@ export function SessionPanel({ environment, hasProject, workspaceId, pullRequest
 
         {subagents.length > 0 && (
           <div className="subagent-section">
-            <div className="subagent-heading">
-              <button className="section-toggle" type="button" aria-expanded={subagentGroups.sidebar} onClick={() => onSetSubagentGroup("sidebar", !subagentGroups.sidebar)}>
-                <span>Subagents</span>
-                <span className="section-chevron" aria-hidden="true" />
-              </button>
-              {working > 0 && <span>{working} working</span>}
-            </div>
+            <ListHeading
+              className="session-heading"
+              label="Subagents"
+              open={subagentGroups.sidebar}
+              onToggle={() => onSetSubagentGroup("sidebar", !subagentGroups.sidebar)}
+              action={working > 0 ? <span className="session-heading-note">{working} working</span> : undefined}
+            />
             {subagentGroups.sidebar && (
               <div className="subagent-list" aria-live="polite">
                 {shown.map((subagent) => <SubagentRow key={subagent.id} subagent={subagent} onSelect={onSelect} />)}
                 {subagents.length > shown.length && (
-                  <button className="subagent-view-all" type="button" onClick={onOpenAgents}>View all {subagents.length}</button>
+                  <Button className="subagent-view-all" onClick={onOpenAgents}>View all {subagents.length}</Button>
                 )}
               </div>
             )}

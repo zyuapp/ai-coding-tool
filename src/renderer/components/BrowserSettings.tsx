@@ -1,5 +1,7 @@
-import { ConfirmAction, SettingGroup, useRowListFocus } from "./SettingRow";
-import { settingControl } from "../../domain/settings-catalog";
+import { SettingRowBase, useRowListFocus } from "./SettingRow";
+import { SettingsPage, SettingsSection } from "./SettingsLayout";
+import { Button } from "../ui/Button";
+import { ConfirmAction } from "../ui/ConfirmAction";
 import { AvailabilitySection } from "./AvailabilitySection";
 import { BrowserImportSection, type BrowserImportSettings } from "./BrowserImportSection";
 
@@ -25,44 +27,26 @@ export function BrowserSettings({
 }: BrowserSettingsProps) {
   const rows = useRowListFocus<HTMLDivElement>();
   return (
-    <main className="settings-main">
-      <div className="settings-page-heading">
-        <h2>Browser</h2>
-        <p>The browser panel keeps one session for the whole app, so a site you sign into stays signed in everywhere AI Coding Tool works.</p>
-      </div>
-
+    <SettingsPage title="Browser" description="The browser panel keeps one session for the whole app, so a site you sign into stays signed in everywhere AI Coding Tool works.">
       <AvailabilitySection id="browser.availability" enabled={browserTools} onChange={onSetBrowserTools}
         description="The agent can open and read pages in the browser panel. Off leaves the panel to you alone." />
 
       <BrowserImportSection settings={browserImport} />
 
-      <SettingGroup setting="browser.session" aria-labelledby="browser-session-heading">
-        <div className="settings-group-heading">
-          <div>
-            <h3 id="browser-session-heading">{settingControl("browser.session").label}</h3>
-            <p>Signing out clears every cookie, cache, and stored login, and takes back the sites the agent may open on its own.</p>
-          </div>
-          <div className="settings-group-action">
-            <span>{allowedOrigins.length} {allowedOrigins.length === 1 ? "site allowed" : "sites allowed"}</span>
-            <ConfirmAction className="danger" confirm="Sign out of everything" onConfirm={onClearBrowserData}>Clear browser data</ConfirmAction>
-          </div>
-        </div>
-
+      <SettingsSection setting="browser.session" description="Signing out clears every cookie, cache, and stored login, and takes back the sites the agent may open on its own." action={<>
+        <span>{allowedOrigins.length} {allowedOrigins.length === 1 ? "site allowed" : "sites allowed"}</span>
+        <ConfirmAction variant="danger" confirm="Sign out of everything" onConfirm={onClearBrowserData}>Clear browser data</ConfirmAction>
+      </>}>
         {allowedOrigins.length === 0
           ? <p className="settings-empty">The agent has to ask before it opens any site.</p>
           : <div ref={rows.ref} onClickCapture={rows.onClickCapture}>
             {allowedOrigins.map((origin) => (
-              <div className="setting-row plain" key={origin}>
-                <strong className="setting-origin">{origin}</strong>
-                {onForgetOrigin && (
-                  <div className="setting-row-action">
-                    <button type="button" aria-label={`Remove ${origin}`} onClick={() => onForgetOrigin(origin)}>Remove</button>
-                  </div>
-                )}
-              </div>
+              <SettingRowBase key={origin} title={<strong className="setting-origin">{origin}</strong>}>
+                {onForgetOrigin && <Button aria-label={`Remove ${origin}`} onClick={() => onForgetOrigin(origin)}>Remove</Button>}
+              </SettingRowBase>
             ))}
           </div>}
-      </SettingGroup>
-    </main>
+      </SettingsSection>
+    </SettingsPage>
   );
 }

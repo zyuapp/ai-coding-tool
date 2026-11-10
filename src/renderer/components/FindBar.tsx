@@ -3,6 +3,10 @@ import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuSearch as Sea
 import type { FindView } from "../../application/workspace-state";
 import { useFocusReturn } from "../focus";
 import { shortcutTip } from "./TooltipLayer";
+import { IconButton } from "../ui/Button";
+import { TextField } from "../ui/Field";
+import { Toolbar } from "../ui/PanelHeader";
+import "../ui/glass.css";
 
 const PREVIOUS_TIP = shortcutTip("Previous match", "Shift+Enter");
 const NEXT_TIP = shortcutTip("Next match", "Enter");
@@ -20,12 +24,14 @@ export type FindBarProps = {
 export function FindBar({ find, label, onQuery, onStep, onClose }: FindBarProps) {
   const input = useRef<HTMLInputElement>(null);
   useFocusReturn(input);
+  /** A page is a native view the app draws over the panel, so a page's bar is a strip in the panel's layout, where the page cannot cover it. */
+  const strip = find.target.kind === "browser";
 
   /** Asking for find again means asking for the caret, whether or not the bar was already open. */
   useEffect(() => {
     input.current?.focus();
     input.current?.select();
-  }, [find.focus]);
+  }, [find.focus, strip]);
 
   const searching = find.query.trim().length > 0;
   /** A view still reading has a total that is not final yet, so the bar says so rather than settling on it. */
@@ -33,33 +39,38 @@ export function FindBar({ find, label, onQuery, onStep, onClose }: FindBarProps)
 
   /**
    * The bar hangs from a slot that takes no height, so a view keeps its size while find is open and
-   * nothing in it moves. Only a view the app draws a native page over keeps the bar in its layout.
+   * nothing in it moves.
    */
+  const contents = (
+    <>
+      <Search size={14} aria-hidden="true" />
+      <TextField
+        ref={input}
+        value={find.query}
+        aria-label={`Find in ${label}`}
+        placeholder={`Find in ${label}`}
+        spellCheck={false}
+        onInput={(event) => onQuery(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") onClose();
+          else if (event.key === "Enter") onStep(event.shiftKey ? -1 : 1);
+          else return;
+          event.preventDefault();
+        }}
+      />
+      <span className={`find-count ${searching && !find.matches && !find.counting ? "empty" : ""}`.trimEnd()} aria-live="polite">
+        {searching && !find.matches ? (find.counting ? "Counting…" : "No matches") : count}
+      </span>
+      <IconButton label="Previous match" tip={PREVIOUS_TIP} disabled={!find.matches} onClick={() => onStep(-1)}><ChevronUp size={16} /></IconButton>
+      <IconButton label="Next match" tip={NEXT_TIP} disabled={!find.matches} onClick={() => onStep(1)}><ChevronDown size={16} /></IconButton>
+      <IconButton label="Close find" tip={CLOSE_TIP} onClick={onClose}><X size={16} /></IconButton>
+    </>
+  );
   return (
-    <div className="find-slot">
-      <div className="find-bar" role="search">
-        <Search size={14} aria-hidden="true" />
-        <input
-          ref={input}
-          value={find.query}
-          aria-label={`Find in ${label}`}
-          placeholder={`Find in ${label}`}
-          spellCheck={false}
-          onInput={(event) => onQuery(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") onClose();
-            else if (event.key === "Enter") onStep(event.shiftKey ? -1 : 1);
-            else return;
-            event.preventDefault();
-          }}
-        />
-        <span className={`find-count ${searching && !find.matches && !find.counting ? "empty" : ""}`.trimEnd()} aria-live="polite">
-          {searching && !find.matches ? (find.counting ? "Counting…" : "No matches") : count}
-        </span>
-        <button type="button" aria-label="Previous match" data-tip={PREVIOUS_TIP} disabled={!find.matches} onClick={() => onStep(-1)}><ChevronUp size={16} /></button>
-        <button type="button" aria-label="Next match" data-tip={NEXT_TIP} disabled={!find.matches} onClick={() => onStep(1)}><ChevronDown size={16} /></button>
-        <button type="button" aria-label="Close find" data-tip={CLOSE_TIP} onClick={onClose}><X size={16} /></button>
-      </div>
+    <div className="find-slot" data-strip={strip || undefined}>
+      {strip
+        ? <Toolbar className="find-bar" role="search">{contents}</Toolbar>
+        : <div className="find-bar glass-popover" role="search">{contents}</div>}
     </div>
   );
 }

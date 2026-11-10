@@ -7,6 +7,7 @@ import { AgentsPanel } from "./SubagentList";
 import { SubagentInspector } from "./SubagentInspector";
 import { WorkflowPanel } from "./WorkflowPanel";
 import { SimulatorPanel } from "./SimulatorPanel";
+import { EmptyState } from "../ui/EmptyState";
 import { MAC } from "../platform";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { AUTOMATION_PANEL, DIFF_PANEL, OVERVIEW_PANEL, SIMULATOR_PANEL } from "../../application/workspace-reducer";
@@ -219,7 +220,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       icon: Boxes,
       render: () => (workspace.inspectedWorkflow
         ? <WorkflowPanel workflow={workspace.inspectedWorkflow} onStop={workspace.actions.stopBackgroundProcess} />
-        : <p className="session-empty">This workflow is no longer running.</p>),
+        : <EmptyState size="inline" title="This workflow is no longer running." />),
     }] : []),
     {
       id: DIFF_PANEL,

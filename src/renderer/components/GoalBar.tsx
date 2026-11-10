@@ -1,7 +1,8 @@
 import { LuChevronDown as ChevronDown } from "react-icons/lu";
 import { useState, type KeyboardEvent } from "react";
 import type { ActiveGoal } from "../../domain/goal";
-import { ConfirmAction } from "./SettingRow";
+import { ConfirmAction } from "../ui/ConfirmAction";
+import { Notice } from "../ui/Notice";
 import { useClamped } from "./AnnotationRow";
 
 /** The objective on one line, opened out in place when it runs past it. */
@@ -35,16 +36,19 @@ export function GoalBar({ goal, onClear }: { goal: ActiveGoal; onClear: () => vo
     ? goal.lastReason ?? "Needs attention"
     : goal.iterations && goal.iterations > 1 ? `Pass ${goal.iterations}` : "Working toward goal";
   return (
-    <div className={`goal-bar ${goal.status}`} role="status">
-      <span className="goal-target" aria-hidden="true"><span /></span>
-      <div className="goal-copy">
+    <Notice
+      floating
+      tone="accent"
+      role="status"
+      className={`goal-bar ${goal.status}`}
+      icon={<span className="goal-target"><span /></span>}
+      actions={<span className="goal-actions"><ConfirmAction className="goal-clear" variant="soft" aria-label="Clear goal" confirm="Clear goal" onConfirm={onClear}>Clear</ConfirmAction></span>}
+    >
+      <span className="goal-copy">
         <span className="goal-label">Goal</span>
         <GoalObjective objective={goal.objective} />
-      </div>
+      </span>
       <span className="goal-detail">{detail}</span>
-      <div className="goal-actions">
-        <ConfirmAction className="goal-clear" aria-label="Clear goal" confirm="Clear goal" onConfirm={onClear}>Clear</ConfirmAction>
-      </div>
-    </div>
+    </Notice>
   );
 }

@@ -57,7 +57,7 @@ test("arrow keys on the canvas pick a mark, which Delete removes and undo puts b
   assert.match(query(document.body, ".annotator-count").textContent ?? "", /^2 marks/);
   assert.equal(query<HTMLButtonElement>(document.body, ".annotator-undo").disabled, true);
 
-  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-action.primary").click());
+  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-action[data-variant='primary']").click());
   assert.deepEqual(calls.applied, [marks], "undoing every change leaves the marks it opened with");
   await view.unmount();
 });
@@ -79,8 +79,8 @@ test("closing with changed marks asks first, and closing untouched marks does no
   assert.equal(calls.cancelled, 0, "Escape backs out of discarding");
   assert.ok(query(document.body, ".annotator-undo"), "the usual footer returns");
 
-  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-action:not(.primary)").click());
-  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-action.danger").click());
+  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-action:not([data-variant='primary'])").click());
+  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-action[data-variant='danger']").click());
   assert.equal(calls.cancelled, 1);
   await view.unmount();
 });
@@ -182,7 +182,7 @@ test("Escape on a note being edited keeps the note it had", async () => {
   await act(async () => press(field, "Escape"));
   assert.equal(document.body.querySelector(".annotator-label"), null);
   assert.equal(query<HTMLButtonElement>(document.body, ".annotator-undo").disabled, true);
-  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-action.primary").click());
+  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-action[data-variant='primary']").click());
   assert.deepEqual(calls.applied, [marks]);
   await view.unmount();
 });
@@ -201,13 +201,13 @@ test("Done keeps a box whose note is still being typed, and Cancel asks before d
   const done = await open();
   await act(async () => pointer.onBox(drawn));
   await typeNote("Misaligned");
-  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-action.primary").click());
+  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-action[data-variant='primary']").click());
   assert.deepEqual(done.calls.applied, [[...marks, { kind: "box", ...drawn, text: "Misaligned" }]]);
   await done.view.unmount();
 
   const cancel = await open();
   await act(async () => pointer.onBox(drawn));
-  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-action:not(.primary)").click());
+  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-action:not([data-variant='primary'])").click());
   assert.equal(cancel.calls.cancelled, 0, "a box just drawn is a change");
   assert.match(query(document.body, ".annotator-bar").textContent ?? "", /Discard/);
   await act(async () => press(document.body, "Escape"));

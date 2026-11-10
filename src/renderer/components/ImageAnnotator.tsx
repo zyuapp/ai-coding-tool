@@ -6,6 +6,8 @@ import { MAC } from "../platform";
 import { shortcutTip } from "./TooltipLayer";
 import { renderAnnotated, type Annotation, type AnnotationKind, type Frame } from "../annotate/marks";
 import { useAnnotatorImage, useMarkPointer, usePaintedMarks } from "../annotate/use-annotator";
+import { Button, IconButton, ToggleButton } from "../ui/Button";
+import "../ui/glass.css";
 
 export {
   badgeRadius,
@@ -31,17 +33,17 @@ function ToolPicker({ tool, onPick }: { tool: AnnotationKind; onPick: (tool: Ann
       {tools.map((entry) => {
         const Icon = entry.icon;
         return (
-          <button
-            type="button"
+          <ToggleButton
             key={entry.value}
-            className={`annotator-tool ${entry.value === tool ? "active" : ""}`}
-            aria-pressed={entry.value === tool}
+            className="annotator-tool"
+            pressed={entry.value === tool}
+            icon={<Icon size={16} aria-hidden="true" />}
             aria-keyshortcuts={entry.key.toUpperCase()}
             data-tip={shortcutTip(entry.label, entry.key.toUpperCase())}
             onClick={() => onPick(entry.value)}
           >
-            <Icon size={16} aria-hidden="true" /> {entry.label}
-          </button>
+            {entry.label}
+          </ToggleButton>
         );
       })}
     </div>
@@ -72,20 +74,22 @@ function MarkTools({ shape, frame, mark, picked, onKeep, onEdit, onRemove }: {
       onPointerEnter={onKeep}
     >
       {shape.kind === "box" && (
-        <button type="button" className="annotator-marktool" tabIndex={tabIndex} aria-label={`Edit note on mark ${mark}`} data-tip={shortcutTip("Edit note", "Enter")} onClick={onEdit}>
+        <IconButton className="annotator-marktool" variant="glass" size="xs" round tabIndex={tabIndex} label={`Edit note on mark ${mark}`} tip={shortcutTip("Edit note", "Enter")} onClick={onEdit}>
           <Pencil size={14} />
-        </button>
+        </IconButton>
       )}
-      <button
-        type="button"
+      <IconButton
         className="annotator-marktool remove"
+        variant="glass"
+        size="xs"
+        round
         tabIndex={tabIndex}
-        aria-label={shape.kind === "arrow" ? "Delete arrow" : `Delete mark ${mark}`}
-        data-tip={shortcutTip("Delete", "Backspace")}
+        label={shape.kind === "arrow" ? "Delete arrow" : `Delete mark ${mark}`}
+        tip={shortcutTip("Delete", "Backspace")}
         onClick={onRemove}
       >
         <X size={14} />
-      </button>
+      </IconButton>
     </div>
   );
 }
@@ -298,21 +302,19 @@ function AnnotatorFooter({ discarding, canUndo, hint, ready, onUndo, onKeep, onC
     return (
       <footer className="annotator-bar" role="alert">
         <span className="annotator-count">Discard the changes to these marks?</span>
-        <button type="button" className="annotator-action" autoFocus onClick={onKeep}>Keep editing</button>
-        <button type="button" className="annotator-action danger" onClick={onDiscard}>Discard</button>
+        <Button className="annotator-action" size="lg" autoFocus onClick={onKeep}>Keep editing</Button>
+        <Button className="annotator-action" variant="danger" armed size="lg" onClick={onDiscard}>Discard</Button>
       </footer>
     );
   }
   return (
     <footer className="annotator-bar">
-      <button type="button" className="annotator-undo" aria-label="Undo" aria-keyshortcuts={MAC ? "Meta+Z" : "Control+Z"} data-tip={shortcutTip("Undo", "Mod+Z")} disabled={!canUndo} onClick={onUndo}>
+      <IconButton className="annotator-undo" variant="soft" size="md" label="Undo" aria-keyshortcuts={MAC ? "Meta+Z" : "Control+Z"} tip={shortcutTip("Undo", "Mod+Z")} disabled={!canUndo} onClick={onUndo}>
         <Undo size={16} aria-hidden="true" />
-      </button>
+      </IconButton>
       <span className="annotator-count">{hint}</span>
-      <button type="button" className="annotator-action" onClick={onCancel}>Cancel</button>
-      <button type="button" className="annotator-action primary" disabled={!ready} onClick={onDone}>
-        <Check size={16} /> Done
-      </button>
+      <Button className="annotator-action" size="lg" onClick={onCancel}>Cancel</Button>
+      <Button className="annotator-action" variant="primary" size="lg" icon={<Check size={16} />} disabled={!ready} onClick={onDone}>Done</Button>
     </footer>
   );
 }
@@ -416,7 +418,7 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
   // Portalled to the body: the composer's stacking context sits below the topbar, which would paint over the overlay.
   return createPortal(
     <div ref={dialogRef} className="annotator" role="dialog" aria-modal="true" aria-label="Annotate screenshot" tabIndex={-1}>
-      <div className="annotator-panel">
+      <div className="glass-overlay annotator-panel">
         <header className="annotator-head">
           <ToolPicker
             tool={tool}
@@ -425,7 +427,7 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
               setTool(picked);
             }}
           />
-          <button type="button" className="annotator-close" onClick={requestCancel} aria-label="Close annotator" data-tip={shortcutTip("Close", "Escape")}><X size={16} /></button>
+          <IconButton className="annotator-close" label="Close annotator" tip={shortcutTip("Close", "Escape")} onClick={requestCancel}><X size={16} /></IconButton>
         </header>
         <div className="annotator-stage">
           <div className="annotator-fit" ref={stageRef}>

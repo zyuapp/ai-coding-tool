@@ -8,8 +8,10 @@ import { canDismiss, dismissableRows } from "../../application/coordination";
 import type { ActivitySections } from "../../application/thread-order";
 import type { Thread } from "../../domain/thread";
 import { useDismissibleLayer } from "../focus";
+import { Chip } from "../ui/Chip";
 import { AnchoredMenuList, type MenuEntry } from "./PopoverMenu";
 import type { ActivityRowRenderer } from "./SidebarThreadRow";
+import "../ui/glass.css";
 
 const PROJECT_MENU = "activity:project";
 
@@ -40,7 +42,7 @@ function ProjectMenu({ projects, projectHosts, selected, onSetProject, onClose, 
       onSelect: () => onSetProject(item.id),
     })),
   ];
-  return <AnchoredMenuList entries={entries} onClose={onClose} className="activity-filter-menu" anchor={anchor} menuRef={menuRef} align="start" search={{ value: query, label: "Search projects", onChange: setQuery }} />;
+  return <AnchoredMenuList entries={entries} onClose={onClose} className="activity-filter-menu" anchor={anchor} menuRef={menuRef} align="start" checkable search={{ value: query, label: "Search projects", onChange: setQuery }} />;
 }
 
 /**
@@ -67,7 +69,7 @@ function ProjectFilter({ projects, projectHosts, project, onSetProject, openMenu
       <button
         ref={anchorRef}
         type="button"
-        className={`activity-filter-trigger${selected ? " narrowed" : ""}`}
+        className={`activity-filter-trigger raised${selected ? " narrowed" : ""}`}
         aria-label={`Project: ${selected ? projectName(selected) : "All projects"}`}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -138,7 +140,7 @@ export function SidebarActivity({ activityThreads, sections, blockedThreadIds, t
               <button className="section-toggle" type="button" onClick={() => onSetSectionOpen(key, !sections[key])} aria-expanded={sections[key]}>
                 <span>{label}</span>
                 {/** A folded list still says how much it holds, as part of its heading. */}
-                {!sections[key] && threads.length > 0 && <span className="section-count">{threads.length}</span>}
+                {!sections[key] && threads.length > 0 && <Chip variant="count">{threads.length}</Chip>}
                 <span className="section-chevron" aria-hidden="true" />
               </button>
               {key === "priority" && dottedCount > 0 && (

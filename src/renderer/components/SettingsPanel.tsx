@@ -17,6 +17,7 @@ import type { MobileServerState } from "../../domain/mobile";
 import { SettingFocus } from "./SettingRow";
 import type { SettingMark } from "../../domain/settings-catalog";
 import { SettingsSidebar } from "./SettingsSidebar";
+import { SettingsPage } from "./SettingsLayout";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { UsageSettings } from "./UsageSettings";
 import { useFocusReturn } from "../focus";
@@ -203,7 +204,7 @@ export function SettingsPanel({
       <SettingsSidebar section={section} searchRef={search} onClose={onClose} onLand={onLand} onRefreshEngines={onRefreshEngines} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
 
       {section === "appearance" && (
-      <main className="settings-main">
+      <SettingsPage title="Appearance" description="The window's colours, fonts, and text sizes. Every choice applies the moment you make it.">
         <AppearanceSettings
           theme={theme}
           themeMode={themeMode}
@@ -218,29 +219,19 @@ export function SettingsPanel({
           onSetReadingSize={onSetReadingSize}
           onSetTerminalSize={onSetTerminalSize}
         />
-      </main>
+      </SettingsPage>
       )}
 
       {section === "general" && (
-      <main className="settings-main">
-        <div className="settings-page-heading">
-          <h2>General</h2>
-          <p>How AI Coding Tool answers from outside its own window.</p>
-        </div>
-
+      <SettingsPage title="General" description="How AI Coding Tool answers from outside its own window.">
         <GeneralSettings {...(dictation ? { dictation } : {})} cli={cli} onReadCli={onReadCli} onSetCliInstalled={onSetCliInstalled} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} update={appUpdate} onOpenSourceLicenses={onOpenSourceLicenses} />
-      </main>
+      </SettingsPage>
       )}
 
       {section === "usage" && (
-      <main className="settings-main">
-        <div className="settings-page-heading">
-          <h2>Usage</h2>
-          <p>Plan limits across your signed-in accounts.</p>
-        </div>
-
+      <SettingsPage title="Usage" description="Plan limits across your signed-in accounts.">
         <UsageSettings usage={planUsage} name={computers.name} computers={computerUsage} selected={usageComputer} onSelect={onSelectUsageComputer} onRefresh={onReadPlanUsage} />
-      </main>
+      </SettingsPage>
       )}
 
       {section === "engines" && <EngineSettings reloadStatus={agentSettingsReload} reloadError={agentSettingsReloadError} onReload={onReloadAgentSettings} engineAccess={engineAccess} checking={engineChecking} updating={engineUpdating} onRefresh={onRefreshEngines} onSignIn={onSignInEngine} onUpdate={onUpdateEngine} />}

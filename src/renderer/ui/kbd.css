@@ -1,0 +1,30 @@
+/** A keystroke: each key a cap of its own, or the whole stroke as one chip inside a line of text. */
+.kbd[data-size="cap"] { display: inline-flex; align-items: center; gap: 5px; font: inherit; }
+.kbd[data-size="cap"] > .kbd-key {
+  min-width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-strong);
+  /** A thicker bottom edge reads as a key cap rather than a text box. */
+  border-bottom-width: 2px;
+  border-radius: 8px;
+  padding: 0 8px;
+  background: var(--wash);
+  color: var(--ink);
+  /** The UI font draws the modifier symbols on the same metrics as the letters, so the caps line up. */
+  font: 570 14px/1 var(--ui-font);
+}
+.kbd[data-size="inline"] {
+  display: inline-block;
+  margin-left: 2px;
+  border-radius: 4px;
+  padding: 0 5px;
+  background: var(--chip);
+  color: var(--ink-dim);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  line-height: 17px;
+  white-space: nowrap;
+}

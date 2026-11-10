@@ -1,0 +1,84 @@
+/** A list row: a 24px lead column when it has a mark, the title over its detail, then trailing marks. */
+.list-row {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 9px;
+  padding: 5px 8px;
+  background: transparent;
+  color: var(--ink-faint);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  transition: background-color var(--touch-time) var(--touch-ease), color var(--touch-time) var(--touch-ease);
+}
+.list-row:has(> .list-row-lead) { grid-template-columns: 24px minmax(0, 1fr) auto; }
+.list-row:is(button, a) { cursor: pointer; }
+.list-row:is(button, a):hover:not(:disabled, [aria-disabled="true"]) { background: var(--surface-hover); color: var(--ink-soft); }
+.list-row[data-selected] { background: var(--row-selected); color: var(--ink); }
+.list-row-lead { display: grid; place-items: center; }
+.list-row-text { min-width: 0; display: grid; gap: 2px; }
+.list-row-text > :is(strong, small) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-row-text > strong { color: inherit; font-size: var(--text-control); font-weight: 560; }
+.list-row-text > small { color: var(--muted-soft); font-size: var(--text-meta); }
+.list-row[data-plain] .list-row-text > strong { font-weight: inherit; }
+.list-row-trail { display: flex; align-items: center; gap: 6px; justify-self: end; }
+@media (prefers-reduced-motion: reduce) { .list-row { transition: none; } }
+
+/** The label over a list, inset to line up with its rows' content. */
+.list-heading {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  color: var(--quiet-strong);
+  font-size: var(--text-menu);
+  font-weight: 600;
+}
+.list-heading-label {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.list-heading-label:is(button) { cursor: pointer; }
+.list-heading-label:is(button):hover { color: var(--ink-dim); }
+.list-heading-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-heading-chevron {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 120ms ease;
+}
+.list-heading-label[aria-expanded="false"] > .list-heading-chevron { transform: rotate(-45deg); }
+.list-heading-action { flex: none; display: flex; align-items: center; gap: 4px; }
+/** A scroller with padding sets `--list-heading-top` to its negative, so the heading sticks to its very edge. */
+.list-heading[data-sticky] { position: sticky; z-index: 1; top: var(--list-heading-top, 0); background: var(--sunken); }
+/**
+ * On the glass sheet a stuck heading has no ground to hide the list with. It is plain where it rests,
+ * and a strip of frosted glass only while rows are passing under it.
+ */
+@media (prefers-reduced-transparency: no-preference) {
+  :root[data-glass-sheet] .list-heading[data-sticky] { background: none; container-type: scroll-state; }
+  :root[data-glass-sheet] .list-heading[data-sticky]::before { content: ""; position: absolute; z-index: -1; inset: 0 -10px; opacity: 0; background: var(--glass-strip); backdrop-filter: var(--glass-menu-blur); box-shadow: 0 1px 0 var(--line-glass); transition: opacity var(--touch-time) var(--touch-ease); pointer-events: none; }
+  @container scroll-state(stuck: top) {
+    :root[data-glass-sheet] .list-heading[data-sticky]::before { opacity: 1; }
+  }
+}
+@media (prefers-reduced-motion: reduce) { .list-heading-chevron { transition: none; } }

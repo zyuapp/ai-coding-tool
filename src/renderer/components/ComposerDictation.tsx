@@ -3,6 +3,7 @@ import { LuCheck as Check, LuMic as Mic, LuX as X } from "react-icons/lu";
 import { DICTATION_TAP_MS, type DictationModel, type DictationPhase } from "../../domain/dictation";
 import type { ShortcutSetting } from "../../domain/shortcuts";
 import { shortcutTip } from "./TooltipLayer";
+import { Kbd } from "../ui/Kbd";
 
 /** The main composer's dictation, as the workspace reports it. */
 export type ComposerDictation = {
@@ -205,7 +206,7 @@ export function DictationStrip({ phase, away, handsFree }: { phase: DictationPha
       {!(listening && !away && handsFree) && <span className="dictation-hint">
         {!listening ? "Writing it down…"
           : away ? "Let go to cancel"
-            : <>Let go to add it<span className="dictation-escape"><span><kbd>Esc</kbd> cancels</span></span></>}
+            : <>Let go to add it<span className="dictation-escape"><span><Kbd keys={["Esc"]} size="inline" /> cancels</span></span></>}
       </span>}
     </div>
   );

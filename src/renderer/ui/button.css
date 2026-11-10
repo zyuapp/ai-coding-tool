@@ -1,0 +1,149 @@
+/**
+ * Buttons. Variants and states sit in :where() so each rule weighs one class, and a container's
+ * own rule (layout, or a state class such as .copied) wins over the primitive.
+ */
+.btn {
+  position: relative;
+  min-height: 28px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--ink-dim);
+  font-size: var(--text-meta);
+  font-weight: 560;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--touch-time) var(--touch-ease), border-color var(--touch-time) var(--touch-ease), color var(--touch-time) var(--touch-ease), transform var(--touch-time) var(--touch-ease);
+}
+.btn > svg { flex: 0 0 auto; }
+.btn:where(a) { text-decoration: none; }
+.btn:where([data-size="sm"]) { min-height: 24px; border-radius: 7px; padding: 0 8px; }
+.btn:where([data-size="lg"]) { min-height: 32px; border-radius: 9px; padding: 0 13px; font-size: var(--text-control); }
+.btn:where([data-icon-only]) { min-width: 28px; padding: 0; }
+.btn:where([data-icon-only][data-size="sm"]) { min-width: 24px; }
+.btn:where([data-icon-only][data-size="lg"]) { min-width: 32px; }
+.btn:where([data-pill]) { border-radius: 999px; }
+
+.btn:where([data-variant="primary"]) { background: var(--accent); box-shadow: var(--glint); color: var(--accent-ink); font-weight: 600; }
+.btn:where([data-variant="primary"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--accent-hover); }
+.btn:where([data-variant="primary"][data-tone="info"]) { background: var(--info-badge); color: var(--badge-ink); }
+.btn:where([data-variant="primary"][data-tone="info"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: color-mix(in srgb, var(--info-badge) 82%, var(--p-fg-0)); }
+
+.btn:where([data-variant="inverse"]) { background: var(--surface-inverse); box-shadow: var(--glint); color: var(--ink-inverse); font-weight: 600; }
+.btn:where([data-variant="inverse"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--surface-inverse-soft); }
+
+.btn:where([data-variant="secondary"], [data-variant="danger"]) { border-color: var(--line-strong); background: var(--glass-sheen), var(--control); box-shadow: var(--glass-rim); }
+.btn:where([data-variant="secondary"]):where(:hover:not(:disabled, [aria-disabled="true"])) { border-color: var(--line-bright); background: var(--glass-sheen), var(--control-hover); }
+
+.btn:where([data-variant="soft"]) { background: var(--control); box-shadow: var(--glass-rim); color: var(--ink-soft); font-weight: 520; }
+.btn:where([data-variant="soft"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--control-hover); color: var(--ink); }
+
+.btn:where([data-variant="danger"]) { border-color: var(--danger-line); color: var(--danger-soft); }
+.btn:where([data-variant="danger"]):where(:hover:not(:disabled, [aria-disabled="true"])) { border-color: var(--danger-line-hover); background: var(--danger-surface); }
+.btn:where([data-variant="danger"][data-armed]) { border-color: color-mix(in srgb, var(--danger) 75%, var(--canvas)); background: var(--danger-surface); color: var(--danger); }
+.btn:where([data-variant="danger"][data-armed]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: color-mix(in srgb, var(--danger) 18%, var(--surface)); }
+
+.btn:where([data-variant="ghost"]) { color: var(--muted); }
+.btn:where([data-variant="ghost"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--surface-hover); color: var(--ink-dim); }
+
+.btn:where([data-variant="link"]) { min-height: 24px; border: 0; padding: 0 2px; color: var(--link); font: inherit; }
+.btn:where([data-variant="link"]):where(:hover:not(:disabled, [aria-disabled="true"])) { text-decoration: underline; text-underline-offset: 3px; }
+
+/** A toggle at rest is a ghost; held down it is a raised pane, neutral or tinted with the accent. */
+.btn:where([aria-pressed="true"]) { border-color: var(--line-control); background: var(--glass-sheen), var(--surface-active); box-shadow: var(--glass-rim); color: var(--ink); }
+.btn:where([aria-pressed="true"][data-toggle="accent"]) { border-color: var(--accent-line); background: var(--glass-sheen), var(--accent-surface); color: var(--accent-soft); }
+
+.btn:where([aria-busy="true"]) { cursor: progress; }
+.btn-busy-label { display: contents; visibility: hidden; }
+.btn-spinner { position: absolute; inset: 0; width: 12px; height: 12px; margin: auto; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.9s steps(18) infinite; }
+@media (prefers-reduced-motion: reduce) { .btn-spinner { animation-duration: 2.4s; } }
+
+/** Icon buttons: a square, or a circle, around one glyph. */
+.icon-btn {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0;
+  background: transparent;
+  color: var(--quiet-strong);
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 110ms ease-out, background var(--touch-time) var(--touch-ease), border-color 110ms ease-out, color 110ms ease-out, transform var(--touch-time) var(--touch-ease);
+}
+.icon-btn:where([data-size="xs"]) { width: 24px; height: 24px; border-radius: 7px; }
+.icon-btn:where([data-size="md"]) { width: 30px; height: 30px; }
+.icon-btn:where([data-size="lg"]) { width: 34px; height: 34px; border-radius: 9px; }
+.icon-btn:where([data-round]) { border-radius: 50%; }
+
+.icon-btn:where([data-variant="ghost"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--surface-hover); color: var(--ink-dim); }
+
+.icon-btn:where([data-variant="soft"]) { background: var(--control); box-shadow: var(--glass-rim); color: var(--ink-dim); }
+.icon-btn:where([data-variant="soft"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--control-hover); color: var(--ink); }
+
+.icon-btn:where([data-variant="glass"]) { border-color: var(--line-glass); background: var(--glass-menu); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-rim); color: var(--muted); }
+.icon-btn:where([data-variant="glass"]):where(:hover:not(:disabled, [aria-disabled="true"])) { border-color: var(--line-bright); color: var(--ink-soft); }
+
+.icon-btn:where([data-variant="inverse"]) { background: var(--surface-inverse); box-shadow: var(--glint); color: var(--ink-inverse); }
+.icon-btn:where([data-variant="inverse"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--surface-inverse-soft); }
+
+.icon-btn:where([data-variant="danger"]) { color: var(--danger); }
+.icon-btn:where([data-variant="danger"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--danger-chip); color: var(--danger); }
+
+.icon-btn:where([aria-pressed="true"], [aria-haspopup][aria-expanded="true"]) { background: var(--glass-control-hover); box-shadow: var(--glass-rim); color: var(--ink); }
+
+/** One off state for every button; a filled one drops to the off fill so it never reads as ready. */
+:is(.btn, .icon-btn):where(:disabled, [aria-disabled="true"]):where(:not([aria-busy="true"])) { opacity: var(--disabled-opacity); cursor: default; }
+:is(.btn:where([data-variant="primary"], [data-variant="inverse"]), .icon-btn:where([data-variant="inverse"])):where(:disabled, [aria-disabled="true"]):where(:not([data-unsupported], [aria-busy="true"])) {
+  opacity: 1;
+  border-color: transparent;
+  background: var(--surface-inverse-off);
+  box-shadow: none;
+  color: var(--muted);
+}
+/** A filled button gives a little under the pointer, so a press is felt before its result arrives. */
+:is(.btn:where([data-variant="primary"], [data-variant="inverse"]), .icon-btn:where([data-variant="inverse"])):where(:active:not(:disabled, [aria-disabled="true"])) { transform: scale(0.97); }
+/** On a filled button the focus ring takes the label's colour, which already reads against the fill. */
+:is(.btn:where([data-variant="primary"], [data-variant="inverse"]), .icon-btn:where([data-variant="inverse"])):focus-visible { outline-color: currentColor; }
+@media (prefers-reduced-motion: reduce) { .btn, .icon-btn { transition: none; } }
+
+/** One axis of a few named modes: a recessed track the chosen segment sits raised in. */
+.segmented { display: flex; gap: 2px; border-radius: 9px; padding: 2px; background: var(--glass-sheen), var(--control-soft); box-shadow: var(--glass-rim); }
+.segmented > button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 7px;
+  padding: 5px 13px;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  font-weight: 560;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.segmented > button:hover { color: var(--ink-dim); }
+.segmented > button[aria-checked="true"] { background: var(--glass-sheen), var(--surface-menu-hover); box-shadow: var(--glass-rim), var(--shadow-thumb); color: var(--ink); }
+.segmented > button[aria-checked="true"] svg { color: var(--accent); }
+.segmented > button svg { flex: none; }
+
+/** The pills variant: separate rounded filters, the chosen one filled, tinted by its tone. */
+.segmented:where([data-variant="pills"]) { flex-wrap: wrap; gap: 6px; border-radius: 0; padding: 0; background: none; box-shadow: none; }
+.segmented:where([data-variant="pills"]) > button { min-height: 26px; gap: 6px; border: 1px solid var(--line-strong); border-radius: 999px; padding: 3px 10px; box-shadow: var(--glass-rim); font-weight: 400; }
+.segmented:where([data-variant="pills"]) > button span { color: var(--quiet); font-variant-numeric: tabular-nums; }
+.segmented:where([data-variant="pills"]) > button:hover { background: var(--surface-hover); color: var(--ink-soft); }
+.segmented:where([data-variant="pills"]) > button[aria-checked="true"] { border-color: var(--line-control); background: var(--surface-active); box-shadow: var(--glass-rim); color: var(--ink); font-weight: 600; }
+.segmented:where([data-variant="pills"]) > button[aria-checked="true"] span { color: inherit; }
+.segmented:where([data-variant="pills"]) > button[aria-checked="true"]:where([data-tone="danger"]) { border-color: var(--danger); background: var(--danger-surface); color: var(--danger); }
+.segmented:where([data-variant="pills"]) > button[aria-checked="true"]:where([data-tone="info"]) { border-color: var(--info); background: var(--info-surface); color: var(--info); }

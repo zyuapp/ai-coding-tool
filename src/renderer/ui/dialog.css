@@ -1,0 +1,61 @@
+/* One modal over everything. Top padding clears the traffic lights; no-drag opts out of the topbar drag region it covers. */
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  -webkit-app-region: no-drag;
+  display: grid;
+  place-items: center;
+  padding: 56px 28px 28px;
+  background: var(--veil);
+  backdrop-filter: var(--veil-blur);
+  animation: modal-scrim-in 140ms ease-out;
+}
+/** The panel's glass is `.glass-overlay`; a call site sets `--dialog-width` for a wider or narrower question. */
+.dialog {
+  width: min(var(--dialog-width, 460px), 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+  animation: modal-panel-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+/** An illustration that bleeds to the panel's edges, above the title. */
+.dialog-media { margin: -24px -24px 0; }
+.dialog-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-heading);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+/** Body copy: any paragraph a call site puts in the panel, which its own class can still restyle. */
+.dialog > :where(p) { margin: 0; color: var(--muted); font-size: var(--text-control); line-height: 1.55; }
+.dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+@keyframes modal-scrim-in { from { opacity: 0; } }
+@keyframes modal-panel-in { from { opacity: 0; transform: translateY(8px) scale(0.985); } }
+
+/* A block over the whole window, on a deeper veil, dismissed by a press anywhere off what it shows. */
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  -webkit-app-region: no-drag;
+  display: grid;
+  place-items: center;
+  padding: 56px 32px 32px;
+  background: var(--veil-deep);
+  backdrop-filter: var(--veil-blur);
+  cursor: zoom-out;
+}
+.viewer-close { position: absolute; top: 58px; right: 20px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-scrim, .dialog { animation: none; }
+}

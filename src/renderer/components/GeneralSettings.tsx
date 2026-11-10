@@ -5,8 +5,12 @@ import { CLI_COMMAND, CLI_INSTALL_PATH, type CliStatus } from "../../domain/cli"
 import { NO_APP_UPDATE, type AppUpdate } from "../../domain/app-update";
 import type { DictationModel } from "../../domain/dictation";
 import { MAC } from "../platform";
-import { ConfirmAction, SettingRow, SettingSwitch } from "./SettingRow";
+import { SettingRow, SettingSwitch } from "./SettingRow";
+import { ConfirmAction } from "../ui/ConfirmAction";
 import { SpinningIcon } from "./SpinningIcon";
+import { SettingsSection } from "./SettingsLayout";
+import { Button } from "../ui/Button";
+import { Kbd } from "../ui/Kbd";
 
 function cliDescription(status: CliStatus | null) {
   if (!status) return "Looking for the command…";
@@ -83,79 +87,50 @@ export function GeneralSettings({ dictation, cli: { status, busy, error }, onRea
 
   return (
     <>
-      <section className="settings-group" aria-labelledby="cli-heading">
-        <div className="settings-group-heading">
-          <div>
-            <h3 id="cli-heading">Terminal command</h3>
-            <p>Run <code>{CLI_COMMAND}</code> in a folder to open it here as a project, or <code>{CLI_COMMAND} ~/code/app</code> to open another one.</p>
-          </div>
-        </div>
-
+      <SettingsSection title="Terminal command" description={<>Run <code>{CLI_COMMAND}</code> in a folder to open it here as a project, or <code>{CLI_COMMAND} ~/code/app</code> to open another one.</>}>
         <SettingRow id="general.cli" status={status?.state === "installed"} description={cliDescription(status)}>
           {!status && !error && <em><SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />Checking…</em>}
-          {!status && error && <button type="button" onClick={onReadCli}>Check again</button>}
-          {status?.state === "installed" && status.current === false && <button type="button" disabled={busy} aria-busy={installing || undefined} onClick={() => setCli(true)}>{installing ? "Updating…" : "Update"}</button>}
+          {!status && error && <Button onClick={onReadCli}>Check again</Button>}
+          {status?.state === "installed" && status.current === false && <Button disabled={busy} aria-busy={installing || undefined} onClick={() => setCli(true)}>{installing ? "Updating…" : "Update"}</Button>}
           {status?.state === "installed" && <ConfirmAction disabled={busy} aria-busy={removing || undefined} confirm={`Uninstall ${CLI_COMMAND}`} onConfirm={() => setCli(false)}>{removing ? "Removing…" : "Uninstall"}</ConfirmAction>}
-          {status?.state === "missing" && <button type="button" disabled={busy} aria-busy={busy || undefined} onClick={() => setCli(true)}>{busy ? "Installing…" : "Install"}</button>}
+          {status?.state === "missing" && <Button disabled={busy} aria-busy={busy || undefined} onClick={() => setCli(true)}>{busy ? "Installing…" : "Install"}</Button>}
           {status?.state === "conflict" && <ConfirmAction disabled={busy} aria-busy={busy || undefined} confirm={`Replace ${status.path}`} onConfirm={() => setCli(true)}>{busy ? "Installing…" : "Replace it"}</ConfirmAction>}
         </SettingRow>
 
         {error && <p className="settings-error" role="alert">{error}</p>}
-      </section>
+      </SettingsSection>
 
-      {dictation && dictation.model !== "unsupported" && <section className="settings-group" aria-labelledby="dictation-heading">
-        <div className="settings-group-heading">
-          <div>
-            <h3 id="dictation-heading">Dictation</h3>
-            <p>Hold the microphone{dictation.binding ? <> or <kbd>{dictation.binding}</kbd></> : null} and let go to add the words to your message, or tap it to talk hands-free. What you say stays on {THIS_COMPUTER}.</p>
-          </div>
-        </div>
+      {dictation && dictation.model !== "unsupported" && <SettingsSection title="Dictation" description={<>Hold the microphone{dictation.binding ? <> or <Kbd keys={[dictation.binding]} size="inline" /></> : null} and let go to add the words to your message, or tap it to talk hands-free. What you say stays on {THIS_COMPUTER}.</>}>
         <SettingRow id="general.dictation" status={dictation.model === "ready"} description={dictationDescription(dictation)}>
-          {(dictation.model === "missing" || dictation.model === "failed") && <button type="button" onClick={dictation.onDownload}>{dictation.model === "failed" ? "Try again" : "Download"}</button>}
+          {(dictation.model === "missing" || dictation.model === "failed") && <Button onClick={dictation.onDownload}>{dictation.model === "failed" ? "Try again" : "Download"}</Button>}
           {dictation.model === "downloading" && <em role="status"><SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />{dictation.progress === null ? "Preparing…" : `${Math.round(dictation.progress * 100)}%`}</em>}
-          {dictation.model === "downloading" && <button type="button" onClick={dictation.onCancelDownload}>Cancel</button>}
+          {dictation.model === "downloading" && <Button onClick={dictation.onCancelDownload}>Cancel</Button>}
         </SettingRow>
-      </section>}
+      </SettingsSection>}
 
-      <section className="settings-group" aria-labelledby="notifications-heading">
-        <div className="settings-group-heading">
-          <div>
-            <h3 id="notifications-heading">Notifications</h3>
-          </div>
-        </div>
-
+      <SettingsSection title="Notifications">
         <SettingRow id="general.notifications" description="When a run finishes, fails, or needs you. Your phone hears it once you step away from this computer.">
           <SettingSwitch id="general.notifications" on={notifications} onChange={onSetNotifications} />
         </SettingRow>
-      </section>
+      </SettingsSection>
 
-      <section className="settings-group" aria-labelledby="claude-heading">
-        <div className="settings-group-heading">
-          <div>
-            <h3 id="claude-heading">Claude</h3>
-            <p>Experimental settings that only Claude threads read. They can change or disappear.</p>
-          </div>
-        </div>
-
+      <SettingsSection title="Claude" description="Experimental settings that only Claude threads read. They can change or disappear.">
         <SettingRow id="general.chrome-browser" description="Claude drives the Chrome you already have open, instead of the browser panel, when you ask for your own browser. Needs the Claude in Chrome extension, and Chrome running.">
           <SettingSwitch id="general.chrome-browser" on={chromeBrowser} onChange={onSetChromeBrowser} />
         </SettingRow>
-      </section>
+      </SettingsSection>
 
-      <section className="settings-group" aria-labelledby="app-heading">
-        <div className="settings-group-heading">
-          <h3 id="app-heading">AI Coding Tool</h3>
-        </div>
+      <SettingsSection title="AI Coding Tool">
         <SettingRow id="general.updates" description={updateDescription(update.state, update.version)}>
-          {update.state.status === "idle" && <button type="button" onClick={onCheckForUpdates}>Check for updates</button>}
-          {update.state.status === "available" && <button type="button" onClick={update.onDownload}>Download</button>}
+          {update.state.status === "idle" && <Button onClick={onCheckForUpdates}>Check for updates</Button>}
+          {update.state.status === "available" && <Button onClick={update.onDownload}>Download</Button>}
           {update.state.status === "downloading" && <em role="status"><SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />{update.state.percent}%</em>}
-          {update.state.status === "ready" && <button type="button" onClick={update.onInstall}>Restart to update</button>}
+          {update.state.status === "ready" && <Button onClick={update.onInstall}>Restart to update</Button>}
         </SettingRow>
         <SettingRow id="general.licenses" description={null}>
-          <button type="button" onClick={onOpenSourceLicenses}>View licenses</button>
+          <Button onClick={onOpenSourceLicenses}>View licenses</Button>
         </SettingRow>
-      </section>
+      </SettingsSection>
     </>
   );
 }

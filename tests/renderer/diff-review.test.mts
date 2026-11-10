@@ -326,7 +326,7 @@ test("a review hides the lines that only moved, and showing them reads the compa
 /** The mode menu is a portal, like the branch picker it replaces. */
 async function chooseMode(view: MountView, label: string) {
   await act(async () => { query<HTMLButtonElement>(view.container, '.diff-mode-trigger').click(); });
-  const option = item([...document.querySelectorAll<HTMLButtonElement>('.diff-mode-menu button')].find((button) => button.querySelector(".picker-label")?.firstChild?.textContent === label));
+  const option = item([...document.querySelectorAll<HTMLButtonElement>('.diff-mode-menu button')].find((button) => button.querySelector(".menu-label")?.textContent === label));
   await act(async () => { option.click(); });
 }
 

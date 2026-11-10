@@ -3,6 +3,8 @@ import type { QueuedMessage } from "../../application/workspace-state";
 import { isUsersOwn, messageLabel } from "../../domain/message-origin";
 import { useState, type KeyboardEvent } from "react";
 import { AnnotationRow, useClamped } from "./AnnotationRow";
+import { Button, IconButton } from "../ui/Button";
+import "../ui/glass.css";
 import type { ComposerSurface } from "./ConversationComposer";
 
 function QueuedOrigin({ message }: { message: QueuedMessage }) {
@@ -51,7 +53,7 @@ export function QueuedRow({ messages, surface, canSteer, onEdit, onSteer, onDrop
   return (
     <div className="queued-row" role="list" aria-label={surface === "side" ? "Queued side chat messages" : "Queued messages"}>
       {messages.map((message) => (
-        <div className="queued-message" role="listitem" key={message.id}>
+        <div className="glass-float queued-message" role="listitem" key={message.id}>
           <CornerDownRight className="queued-mark" size={14} aria-hidden="true" />
           <div className="queued-body">
             <QueuedOrigin message={message} />
@@ -61,22 +63,21 @@ export function QueuedRow({ messages, surface, canSteer, onEdit, onSteer, onDrop
           {message.steering ? <span className="queued-state">Steering…</span> : (
             <span className="queued-actions">
               {isUsersOwn(message) && (
-                <button type="button" className="queued-edit" aria-label="Edit queued message" data-tip="Edit" onClick={() => onEdit(message.id)}>
+                <IconButton className="queued-edit" label="Edit queued message" tip="Edit" onClick={() => onEdit(message.id)}>
                   <Pencil size={14} aria-hidden="true" />
-                </button>
+                </IconButton>
               )}
-              <button
-                type="button"
+              <Button
                 className="queued-steer"
                 aria-disabled={!canSteer || undefined}
                 data-tip={canSteer ? "Send now, into the running turn" : "Steer once the run resumes"}
                 onClick={() => { if (canSteer) onSteer(message.id); }}
               >
                 Steer
-              </button>
-              <button type="button" className="queued-drop" aria-label="Remove queued message" data-tip="Remove" onClick={() => onDrop(message.id)}>
+              </Button>
+              <IconButton className="queued-drop" label="Remove queued message" tip="Remove" onClick={() => onDrop(message.id)}>
                 <X size={14} aria-hidden="true" />
-              </button>
+              </IconButton>
             </span>
           )}
         </div>

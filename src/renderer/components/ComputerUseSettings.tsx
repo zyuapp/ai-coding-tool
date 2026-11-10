@@ -2,6 +2,8 @@ import type { ComputerUseAccessState } from "../../application/computer-use-acce
 import type { ComputerUsePermission } from "../../contracts/ipc";
 import { AvailabilitySection } from "./AvailabilitySection";
 import { SettingRow } from "./SettingRow";
+import { SettingsPage, SettingsSection } from "./SettingsLayout";
+import { Button } from "../ui/Button";
 
 export type ComputerUseSettingsProps = {
   /** Whether a run may see and operate other applications. */
@@ -17,77 +19,44 @@ export function ComputerUseSettings({ computerUse, onSetComputerUse, access: { p
   const linux = permissions?.linuxRuntime;
   const mac = window.desktop.platform === "macos";
   const ready = linux ? linux.status !== "unavailable" : Boolean(permissions?.accessibility && permissions.screenRecording);
+  const failure = error && <p className="settings-error" role="alert">{error}</p>;
   return (
-    <main className="settings-main">
-      <div className="settings-page-heading">
-        <h2>Computer use</h2>
-        <p>Let AI Coding Tool see and control other applications when you ask it to.</p>
-      </div>
-
+    <SettingsPage title="Computer use" description="Let AI Coding Tool see and control other applications when you ask it to.">
       <AvailabilitySection id="computer-use.availability" enabled={computerUse} onChange={onSetComputerUse}
         description={mac
           ? "The agent can see and operate other applications. Off leaves it no way to reach them, whatever the permissions below say."
           : "The agent can see and operate other applications. Off leaves it no way to reach them, whatever the platform setup below says."} />
 
       {!permissions && !mac ? (
-      <section className="settings-group" aria-labelledby="runtime-heading" aria-live="polite">
-        <div className="settings-group-heading">
-          <div>
-            <h3 id="runtime-heading">Platform setup</h3>
-            <p>Checking what this computer can use…</p>
-          </div>
-          <span className="neutral">Checking…</span>
-        </div>
-        {error && <p className="settings-error" role="alert">{error}</p>}
-      </section>
+      <SettingsSection title="Platform setup" description="Checking what this computer can use…" aria-live="polite" badge={<span className="neutral">Checking…</span>}>
+        {failure}
+      </SettingsSection>
       ) : linux ? (
-      <section className="settings-group" aria-labelledby="runtime-heading" aria-live="polite">
-        <div className="settings-group-heading">
-          <div>
-            <h3 id="runtime-heading">Linux runtime</h3>
-            <p>{linux.message}</p>
-          </div>
-          <span className={ready ? "ready" : ""}>{linux.status === "available" ? "Ready" : linux.status === "limited" ? "Compositor-dependent" : "Unavailable"}</span>
-        </div>
-        {error && <p className="settings-error" role="alert">{error}</p>}
-      </section>
+      <SettingsSection title="Linux runtime" description={linux.message} aria-live="polite" badge={<span className={ready ? "ready" : ""}>{linux.status === "available" ? "Ready" : linux.status === "limited" ? "Compositor-dependent" : "Unavailable"}</span>}>
+        {failure}
+      </SettingsSection>
       ) : mac ? (
-      <section className="settings-group" aria-labelledby="permissions-heading" aria-live="polite">
-        <div className="settings-group-heading">
-          <div>
-            <h3 id="permissions-heading">Permissions</h3>
-            <p>AI Coding Tool needs both macOS permissions to operate other apps.</p>
-          </div>
-          <span className={ready ? "ready" : ""}>{ready ? "Setup complete" : "Setup required"}</span>
-        </div>
-
+      <SettingsSection title="Permissions" description="AI Coding Tool needs both macOS permissions to operate other apps." aria-live="polite" badge={<span className={ready ? "ready" : ""}>{ready ? "Setup complete" : "Setup required"}</span>}>
         <SettingRow id="computer-use.accessibility" status={Boolean(permissions?.accessibility)} description="Allows AI Coding Tool to click, type, and navigate apps.">
           {permissions?.accessibility ? <em className="granted">Done</em> : !permissions && <em>Checking…</em>}
-          {permissions && !permissions.accessibility && <button type="button" disabled={busy !== null} aria-busy={busy === "accessibility"} onClick={() => onEnable("accessibility")}>{busy === "accessibility" ? "Opening…" : "Enable Accessibility"}</button>}
+          {permissions && !permissions.accessibility && <Button disabled={busy !== null} aria-busy={busy === "accessibility"} onClick={() => onEnable("accessibility")}>{busy === "accessibility" ? "Opening…" : "Enable Accessibility"}</Button>}
         </SettingRow>
 
         <SettingRow id="computer-use.screen-recording" status={Boolean(permissions?.screenRecording)} description="Allows AI Coding Tool to see app windows. System audio is not recorded.">
           {permissions?.screenRecording ? <em className="granted">Done</em> : !permissions && <em>Checking…</em>}
-          {permissions && !permissions.screenRecording && <button type="button" disabled={busy !== null} aria-busy={busy === "screenRecording"} onClick={() => onEnable("screenRecording")}>{busy === "screenRecording" ? "Opening…" : "Enable Screen Recording"}</button>}
+          {permissions && !permissions.screenRecording && <Button disabled={busy !== null} aria-busy={busy === "screenRecording"} onClick={() => onEnable("screenRecording")}>{busy === "screenRecording" ? "Opening…" : "Enable Screen Recording"}</Button>}
         </SettingRow>
 
-        {error && <p className="settings-error" role="alert">{error}</p>}
-        {restartRequired && <div className="settings-restart"><p>Restart AI Coding Tool to finish enabling computer use.</p><button type="button" onClick={onRestart}>Restart AI Coding Tool</button></div>}
-      </section>
+        {failure}
+        {restartRequired && <div className="settings-restart"><p>Restart AI Coding Tool to finish enabling computer use.</p><Button onClick={onRestart}>Restart AI Coding Tool</Button></div>}
+      </SettingsSection>
       ) : (
-      <section className="settings-group" aria-labelledby="runtime-heading" aria-live="polite">
-        <div className="settings-group-heading">
-          <div>
-            <h3 id="runtime-heading">Platform setup</h3>
-            <p>Computer use is not available on this platform.</p>
-          </div>
-          <span className="neutral">Unavailable</span>
-        </div>
-        {error && <p className="settings-error" role="alert">{error}</p>}
-      </section>
+      <SettingsSection title="Platform setup" description="Computer use is not available on this platform." aria-live="polite" badge={<span className="neutral">Unavailable</span>}>
+        {failure}
+      </SettingsSection>
       )}
 
       {mac && <p className="settings-privacy">Permission checks capture one frame and discard it immediately.</p>}
-    </main>
+    </SettingsPage>
   );
 }

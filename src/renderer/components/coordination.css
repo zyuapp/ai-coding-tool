@@ -25,38 +25,14 @@
 .coordination-dot.resolved { background: var(--quiet); }
 
 .coordination-bar {
+  --glass-radius: 12px;
   max-width: 860px;
   margin: 0 auto;
-  border: 1px solid var(--line-glass);
-  border-radius: 12px;
-  background: var(--glass-menu);
-  backdrop-filter: var(--glass-menu-blur);
-  box-shadow: var(--glass-rim), var(--shadow-float);
   font-size: var(--text-menu);
 }
-.coordination-bar.asking { border-color: var(--accent-line); background: var(--glass-sheen), color-mix(in srgb, var(--accent) 14%, rgb(from var(--p-bg-2) r g b / 0.62)); }
 .coordination-bar-line { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px 0 12px; }
 .coordination-bar-lead { color: var(--muted); }
-.coordination-bar-lead button, .decision-from {
-  border: 0;
-  border-radius: 6px;
-  padding: 2px 6px;
-  background: var(--surface-raised);
-  color: var(--ink-dim);
-  font-size: var(--text-menu);
-  cursor: pointer;
-}
-.coordination-bar-lead button:hover, .decision-from:hover { color: var(--ink); background: var(--control-hover); }
 .coordination-bar-asking { margin-left: auto; color: var(--accent); }
-.coordination-bar-answer {
-  border: 0;
-  border-radius: 8px;
-  padding: 5px 11px;
-  background: var(--surface-inverse);
-  color: var(--ink-inverse);
-  font-weight: 600;
-  cursor: pointer;
-}
 .coordination-bar-line + .coordination-brief { border-top: 1px solid var(--line-soft); }
 .coordination-brief summary { padding: 7px 12px; color: var(--ink-dim); font-weight: 550; cursor: pointer; }
 .coordination-brief summary::marker { color: var(--quiet-strong); }
@@ -66,16 +42,12 @@
 .coordination-brief dd { margin: 0; color: var(--ink-dim); white-space: pre-wrap; overflow-wrap: anywhere; }
 .coordination-brief-intent { border-left: 2px solid var(--accent-line); padding-left: 9px; font-style: italic; }
 
+/** Each page of the Needs-you card: a head naming who asks, what is asked, and the answers along its foot. */
 .decision-card {
   box-sizing: border-box;
   width: 100%;
   max-width: 860px;
   margin: 0 auto 8px;
-  border: 1px solid var(--accent-line-strong);
-  border-radius: 14px;
-  background: var(--glass-menu);
-  backdrop-filter: var(--glass-menu-blur);
-  box-shadow: var(--glass-rim), var(--shadow-float);
   font-size: var(--text-menu);
   line-height: 1.5;
   overflow: hidden;
@@ -87,30 +59,27 @@
 /** A page the keyboard is handed once the one before it is settled shows it holds focus, as a control does. */
 .decision-card:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .decision-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px; font-size: var(--text-meta); }
+.decision-head > strong { color: var(--accent-text); font-size: var(--text-menu); font-weight: 650; }
+.decision-from-arrow { margin-left: 3px; vertical-align: -1px; opacity: 0.8; }
 .decision-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-.decision-head strong { color: var(--accent); }
-.decision-from { font-size: var(--text-meta); }
-.decision-pager { display: flex; align-items: center; gap: 2px; margin-left: auto; color: var(--muted-soft); font-variant-numeric: tabular-nums; }
-.decision-pager span { margin-right: 4px; }
-.decision-pager button { width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted-soft); cursor: pointer; }
-.decision-pager button:hover { background: var(--wash); color: var(--ink); }
+.decision-pager { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 .decision-question { margin: 0 14px 2px; color: var(--ink); font-size: var(--text-control); font-weight: 600; }
 .decision-context { margin: 0 14px 4px; color: var(--muted); white-space: pre-wrap; }
 .decision-options { display: grid; gap: 6px; margin: 8px 14px 12px; }
 .decision-option { display: flex; align-items: flex-start; gap: 10px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; }
 .decision-option:hover, .decision-option:has(input:checked) { background: var(--accent-surface); border-color: var(--accent-line-strong); }
-.decision-option input { flex: none; margin: 4px 0 0; accent-color: var(--accent); }
+.decision-option:has(input:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *)) { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.decision-option input { flex: none; margin: 4px 0 0; accent-color: var(--accent); outline: none; }
 .decision-option-label { display: flex; align-items: center; gap: 8px; color: var(--ink); }
 .decision-option-description { display: block; color: var(--muted); font-size: var(--text-meta); }
-.decision-recommended { border-radius: 5px; padding: 0 6px; background: var(--accent-chip); color: var(--accent); font-size: var(--text-badge); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.decision-options.overridden .decision-option:not(:hover) { opacity: 0.55; }
 .decision-foot { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line-soft); }
-.decision-foot input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--frame-field); color: var(--ink); font: inherit; }
-.decision-foot input:focus { border-color: var(--line-strong); }
-.decision-foot button { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; background: var(--surface-inverse); color: var(--ink-inverse); font-weight: 600; cursor: pointer; }
-.decision-foot button.secondary { background: transparent; color: var(--ink-dim); font-weight: 500; }
-.decision-foot button:disabled { opacity: 0.4; cursor: default; }
+.decision-foot:has(.decision-own) { align-items: flex-end; }
+.decision-own { flex: 1; }
 .decision-foot-gap { flex: 1; }
-/** A coordinator's suggested threads: one row each, started by its round arrow, dismissed by the ✕ that shows on hover. */
+/** While a destructive answer waits to be confirmed, the answer that goes ahead steps aside. */
+.suggestion-row:has(.armed) .suggestion-start, .decision-foot:has(.armed) :is(.suggestion-start-all, .decision-allow) { display: none; }
+/** A coordinator's suggested threads: one row each, started by its round arrow, dismissed by its ✕. */
 .suggestion-list { margin: 0; padding: 0 8px 8px; list-style: none; }
 .suggestion-row { display: flex; align-items: center; gap: 6px; min-width: 0; border-radius: 9px; padding: 5px 6px 5px 8px; }
 .suggestion-row:hover, .suggestion-row:focus-within { background: var(--surface-hover); }
@@ -119,25 +88,13 @@
 .suggestion-text small { color: var(--muted); font-size: var(--text-meta); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .suggestion-text .suggestion-error { color: var(--danger-soft); white-space: normal; }
 .suggestion-row.starting .suggestion-text { opacity: 0.7; }
-.suggestion-chip { flex: none; border-radius: 5px; padding: 0 6px; background: var(--wash); color: var(--quiet-strong); font-size: var(--text-badge); line-height: 18px; white-space: nowrap; }
-.suggestion-dismiss, .suggestion-start { flex: none; display: grid; place-items: center; padding: 0; cursor: pointer; }
-.suggestion-dismiss { width: 26px; height: 26px; border: 0; border-radius: 7px; background: transparent; color: var(--quiet-strong); opacity: 0; transition: opacity 0.15s ease; }
-.suggestion-row:hover .suggestion-dismiss, .suggestion-row:focus-within:where(:root:not([data-focus-appearance="quiet"]) *) .suggestion-dismiss { opacity: 1; }
-.suggestion-dismiss:hover:not(:disabled) { background: var(--danger-chip); color: var(--danger); }
-button.suggestion-start { width: 26px; height: 26px; border: 0; border-radius: 50%; background: var(--surface-inverse); color: var(--ink-inverse); }
-button.suggestion-start:hover:not(:disabled) { opacity: 0.85; }
-button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
-.suggestion-dismiss:disabled { cursor: default; }
-.suggestion-start.task-spinner { width: 14px; height: 14px; margin: 0 6px; }
+.suggestion-dismiss-slot { flex: none; display: inline-flex; align-items: center; gap: 4px; }
+.suggestion-start.task-spinner { width: 14px; height: 14px; margin: 0 7px; }
 /** A thread asked for on another computer: that computer in the heading, then where there it would run and what it was asked. */
 .elsewhere-heading { display: inline-flex; align-items: center; gap: 5px; }
 .elsewhere-heading .host-mark { color: inherit; font-size: inherit; font-weight: inherit; }
-.elsewhere-place { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 8px 14px 10px; color: var(--muted); font-size: var(--text-meta); }
-.elsewhere-folder, .elsewhere-worktree { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
-.elsewhere-folder select { min-width: 0; max-width: 240px; border: 1px solid var(--line); border-radius: 7px; padding: 3px 6px; background: var(--frame-field); color: var(--ink); font: inherit; }
-.elsewhere-folder select:focus { border-color: var(--line-strong); }
-.elsewhere-worktree { cursor: pointer; }
-.elsewhere-worktree input { margin: 0; accent-color: var(--accent); }
+.elsewhere-place { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 8px 14px 10px; color: var(--ink-dim); font-size: var(--text-menu); }
+.elsewhere-folder { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
 .elsewhere-card .coordination-brief { margin: 0 14px 10px; border: 1px solid var(--line-soft); border-radius: 9px; }
 .elsewhere-card .suggestion-error { margin: 0 14px 10px; color: var(--danger-soft); font-size: var(--text-meta); }
 .decision-body > :is(.approval-command, .approval-change, .approval-raw) { margin: 6px 14px 10px; border-color: var(--line-soft); }
@@ -164,28 +121,28 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 }
 .coordination-row:hover { background: var(--surface-hover); color: var(--ink-soft); }
 .coordination-row > span:nth-child(2) { min-width: 0; display: grid; gap: 2px; }
-.coordination-row-mark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--control); }
+.coordination-row-mark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--control); box-shadow: var(--glass-rim); }
 .coordination-row-mark .task-spinner { width: 10px; height: 10px; }
 .coordination-row-mark .coordination-dot { width: 7px; height: 7px; }
 /** A thread's card in its coordinator's conversation wears the marks and colours of its Overview row. */
-:is(.coordination-row, .coordination-card).working .coordination-row-mark { background: var(--info-surface); }
-:is(.coordination-row, .coordination-card).done .coordination-row-mark { background: var(--success-surface); }
-:is(.coordination-row, .coordination-card):is(.blocked, .failed, .needs-work) .coordination-row-mark { background: var(--danger-chip); }
-:is(.coordination-row, .coordination-card):is(.asking, .approval) .coordination-row-mark { background: var(--accent-chip); }
-:is(.coordination-row, .coordination-card):is(.asking, .approval) small { color: var(--accent); }
-:is(.coordination-row, .coordination-card):is(.blocked, .failed, .needs-work) small { color: var(--danger-soft); }
+:is(.coordination-item, .coordination-card).working .coordination-row-mark { background: var(--info-surface); }
+:is(.coordination-item, .coordination-card).done .coordination-row-mark { background: var(--success-surface); }
+:is(.coordination-item, .coordination-card):is(.blocked, .failed, .needs-work) .coordination-row-mark { background: var(--danger-chip); }
+:is(.coordination-item, .coordination-card):is(.asking, .approval) .coordination-row-mark { background: var(--accent-chip); }
+:is(.coordination-item, .coordination-card):is(.asking, .approval) small { color: var(--accent); }
+:is(.coordination-item, .coordination-card):is(.blocked, .failed, .needs-work) small { color: var(--danger-soft); }
 .coordination-row-marks { display: flex; align-items: center; gap: 6px; transition: opacity 0.15s ease; }
 .coordination-row-engine { color: var(--quiet); }
 .coordination-row-marks > .coordination-row-host { flex: none; max-width: 96px; }
-:is(.coordination-row, .coordination-card).review .coordination-row-mark { background: var(--success-surface); }
+:is(.coordination-item, .coordination-card).review .coordination-row-mark { background: var(--success-surface); }
 /**
  * A row's own action sits beside its open button, centred where the row leaves room for it: the
  * row's 8px padding and half a 12px mark, less half its own 24px.
  */
 .coordination-item { position: relative; min-width: 0; }
-.coordination-item.resolved > .coordination-row { opacity: 0.62; }
-.coordination-item.resolved:hover > .coordination-row, .coordination-item.resolved:focus-within:where(:root:not([data-focus-appearance="quiet"]) *) > .coordination-row { opacity: 1; }
-.coordination-item:has(> .coordination-row-action) > .coordination-row { padding-right: 34px; }
+.coordination-item.resolved > .coordination-thread { opacity: 0.62; }
+.coordination-item.resolved:hover > .coordination-thread, .coordination-item.resolved:focus-within:where(:root:not([data-focus-appearance="quiet"]) *) > .coordination-thread { opacity: 1; }
+.coordination-item:has(> .coordination-row-action) > .coordination-thread { padding-right: 34px; }
 .coordination-row-action {
   position: absolute;
   top: 50%;
@@ -214,20 +171,14 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 /* The threads a coordinator started, as cards in its conversation where each began, wrapping across the column. */
 .coordination-cards { display: flex; flex-wrap: wrap; gap: 8px; }
 .coordination-card {
+  --glass-radius: 12px;
   box-sizing: border-box;
   width: 260px;
   max-width: 100%;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--line-glass);
-  border-radius: 12px;
-  background: var(--glass-control);
-  box-shadow: var(--glass-rim);
   overflow: hidden;
-  transition: border-color 0.15s ease;
 }
-.coordination-card:hover { border-color: var(--line-strong); }
-.coordination-card:is(.asking, .approval) { border-color: var(--accent-line); }
 .coordination-card.resolved { opacity: 0.62; }
 .coordination-card.resolved:hover { opacity: 1; }
 .coordination-card-open {
@@ -271,28 +222,11 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 .coordination-card-pull-request[data-state="closed"] > svg { color: var(--danger); }
 /** Next steps sit under the card's open area, beside it rather than inside it. */
 .coordination-card-steps { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px 10px 40px; }
-.coordination-card-step {
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  border: 1px solid var(--line-soft);
-  border-radius: 7px;
-  padding: 0 8px;
-  background: transparent;
-  color: var(--ink-dim);
-  font: inherit;
-  font-size: var(--text-meta);
-  text-decoration: none;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.coordination-card-step:hover:not(:disabled) { border-color: var(--line); background: var(--surface-hover); color: var(--ink-soft); }
-.coordination-card-step:disabled { opacity: 0.45; cursor: default; }
-.coordination-card-step > svg { color: var(--quiet); }
+.coordination-card-step { display: inline-flex; align-items: center; gap: 3px; font-size: var(--text-meta); white-space: nowrap; }
 
 /* A coordinator's Overview: its threads in groups, in a dock tab that scrolls as one list. */
 .coordination-overview {
+  --list-heading-top: -10px;
   height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -380,78 +314,16 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 /** Forget, and once pressed its question, sit over the note's right end. */
 .coordination-note-actions { position: absolute; top: 3px; right: 3px; display: flex; gap: 4px; border-radius: 8px; }
 .coordination-note-actions:has(.danger) { background: var(--sunken); box-shadow: -10px 0 8px var(--sunken); }
-.coordination-note-actions > button {
-  min-width: 24px;
-  height: 24px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 7px;
-  padding: 0;
-  background: transparent;
-  color: var(--quiet-strong);
-  font: inherit;
-  font-size: var(--text-meta);
-  font-weight: 550;
-  cursor: pointer;
-}
-.coordination-note-actions > button:not(.coordination-note-forget) { padding: 0 8px; background: var(--control); color: var(--ink-dim); }
-.coordination-note-actions > button.danger { color: var(--danger); }
-.coordination-note-actions > button:not(.coordination-note-forget):hover { background: var(--control-hover); }
-.coordination-note-actions > button.danger:hover { background: var(--danger-chip); }
 .coordination-note:has(.editing) .coordination-note-actions { display: none; }
-.coordination-note-forget:hover:not(:disabled) { background: var(--danger-chip); color: var(--danger); }
 .coordination-group + .coordination-group { margin-top: 6px; }
 .coordination-group > .subagent-list { margin-top: 2px; }
-.coordination-group-head {
-  position: sticky;
-  z-index: 1;
-  top: -10px;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  padding: 8px 8px 6px;
-  background: var(--sunken);
-  color: var(--quiet-strong);
-  font: inherit;
-  font-size: var(--text-menu);
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-/** A head with an action of its own sticks as one bar, the fold button filling what the action leaves. */
-.coordination-group-heading { position: sticky; z-index: 1; top: -10px; display: flex; align-items: center; background: var(--sunken); }
-.coordination-group-heading > .coordination-group-head { position: static; flex: 1; min-width: 0; }
-.coordination-stop { flex: none; display: flex; gap: 4px; margin-right: 4px; }
-.coordination-stop > button {
-  flex: none;
-  min-height: 24px;
-  border: 0;
-  border-radius: 7px;
-  padding: 0 9px;
-  background: var(--control);
-  color: var(--quiet-strong);
-  font: inherit;
-  font-size: var(--text-meta);
-  font-weight: 550;
-  cursor: pointer;
-}
-.coordination-stop > button:hover:not(:disabled, [aria-disabled="true"]) { background: var(--control-hover); color: var(--ink-soft); }
-.coordination-stop > button.danger { color: var(--danger); }
-.coordination-stop > button.danger:hover:not([aria-disabled="true"]) { background: var(--danger-chip); color: var(--danger); }
-.coordination-stop > button:is(:disabled, [aria-disabled="true"]) { opacity: 0.45; cursor: default; }
-.coordination-group-head > svg { color: var(--quiet-strong); transition: transform 140ms ease; }
-.coordination-group-head[aria-expanded="false"] > svg { transform: rotate(-90deg); }
-.coordination-group-count { color: var(--quiet-strong); font-size: var(--text-meta); font-weight: 550; }
-.coordination-group.needs .coordination-group-head, .coordination-group.needs .coordination-group-count { color: var(--accent); }
-.coordination-overview .coordination-row strong { color: var(--ink-soft); font-size: var(--text-control); font-weight: 550; }
+.coordination-group.needs > .list-heading { color: var(--accent); }
+.coordination-stop { display: flex; gap: 4px; margin-right: 4px; }
 .coordination-more {
   width: 100%;
   border: 0;
   border-radius: 8px;
-  padding: 6px 8px 6px 39px;
+  padding: 6px 8px 6px 40px;
   background: transparent;
   color: var(--quiet-strong);
   font: inherit;
@@ -462,15 +334,13 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .coordination-more:hover { background: var(--wash); color: var(--muted); }
 /** What a coordinator and its threads spent, lined up under its head's label, its bars thin cuts of the plan-usage ones. */
 .coordination-usage { margin-top: 6px; }
-.coordination-usage-body { padding: 0 8px 4px 29px; color: var(--muted); font-size: var(--text-menu); }
+.coordination-usage-body { padding: 0 8px 4px; color: var(--muted); font-size: var(--text-menu); }
 .coordination-usage-own { margin: 2px 0 0; }
 .coordination-usage-own strong { color: var(--ink-soft); font-weight: 600; }
 .coordination-usage-body h4 { margin: 10px 0 2px; color: var(--quiet); font-size: var(--text-meta); font-weight: 550; }
 .coordination-usage-model, .coordination-usage-thread { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 26px; }
 .coordination-usage-model { grid-template-columns: 7.5em minmax(0, 1fr) auto; }
 :is(.coordination-usage-model, .coordination-usage-thread) > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.coordination-usage-track { height: 6px; overflow: hidden; border-radius: 3px; background: var(--meter-track); }
-.coordination-usage-fill { display: block; height: 100%; border-radius: 3px; background: var(--info); }
 .coordination-usage-tokens { color: var(--quiet-strong); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
 .coordination-usage-thread {
   box-sizing: border-box;
@@ -497,23 +367,6 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) transparent;
 }
-.coordination-worktree { cursor: default; }
-.coordination-worktree-actions { display: flex; gap: 4px; }
-.coordination-worktree-actions button {
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--line-soft);
-  border-radius: 7px;
-  padding: 0;
-  background: transparent;
-  color: var(--quiet-strong);
-  cursor: pointer;
-}
-.coordination-worktree-actions button:hover:not(:disabled) { background: var(--control-hover); border-color: transparent; color: var(--ink); }
-.coordination-worktree-actions button.danger:hover:not(:disabled) { background: var(--danger-chip); color: var(--danger); }
-.coordination-worktree-actions button:disabled { opacity: 0.45; cursor: default; }
 /** The title's link covers the whole row; the threads named under it sit above that and open themselves. */
 .coordination-pull-request { position: relative; grid-template-columns: 22px minmax(0, 1fr); }
 .coordination-pull-request-open { display: block; min-width: 0; color: inherit; text-decoration: none; }
@@ -546,28 +399,11 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 
 /* A thread under the coordinator, talked to from its tab in the dock. */
 .side-chat.thread-tab { display: flex; flex-direction: column; }
-.thread-tab > .side-chat-header { flex: 0 0 var(--chrome-head); }
-.thread-tab-header > .side-chat-title { flex: 1; }
-.thread-tab-header > .thread-tab-resolution {
-  width: auto;
-  height: 28px;
-  display: inline-flex;
-  gap: 6px;
-  margin-right: -6px;
-  border-radius: 8px;
-  padding: 0 11px 0 9px;
-  background: var(--control-soft);
-  color: var(--ink-dim);
-  font: inherit;
-  font-size: var(--text-control);
-  font-weight: 560;
-  white-space: nowrap;
-}
-.thread-tab-header > .thread-tab-resolution > svg { color: var(--muted); }
-.thread-tab-header > .thread-tab-resolution[data-action="resolve"] > svg { color: var(--success); }
-.thread-tab-header > .thread-tab-resolution[data-action="resolve"]:hover:not(:disabled) { background: var(--success-surface); color: var(--ink); }
-.thread-tab-header > .thread-tab-resolution[data-action="reopen"]:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink); }
-.side-chat-title .thread-tab-status.review { color: var(--success-soft); }
+.thread-tab > .thread-tab-header { flex: 0 0 var(--chrome-head); }
+.thread-tab-resolution > svg { color: var(--muted); }
+.thread-tab-resolution[data-action="resolve"] > svg { color: var(--success); }
+.thread-tab-resolution[data-action="resolve"]:hover:not(:disabled) { background: var(--success-surface); color: var(--ink); }
+.thread-tab-header[data-standing="review"] .panel-header-text > p { color: var(--success-soft); }
 .thread-tab > .side-chat-transcript { flex: 1 1 0; }
 .thread-tab-mark {
   position: relative;
@@ -592,8 +428,8 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .thread-tab-mark > .coordination-dot.needs-work { box-shadow: inset 0 0 0 1.6px var(--danger), 0 0 0 2.5px var(--sunken); }
 .thread-tab-mark > .task-spinner { width: 11px; height: 11px; }
 .thread-tab-mark.asking, .thread-tab-mark.approval { border-color: var(--accent-line); background: var(--accent-surface); }
-.side-chat-title .thread-tab-status.asking, .side-chat-title .thread-tab-status.approval { color: var(--accent-text); }
-.side-chat-title .thread-tab-status:is(.blocked, .failed, .needs-work) { color: var(--danger-soft); }
+.thread-tab-header:is([data-standing="asking"], [data-standing="approval"]) .panel-header-text > p { color: var(--accent-text); }
+.thread-tab-header:is([data-standing="blocked"], [data-standing="failed"], [data-standing="needs-work"]) .panel-header-text > p { color: var(--danger-soft); }
 .coordination-empty { margin: 0; padding: 14px 16px; }
 /** The thread's checkout and brief as one line of chips, read as part of the header above it. */
 .thread-tab > .thread-tab-header { border-bottom: 0; }
@@ -607,41 +443,21 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   border-bottom: 1px solid var(--line);
   padding: 0 17px 12px 20px;
 }
-.thread-tab-chip {
-  min-width: 0;
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  background: var(--surface);
-  padding: 0 9px;
-  color: var(--ink-dim);
-  font: inherit;
-  font-size: var(--text-meta);
-  text-decoration: none;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.thread-tab-chip:hover, .thread-tab-chip.open { border-color: var(--line); background: var(--surface-hover); color: var(--ink-soft); }
-.thread-tab-chip > svg { flex: none; color: var(--muted); }
-.thread-tab-chip.quiet { background: transparent; color: var(--quiet-strong); }
-.thread-tab-chip.quiet > svg { color: var(--quiet-strong); }
-.thread-tab-chip.scheduled > svg { color: var(--info); }
+.thread-tab-strip > a.btn { text-decoration: none; }
+.thread-tab-strip > .btn > svg { color: var(--muted); }
+.thread-tab-strip > .btn[data-variant="ghost"] > svg { color: var(--quiet-strong); }
+.thread-tab-strip > .btn.scheduled > svg { color: var(--info); }
 .thread-tab-branch code { min-width: 0; max-width: 160px; overflow: hidden; color: var(--ink-dim); font: var(--text-meta)/1 var(--mono); text-overflow: ellipsis; }
-.thread-tab-branch > svg:last-child { color: var(--quiet); }
-.thread-tab-pull-request[data-state="open"] > svg { color: var(--success); }
-.thread-tab-pull-request[data-state="merged"] > svg { color: var(--pr-merged); }
-.thread-tab-pull-request[data-state="closed"] > svg { color: var(--danger); }
+.thread-tab-strip > .thread-tab-branch > svg:last-child { color: var(--quiet); }
+.thread-tab-strip > .thread-tab-pull-request[data-state="open"] > svg { color: var(--success); }
+.thread-tab-strip > .thread-tab-pull-request[data-state="merged"] > svg { color: var(--pr-merged); }
+.thread-tab-strip > .thread-tab-pull-request[data-state="closed"] > svg { color: var(--danger); }
 .thread-tab-note { min-width: 0; overflow: hidden; color: var(--quiet); font-size: var(--text-meta); text-overflow: ellipsis; white-space: nowrap; }
-.thread-tab-note.failed { display: inline-flex; align-items: center; gap: 6px; height: 26px; border: 1px solid var(--danger-line); border-radius: 8px; padding: 0 3px 0 9px; background: var(--danger-surface); color: var(--danger-soft); }
+.thread-tab-note.failed { display: inline-flex; align-items: center; gap: 6px; height: 28px; border: 1px solid var(--danger-line); border-radius: 8px; padding: 0 2px 0 9px; background: var(--danger-surface); color: var(--danger-soft); }
 .thread-tab-note.failed > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.thread-tab-retry { flex: none; height: 20px; border: 0; border-radius: 6px; padding: 0 7px; background: transparent; color: var(--danger-soft); font: inherit; font-weight: 600; cursor: pointer; }
-.thread-tab-retry:hover:not(:disabled) { background: var(--danger-line); color: var(--ink); }
 .thread-tab-brief-toggle { margin-left: auto; }
-.thread-tab-brief-toggle > svg:last-child { color: var(--quiet); transition: transform 140ms ease; }
-.thread-tab-brief-toggle.open > svg:last-child { transform: rotate(180deg); }
+.thread-tab-strip > .thread-tab-brief-toggle > svg:last-child { color: var(--quiet); transition: transform 140ms ease; }
+.thread-tab-brief-toggle[aria-expanded="true"] > svg:last-child { transform: rotate(180deg); }
 .thread-tab-brief-card {
   flex: none;
   max-height: 40%;

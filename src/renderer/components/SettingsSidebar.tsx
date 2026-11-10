@@ -1,10 +1,11 @@
-import { LuArchive as Archive, LuArrowLeft as ArrowLeft, LuCpu as Cpu, LuFolder as Folder, LuFolderGit2 as FolderGit2, LuGauge as Gauge, LuGlobe as Globe, LuKeyboard as Keyboard, LuMonitorCog as MonitorCog, LuPalette as Palette, LuSearch as Search, LuSlidersHorizontal as SlidersHorizontal, LuSmartphone as Smartphone } from "react-icons/lu";
+import { LuArchive as Archive, LuArrowLeft as ArrowLeft, LuCpu as Cpu, LuFolder as Folder, LuFolderGit2 as FolderGit2, LuGauge as Gauge, LuGlobe as Globe, LuKeyboard as Keyboard, LuMonitorCog as MonitorCog, LuPalette as Palette, LuSlidersHorizontal as SlidersHorizontal, LuSmartphone as Smartphone } from "react-icons/lu";
 import type { IconType } from "react-icons";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { SETTINGS_JUMP_OPTIONS, SETTINGS_PAGE_LABELS, type SettingsJumpOption } from "../../domain/settings-catalog";
 import { rankSettingsJumps } from "../../domain/settings-jump";
 import { SETTINGS_SECTIONS, type SettingsSection } from "../../domain/settings-section";
 import { moveListFocus } from "../focus";
+import { SearchField } from "../ui/Field";
 
 const PAGE_ICONS: Record<SettingsSection, IconType> = {
   general: SlidersHorizontal,
@@ -91,22 +92,20 @@ export function SettingsSidebar({ section, searchRef, onClose, onLand, onRefresh
         <span>Back to AI Coding Tool</span>
       </button>
       <h1>Settings</h1>
-      <label className="settings-search">
-        <Search size={16} aria-hidden="true" />
-        <input
-          ref={searchRef}
-          value={query}
-          role="combobox"
-          aria-label="Search settings"
-          aria-expanded={searching}
-          aria-controls="settings-search-results"
-          aria-activedescendant={chosen ? resultId(chosen) : undefined}
-          placeholder="Search"
-          spellCheck={false}
-          onInput={(event) => { setQuery(event.currentTarget.value); setPicked(0); }}
-          onKeyDown={keyDown}
-        />
-      </label>
+      <SearchField
+        ref={searchRef}
+        wrapClassName="settings-search"
+        label="Search settings"
+        placeholder="Search"
+        value={query}
+        role="combobox"
+        aria-expanded={searching}
+        aria-controls="settings-search-results"
+        aria-activedescendant={chosen ? resultId(chosen) : undefined}
+        spellCheck={false}
+        onInput={(event) => { setQuery(event.currentTarget.value); setPicked(0); }}
+        onKeyDown={keyDown}
+      />
       {searching ? (
         results.length ? (
           <div id="settings-search-results" className="settings-search-results" role="listbox" aria-label="Matching settings">

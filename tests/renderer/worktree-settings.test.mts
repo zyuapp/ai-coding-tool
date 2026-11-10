@@ -52,16 +52,16 @@ test("filters both groups, opens missing folders for an empty project, and can c
     const badge = query(view.container, ".worktree-safety.warning");
     assert.equal(badge.textContent, "2 uncommitted files · 3 unmerged commits");
     assert.equal(badge.dataset.tip, "2 uncommitted files. 3 commits not in main.");
-    assert.match(query(view.container, ".worktree-project-group h5").textContent!, /1$/);
+    assert.match(query(view.container, ".worktree-project-group .list-heading").textContent!, /1$/);
     const path = query(view.container, ".worktree-settings-list .worktree-path");
     assert.equal(query(path, "code").dataset.tip, fixture().worktrees[0].root);
     assert.equal(query(path, "button").getAttribute("aria-label"), "Copy path");
     const filter = query<HTMLSelectElement>(view.container, "select");
     await act(async () => { filter.value = "other"; filter.dispatchEvent(new window.Event("change", { bubbles: true })); });
     assert.equal(view.container.querySelector(".worktree-settings-list .worktree-setting-row"), null);
-    assert.equal(query(view.container, ".worktree-missing-toggle").getAttribute("aria-expanded"), "true");
-    await act(async () => query<HTMLButtonElement>(view.container, ".worktree-missing-toggle").click());
-    assert.equal(query(view.container, ".worktree-missing-toggle").getAttribute("aria-expanded"), "false");
+    assert.equal(query(view.container, ".worktree-missing-toggle button").getAttribute("aria-expanded"), "true");
+    await act(async () => query<HTMLButtonElement>(view.container, ".worktree-missing-toggle button").click());
+    assert.equal(query(view.container, ".worktree-missing-toggle button").getAttribute("aria-expanded"), "false");
     await view.send({ type: "worktree.refresh" });
     assert.equal(filter.disabled, true);
     assert.equal(filter.value, "other");
@@ -158,7 +158,7 @@ test("a refresh in flight keeps its button readable", async () => {
   initial.worktreeManagementLoading = true;
   const view = await renderSettings(initial);
   try {
-    const refresh = query<HTMLButtonElement>(view.container, ".worktree-toolbar .settings-group-action button");
+    const refresh = query<HTMLButtonElement>(view.container, ".worktree-settings-list .settings-group-action button");
     assert.equal(refresh.disabled, true);
     assert.equal(refresh.getAttribute("aria-busy"), "true");
     assert.match(refresh.textContent!, /Reading…/);
@@ -184,7 +184,7 @@ test("bulk delete lists the safe worktrees, cancels with Escape, and deletes onl
     await click("Delete 1 worktree", query(document, '[role="dialog"]'));
     assert.deepEqual(view.effects.filter((effect) => effect.type === "delete-worktree").map((effect) => effect.root), [clean.root]);
     assert.equal(document.querySelector('[role="dialog"]'), null);
-    assert.match(query<HTMLButtonElement>(view.container, ".settings-group-action .danger").textContent!, /None safe to delete/);
-    assert.equal(query<HTMLButtonElement>(view.container, ".settings-group-action .danger").disabled, true);
+    assert.match(query<HTMLButtonElement>(view.container, ".settings-group-action [data-variant='danger']").textContent!, /None safe to delete/);
+    assert.equal(query<HTMLButtonElement>(view.container, ".settings-group-action [data-variant='danger']").disabled, true);
   } finally { await view.unmount(); }
 });

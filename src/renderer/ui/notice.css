@@ -1,0 +1,40 @@
+/**
+ * Something the app has to say beside what it is about. Inline, it is a tinted strip set in the
+ * flow; floating, it is a banner of glass over the composer.
+ */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  box-sizing: border-box;
+  color: var(--ink-dim);
+}
+.notice[data-tone="danger"] { color: var(--danger); }
+.notice-glyph { flex: none; display: grid; place-items: center; }
+.notice[data-tone]:not([data-tone="danger"]) > .notice-glyph { color: var(--tone-text); }
+.notice-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.notice-actions { flex: none; display: flex; align-items: center; gap: 6px; }
+.notice > .icon-btn { flex: none; }
+
+.notice[data-floating] {
+  --glass-radius: 12px;
+  max-width: 860px;
+  min-height: 38px;
+  margin-inline: auto;
+  padding: 4px 5px 4px 12px;
+  font-size: var(--text-control);
+}
+.notice:not([data-floating]) {
+  gap: 10px;
+  border: 1px solid var(--line-glass);
+  border-radius: 11px;
+  padding: 7px 7px 7px 11px;
+  background: var(--glass-control);
+  box-shadow: var(--glass-rim);
+  font-size: var(--text-meta);
+}
+.notice:not([data-floating])[data-tone] {
+  border-color: var(--tone-line);
+  background: var(--glass-sheen), var(--tone-surface);
+}

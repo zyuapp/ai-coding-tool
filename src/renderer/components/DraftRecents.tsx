@@ -3,6 +3,7 @@ import { recentIn } from "../../application/thread-order";
 import { projectName, type Project } from "../../domain/project";
 import { recencyLabel } from "../../domain/recency";
 import type { Thread } from "../../domain/thread";
+import { ListHeading, ListRow } from "../ui/List";
 
 const SHOWN = 4;
 
@@ -23,12 +24,15 @@ export const DraftRecents = memo(function DraftRecents({ threads, project, onSel
   return (
     <nav className="draft-recents" aria-label={heading}>
       <div>
-        <h3>{heading}</h3>
+        <ListHeading label={heading} role="heading" aria-level={3} />
         {recent.map((thread) => (
-          <button key={thread.id} type="button" onClick={() => onSelect(thread.id)}>
-            <span>{thread.title}</span>
-            <time dateTime={new Date(thread.rankedAt).toISOString()}>{recencyLabel(thread.rankedAt, now)}</time>
-          </button>
+          <ListRow
+            key={thread.id}
+            plain
+            title={thread.title}
+            trailing={<time dateTime={new Date(thread.rankedAt).toISOString()}>{recencyLabel(thread.rankedAt, now)}</time>}
+            onClick={() => onSelect(thread.id)}
+          />
         ))}
       </div>
     </nav>

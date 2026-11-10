@@ -5,6 +5,7 @@ import { THEMES } from "../../src/domain/theme.ts";
 
 const themesCss = await readFile(new URL("../../src/renderer/themes.css", import.meta.url), "utf8");
 const stylesCss = await readFile(new URL("../../src/renderer/styles.css", import.meta.url), "utf8");
+const buttonCss = await readFile(new URL("../../src/renderer/ui/button.css", import.meta.url), "utf8");
 
 function themeBlock(id: string) {
   const block = new RegExp(`\\[data-theme="${id}"\\] \\{([^}]*)\\}`).exec(themesCss);
@@ -229,7 +230,7 @@ function disabledOpacity(id: string) {
 }
 
 test("a filled action with nothing to do trades its fill for the off fill, with its label readable on it", () => {
-  assert.match(stylesCss, /button\.primary[^{]*:is\(:disabled, \[aria-disabled="true"\]\)[^{]*\{[^}]*background: var\(--surface-inverse-off\);[^}]*color: var\(--muted\);/);
+  assert.match(buttonCss, /\[data-variant="primary"\][^{]*:where\(:disabled, \[aria-disabled="true"\]\)[^{]*\{[^}]*background: var\(--surface-inverse-off\);[^}]*color: var\(--muted\);/);
   assert.deepEqual(failures([["--muted", "--surface-inverse-off", 4]]), []);
 });
 

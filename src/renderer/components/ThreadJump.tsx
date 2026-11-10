@@ -1,9 +1,13 @@
 import { Fragment, useEffect, useId, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { LuSearch as Search, LuSettings as Settings } from "react-icons/lu";
+import { LuSettings as Settings } from "react-icons/lu";
 import type { JumpRow, JumpView } from "../../application/workspace-jump";
 import type { SettingsSection } from "../../domain/settings-section";
 import { useFocusReturn } from "../focus";
+import { Button } from "../ui/Button";
+import { SearchField } from "../ui/Field";
+import { Kbd } from "../ui/Kbd";
+import "../ui/glass.css";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 
 /** What the panel asks of the workspace, which is every command it can send. */
@@ -55,23 +59,23 @@ export function ThreadJump({ jump, actions }: ThreadJumpProps) {
       aria-label="Jump to a thread or a setting"
       onPointerDown={(event) => { if (event.target === event.currentTarget) actions.closeJump(); }}
     >
-      <div className="thread-jump-panel" onKeyDown={keyDown}>
-        <div className="thread-jump-search">
-          <Search size={16} aria-hidden="true" />
-          <input
-            ref={input}
-            value={jump.query}
-            role="combobox"
-            aria-label="Search threads and settings"
-            aria-autocomplete="list"
-            aria-expanded={jump.options.length > 0}
-            aria-controls={listId}
-            aria-activedescendant={chosen ? `${listId}-${jump.index}` : undefined}
-            placeholder="Search threads, pull requests, and settings"
-            spellCheck={false}
-            onInput={(event) => actions.setJumpQuery(event.currentTarget.value)}
-          />
-        </div>
+      <div className="glass-overlay thread-jump-panel" onKeyDown={keyDown}>
+        <SearchField
+          variant="palette"
+          wrapClassName="thread-jump-search"
+          label="Search threads and settings"
+          type="text"
+          ref={input}
+          value={jump.query}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={jump.options.length > 0}
+          aria-controls={listId}
+          aria-activedescendant={chosen ? `${listId}-${jump.index}` : undefined}
+          placeholder="Search threads, pull requests, and settings"
+          spellCheck={false}
+          onInput={(event) => actions.setJumpQuery(event.currentTarget.value)}
+        />
         {jump.options.length ? (
           <div id={listId} className="thread-jump-list" role="listbox" aria-label="Threads and settings">
             {jump.options.map((option, index) => (
@@ -104,10 +108,10 @@ export function ThreadJump({ jump, actions }: ThreadJumpProps) {
         ) : (
           <div className="thread-jump-empty">
             <p>No matches</p>
-            {jump.query && <button type="button" onClick={() => { actions.setJumpQuery(""); input.current?.focus(); }}>Clear search</button>}
+            {jump.query && <Button variant="soft" onClick={() => { actions.setJumpQuery(""); input.current?.focus(); }}>Clear search</Button>}
           </div>
         )}
-        <div className="thread-jump-foot" aria-hidden="true"><span><kbd>↑↓</kbd>Move</span><span><kbd>↵</kbd>Open</span><span><kbd>esc</kbd>Close</span></div>
+        <div className="thread-jump-foot" aria-hidden="true"><span><Kbd size="inline" keys={["↑↓"]} />Move</span><span><Kbd size="inline" keys={["↵"]} />Open</span><span><Kbd size="inline" keys={["esc"]} />Close</span></div>
       </div>
     </div>,
     document.body,

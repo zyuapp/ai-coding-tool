@@ -5,6 +5,8 @@ import type { Annotation } from "../../domain/conversation";
 import type { AnnotationMarker, NoteDraft, Selected } from "../timeline/use-annotations";
 import { MAC } from "../platform";
 import { shortcutTip } from "./TooltipLayer";
+import { Button, IconButton } from "../ui/Button";
+import "../ui/glass.css";
 
 type MarkersProps = {
   markers: AnnotationMarker[];
@@ -75,14 +77,14 @@ export function AnnotatePopover({ selection, toolbarRef, noteReturn, onNote, onS
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [noteReturn]);
   return createPortal(
-    <div ref={toolbarRef} className="annotate-popover" role="toolbar" aria-label="Annotate selection" style={{ left: selection.x, top: selection.y }}>
-      <button type="button" aria-keyshortcuts="Enter" data-tip={shortcutTip("Add to chat", "Enter")} onMouseDown={(event) => event.preventDefault()} onClick={(event) => { noteReturn.current = event.currentTarget; onNote(selection); }}>
-        <MessageSquareQuote size={14} aria-hidden="true" />Add to chat
-      </button>
+    <div ref={toolbarRef} className="glass-capsule annotate-popover" role="toolbar" aria-label="Annotate selection" style={{ left: selection.x, top: selection.y }}>
+      <Button variant="ghost" pill icon={<MessageSquareQuote size={14} aria-hidden="true" />} aria-keyshortcuts="Enter" data-tip={shortcutTip("Add to chat", "Enter")} onMouseDown={(event) => event.preventDefault()} onClick={(event) => { noteReturn.current = event.currentTarget; onNote(selection); }}>
+        Add to chat
+      </Button>
       {onSide && (
-        <button type="button" aria-keyshortcuts={MAC ? "Meta+Enter" : "Control+Enter"} data-tip={shortcutTip("Add to side chat", "Mod+Enter")} onMouseDown={(event) => event.preventDefault()} onClick={() => onSide(selection)}>
-          <GitFork size={14} aria-hidden="true" />Add to side chat
-        </button>
+        <Button variant="ghost" pill icon={<GitFork size={14} aria-hidden="true" />} aria-keyshortcuts={MAC ? "Meta+Enter" : "Control+Enter"} data-tip={shortcutTip("Add to side chat", "Mod+Enter")} onMouseDown={(event) => event.preventDefault()} onClick={() => onSide(selection)}>
+          Add to side chat
+        </Button>
       )}
     </div>,
     document.body,
@@ -100,7 +102,7 @@ type NoteEditorProps = {
 
 export function NoteEditor({ noting, editorRef, onChange, onCommit, onClose, onRemove }: NoteEditorProps) {
   return createPortal(
-    <div ref={editorRef} className="annotate-editor" role="dialog" aria-label={noting.annotationId ? "Edit annotation" : "New annotation"} style={{ left: noting.x, top: noting.y }}>
+    <div ref={editorRef} className="glass-capsule annotate-editor" role="dialog" aria-label={noting.annotationId ? "Edit annotation" : "New annotation"} style={{ left: noting.x, top: noting.y }}>
       <input
         autoFocus
         value={noting.note}
@@ -115,19 +117,11 @@ export function NoteEditor({ noting, editorRef, onChange, onCommit, onClose, onR
           else onClose();
         }}
       />
-      <button type="button" className="annotate-editor-save" aria-label="Save annotation" data-tip={shortcutTip("Save", "Enter")} onClick={() => onCommit(noting)}>
-        <Check size={14} aria-hidden="true" />
-      </button>
+      <Button className="annotate-editor-save" variant="primary" pill icon={<Check size={14} aria-hidden="true" />} aria-label="Save annotation" data-tip={shortcutTip("Save", "Enter")} onClick={() => onCommit(noting)} />
       {noting.annotationId && (
-        <button
-          type="button"
-          className="annotate-editor-remove"
-          aria-label="Remove annotation"
-          data-tip="Remove"
-          onClick={() => onRemove(noting.annotationId!)}
-        >
+        <IconButton className="annotate-editor-remove" variant="danger" round label="Remove annotation" tip="Remove" onClick={() => onRemove(noting.annotationId!)}>
           <X size={14} />
-        </button>
+        </IconButton>
       )}
     </div>,
     document.body,

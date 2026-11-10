@@ -22,6 +22,9 @@ import { useLazyColours } from "../diff/use-colours";
 import { DiffCommentEditor } from "./DiffCommentEditor";
 import { DiffToolbar, type DiffPickerActions } from "./DiffToolbar";
 import { PanelRowView, PinnedFileRow } from "./DiffRows";
+import { Button } from "../ui/Button";
+import { Meter } from "../ui/Meter";
+import { Notice } from "../ui/Notice";
 
 /** What an unwrapped line costs. Rows wrap, so the windowing measures each one and corrects this. */
 const ROW_HEIGHT = 20;
@@ -90,12 +93,12 @@ function panelNote(panel: {
 }
 
 function PanelNotice({ note, onRetry, onShowSpacing }: { note: PanelNote; onRetry: () => void; onShowSpacing: () => void }) {
-  if (note.kind === "error") return <p className="diff-error" role="alert"><span>{note.text}</span><button type="button" onClick={onRetry}>Try again</button></p>;
+  if (note.kind === "error") return <Notice className="diff-error" tone="danger" actions={<Button size="sm" variant="soft" onClick={onRetry}>Try again</Button>}>{note.text}</Notice>;
   return (
     <p className={`diff-status ${note.kind}`} role="status">
       {note.kind === "wait" && <span className="task-spinner" aria-hidden="true" />}
       <span>{note.text}</span>
-      {note.kind === "spacing" && <button type="button" onClick={onShowSpacing}>Show spacing changes</button>}
+      {note.kind === "spacing" && <Button size="sm" variant="soft" onClick={onShowSpacing}>Show spacing changes</Button>}
     </p>
   );
 }
@@ -113,10 +116,10 @@ function ReviewProgress({ files, viewed, additions, deletions, onNext }: {
   return (
     <div className="diff-progress">
       {done < files.length
-        ? <button type="button" aria-keyshortcuts="N" data-tip="Next unviewed file" onClick={onNext}>{`${done} of ${files.length} viewed`}<ArrowDown size={12} aria-hidden="true" /></button>
+        ? <Button size="sm" variant="soft" aria-keyshortcuts="N" data-tip="Next unviewed file" onClick={onNext}>{`${done} of ${files.length} viewed`}<ArrowDown size={12} aria-hidden="true" /></Button>
         : <span className="diff-progress-done" role="status"><Check size={12} aria-hidden="true" />{files.length === 1 ? "Viewed" : `All ${files.length} viewed`}</span>}
       <span className="change-counts"><strong>+{additions}</strong><em>−{deletions}</em></span>
-      <span className="diff-progress-meter" aria-hidden="true"><span style={{ width: `${(done / files.length) * 100}%` }} /></span>
+      <Meter className="diff-progress-meter" size="hair" tone="success" value={done / files.length} />
     </div>
   );
 }

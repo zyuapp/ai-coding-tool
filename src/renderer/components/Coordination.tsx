@@ -1,5 +1,5 @@
 import { createContext, memo, useContext, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
-import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuCircleCheck as Resolved, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuPencil as Pencil, LuTrash2 as Trash, LuUndo2 as Reopen, LuX as X } from "react-icons/lu";
+import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuCircleCheck as Resolved, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuPencil as Pencil, LuTrash2 as Trash, LuUndo2 as Reopen, LuX as X } from "react-icons/lu";
 import { deliveryLabel, MAX_MEMORY_NOTE, MAX_MEMORY_NOTES, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
 import { engineHasModel, modelDelegable, modelLabel, type AgentEngine, type AgentModel, type EngineModel, type EngineReadiness } from "../../domain/agent-engine";
 import { useModelCatalog } from "../model-catalog";
@@ -19,9 +19,14 @@ import { HostMark } from "./HostMark";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { PULL_REQUEST_ICONS } from "./SessionPanel";
 import { MAC } from "../platform";
-import { ConfirmAction } from "./SettingRow";
+import { ConfirmAction } from "../ui/ConfirmAction";
 import { REMOTE_UNSUPPORTED } from "../../contracts/computer-capabilities";
 import { placeOf, useKeyboardPlace } from "../focus";
+import { Button, IconButton } from "../ui/Button";
+import { Chip } from "../ui/Chip";
+import { ListHeading, ListRow } from "../ui/List";
+import { Meter } from "../ui/Meter";
+import "../ui/glass.css";
 import "./coordination.css";
 import { SweepBand } from "./SweepBand";
 
@@ -133,24 +138,24 @@ type OverviewPlace =
 
 /** The buttons a section's rows open with, in the order they are drawn. */
 function sectionRows(section: Element | null | undefined): HTMLElement[] {
-  return section ? [...section.querySelectorAll<HTMLElement>(".coordination-row, .coordination-usage-thread")] : [];
+  return section ? [...section.querySelectorAll<HTMLElement>(".coordination-thread, .coordination-usage-thread")] : [];
 }
 
 /** The fold buttons that head the Overview's groups of threads, in the order they are drawn. */
 function groupHeads(root: HTMLElement): HTMLElement[] {
-  return OVERVIEW_GROUPS.flatMap((group) => root.querySelector<HTMLElement>(`[data-section="${group}"] .coordination-group-head`) ?? []);
+  return OVERVIEW_GROUPS.flatMap((group) => root.querySelector<HTMLElement>(`[data-section="${group}"] .list-heading-label`) ?? []);
 }
 
 function rememberOverviewPlace(pressed: HTMLElement, root: HTMLElement): OverviewPlace | null {
   if (pressed.matches(".coordination-note-actions > .danger")) return { kind: "note", index: [...root.querySelectorAll(".coordination-note-actions")].indexOf(pressed.parentElement!) };
   const section = pressed.closest<HTMLElement>("[data-section]");
   if (!section) return null;
-  if (pressed.matches(".coordination-stop > .armed")) return { kind: "stop", index: groupHeads(root).indexOf(section.querySelector<HTMLElement>(".coordination-group-head")!) };
+  if (pressed.matches(".coordination-stop > .armed")) return { kind: "stop", index: groupHeads(root).indexOf(section.querySelector<HTMLElement>(".list-heading-label")!) };
   const rows = sectionRows(section);
   if (pressed.matches(".coordination-more")) return { kind: "more", section: section.dataset.section!, index: rows.length };
   if (!pressed.matches('[data-action="resolve"], [data-action="reopen"]')) return null;
   const item = pressed.closest<HTMLElement>("[data-thread-id]");
-  const opens = item?.querySelector<HTMLElement>(".coordination-row");
+  const opens = item?.querySelector<HTMLElement>(".coordination-thread");
   return item && opens ? { kind: "row", threadId: item.dataset.threadId!, section: section.dataset.section!, index: rows.indexOf(opens) } : null;
 }
 
@@ -163,12 +168,12 @@ function rememberOverviewPlace(pressed: HTMLElement, root: HTMLElement): Overvie
  */
 function overviewFocus(place: OverviewPlace, root: HTMLElement, groups: Record<OverviewGroup, readonly CoordinatedThreadView[]>): HTMLElement | null | undefined {
   if (place.kind === "note") return root.querySelectorAll<HTMLElement>(".coordination-note-text")[place.index] ?? root.querySelector<HTMLElement>(".coordination-note-add");
-  if (place.kind === "stop") return placeOf(groupHeads(root), place.index) ?? root.querySelector<HTMLElement>(".coordination-group-head");
+  if (place.kind === "stop") return placeOf(groupHeads(root), place.index) ?? root.querySelector<HTMLElement>(".list-heading-label");
   const rows = sectionRows(root.querySelector(`[data-section="${place.section}"]`));
   if (place.kind === "more") return rows[place.index] ?? rows.at(-1);
   const went = OVERVIEW_GROUPS.find((group) => groups[group].some((view) => view.thread.id === place.threadId));
-  const own = root.querySelector<HTMLElement>(`[data-thread-id="${place.threadId}"] .coordination-row`);
-  const head = went ? root.querySelector<HTMLElement>(`[data-section="${went}"] .coordination-group-head`) : null;
+  const own = root.querySelector<HTMLElement>(`[data-thread-id="${place.threadId}"] .coordination-thread`);
+  const head = went ? root.querySelector<HTMLElement>(`[data-section="${went}"] .list-heading-label`) : null;
   return placeOf(rows, place.index) ?? own ?? head;
 }
 
@@ -283,10 +288,8 @@ function ForgetNote({ taskId, note }: { taskId: string; note: MemoryNote }) {
   const unavailable = !controls.available(command);
   return (
     <span className="coordination-note-actions">
-      <ConfirmAction className="coordination-note-forget" aria-label={`Forget note: ${noteName(note.text)}`} data-tip={unavailable ? REMOTE_UNSUPPORTED : "Forget"} disabled={unavailable}
-        confirm="Forget" onConfirm={() => controls.dispatch(command)}>
-        <X size={14} aria-hidden="true" />
-      </ConfirmAction>
+      <ConfirmAction variant="ghost" size="sm" icon={<X size={14} aria-hidden="true" />} className="coordination-note-forget" aria-label={`Forget note: ${noteName(note.text)}`}
+        data-tip={unavailable ? REMOTE_UNSUPPORTED : "Forget"} disabled={unavailable} confirm="Forget" onConfirm={() => controls.dispatch(command)} />
     </span>
   );
 }
@@ -325,15 +328,8 @@ function NoteInput({ notes, onAdd }: { notes: readonly MemoryNote[]; onAdd: (tex
  * The head of a section that folds: its label and how many rows it holds, or how much it adds up to,
  * and beside it, never inside, what else it does.
  */
-function FoldHead({ label, count, title, open, action, onToggle }: { label: string; count: number | string; title?: string; open: boolean; action?: ReactNode; onToggle: () => void }) {
-  const head = (
-    <button type="button" className="coordination-group-head" aria-expanded={open} data-tip={title} onClick={onToggle}>
-      <ChevronDown size={14} aria-hidden="true" />
-      <span>{label}</span>
-      <span className="coordination-group-count">{count}</span>
-    </button>
-  );
-  return action ? <div className="coordination-group-heading">{head}{action}</div> : head;
+function FoldHead({ label, count, title, open, action, asks = false, onToggle }: { label: string; count: number | string; title?: string; open: boolean; action?: ReactNode; asks?: boolean; onToggle: () => void }) {
+  return <ListHeading sticky label={label} count={count} countTone={asks ? "accent" : undefined} tip={title} open={open} onToggle={onToggle} action={action} />;
 }
 
 function shareOf(tokens: number, total: number): number {
@@ -356,7 +352,7 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
         {byModel.map(({ engine, model, tokens }) => (
           <div key={`${engine}:${model}`} className="coordination-usage-model" data-tip={`${tokens.toLocaleString("en-US")} tokens`}>
             <span>{modelLabel(catalog, engine, model)}</span>
-            <span className="coordination-usage-track" aria-hidden="true"><span className="coordination-usage-fill" style={{ width: `${shareOf(tokens, total)}%` }} /></span>
+            <Meter value={shareOf(tokens, total) / 100} tone="info" />
             <span className="coordination-usage-tokens">{compactTokens(tokens)}</span>
           </div>
         ))}
@@ -385,8 +381,8 @@ function StopAllButton({ taskId, stoppable }: { taskId: string; stoppable: boole
   return (
     <span className="coordination-stop">
       {unavailable || !stoppable
-        ? <button type="button" className="coordination-stop-all danger" aria-disabled="true" data-tip={unavailable ? REMOTE_UNSUPPORTED : "Nothing here is running"}>Stop all</button>
-        : <ConfirmAction className="coordination-stop-all danger" confirm="Stop all" onConfirm={() => controls.dispatch(command)}>Stop all</ConfirmAction>}
+        ? <Button variant="danger" size="sm" className="coordination-stop-all" aria-disabled="true" data-tip={unavailable ? REMOTE_UNSUPPORTED : "Nothing here is running"}>Stop all</Button>
+        : <ConfirmAction variant="danger" size="sm" className="coordination-stop-all" confirm="Stop all" onConfirm={() => controls.dispatch(command)}>Stop all</ConfirmAction>}
     </span>
   );
 }
@@ -438,7 +434,7 @@ function ThreadGroup({ group, members, fold, worktrees, action, onSetFold, ...ac
   const shown = fold.all ? members : members.slice(0, OVERVIEW_LIMIT);
   return (
     <section className={`coordination-group ${group}`} aria-label={label} data-section={group}>
-      <FoldHead label={label} count={members.length} open={open} action={action} onToggle={() => onSetFold(group, { open: !open })} />
+      <FoldHead label={label} count={members.length} open={open} action={action} asks={group === "needs"} onToggle={() => onSetFold(group, { open: !open })} />
       {/** Only Needs you speaks, as only Priority does in the sidebar: a working thread's progress is not news to read out. */}
       {open && <div className="subagent-list" aria-live={group === "needs" ? "polite" : undefined}>
         {shown.map((view) => <ThreadRow key={view.thread.id} view={view} worktrees={worktrees} {...actions} />)}
@@ -459,18 +455,17 @@ const ThreadRow = memo(function ThreadRow({ view: { thread, status, summary, hos
   const lineId = useId();
   return (
     <div className={`coordination-item ${status}`} data-thread-id={thread.id}>
-      <button
-        type="button"
-        className={`coordination-row ${status}`}
+      <ListRow
+        className="coordination-thread"
         aria-label={`Open ${thread.title}`}
         aria-describedby={lineId}
+        leading={<span className="coordination-row-mark"><CoordinationStatusMark status={status} lastHeard={lastHeard} /></span>}
         title={thread.title}
+        detail={line}
+        detailId={lineId}
+        trailing={<ThreadMarks thread={thread} host={host} worktree={thread.worktreeId ? worktrees.get(thread.worktreeId) : undefined} />}
         onClick={() => onSelect(thread.id)}
-      >
-        <span className="coordination-row-mark"><CoordinationStatusMark status={status} lastHeard={lastHeard} /></span>
-        <span><strong>{thread.title}</strong><small id={lineId} title={line}>{line}</small></span>
-        <ThreadMarks thread={thread} host={host} worktree={thread.worktreeId ? worktrees.get(thread.worktreeId) : undefined} />
-      </button>
+      />
       <ResolutionButton taskId={thread.id} title={thread.title} status={status} className="coordination-row-action" />
     </div>
   );
@@ -491,7 +486,7 @@ export function ResolutionButton({ taskId, title, status, className, size = 14 }
 }) {
   if (status === "resolved") {
     return (
-      <CommandButton command={{ type: "task.reopen", taskId }} className={className} data-action="reopen" aria-label={`Reopen ${title}`} data-tip="Reopen">
+      <CommandButton command={{ type: "task.reopen", taskId }} className={`${className} raised`} data-action="reopen" aria-label={`Reopen ${title}`} data-tip="Reopen">
         <Resolved className="resolution-ticked" size={size} aria-hidden="true" />
         <Reopen className="resolution-undo" size={size} aria-hidden="true" />
       </CommandButton>
@@ -499,7 +494,7 @@ export function ResolutionButton({ taskId, title, status, className, size = 14 }
   }
   if (!canResolve(status)) return null;
   return (
-    <CommandButton command={{ type: "task.resolve", taskId }} className={className} data-action="resolve" aria-label={`Resolve ${title}`} data-tip="Resolve">
+    <CommandButton command={{ type: "task.resolve", taskId }} className={`${className} raised`} data-action="resolve" aria-label={`Resolve ${title}`} data-tip="Resolve">
       <Check size={size} aria-hidden="true" />
     </CommandButton>
   );
@@ -574,7 +569,7 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
   const lineId = useId();
   const pullRequestId = `${lineId}-pull-request`;
   return (
-    <div className={`coordination-card ${status}`} role="listitem" data-thread-id={thread.id}>
+    <div className={`glass-chip coordination-card ${status}`} data-tone={status === "asking" || status === "approval" ? "accent" : undefined} role="listitem" data-thread-id={thread.id}>
       <button type="button" className="coordination-card-open" aria-label={`Open ${thread.title}`} aria-describedby={pullRequest ? `${lineId} ${pullRequestId}` : lineId} title={thread.title} onClick={() => onSelect(thread.id)}>
         <span className="coordination-card-head">
           <span className="coordination-row-mark"><CoordinationStatusMark status={status} lastHeard={lastHeard} /></span>
@@ -583,7 +578,7 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
         </span>
         <small id={lineId} className={status === "working" && !lastHeard ? "text-sweep" : undefined} title={line}>{line}{status === "working" && !lastHeard && <SweepBand>{line}</SweepBand>}</small>
         {pullRequest && Icon && (
-          <span id={pullRequestId} className="coordination-card-pull-request" data-state={pullRequest.state} title={pullRequestText ?? undefined}>
+          <span id={pullRequestId} className="coordination-card-pull-request raised" data-state={pullRequest.state} title={pullRequestText ?? undefined}>
             <Icon size={12} aria-hidden="true" />
             <span>{pullRequestText}</span>
           </span>
@@ -592,12 +587,14 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
       {(steps.length > 0 || pullRequest) && (
         <div className="coordination-card-steps">
           {steps.map((step) => (
-            <CommandButton key={step} type="button" className="coordination-card-step" aria-label={nextStepOf(step).name(thread.title)} command={{ type: "coordination.next-step", taskId: thread.id, step }}>
+            <Chip as={CommandButton} variant="link" key={step} type="button" className="coordination-card-step" aria-label={nextStepOf(step).name(thread.title)} command={{ type: "coordination.next-step", taskId: thread.id, step }}>
               {nextStepOf(step).label}
-            </CommandButton>
+            </Chip>
           ))}
           {pullRequest && (
-            <WebLink
+            <Chip
+              as={WebLink}
+              variant="link"
               className="coordination-card-step"
               href={pullRequest.url}
               title={`#${pullRequest.number} ${pullRequest.title}`}
@@ -606,7 +603,7 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
             >
               {pullRequestAction}
               <ArrowUpRight size={12} aria-hidden="true" />
-            </WebLink>
+            </Chip>
           )}
         </div>
       )}
@@ -623,31 +620,35 @@ export function MemberWorktreeList({ worktrees, onReveal, onDelete }: {
 }) {
   return (
     <section className="subagent-section coordination-section coordination-worktrees" aria-label="Worktrees these threads work in">
-      <div className="subagent-heading"><div className="coordination-heading">Worktrees</div></div>
+      <ListHeading label="Worktrees" />
       <div className="subagent-list">
         {worktrees.map((worktree) => {
           const by = worktree.threads.map((thread) => thread.title).join(", ");
           const detail = worktree.deleting ? "Deleting…" : worktree.branch ? `${worktree.branch} · ${by}` : by;
           return (
-            <div key={worktree.id} className="coordination-row coordination-worktree">
-              <span className={`coordination-row-mark worktree-mark hue-${worktreeHue(worktree.id)}`}><FolderSymlink size={12} aria-hidden="true" /></span>
-              <span data-tip={worktree.root}><strong>{worktree.name}</strong><small className={worktree.deleting ? "text-sweep" : undefined}>{detail}{worktree.deleting && <SweepBand>{detail}</SweepBand>}</small></span>
-              <span className="coordination-worktree-actions">
-                {onReveal && <button type="button" aria-label={`Reveal ${worktree.name}`} data-tip={MAC ? "Reveal in Finder" : "Show in file manager"} disabled={worktree.deleting} onClick={() => onReveal(worktree.root)}>
-                  <FolderOpen size={14} />
-                </button>}
-                <button
-                  type="button"
-                  className="danger"
-                  aria-label={`Delete ${worktree.name}`}
-                  data-tip={worktree.busy ? "Wait for its threads to finish before deleting" : "Delete worktree…"}
+            <ListRow
+              as="div"
+              key={worktree.id}
+              className="coordination-worktree"
+              data-tip={worktree.root}
+              leading={<span className={`coordination-row-mark worktree-mark hue-${worktreeHue(worktree.id)}`}><FolderSymlink size={12} aria-hidden="true" /></span>}
+              title={<span>{worktree.name}</span>}
+              detail={worktree.deleting ? <span className="text-sweep">{detail}<SweepBand>{detail}</SweepBand></span> : detail}
+              trailing={<>
+                {onReveal && <IconButton label={`Reveal ${worktree.name}`} tip={MAC ? "Reveal in Finder" : "Show in file manager"} disabled={worktree.deleting} onClick={() => onReveal(worktree.root)}>
+                  <FolderOpen size={14} aria-hidden="true" />
+                </IconButton>}
+                <IconButton
+                  variant="danger"
+                  label={`Delete ${worktree.name}`}
+                  tip={worktree.busy ? "Wait for its threads to finish before deleting" : "Delete worktree…"}
                   disabled={worktree.busy || worktree.deleting}
                   onClick={() => onDelete(worktree.root)}
                 >
-                  <Trash size={14} />
-                </button>
-              </span>
-            </div>
+                  <Trash size={14} aria-hidden="true" />
+                </IconButton>
+              </>}
+            />
           );
         })}
       </div>
@@ -678,15 +679,15 @@ export function CoordinationBar({ lead, remoteLead, brief, asking, onSelect }: P
   const leadId = lead?.id ?? remoteLead?.threadId ?? null;
   const title = lead?.title ?? remoteLead?.title;
   return (
-    <div className={`coordination-bar ${asking ? "asking" : ""}`}>
+    <div className="glass-float coordination-bar" data-tone={asking ? "accent" : undefined}>
       {title !== undefined && <div className="coordination-bar-line">
         <span className="coordination-bar-lead">
-          Works under {leadId ? <button type="button" onClick={() => onSelect(leadId)}>{title}</button> : <strong>{title}</strong>}
+          Works under {leadId ? <Chip as="button" variant="link" type="button" onClick={() => onSelect(leadId)}>{title}</Chip> : <strong>{title}</strong>}
           {remoteLead && ` on ${remoteLead.computer}`}
         </span>
         {asking && <>
           <span className="coordination-bar-asking">{asking}</span>
-          {leadId && <button type="button" className="coordination-bar-answer" onClick={() => onSelect(leadId)}>Answer</button>}
+          {leadId && <Button variant="inverse" className="coordination-bar-answer" onClick={() => onSelect(leadId)}>Answer</Button>}
         </>}
       </div>}
       {brief && <BriefDetails brief={brief} />}

@@ -15,7 +15,7 @@ test("a running shell offers a new one in the same folder, and an exited one res
     React.createElement(TerminalPanel, { terminal, visible: false, onInput() {}, onResize() {} }));
   const view = await mount(panel(shell({})));
   const running = query<HTMLButtonElement>(view.container, ".terminal-new-shell");
-  assert.equal(running.classList.contains("primary"), false, "a running shell offers another quietly");
+  assert.equal(running.dataset.variant, "secondary", "a running shell offers another quietly");
   await act(async () => { running.click(); });
   assert.deepEqual(dispatched, [{ type: "terminal.open", cwd: "/project" }]);
 
@@ -24,7 +24,7 @@ test("a running shell offers a new one in the same folder, and an exited one res
   assert.match(status.textContent, /Exited \(1\)/);
   assert.ok(status.querySelector("svg"), "a failed exit is marked by more than its colour");
   const exited = query<HTMLButtonElement>(view.container, ".terminal-new-shell");
-  assert.equal(exited.classList.contains("primary"), true, "an exited shell makes a new one the next step");
+  assert.equal(exited.dataset.variant, "primary", "an exited shell makes a new one the next step");
   assert.equal(exited.textContent, "Restart shell");
   await act(async () => { exited.click(); });
   assert.deepEqual(dispatched.slice(1), [{ type: "terminal.restart", terminalId: "t1" }], "restarting is one command");

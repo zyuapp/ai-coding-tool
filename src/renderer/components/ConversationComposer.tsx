@@ -1,4 +1,4 @@
-import { LuArrowUp as ArrowUp, LuCircleAlert as CircleAlert, LuInfo as Info, LuPaperclip as Paperclip, LuX as X } from "react-icons/lu";
+import { LuArrowUp as ArrowUp, LuCircleAlert as CircleAlert, LuInfo as Info, LuPaperclip as Paperclip } from "react-icons/lu";
 import { useRef, type ReactNode } from "react";
 import { DictationStrip, MicButton, useComposerTalk, type ComposerDictation } from "./ComposerDictation";
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
@@ -31,6 +31,9 @@ import { CommandButton, useCommandControls } from "./CommandControl";
 import { ReturnFocusContext } from "../focus";
 import type { AppCommand } from "../../contracts/commands";
 import { shortcutTip } from "./TooltipLayer";
+import { IconButton } from "../ui/Button";
+import { Notice } from "../ui/Notice";
+import "../ui/glass.css";
 
 const NOTHING = () => {};
 
@@ -97,9 +100,9 @@ function AttachButton({ disabled, onFilesAdd }: { disabled: boolean; onFilesAdd:
   const input = useRef<HTMLInputElement>(null);
   return (
     <>
-      <button type="button" className="composer-attach" aria-label="Attach files" data-tip="Attach files" disabled={disabled} onClick={() => input.current?.click()}>
+      <IconButton className="composer-attach" label="Attach files" size="md" round disabled={disabled} onClick={() => input.current?.click()}>
         <Paperclip size={16} aria-hidden="true" />
-      </button>
+      </IconButton>
       <input
         ref={input}
         type="file"
@@ -122,11 +125,9 @@ function SendNotice({ error, note, onDismiss }: { error: string | null; note: st
   if (!message) return null;
   const Icon = error ? CircleAlert : Info;
   return (
-    <div className={`attachment-error${error ? "" : " note"}`} role={error ? "alert" : "status"}>
-      <Icon size={14} aria-hidden="true" />
-      <span>{message}</span>
-      <button type="button" aria-label="Dismiss" data-tip="Dismiss" onClick={onDismiss}><X size={12} aria-hidden="true" /></button>
-    </div>
+    <Notice floating className={`attachment-error${error ? "" : " note"}`} tone={error ? "danger" : "neutral"} icon={<Icon size={14} />} onDismiss={onDismiss}>
+      {message}
+    </Notice>
   );
 }
 
@@ -140,11 +141,11 @@ function UnopenableComposer({ reason, taskId, surface, runActive, updateAvailabl
   onCancel: () => void;
 }) {
   return (
-    <div className="composer unopenable">
+    <div className="glass-pane composer unopenable">
       <p className="composer-unopenable" role="status">{reason}</p>
       {updateAvailable
-        ? <CommandButton command={{ type: "app.update" }} className="composer-unopenable-update">Update</CommandButton>
-        : <CommandButton command={{ type: "app.check-for-updates" }} className="composer-unopenable-check">Check for updates</CommandButton>}
+        ? <CommandButton command={{ type: "app.update" }} className="composer-unopenable-update" variant="primary" size="lg">Update</CommandButton>
+        : <CommandButton command={{ type: "app.check-for-updates" }} className="composer-unopenable-check" variant="secondary" size="lg">Check for updates</CommandButton>}
       {runActive && <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)} data-tip={STOP_TIP}>
         <span className="stop-glyph" />
       </CommandButton>}
@@ -365,7 +366,7 @@ export function ConversationComposer({
       {planUsage && model !== undefined && <PlanUsageWarning engine={engine} engineLabel={engineLabel} model={model} {...planUsage} />}
       {surface === "main" && startOptions}
       <SendNotice error={attachments.error} note={attachments.note} onDismiss={attachments.dismissNotice} />
-      {unopenable ? <UnopenableComposer reason={unopenable} taskId={taskId} surface={surface} runActive={runActive} updateAvailable={updateAvailable} onCancel={onCancel} /> : <div className="composer">
+      {unopenable ? <UnopenableComposer reason={unopenable} taskId={taskId} surface={surface} runActive={runActive} updateAvailable={updateAvailable} onCancel={onCancel} /> : <div className="glass-pane composer">
         {reviewPicker && (
           <ReviewPicker
             picker={reviewPicker}

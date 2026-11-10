@@ -1,0 +1,57 @@
+/** Files, pasted text, and annotations riding a message: one pill each, a tone tinting the kind that has one. */
+.attached-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px 0; }
+.message-stack .attached-row { padding: 0; justify-content: flex-end; }
+.attached-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  min-width: 0;
+  min-height: 28px;
+  border: 1px solid var(--line-mid);
+  border-radius: 9px;
+  background: var(--control);
+  box-shadow: var(--glass-rim);
+  color: var(--ink-soft);
+  font-size: var(--text-meta);
+  line-height: 1.4;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.attached-pill:hover { border-color: var(--line-bright); }
+.attached-pill[data-tone] { border-color: var(--tone-line); background: var(--tone-surface); color: var(--tone-soft); }
+.attached-pill[data-tone]:is(:hover, :has(:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *))) { border-color: var(--tone); background: var(--tone-chip); }
+.attached-pill-face {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 260px;
+  margin: 0;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 9px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+}
+.attached-pill:has(> .attached-pill-remove) > .attached-pill-face { border-start-end-radius: 0; border-end-end-radius: 0; }
+button.attached-pill-face { cursor: pointer; }
+.attached-pill:not([data-tone]) > button.attached-pill-face:hover { background: var(--surface-hover); color: var(--ink); }
+.attached-pill-face > strong { overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.attached-pill-face > small { color: var(--muted); }
+.attached-pill-remove {
+  display: grid;
+  flex: none;
+  width: 26px;
+  place-items: center;
+  margin: 0;
+  border: 0;
+  border-left: 1px solid var(--line-soft);
+  border-radius: 0 8px 8px 0;
+  padding: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.attached-pill[data-tone] > .attached-pill-remove { border-left-color: var(--tone-line); }
+.attached-pill-remove:hover { background: var(--surface-active); color: var(--ink-soft); }

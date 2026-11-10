@@ -10,6 +10,7 @@ import { threadMenuEntries } from "./thread-menu";
 import { shortcutTip } from "./TooltipLayer";
 import type { ThreadRole } from "../../domain/thread-role";
 import { SweepBand } from "./SweepBand";
+import { Button, IconButton } from "../ui/Button";
 
 export type WorkspaceHeaderProps = {
   currentThread?: Thread;
@@ -60,7 +61,7 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
           <HostMark name={host.name} offline={host.offline} reconnecting={host.reconnecting} className="heading-host" />
           {host.offline && (host.reconnecting
             ? <span className="heading-host-state" role="status"><span className="text-sweep">Reconnecting…<SweepBand>Reconnecting…</SweepBand></span></span>
-            : <CommandButton type="button" className="heading-host-state" command={{ type: "computers.reconnect", id: host.id }} data-tip={`Reconnect to ${host.name}`}>Reconnect</CommandButton>)}
+            : <CommandButton variant="secondary" className="heading-host-state" command={{ type: "computers.reconnect", id: host.id }} data-tip={`Reconnect to ${host.name}`}>Reconnect</CommandButton>)}
           <span className="heading-separator" aria-hidden="true">/</span>
         </>}
         {folder && <>
@@ -114,16 +115,9 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
   return (
     <header className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()}>
       <div className="task-heading">
-        <button
-          className={`session-toggle sidebar-toggle ${sidebarOpen ? "active" : ""}`}
-          type="button"
-          aria-label={`${sidebarOpen ? "Hide" : "Show"} sidebar`}
-          aria-pressed={sidebarOpen}
-          data-tip={shortcutTip("Sidebar", "Mod+B")}
-          onClick={onToggleSidebar}
-        >
+        <IconButton size="lg" label={`${sidebarOpen ? "Hide" : "Show"} sidebar`} tip={shortcutTip("Sidebar", "Mod+B")} pressed={sidebarOpen} onClick={onToggleSidebar}>
           <PanelLeft size={18} aria-hidden="true" />
-        </button>
+        </IconButton>
         <div>
           <ThreadHeading
             key={currentThread?.id ?? "draft"}
@@ -145,37 +139,30 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
             stoppable={stoppable}
             onStopAll={onStopAll}
           />
-          {!folder && <button type="button" className="heading-choose-folder" data-tip="Choose a project folder" aria-label="Choose a project folder" onClick={onChooseFolder}><FolderOpen size={14} aria-hidden="true" /><span>Choose a project folder</span></button>}
+          {!folder && <Button variant="soft" className="heading-choose-folder" data-tip="Choose a project folder" aria-label="Choose a project folder" icon={<FolderOpen size={14} aria-hidden="true" />} onClick={onChooseFolder}><span>Choose a project folder</span></Button>}
         </div>
       </div>
       <div className="workspace-controls">
         {folder && <OpenInMenu {...openIn} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
         {folder && zen.available && (
-          <button className="session-toggle" type="button" aria-label="Enter zen mode" data-tip={zen.tip} onClick={zen.onEnter}>
+          <IconButton size="lg" label="Enter zen mode" tip={zen.tip} onClick={zen.onEnter}>
             <Focus size={18} aria-hidden="true" />
-          </button>
+          </IconButton>
         )}
-        <button
-          className={`session-toggle ${sessionPanelOpen ? "active" : ""}`}
-          type="button"
-          aria-label={`${sessionPanelOpen ? "Hide" : "Show"} session summary${working ? `, ${working}` : ""}`}
-          aria-pressed={sessionPanelOpen}
-          data-tip={working ? `Session summary · ${working}` : "Session summary"}
+        <IconButton
+          size="lg"
+          className="session-summary-toggle"
+          label={`${sessionPanelOpen ? "Hide" : "Show"} session summary${working ? `, ${working}` : ""}`}
+          tip={working ? `Session summary · ${working}` : "Session summary"}
+          pressed={sessionPanelOpen}
           onClick={onToggleSessionPanel}
         >
           <ClipboardList size={18} aria-hidden="true" />
-          {workingSubagents > 0 && <span>{workingSubagents}</span>}
-        </button>
-        <button
-          className={`session-toggle ${rightDockOpen ? "active" : ""}`}
-          type="button"
-          aria-label={`${rightDockOpen ? "Hide" : "Show"} right panel`}
-          aria-pressed={rightDockOpen}
-          data-tip={shortcutTip("Right panel", "Mod+\\")}
-          onClick={onToggleRightDock}
-        >
+          {workingSubagents > 0 && <span className="toggle-badge">{workingSubagents}</span>}
+        </IconButton>
+        <IconButton size="lg" label={`${rightDockOpen ? "Hide" : "Show"} right panel`} tip={shortcutTip("Right panel", "Mod+\\")} pressed={rightDockOpen} onClick={onToggleRightDock}>
           <PanelRight size={18} aria-hidden="true" />
-        </button>
+        </IconButton>
       </div>
     </header>
   );

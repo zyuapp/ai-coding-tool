@@ -1,0 +1,47 @@
+/**
+ * A tone names a state's hue once; a primitive carrying data-tone reads these instead of naming
+ * each hue's tokens itself. --tone is the hue as a fill, --tone-text as text or an icon,
+ * --tone-soft as quieter text, --tone-line as an edge, --tone-surface as a pale wash, and
+ * --tone-chip as a stronger one.
+ */
+[data-tone="accent"] {
+  --tone: var(--accent);
+  --tone-text: var(--accent-text);
+  --tone-soft: var(--accent-soft);
+  --tone-line: var(--accent-line);
+  --tone-surface: var(--accent-surface);
+  --tone-chip: var(--accent-chip);
+}
+[data-tone="danger"] {
+  --tone: var(--danger);
+  --tone-text: var(--danger);
+  --tone-soft: var(--danger-soft);
+  --tone-line: var(--danger-line);
+  --tone-surface: var(--danger-surface);
+  --tone-chip: var(--danger-chip);
+}
+[data-tone="info"] {
+  --tone: var(--info);
+  --tone-text: var(--info);
+  --tone-soft: var(--info-soft);
+  --tone-line: var(--info-line);
+  --tone-surface: var(--info-surface-soft);
+  --tone-chip: var(--info-surface);
+}
+[data-tone="success"] {
+  --tone: var(--success);
+  --tone-text: var(--success);
+  --tone-soft: var(--success-soft);
+  --tone-line: var(--success-line);
+  --tone-surface: var(--success-surface);
+  --tone-chip: var(--success-surface);
+}
+/** Warning has no tints of its own, so they are its hue thinned the way the glass sheet thins the others. */
+[data-tone="warning"] {
+  --tone: var(--warning);
+  --tone-text: var(--warning);
+  --tone-soft: var(--warning);
+  --tone-line: rgb(from var(--warning) r g b / 0.32);
+  --tone-surface: rgb(from var(--warning) r g b / 0.1);
+  --tone-chip: rgb(from var(--warning) r g b / 0.2);
+}

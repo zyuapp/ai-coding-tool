@@ -8,6 +8,7 @@ import { messageLabel, type MessageOrigin } from "../../domain/message-origin";
 import { groupMessageIds, timeSteps, toSegments, type TimelineGroup } from "../timeline/grouping";
 import { MessageArtifactScope, useMessageLinks } from "./MarkdownMessage";
 import { AnnotationRow } from "./AnnotationRow";
+import { Chip } from "../ui/Chip";
 import { CopyButton } from "./CopyButton";
 import { FileRow } from "./FileRow";
 import { PasteRow } from "./PasteRow";
@@ -67,7 +68,7 @@ function UserMessage({ message, onView }: { message: ConversationMessage; onView
           </div>
         ) : null}
         {label && (sender && selectThread
-          ? <button type="button" className="message-origin message-origin-link" data-tip="Open thread" onClick={() => selectThread(sender)}>{label}<ArrowUpRight className="decision-from-arrow" size={12} aria-hidden="true" /></button>
+          ? <Chip as="button" type="button" variant="link" className="message-origin message-origin-link" data-tip="Open thread" onClick={() => selectThread(sender)}>{label}<ArrowUpRight className="decision-from-arrow" size={12} aria-hidden="true" /></Chip>
           : <div className="message-origin">{label}</div>)}
         {message.text && <div className="message-text">{message.text}</div>}
       </div>
@@ -140,9 +141,9 @@ function ThreadMessage({ from, message }: { from: string; message: ConversationM
         <div className="thread-message-body">
           <div className="thread-message-text">{message.text}</div>
           {sender && selectThread && (
-            <button type="button" className="message-origin-link thread-message-open" onClick={() => selectThread(sender)}>
+            <Chip as="button" type="button" variant="link" className="message-origin-link thread-message-open" onClick={() => selectThread(sender)}>
               Open thread<ArrowUpRight className="decision-from-arrow" size={12} aria-hidden="true" />
-            </button>
+            </Chip>
           )}
         </div>
       )}
@@ -155,7 +156,7 @@ function FoldedUpdates({ engine, group, onViewAttachment }: { engine: AgentEngin
   const summary = (
     <>
       <span className="work-lead">Earlier thread updates</span>
-      <span className="work-count">{group.count} {group.count === 1 ? "update" : "updates"}</span>
+      <Chip variant="count" className="work-count">{group.count} {group.count === 1 ? "update" : "updates"}</Chip>
     </>
   );
   return (

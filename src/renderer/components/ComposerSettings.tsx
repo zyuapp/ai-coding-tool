@@ -1,12 +1,16 @@
 import { CommandGate, CommandButton, useCommandControls } from "./CommandControl";
 import type { IconType } from "react-icons";
-import { LuSearch as Search, LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuCheck as Check, LuChevronDown as ChevronDown, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
+import { LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { byEngine, capabilitiesFor, catalogHasModel, effortForModel, effortsFor, engineLabel, isFavorite, modelsFor, offeredPolicies, type AgentEngine, type AgentModel, type EngineModel, type ModelCatalog, type EffortSpec, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
 import { libraryOpening, modelLibrary, type LibraryFilter } from "../../domain/model-library";
 import { useModelCatalog } from "../model-catalog";
 import { POLICIES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
-import { moveListFocus, useDismissibleLayer } from "../focus";
+import { useDismissibleLayer } from "../focus";
+import { MenuGroup, MenuItem, MenuNote, MenuSurface, MenuTrigger, useListKeys } from "../ui/Menu";
+import { Button, IconButton } from "../ui/Button";
+import { SearchField } from "../ui/Field";
+import { NavItem, NavList, NavSeparator } from "../ui/NavList";
 import { CopyButton } from "./CopyButton";
 import { engineIcon } from "./ThreadEngineIcon";
 
@@ -47,7 +51,7 @@ function ReadinessHint({ notice, onOpenSettings }: { notice: EngineNotice; onOpe
     <span>{notice.message}</span>
     {notice.fix && !onOpenSettings && <code>{notice.fix}</code>}
     {notice.fix && !(notice.updatable && onOpenSettings) && <CopyButton text={notice.fix} label={`Copy ${notice.fix}`} />}
-    {onOpenSettings && <button className="setting-readiness-link" type="button" onClick={onOpenSettings}>Settings</button>}
+    {onOpenSettings && <Button variant="link" className="setting-readiness-link" onClick={onOpenSettings}>Settings</Button>}
   </div>;
 }
 
@@ -70,20 +74,21 @@ function SettingMenu({ label, axis, heading, value, detail, danger = false, onOp
   const details = useRef<HTMLDetailsElement>(null);
   const summary = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false);
+  const listKeys = useListKeys();
   const close = () => { if (details.current) details.current.open = false; };
   useDismissibleLayer(open, [details], close, summary);
 
   return <details ref={details} className={`setting-menu${danger ? " danger" : ""}`} onToggle={(event) => { setOpen(event.currentTarget.open); if (event.currentTarget.open) onOpen?.(); }}>
-    <summary ref={summary} aria-label={label}>
+    <MenuTrigger as="summary" ref={summary} aria-label={label} tone={danger ? "danger" : undefined}>
       <span className="setting-axis">{axis}</span>
       <span className="setting-value" {...(typeof value === "string" ? { "data-tip": value, "data-tip-overflow": true } : {})}>{value}</span>
       {detail !== undefined && <span className="setting-detail"><span aria-hidden="true">·</span>{detail}</span>}
-      <ChevronDown size={12} className="setting-chevron" aria-hidden="true" />
-    </summary>
-    {open && <div className={`setting-popover${library ? " model-library" : ""}`} role={library ? "dialog" : "listbox"} aria-label={heading} onKeyDown={onKeyDown ?? (library ? undefined : moveListFocus)}>
-      {!library && <div className="setting-heading">{heading}</div>}
-      {children(close)}
-    </div>}
+    </MenuTrigger>
+    {open && (library
+      ? <div className="glass-popover setting-popover model-library" role="dialog" aria-label={heading} onKeyDown={onKeyDown}>{children(close)}</div>
+      : <MenuSurface checkable className="setting-popover" role="listbox" aria-label={heading} onKeyDown={onKeyDown ?? listKeys}>
+        <MenuGroup label={heading}>{children(close)}</MenuGroup>
+      </MenuSurface>)}
   </details>;
 }
 
@@ -94,19 +99,18 @@ function Option<T extends string>({ item, selected, disabled = false, onSelect }
   onSelect?: () => void;
 }) {
   const Icon = item.icon;
-  return <button
-    type="button"
+  return <MenuItem
     role="option"
-    aria-selected={selected}
-    {...(disabled ? { "aria-disabled": true } : {})}
+    checked={selected}
+    disabled={disabled}
     autoFocus={selected}
-    className={`setting-option${item.danger ? " danger" : ""}`}
+    className={item.danger ? "danger" : undefined}
+    icon={<Icon size={16} />}
+    description={item.description}
     onClick={onSelect}
   >
-    <span className="setting-icon" aria-hidden="true"><Icon size={20} /></span>
-    <span><strong>{item.label}</strong>{item.description && <small>{item.description}</small>}</span>
-    <span className="setting-check" aria-hidden="true">{selected && <Check size={20} />}</span>
-  </button>;
+    {item.label}
+  </MenuItem>;
 }
 
 function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, onChange }: {
@@ -238,7 +242,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
   const { available, shown, count, total, favoriteCount, heading } = modelLibrary(catalog, engineAccess, { engine, locked: engineLocked, favorites: favoriteModels, filter, query, ...(models ? { allows: models } : {}) });
 
   const navigate = (event: KeyboardEvent<HTMLElement>) => {
-    const buttons = [...(results.current?.querySelectorAll<HTMLButtonElement>(".model-choice:not(:disabled)") ?? [])];
+    const buttons = [...(results.current?.querySelectorAll<HTMLButtonElement>('.model-choice:not([aria-disabled="true"])') ?? [])];
     if (!buttons.length) return;
     if (event.key === "Enter" && event.target instanceof HTMLElement && event.target.tagName === "INPUT") {
       event.preventDefault();
@@ -256,38 +260,43 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
 
   return <>
     <div className="model-search" onKeyDown={navigate}>
-      <Search size={18} aria-hidden="true" />
-      <input autoFocus aria-label="Find a model or provider" placeholder="Find a model or provider…" value={query} onInput={(event) => setQuery(event.currentTarget.value)} />
-      <button type="button" aria-label="Close model picker" onClick={close}><X size={16} /></button>
+      <SearchField variant="palette" type="text" autoFocus label="Find a model or provider" placeholder="Find a model or provider…" value={query} onInput={(event) => setQuery(event.currentTarget.value)} />
+      <IconButton label="Close model picker" onClick={close}><X size={16} /></IconButton>
     </div>
     <div className="model-library-body">
-      <nav className="model-provider-rail" aria-label="Filter models">
-        <button type="button" aria-pressed={!search && filter === "favorites"} onClick={() => { setFilter("favorites"); setQuery(""); }}><Star size={16} />Favorites<span>{favoriteCount}</span></button>
-        <button type="button" aria-pressed={!search && filter === "all"} onClick={() => { setFilter("all"); setQuery(""); }}><Grid size={16} />All models<span>{total}</span></button>
-        <hr />
-        {available.map((group) => <button key={group.key} type="button" aria-pressed={!search && filter === group.key} onClick={() => { setFilter(group.key); setQuery(""); }}><ProviderMark engine={group.engine} groupKey={group.key} />{group.label}<span>{group.models.length}</span></button>)}
-      </nav>
-      <div className="model-results" ref={results} onKeyDown={navigate}>
+      <NavList className="model-provider-rail" label="Filter models">
+        <NavItem selected={!search && filter === "favorites"} icon={<Star size={16} />} count={favoriteCount} onClick={() => { setFilter("favorites"); setQuery(""); }}>Favorites</NavItem>
+        <NavItem selected={!search && filter === "all"} icon={<Grid size={16} />} count={total} onClick={() => { setFilter("all"); setQuery(""); }}>All models</NavItem>
+        <NavSeparator />
+        {available.map((group) => <NavItem key={group.key} selected={!search && filter === group.key} icon={<ProviderMark engine={group.engine} groupKey={group.key} />} count={group.models.length} onClick={() => { setFilter(group.key); setQuery(""); }}>{group.label}</NavItem>)}
+      </NavList>
+      <div className="model-results" data-checkable ref={results} onKeyDown={navigate}>
         <div className="model-results-heading"><span>{heading}</span><span aria-live="polite">{count} models</span></div>
         {shown.map((group) => <div key={group.key} role="group" aria-label={group.label}>
           {group.models.map((spec) => {
             const selected = group.engine === engine && spec.id === model;
             const favorite = isFavorite(favoriteModels, group.engine, spec.id);
             const Icon = modelIcon(group.engine, spec.id);
-            return <div key={spec.id} className={`model-row${selected ? " selected" : ""}`}>
-              <button type="button" className="model-choice" aria-pressed={selected} disabled={!group.selectable} onClick={() => { onChange(group.engine, spec.id); if (!effort) close(); }}>
-                <span className="model-row-icon" aria-hidden="true"><Icon size={18} /></span>
-                <span className="model-row-label"><strong>{spec.label}</strong><small data-tip={`${group.label} · ${spec.description}`} data-tip-overflow>{group.label} · {spec.description}</small></span>
-                {selected && <Check size={16} className="model-selected-check" aria-hidden="true" />}
-              </button>
-              {onModelFavorite && <button type="button" className="model-favorite" aria-label={`${favorite ? "Unpin" : "Pin"} ${spec.label}`} aria-pressed={favorite} data-tip={favorite ? "Unpin from Favorites" : "Pin to Favorites"} onClick={() => onModelFavorite(group.engine, spec.id, !favorite)}><Star size={16} fill={favorite ? "currentColor" : "none"} /></button>}
+            return <div key={spec.id} className="model-row">
+              <MenuItem
+                role="button"
+                className="model-choice"
+                checked={selected}
+                disabled={!group.selectable}
+                icon={<Icon size={16} />}
+                description={<span data-tip={`${group.label} · ${spec.description}`} data-tip-overflow>{group.label} · {spec.description}</span>}
+                onClick={() => { onChange(group.engine, spec.id); if (!effort) close(); }}
+              >
+                {spec.label}
+              </MenuItem>
+              {onModelFavorite && <IconButton className="model-favorite" label={`${favorite ? "Unpin" : "Pin"} ${spec.label}`} tip={favorite ? "Unpin from Favorites" : "Pin to Favorites"} pressed={favorite} onClick={() => onModelFavorite(group.engine, spec.id, !favorite)}><Star size={16} fill={favorite ? "currentColor" : "none"} /></IconButton>}
             </div>;
           })}
           {group.hint?.kind === "new-thread" && <p className="setting-hint">Start a new thread to use {engineLabel(group.engine)}</p>}
-          {group.hint?.kind === "sign-in" && <button type="button" className="setting-hint" onClick={() => { onSignIn(group.engine); close(); }}>Sign in to use {group.label}</button>}
+          {group.hint?.kind === "sign-in" && <Button variant="link" className="setting-hint" onClick={() => { onSignIn(group.engine); close(); }}>Sign in to use {group.label}</Button>}
           {group.hint?.kind === "notice" && <ReadinessHint notice={group.hint.notice} onOpenSettings={onOpenEngineSettings ? () => { onOpenEngineSettings(); close(); } : undefined} />}
         </div>)}
-        {count === 0 && <p className="model-empty">{search ? "No models found. Try another name or provider." : filter === "favorites" ? "Pin models from All models to keep them here." : "No models available."}</p>}
+        {count === 0 && <MenuNote className="model-empty">{search ? "No models found. Try another name or provider." : filter === "favorites" ? "Pin models from All models to keep them here." : "No models available."}</MenuNote>}
       </div>
     </div>
     {effort
@@ -360,7 +369,7 @@ export function ComposerSettings({ taskId, mode, engine, engineLabel, engineLock
     <div className="composer-settings">
       <CommandGate command={{ type: "task.set-policy", taskId, policy: mode }}><ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modesOf[engine]} value={mode} onChange={onModeChange} /></CommandGate>
       <CommandGate command={{ type: "task.set-model", taskId, engine, model }}><ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} {...(effortControl ? { effort: effortControl } : {})} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} /></CommandGate>
-      {capabilitiesFor(engine).fastMode && <CommandButton command={{ type: "task.set-fast-mode", taskId, fastMode: !fastMode }} type="button" className="fast-mode-toggle" aria-label="Fast mode" aria-pressed={fastMode} data-tip={`Fast mode ${fastMode ? "on" : "off"} · faster responses use more of your plan`} onClick={() => onFastModeChange(!fastMode)}><Zap size={14} fill={fastMode ? "currentColor" : "none"} aria-hidden="true" /><span aria-hidden="true">Fast</span></CommandButton>}
+      {capabilitiesFor(engine).fastMode && <CommandButton command={{ type: "task.set-fast-mode", taskId, fastMode: !fastMode }} variant="ghost" pill data-toggle="accent" className="fast-mode-toggle" aria-label="Fast mode" aria-pressed={fastMode} data-tip={`Fast mode ${fastMode ? "on" : "off"} · faster responses use more of your plan`} onClick={() => onFastModeChange(!fastMode)}><Zap size={14} fill={fastMode ? "currentColor" : "none"} aria-hidden="true" /><span aria-hidden="true">Fast</span></CommandButton>}
     </div>
   );
 }

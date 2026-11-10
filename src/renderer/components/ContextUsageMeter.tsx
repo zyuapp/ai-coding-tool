@@ -1,5 +1,6 @@
 import { useId, type CSSProperties } from "react";
 import type { ContextUsage } from "../../domain/thread-run";
+import { Button } from "../ui/Button";
 import { UsageCard, UsageCardRow } from "./UsageCard";
 
 /** A count of tokens in a few characters: 3.1M, 240K. */
@@ -37,7 +38,7 @@ export function ContextUsageMeter({ usage, onCompact }: { usage: ContextUsage; o
           <UsageCardRow label={`${percent}% used`} value={`${100 - percent}% left`} share={percent} high={high} detail={`${compactTokens(usage.tokens)} / ${compactTokens(usage.limit)} tokens used`} />
         </UsageCard>
       </span>
-      {high && onCompact && <button type="button" className="context-usage-compact" onClick={onCompact}>Compact</button>}
+      {high && onCompact && <Button className="context-usage-compact" variant="soft" onClick={onCompact}>Compact</Button>}
     </span>
   );
 }

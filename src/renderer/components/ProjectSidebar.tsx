@@ -17,6 +17,7 @@ import type { AppUpdate } from "../../domain/app-update";
 import { SidebarFooter } from "./SidebarFooter";
 import { shortcutTip } from "./TooltipLayer";
 import { CommandButton } from "./CommandControl";
+import { Button } from "../ui/Button";
 
 const NEW_THREAD_TIP = shortcutTip("New thread", "Mod+N");
 const SEARCH_TIP = shortcutTip("Search", "Mod+K");
@@ -183,8 +184,8 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       <div className="sidebar-scroll">
         {projects.length === 0 && <div className="sidebar-project-empty">
           {selectedComputer && selectedComputer.status !== "connected"
-            ? <><p role="alert">{offlineMessage(selectedComputer)}</p><button type="button" className="sidebar-empty-action" onClick={() => onSetComputerFilter("all")}>Show all computers</button></>
-            : <><p>{computerFilter === "all" ? "No projects yet" : `${selectedComputer?.name ?? (computerName || "This computer")} has no projects yet`}</p><button type="button" className="sidebar-empty-action" onClick={onOpenFolder}><Plus size={14} aria-hidden="true" />Add project</button></>}
+            ? <><p role="alert">{offlineMessage(selectedComputer)}</p><Button variant="soft" className="sidebar-empty-action" onClick={() => onSetComputerFilter("all")}>Show all computers</Button></>
+            : <><p>{computerFilter === "all" ? "No projects yet" : `${selectedComputer?.name ?? (computerName || "This computer")} has no projects yet`}</p><Button variant="soft" className="sidebar-empty-action" icon={<Plus size={14} aria-hidden="true" />} onClick={onOpenFolder}>Add project</Button></>}
         </div>}
         <SidebarActivity
           activityThreads={activityThreads}

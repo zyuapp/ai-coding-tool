@@ -1,8 +1,12 @@
 import { Cron } from "croner";
 import { CommandButton, useCommandControls } from "./CommandControl";
-import { ConfirmAction } from "./SettingRow";
+import { ConfirmAction } from "../ui/ConfirmAction";
 import { REMOTE_UNSUPPORTED } from "../../contracts/computer-capabilities";
 import { useEffect, useId, useState } from "react";
+import { Button } from "../ui/Button";
+import { EmptyState } from "../ui/EmptyState";
+import { TextField } from "../ui/Field";
+import { PanelHeader } from "../ui/PanelHeader";
 import { MAC } from "../platform";
 import { shortcutTip } from "./TooltipLayer";
 import { LuAlarmClock as AlarmClock, LuPause as Pause, LuPlay as Play, LuPlus as Plus, LuTrash2 as Trash2 } from "react-icons/lu";
@@ -113,19 +117,13 @@ export function lastRunLabel(automation: AutomationView, at: number) {
 
 function AutomationHeading({ status }: { status?: string }) {
   return (
-    <header className="agents-panel-heading">
-      <div><h2>Automation</h2></div>
-      {status && <span data-state={status === "Paused" ? "paused" : undefined}>{status}</span>}
-    </header>
+    <PanelHeader title="Automation" actions={status ? <span className="automation-status" data-state={status === "Paused" ? "paused" : undefined}>{status}</span> : undefined} />
   );
 }
 
 function ConditionField({ label, value, placeholder, onChange }: { label: string; value: string; placeholder: string; onChange: (value: string) => void }) {
   return (
-    <label className="automation-field">
-      <span>{label}</span>
-      <input value={value} placeholder={placeholder} onInput={(event) => onChange(event.currentTarget.value)} />
-    </label>
+    <TextField wrapClassName="automation-field" label={label} value={value} placeholder={placeholder} onInput={(event) => onChange(event.currentTarget.value)} />
   );
 }
 
@@ -133,13 +131,15 @@ function AutomationEmpty({ onCreate }: { onCreate: () => void }) {
   return (
     <section className="automation-panel" aria-label="Automation">
       <AutomationHeading />
-      <div className="agents-panel-empty">
-        <span className="agent-orb"><AlarmClock size={18} /></span>
-        <h2>No automation yet</h2>
-        <CommandButton command={{ type: "automation.save", draft: { prompt: "", schedule: "" } }} type="button" onClick={onCreate}>
-          <Plus size={14} aria-hidden="true" />New schedule
-        </CommandButton>
-      </div>
+      <EmptyState
+        icon={<AlarmClock size={18} />}
+        title="No automation yet"
+        action={(
+          <CommandButton command={{ type: "automation.save", draft: { prompt: "", schedule: "" } }} variant="soft" icon={<Plus size={14} aria-hidden="true" />} onClick={onCreate}>
+            New schedule
+          </CommandButton>
+        )}
+      />
     </section>
   );
 }
@@ -224,31 +224,30 @@ export function AutomationPanel({ automation, edit, lastFoundAt, lastChecked, on
         event.stopPropagation();
         cancelCreate();
       }}>
-        <div className="automation-field">
-          <label htmlFor={scheduleId}>Schedule</label>
-          <input
-            id={scheduleId}
-            className="automation-schedule"
-            value={schedule}
-            aria-invalid={readout?.error}
-            aria-describedby={readout ? `${scheduleId}-readout` : undefined}
-            placeholder="0 8 * * *"
-            spellCheck={false}
-            autoFocus={!automation}
-            onInput={(event) => setSchedule(event.currentTarget.value)}
-          />
-          {readout && <small id={`${scheduleId}-readout`} className={readout.error ? "error" : undefined}>{readout.text}</small>}
-        </div>
+        <TextField
+          wrapClassName="automation-field"
+          label="Schedule"
+          hint={readout && !readout.error ? readout.text : undefined}
+          error={readout?.error ? readout.text : undefined}
+          id={scheduleId}
+          className="automation-schedule"
+          mono
+          value={schedule}
+          placeholder="0 8 * * *"
+          spellCheck={false}
+          autoFocus={!automation}
+          onInput={(event) => setSchedule(event.currentTarget.value)}
+        />
 
-        <label className="automation-field">
-          <span>Prompt</span>
-          <textarea
-            value={prompt}
-            rows={10}
-            placeholder={automation ? undefined : "What each run should do"}
-            onInput={(event) => setPrompt(event.currentTarget.value)}
-          />
-        </label>
+        <TextField
+          multiline
+          wrapClassName="automation-field"
+          label="Prompt"
+          value={prompt}
+          rows={10}
+          placeholder={automation ? undefined : "What each run should do"}
+          onInput={(event) => setPrompt(event.currentTarget.value)}
+        />
 
         {oneShot ? null : (
           <ConditionField label="Notify me when" value={surfaceWhen} placeholder="Every run" onChange={setSurfaceWhen} />
@@ -264,17 +263,23 @@ export function AutomationPanel({ automation, edit, lastFoundAt, lastChecked, on
 
         {automation ? (
           <div className="automation-actions">
-            <CommandButton command={{ type: "automation.update", patch }} type="button" className="automation-save primary" aria-keyshortcuts={MAC ? "Meta+Enter" : "Control+Enter"} data-tip={shortcutTip("Save", "Mod+Enter")} disabled={!canSave} onClick={() => onUpdate(patch)}>Save</CommandButton>
-            <CommandButton command={{ type: "automation.run-now" }} type="button" onClick={onRunNow}>Run now</CommandButton>
-            <CommandButton command={{ type: "automation.update", patch: { paused: !automation.paused } }} type="button" aria-label={automation.paused ? "Resume automation" : "Pause automation"} onClick={() => onUpdate({ paused: !automation.paused })}>
-              {automation.paused ? <Play size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}{automation.paused ? "Resume" : "Pause"}
+            <CommandButton command={{ type: "automation.update", patch }} className="automation-save" variant="primary" aria-keyshortcuts={MAC ? "Meta+Enter" : "Control+Enter"} data-tip={shortcutTip("Save", "Mod+Enter")} disabled={!canSave} onClick={() => onUpdate(patch)}>Save</CommandButton>
+            <CommandButton command={{ type: "automation.run-now" }} variant="secondary" onClick={onRunNow}>Run now</CommandButton>
+            <CommandButton
+              command={{ type: "automation.update", patch: { paused: !automation.paused } }}
+              variant="secondary"
+              icon={automation.paused ? <Play size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}
+              aria-label={automation.paused ? "Resume automation" : "Pause automation"}
+              onClick={() => onUpdate({ paused: !automation.paused })}
+            >
+              {automation.paused ? "Resume" : "Pause"}
             </CommandButton>
-            <ConfirmAction className="automation-remove" aria-label="Remove automation" data-tip={canDelete ? "Remove" : REMOTE_UNSUPPORTED} disabled={!canDelete} confirm="Remove" onConfirm={onDelete}><Trash2 size={14} aria-hidden="true" /></ConfirmAction>
+            <ConfirmAction className="automation-remove" aria-label="Remove automation" data-tip={canDelete ? "Remove" : REMOTE_UNSUPPORTED} disabled={!canDelete} confirm="Remove" onConfirm={onDelete} icon={<Trash2 size={14} aria-hidden="true" />} />
           </div>
         ) : (
           <div className="automation-actions">
-            <CommandButton command={{ type: "automation.save", draft }} type="button" className="automation-save primary" aria-keyshortcuts={MAC ? "Meta+Enter" : "Control+Enter"} data-tip={shortcutTip("Create", "Mod+Enter")} disabled={!canSave}>Create</CommandButton>
-            <button type="button" onClick={cancelCreate}>Cancel</button>
+            <CommandButton command={{ type: "automation.save", draft }} className="automation-save" variant="primary" aria-keyshortcuts={MAC ? "Meta+Enter" : "Control+Enter"} data-tip={shortcutTip("Create", "Mod+Enter")} disabled={!canSave}>Create</CommandButton>
+            <Button onClick={cancelCreate}>Cancel</Button>
           </div>
         )}
       </div>

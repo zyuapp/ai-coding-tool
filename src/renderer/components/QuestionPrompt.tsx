@@ -1,5 +1,8 @@
 import { useId, useState } from "react";
 import type { PendingQuestion } from "../../domain/agent-question";
+import { Button } from "../ui/Button";
+import { TextField } from "../ui/Field";
+import "../ui/glass.css";
 import "./question-prompt.css";
 
 export function QuestionPrompt({ question, answer, disabled = false, submitOnEnter = true, onAnswerChange, onSubmit }: {
@@ -25,7 +28,7 @@ export function QuestionPrompt({ question, answer, disabled = false, submitOnEnt
   const chosen = !typed && question.options.some((option) => option.label === answer);
   const overridden = chosen && draft.trim() !== "";
   return (
-    <form className="question-prompt" aria-label="Pending question" onSubmit={(event) => {
+    <form className="glass-float question-prompt" data-tone="accent" aria-label="Pending question" onSubmit={(event) => {
       event.preventDefault();
       if (!unavailable && answer.trim()) onSubmit();
     }}>
@@ -36,7 +39,7 @@ export function QuestionPrompt({ question, answer, disabled = false, submitOnEnt
         </div>
         <p id={id}>{question.question}</p>
         {question.options.length > 0 && <div className="question-options" role="radiogroup" aria-labelledby={id}>
-          {question.options.map((option, index) => <label className="question-option" key={index}>
+          {question.options.map((option, index) => <label className="question-option raised" key={index}>
             <input type="radio" name={id} value={option.label} checked={chosen && answer === option.label} disabled={unavailable} onChange={() => { setTyped(false); onAnswerChange(option.label); }} onKeyDown={(event) => {
               if (submitOnEnter && event.key === "Enter" && event.currentTarget.checked) {
                 event.preventDefault();
@@ -48,8 +51,9 @@ export function QuestionPrompt({ question, answer, disabled = false, submitOnEnt
         </div>}
       </div>
       <div className="question-answer">
-        <label htmlFor={`${id}-answer`}>Your answer</label>
-        <textarea
+        <TextField
+          multiline
+          label="Your answer"
           id={`${id}-answer`}
           value={chosen ? draft : answer}
           className={overridden ? "overridden" : undefined}
@@ -69,9 +73,9 @@ export function QuestionPrompt({ question, answer, disabled = false, submitOnEnt
             }
           }}
         />
-        <button type="submit" disabled={unavailable || !answer.trim()}>
+        <Button type="submit" variant="inverse" disabled={unavailable || !answer.trim()}>
           {question.submitting ? "Sending…" : "Send answer"}
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -1,0 +1,48 @@
+/**
+ * A panel's head is one row as tall as the window's chrome, so its lower edge meets the top bar's.
+ * A panel inset from the chrome sets `--panel-header-height` to what it has left.
+ */
+.panel-header {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--panel-header-height, var(--chrome-head));
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--line);
+  padding: 0 20px;
+}
+.panel-header-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 11px; }
+.panel-header-icon { flex: none; display: grid; place-items: center; }
+.panel-header-text { min-width: 0; }
+.panel-header-text > h2 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: var(--text-heading);
+  font-weight: 580;
+  letter-spacing: -0.018em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panel-header-text > p {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--quiet);
+  font-size: var(--text-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panel-header-actions { flex: none; display: flex; align-items: center; gap: 6px; }
+/** Pulled toward the edge so the icon, not the button, sits the padding's width in. */
+.panel-header-close { flex: none; margin-right: -3px; }
+
+/** A strip of 28px icon buttons and fields under a panel's head. */
+.toolbar {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--line-soft);
+  padding: 8px 10px;
+}

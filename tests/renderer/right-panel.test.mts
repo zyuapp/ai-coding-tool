@@ -158,7 +158,7 @@ test("a side chat composes with everything the main composer has", async () => {
   assert.equal(query(item(settings[0]), "summary").getAttribute("aria-label"), "Permission mode: Edits", "the chip says its current value aloud");
   assert.equal(query(item(settings[0]), ".setting-value").textContent, "Edits", "the chat's own policy is selected, not the first one on offer");
   await act(async () => { query<HTMLElement>(item(settings[0]), "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  await act(async () => { item([...item(settings[0]).querySelectorAll<HTMLButtonElement>(".setting-option")].find((option) => option.textContent.includes("Auto"))).click(); });
+  await act(async () => { item([...item(settings[0]).querySelectorAll<HTMLButtonElement>('.setting-popover [role="option"]')].find((option) => option.textContent.includes("Auto"))).click(); });
   assert.deepEqual(policies, ["autonomous"]);
 
   const approval = query(view.container, ".approval-card");

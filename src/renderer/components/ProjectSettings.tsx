@@ -1,7 +1,10 @@
 import { LuPlus as Plus } from "react-icons/lu";
 import type { ProjectSettingsRow } from "../../application/project-settings";
 import { projectName } from "../../domain/project";
-import { ConfirmAction, useRowListFocus } from "./SettingRow";
+import { SettingRowBase, useRowListFocus } from "./SettingRow";
+import { SettingsPage, SettingsSection } from "./SettingsLayout";
+import { Button } from "../ui/Button";
+import { ConfirmAction } from "../ui/ConfirmAction";
 
 export type ProjectSettingsProps = {
   rows: ProjectSettingsRow[];
@@ -21,40 +24,24 @@ function removeLabel(threads: number) {
 export function ProjectSettings({ rows, error, onDismissError, onAdd, onEdit, onRemove }: ProjectSettingsProps) {
   const focus = useRowListFocus<HTMLElement>();
   return (
-    <main className="settings-main">
-      <div className="settings-page-heading">
-        <h2>Projects</h2>
-        <p>The folders threads start in.</p>
-      </div>
-
-      <section ref={focus.ref} onClickCapture={focus.onClickCapture} className="settings-group" aria-labelledby="projects-heading">
-        <div className="settings-group-heading">
-          <div><h3 id="projects-heading">{rows.length === 1 ? "1 project" : `${rows.length} projects`}</h3></div>
-          <div className="settings-group-action">
-            <button type="button" onClick={onAdd}><Plus size={14} aria-hidden="true" />Add project</button>
-          </div>
-        </div>
-
-        {error && <p className="settings-error" role="alert">{error}<button type="button" className="settings-empty-action" onClick={onDismissError}>Dismiss</button></p>}
+    <SettingsPage title="Projects" description="The folders threads start in.">
+      <SettingsSection ref={focus.ref} onClickCapture={focus.onClickCapture} title={rows.length === 1 ? "1 project" : `${rows.length} projects`}
+        action={<Button icon={<Plus size={14} aria-hidden="true" />} onClick={onAdd}>Add project</Button>}>
+        {error && <p className="settings-error" role="alert">{error}<Button variant="link" className="settings-empty-action" onClick={onDismissError}>Dismiss</Button></p>}
         {rows.length === 0
           ? <p className="settings-empty">No projects yet.</p>
           : rows.map(({ project, host, threads }) => {
             const name = projectName(project);
             return (
-              <div className="setting-row plain" key={`${host?.id ?? "this"}:${project.id}`}>
-                <div>
-                  <strong>{name}</strong>
-                  <p className="project-settings-path">{host ? `${host.name}${host.offline ? ` (${host.reconnecting ? "reconnecting" : "offline"})` : ""} · ${project.root}` : project.root}</p>
-                </div>
+              <SettingRowBase key={`${host?.id ?? "this"}:${project.id}`} title={name} actionClassName="project-actions"
+                description={<p className="project-settings-path">{host ? `${host.name}${host.offline ? ` (${host.reconnecting ? "reconnecting" : "offline"})` : ""} · ${project.root}` : project.root}</p>}>
                 {/** A paired computer's project is edited on that computer, and removed only while it answers. */}
-                <div className="setting-row-action project-actions">
-                  {!host && <button type="button" aria-label={`Edit ${name}`} onClick={() => onEdit(project.id)}>Edit…</button>}
-                  <ConfirmAction className="danger" aria-label={`Remove ${name}`} disabled={host?.offline} confirm={removeLabel(threads)} onConfirm={() => onRemove(project.id)}>Remove</ConfirmAction>
-                </div>
-              </div>
+                {!host && <Button aria-label={`Edit ${name}`} onClick={() => onEdit(project.id)}>Edit…</Button>}
+                <ConfirmAction variant="danger" aria-label={`Remove ${name}`} disabled={host?.offline} confirm={removeLabel(threads)} onConfirm={() => onRemove(project.id)}>Remove</ConfirmAction>
+              </SettingRowBase>
             );
           })}
-      </section>
-    </main>
+      </SettingsSection>
+    </SettingsPage>
   );
 }

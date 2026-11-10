@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { LuCircleAlert as Alert, LuCircleCheck as Check, LuDownload as Download, LuLoaderCircle as Loader, LuX as X } from "react-icons/lu";
 import type { Toast, ToastAction, ToastTone } from "../../domain/toast";
+import { Button, IconButton } from "../ui/Button";
+import "../ui/glass.css";
 
 const ICONS: Record<ToastTone, typeof Check> = { update: Download, progress: Loader, success: Check, error: Alert };
 
@@ -62,7 +64,7 @@ export function Toasts({ toasts, onDismiss, onAction, onHold }: ToastsProps) {
         return (
           <div
             key={toast.id}
-            className={`toast ${toast.tone}`}
+            className={`glass-float toast ${toast.tone}`}
             role={toast.tone === "error" ? "alert" : "status"}
             onKeyDown={(event) => {
               if (event.key !== "Escape") return;
@@ -75,11 +77,11 @@ export function Toasts({ toasts, onDismiss, onAction, onHold }: ToastsProps) {
             <div className="toast-text">
               <strong>{toast.title}</strong>
               {toast.message && <ToastMessage text={toast.message} />}
-              {toast.action && <button type="button" className="toast-action" onClick={() => onAction(toast.action!.command)}>{toast.action.label}</button>}
+              {toast.action && <Button variant="inverse" className="toast-action" onClick={() => onAction(toast.action!.command)}>{toast.action.label}</Button>}
             </div>
-            <button type="button" className="toast-close" aria-label="Dismiss" data-tip="Dismiss" onClick={(event) => dismiss(toast.id, event.currentTarget.closest<HTMLElement>(".toast")!)}>
+            <IconButton className="toast-close" label="Dismiss" onClick={(event) => dismiss(toast.id, event.currentTarget.closest<HTMLElement>(".toast")!)}>
               <X size={14} aria-hidden="true" />
-            </button>
+            </IconButton>
           </div>
         );
       })}

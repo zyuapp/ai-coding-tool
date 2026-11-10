@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { keyboardFocusVisible } from "../focus-appearance";
 import { displayShortcut } from "../../domain/shortcuts";
 import { MAC } from "../platform";
+import { Kbd } from "../ui/Kbd";
+import "../ui/glass.css";
 
 /**
  * One tooltip for the whole window, moved to whatever the pointer is resting on. Controls opt in with
@@ -41,7 +43,7 @@ function TipText({ text }: { text: string }) {
     return (
       <Fragment key={index}>
         {index > 0 && " · "}
-        {keys ? <>{part.slice(0, match!.index)} <kbd className="tooltip-keys">{keys}</kbd></> : part}
+        {keys ? <>{part.slice(0, match!.index)} <Kbd size="inline" keys={[keys]} /></> : part}
       </Fragment>
     );
   });
@@ -204,5 +206,5 @@ export function TooltipLayer() {
   }, [tip]);
 
   if (!tip) return null;
-  return createPortal(<div className="tooltip" role="tooltip" id={id} ref={box} data-hoverable={tip.hoverable}><TipText text={tip.text} /></div>, document.body);
+  return createPortal(<div className="glass-popover tooltip" role="tooltip" id={id} ref={box} data-hoverable={tip.hoverable}><TipText text={tip.text} /></div>, document.body);
 }

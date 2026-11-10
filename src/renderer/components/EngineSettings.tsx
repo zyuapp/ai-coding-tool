@@ -1,11 +1,13 @@
 import { LuRefreshCw as RefreshCw } from "react-icons/lu";
-import { SettingGroup } from "./SettingRow";
-import { settingControl } from "../../domain/settings-catalog";
+import { SettingRowBase } from "./SettingRow";
+import { SettingsPage, SettingsSection } from "./SettingsLayout";
+import { Button } from "../ui/Button";
 import { AGENT_ENGINES, engineLabel, engineNotice, engineStatusLine, engineStatusWord, engineUpdate, type AgentEngine, type EngineReadiness } from "../../domain/agent-engine";
 import type { WorkspaceState } from "../../application/workspace-state";
 import { CopyButton } from "./CopyButton";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { SpinningIcon } from "./SpinningIcon";
+import "../ui/glass.css";
 
 export type EngineSettingsProps = {
   engineAccess: Record<AgentEngine, EngineReadiness>;
@@ -33,35 +35,19 @@ function reloadLine(status: EngineSettingsProps["reloadStatus"], error: string |
 
 export function EngineSettings({ engineAccess, checking, updating, onRefresh, onSignIn, onUpdate, reloadStatus, reloadError, onReload }: EngineSettingsProps) {
   return (
-    <main className="settings-main">
-      <div className="settings-page-heading">
-        <h2>Engines</h2>
-        <p>AI Coding Tool runs the engines installed on this computer.</p>
-      </div>
-
-      <SettingGroup setting="engines.installed" aria-labelledby="engines-heading" aria-live="polite">
-        <div className="settings-group-heading">
-          <div>
-            <h3 id="engines-heading">{settingControl("engines.installed").label}</h3>
-            <p>Install an engine in your terminal, then check again here.</p>
-          </div>
-          <div className="settings-group-action">
-            <button type="button" disabled={checking} aria-busy={checking} onClick={onRefresh}>
-              <SpinningIcon icon={RefreshCw} spinning={checking} size={14} aria-hidden="true" />{checking ? "Checking…" : "Check again"}
-            </button>
-          </div>
-        </div>
-
+    <SettingsPage title="Engines" description="AI Coding Tool runs the engines installed on this computer.">
+      <SettingsSection setting="engines.installed" description="Install an engine in your terminal, then check again here." aria-live="polite" action={
+        <Button disabled={checking} aria-busy={checking} onClick={onRefresh} icon={<SpinningIcon icon={RefreshCw} spinning={checking} size={14} aria-hidden="true" />}>{checking ? "Checking…" : "Check again"}</Button>
+      }>
         {AGENT_ENGINES.map((engine) => {
           const readiness = engineAccess[engine];
           const notice = engineNotice(engine, readiness);
           const update = engineUpdate(readiness);
           const ready = !notice && readiness.access === "ready";
           return (
-            <div className="setting-row engine-setting-row" key={engine}>
-              <span className="setting-glyph" aria-hidden="true"><ThreadEngineIcon engine={engine} size={16} /></span>
-              <div>
-                <strong>{engineLabel(engine)}</strong>
+            <SettingRowBase className="engine-setting-row" key={engine} title={engineLabel(engine)}
+              leading={<span className="setting-glyph" aria-hidden="true"><ThreadEngineIcon engine={engine} size={16} /></span>}
+              description={<>
                 <p>{engineStatusLine(engine, readiness)}</p>
                 {notice?.fix && !notice.updatable && (
                   <div className="setting-readiness">
@@ -69,34 +55,26 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
                     <CopyButton text={notice.fix} label={`Copy ${notice.fix}`} />
                   </div>
                 )}
-              </div>
-              <div className="setting-row-action">
-                {readiness.access === "signed-out"
-                  ? <button type="button" aria-label={`Sign in to ${engineLabel(engine)}`} onClick={() => onSignIn(engine)}>Sign in</button>
-                  : update?.command
-                    ? <button type="button" aria-label={`${updating === engine ? "Updating" : "Update"} ${engineLabel(engine)}`} disabled={updating !== null || checking} aria-busy={updating === engine} onClick={() => onUpdate(engine)}>
-                      {updating === engine && <RefreshCw size={14} aria-hidden="true" className="spinning" />}{updating === engine ? "Updating…" : "Update"}
-                    </button>
-                    : <span className={`setting-pill${ready ? " ready" : notice?.blocking ? " blocked" : ""}`}>{engineStatusWord(readiness)}</span>}
-              </div>
-            </div>
+              </>}>
+              {readiness.access === "signed-out"
+                ? <Button aria-label={`Sign in to ${engineLabel(engine)}`} onClick={() => onSignIn(engine)}>Sign in</Button>
+                : update?.command
+                  ? <Button aria-label={`${updating === engine ? "Updating" : "Update"} ${engineLabel(engine)}`} disabled={updating !== null || checking} aria-busy={updating === engine} onClick={() => onUpdate(engine)}
+                    icon={updating === engine ? <RefreshCw size={14} aria-hidden="true" className="spinning" /> : undefined}>
+                    {updating === engine ? "Updating…" : "Update"}
+                  </Button>
+                  : <span className={`setting-pill raised${ready ? " ready" : notice?.blocking ? " blocked" : ""}`}>{engineStatusWord(readiness)}</span>}
+            </SettingRowBase>
           );
         })}
-      </SettingGroup>
-      <SettingGroup setting="engines.agent-settings" aria-labelledby="agent-settings-heading">
-        <div className="settings-group-heading">
-          <div>
-            <h3 id="agent-settings-heading">{settingControl("engines.agent-settings").label}</h3>
-            <p>Apply changes to your engines' settings. Busy agents reload when their work finishes.</p>
-            <p role="status" className={`settings-status ${RELOAD_TONE[reloadStatus]}`}>{reloadLine(reloadStatus, reloadError)}</p>
-          </div>
-          <div className="settings-group-action">
-            <button type="button" onClick={onReload} disabled={reloadStatus === "reloading" || reloadStatus === "pending"} aria-busy={reloadStatus === "reloading"}>
-              <SpinningIcon icon={RefreshCw} spinning={reloadStatus === "reloading"} size={14} aria-hidden="true" />{reloadStatus === "reloading" ? "Reloading…" : "Reload agent settings"}
-            </button>
-          </div>
-        </div>
-      </SettingGroup>
-    </main>
+      </SettingsSection>
+      <SettingsSection setting="engines.agent-settings" description="Apply changes to your engines' settings. Busy agents reload when their work finishes."
+        detail={<p role="status" className={`settings-status ${RELOAD_TONE[reloadStatus]}`}>{reloadLine(reloadStatus, reloadError)}</p>}
+        action={
+          <Button onClick={onReload} disabled={reloadStatus === "reloading" || reloadStatus === "pending"} aria-busy={reloadStatus === "reloading"} icon={<SpinningIcon icon={RefreshCw} spinning={reloadStatus === "reloading"} size={14} aria-hidden="true" />}>
+            {reloadStatus === "reloading" ? "Reloading…" : "Reload agent settings"}
+          </Button>
+        } />
+    </SettingsPage>
   );
 }

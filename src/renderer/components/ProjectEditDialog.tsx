@@ -1,9 +1,14 @@
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useId, useRef, useState } from "react";
 import { LuFolderOpen as FolderOpen } from "react-icons/lu";
 import type { ProjectEditorView } from "../../application/workspace-state";
 import { folderName } from "../../domain/project";
-import { useModalFocus } from "../focus";
+import { Button } from "../ui/Button";
+import { Dialog } from "../ui/Dialog";
+import { FieldGroup, TextField } from "../ui/Field";
+
+export function ChooseFolderButton({ disabled, onClick }: { disabled?: boolean; onClick: () => void }) {
+  return <Button icon={<FolderOpen size={14} aria-hidden="true" />} disabled={disabled} onClick={onClick}>Choose folder…</Button>;
+}
 
 export type ProjectEditDialogProps = {
   editor: ProjectEditorView;
@@ -13,30 +18,15 @@ export type ProjectEditDialogProps = {
 
 export function ProjectEditDialog({ editor, onSave, onClose }: ProjectEditDialogProps) {
   const { project, checkouts, saving, error } = editor;
-  const dialog = useRef<HTMLDivElement>(null);
   const nameField = useRef<HTMLInputElement>(null);
+  const folderId = useId();
   const [name, setName] = useState(project.name ?? "");
   const [root, setRoot] = useState(project.root);
   const [pickError, setPickError] = useState<string | null>(null);
-  useModalFocus(dialog);
-  useEffect(() => {
-    nameField.current?.focus();
-    nameField.current?.select();
-  }, []);
-
-  /** Escape closes the editor rather than reaching the window, which would answer it by stopping a run. */
-  useEffect(() => {
-    function close(event: KeyboardEvent) {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      event.preventDefault();
-      onClose();
-    }
-    document.addEventListener("keydown", close);
-    return () => document.removeEventListener("keydown", close);
-  }, [onClose]);
 
   const trimmedRoot = root.trim();
   const unchanged = trimmedRoot === project.root && name.trim() === (project.name ?? "");
+  const problem = error || pickError;
 
   function save() {
     if (!trimmedRoot || saving) return;
@@ -44,63 +34,43 @@ export function ProjectEditDialog({ editor, onSave, onClose }: ProjectEditDialog
     onSave({ name: name.trim() || null, root: trimmedRoot });
   }
 
-  return createPortal(
-    <div
-      className="modal-scrim"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Edit ${project.name ?? folderName(project.root)}`}
-      ref={dialog}
-      tabIndex={-1}
-      onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+  return (
+    <Dialog
+      as="form"
+      label={`Edit ${project.name ?? folderName(project.root)}`}
+      title="Edit project"
+      onClose={onClose}
+      onSubmit={save}
+      initialFocus={nameField}
+      aria-busy={saving}
+      actions={<>
+        <Button size="lg" onClick={onClose}>Cancel</Button>
+        <Button type="submit" variant="primary" size="lg" disabled={!trimmedRoot || saving}>{saving ? "Saving…" : "Save"}</Button>
+      </>}
     >
-      <form
-        className="modal-panel project-edit-panel"
-        aria-busy={saving}
-        onSubmit={(event) => {
-          event.preventDefault();
-          save();
-        }}
-      >
-        <h2>Edit project</h2>
-        <label className="project-edit-field">
-          <span>Name</span>
-          <input
-            ref={nameField}
-            value={name}
-            placeholder={folderName(trimmedRoot || project.root)}
-            readOnly={saving}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-        <label className="project-edit-field">
-          <span>Folder</span>
-          <div className="project-edit-path">
-            <input value={root} spellCheck={false} readOnly={saving} onChange={(event) => { setRoot(event.target.value); setPickError(null); }} />
-            {/** The picker only fills the field; nothing moves until the folder is saved. */}
-            <button type="button" disabled={saving} onClick={() => {
-              setPickError(null);
-              window.desktop.openFolder().then(
-                (chosen) => { if (chosen) setRoot(chosen.root); },
-                (reason: unknown) => setPickError(reason instanceof Error ? reason.message : "Couldn't open the folder picker."),
-              );
-            }}>
-              <FolderOpen size={14} aria-hidden="true" />Choose folder…
-            </button>
-          </div>
-        </label>
-        {(error || pickError) && <p className="project-edit-error" role="alert">{error || pickError}</p>}
-        {!error && !pickError && checkouts > 0 && trimmedRoot !== project.root && (
-          <p className="project-edit-note">
-            {checkouts === 1 ? "1 worktree stays" : `${checkouts} worktrees stay`} where they are: they are checkouts of the folder this project is leaving.
-          </p>
-        )}
-        <div className="project-edit-actions">
-          <button type="button" onClick={onClose}>Cancel</button>
-          <button type="submit" className="primary" disabled={!trimmedRoot || saving}>{saving ? "Saving…" : "Save"}</button>
+      <TextField
+        ref={nameField}
+        label="Name"
+        value={name}
+        placeholder={folderName(trimmedRoot || project.root)}
+        readOnly={saving}
+        onChange={(event) => setName(event.target.value)}
+      />
+      <FieldGroup label="Folder" htmlFor={folderId} error={problem} announce
+        hint={!problem && checkouts > 0 && trimmedRoot !== project.root
+          && `${checkouts === 1 ? "1 worktree stays" : `${checkouts} worktrees stay`} where they are: they are checkouts of the folder this project is leaving.`}>
+        <div className="project-edit-path">
+          <TextField id={folderId} value={root} spellCheck={false} readOnly={saving} onChange={(event) => { setRoot(event.target.value); setPickError(null); }} />
+          {/** The picker only fills the field; nothing moves until the folder is saved. */}
+          <ChooseFolderButton disabled={saving} onClick={() => {
+            setPickError(null);
+            window.desktop.openFolder().then(
+              (chosen) => { if (chosen) setRoot(chosen.root); },
+              (reason: unknown) => setPickError(reason instanceof Error ? reason.message : "Couldn't open the folder picker."),
+            );
+          }} />
         </div>
-      </form>
-    </div>,
-    document.body,
+      </FieldGroup>
+    </Dialog>
   );
 }

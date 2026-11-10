@@ -1,6 +1,8 @@
 import { LuMaximize2 as Maximize } from "react-icons/lu";
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
-import { BlockError, BlockViewer, OpenVisual, VisualViewer } from "./VisualBlock";
+import { BlockError, OpenVisual, VisualViewer } from "./VisualBlock";
+import { IconButton } from "../ui/Button";
+import { Viewer } from "../ui/Dialog";
 import { ZoomControls, useZoom } from "./ZoomView";
 import { SweepBand } from "./SweepBand";
 
@@ -72,7 +74,7 @@ function drawnAt(diagram: Diagram, scale: number): CSSProperties {
 export function DiagramViewer({ diagram, onClose }: { diagram: Diagram; onClose: () => void }) {
   const zoom = useZoom(diagram.width ? diagram : null);
   return (
-    <BlockViewer label="Diagram" className="diagram" controls={<ZoomControls zoom={zoom} />} onClose={onClose}>
+    <Viewer label="Diagram" className="diagram" controls={<ZoomControls zoom={zoom} />} onClose={onClose}>
       <div ref={zoom.stage} className="viewer-stage">
         <div
           className="mermaid-svg"
@@ -81,7 +83,7 @@ export function DiagramViewer({ diagram, onClose }: { diagram: Diagram; onClose:
           dangerouslySetInnerHTML={{ __html: diagram.markup }}
         />
       </div>
-    </BlockViewer>
+    </Viewer>
   );
 }
 
@@ -282,9 +284,9 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
         ) : null}
       </div>
       {drawing && open && (
-        <button type="button" className="diagram-expand" aria-label="Open the diagram at full size" data-tip="Full size" onClick={() => open({ diagram: current.diagram!, source, room: host.current?.clientWidth ?? 0 })}>
+        <IconButton variant="glass" className="diagram-expand" label="Open the diagram at full size" tip="Full size" onClick={() => open({ diagram: current.diagram!, source, room: host.current?.clientWidth ?? 0 })}>
           <Maximize size={14} aria-hidden="true" />
-        </button>
+        </IconButton>
       )}
     </>
   );

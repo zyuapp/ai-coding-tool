@@ -35,7 +35,7 @@ test("a right-click menu draws its groups, its rules, and the keystrokes its ite
   assert.deepEqual(items(document).map((button) => button.textContent), ["Rename", "Move to folder", "Copy link", "Archive⌫"]);
   assert.equal(document.querySelectorAll(".context-menu-popover > .menu-separator").length, 1);
   assert.equal(items(document)[1]!.getAttribute("aria-haspopup"), "menu");
-  assert.equal(items(document)[3]!.className, "danger-menu-item");
+  assert.ok(items(document)[3]!.hasAttribute("data-danger"));
   await view.unmount();
 });
 
@@ -64,8 +64,8 @@ test("an item with a list of its own opens it under the pointer, and leaves the 
   assert.deepEqual(items(submenu, "button").map((button) => button.textContent), ["No folder", "api"]);
   assert.equal(document.activeElement?.textContent, "Move to folder", "hovering it does not put the keyboard inside it");
   assert.equal(items(submenu, "button")[0]!.getAttribute("aria-checked"), "true", "the folder it is already in is ticked");
-  assert.equal(submenu.classList.contains("menu-checkable"), true);
-  assert.equal(menu.classList.contains("menu-checkable"), false, "only a list that has ticks makes room for them");
+  assert.equal(submenu.hasAttribute("data-checkable"), true);
+  assert.equal(menu.hasAttribute("data-checkable"), false, "only a list that has ticks makes room for them");
   await view.unmount();
 });
 

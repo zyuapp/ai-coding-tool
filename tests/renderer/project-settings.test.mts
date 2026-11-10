@@ -28,7 +28,7 @@ test("Settings lists a Projects page, and choosing it shows the projects", async
   const page = button(nav, "Projects");
   await act(async () => { page.click(); });
   assert.equal(page.getAttribute("aria-current"), "page");
-  assert.equal(query(view.container, "#projects-heading").textContent, "1 project");
+  assert.equal(query(view.container, ".settings-group h3").textContent, "1 project");
   assert.equal(query(view.container, ".settings-page-heading h2").textContent, "Projects");
   assert.deepEqual([...view.container.querySelectorAll(".settings-group .setting-row strong")].map((title) => title.textContent), ["web"]);
   await view.unmount();
@@ -46,7 +46,7 @@ test("rows are drawn in the order given, with a paired computer's named before i
   const rows = [...view.container.querySelectorAll(".settings-group .setting-row")];
   assert.deepEqual(rows.map((row) => row.querySelector("strong")?.textContent), ["Alpha app", "zeta", "ml"]);
   assert.deepEqual(rows.map((row) => row.querySelector("p")?.textContent), ["/work/alpha", "/work/zeta", "linux-box · /linux/ml"]);
-  assert.equal(query(view.container, "#projects-heading").textContent, "3 projects");
+  assert.equal(query(view.container, ".settings-group h3").textContent, "3 projects");
   await view.unmount();
 });
 

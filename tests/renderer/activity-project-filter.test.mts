@@ -42,7 +42,7 @@ test("the Priority view's project menu is searched by project or computer name, 
     assert.deepEqual(labels(), ["ml-pipelinelinux-box"], "the computer's name finds its projects");
     await type("nothing here");
     assert.deepEqual(labels(), []);
-    assert.equal(query(document, ".activity-filter-menu .menu-empty").textContent, "No matches");
+    assert.equal(query(document, ".activity-filter-menu .menu-note").textContent, "No matches");
 
     await type("bill");
     await press(field, "ArrowDown");

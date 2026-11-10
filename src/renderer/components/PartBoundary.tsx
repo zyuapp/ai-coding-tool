@@ -2,6 +2,7 @@ import { Component, createRef, useEffect, useRef, useState, type ErrorInfo, type
 import { LuCircleAlert as CircleAlert } from "react-icons/lu";
 import { copyText } from "../clipboard";
 import { firstFocusable } from "../focus";
+import { Button } from "../ui/Button";
 
 type PartBoundaryProps = {
   /** What the part is called where its failure is logged. */
@@ -21,13 +22,13 @@ function CopyError({ text }: { text: string }) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current !== null) clearTimeout(timer.current); }, []);
   return (
-    <button type="button" className="part-fallback-copy" onClick={() => {
+    <Button variant="ghost" className="part-fallback-copy" onClick={() => {
       void copyText(text).then((copied) => {
         setResult(copied ? "Copied" : "Copy failed");
         if (timer.current !== null) clearTimeout(timer.current);
         timer.current = setTimeout(() => setResult(null), COPIED_MS);
       });
-    }}>{result ?? "Copy error"}</button>
+    }}>{result ?? "Copy error"}</Button>
   );
 }
 
@@ -76,7 +77,7 @@ export class PartBoundary extends Component<PartBoundaryProps, { failed: boolean
       <div ref={this.fallback} className={this.props.className}>
         <div className="part-fallback" role="status">
           <p><CircleAlert size={16} aria-hidden="true" />This part couldn’t be shown.</p>
-          <button type="button" onClick={this.retry}>Try again</button>
+          <Button onClick={this.retry}>Try again</Button>
           {this.state.error && <CopyError text={`The ${this.props.name} could not be shown.\n${this.state.error}`} />}
         </div>
       </div>

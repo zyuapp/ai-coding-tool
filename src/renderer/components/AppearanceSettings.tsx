@@ -1,4 +1,4 @@
-import { LuCheck as Check, LuChevronDown as ChevronDown, LuCornerDownLeft as Enter, LuMinus as Minus, LuMoon as Moon, LuPlus as Plus, LuSearch as Search, LuSun as Sun, LuSunMoon as SunMoon } from "react-icons/lu";
+import { LuCheck as Check, LuChevronDown as ChevronDown, LuCornerDownLeft as Enter, LuMinus as Minus, LuMoon as Moon, LuPlus as Plus, LuSun as Sun, LuSunMoon as SunMoon } from "react-icons/lu";
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { THEMES, themeFamilies, themeFor, themeOrDefault, type Theme, type ThemeMode } from "../../domain/theme";
 import {
@@ -16,7 +16,9 @@ import {
 } from "../../domain/typography";
 import { canReadInstalledFonts, readInstalledFonts } from "../system-fonts";
 import { SettingRow } from "./SettingRow";
-import { moveListFocus } from "../focus";
+import { MenuGroup, MenuItem, MenuNote, MenuScroll, MenuSearch, MenuSurface, useListKeys } from "../ui/Menu";
+import { SettingsSection } from "./SettingsLayout";
+import { Segmented } from "../ui/Button";
 
 export type AppearanceSettingsProps = {
   /** The theme in effect, by id, whose ground is the one the theme tiles are drawn on. */
@@ -63,19 +65,6 @@ function ThemeSwatch({ id }: { id: string }) {
       <i /><i /><i /><i />
     </span>
   );
-}
-
-/** Left and Right, or Up and Down, choose the next segment along, wrapping at the ends, and take the keyboard to it. */
-function moveSegment(event: KeyboardEvent<HTMLElement>) {
-  const step = ({ ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 } as Record<string, number>)[event.key];
-  if (step === undefined) return;
-  const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button")];
-  const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
-  if (at === -1) return;
-  event.preventDefault();
-  const next = buttons[(at + step + buttons.length) % buttons.length]!;
-  next.focus();
-  next.click();
 }
 
 /** The mark on the option Enter in the search picks. */
@@ -166,19 +155,8 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {open && (
-        <div className="theme-select-popover" onKeyDown={(event) => moveGridFocus(event, search.current, target ? null : chosen.current)}>
-          <label className="font-select-search">
-            <Search size={14} aria-hidden="true" />
-            <input
-              ref={search}
-              type="search"
-              value={query}
-              placeholder="Search themes"
-              aria-label="Search themes"
-              onInput={(event) => setQuery(event.currentTarget.value)}
-              onKeyDown={(event) => { if (event.key === "Enter" && target) choose(target); }}
-            />
-          </label>
+        <MenuSurface className="theme-select-popover" onKeyDown={(event) => moveGridFocus(event, search.current, target ? null : chosen.current)}>
+          <MenuSearch inputRef={search} label="Search themes" value={query} onChange={setQuery} onSubmit={() => { if (target) choose(target); }} />
           <div className="theme-choices compact" role="listbox" aria-label="Theme">
             {families.map((family) => {
               const option = themeFor(family, current.variant);
@@ -205,8 +183,8 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
               );
             })}
           </div>
-          {!families.length && <p className="font-select-note">No theme here is called that.</p>}
-        </div>
+          {!families.length && <MenuNote>No theme here is called that.</MenuNote>}
+        </MenuSurface>
       )}
     </div>
   );
@@ -257,6 +235,7 @@ function FontSelect({ axis, label, chosen, onChoose }: {
   const wrapper = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const listKeys = useListKeys();
 
   useEffect(() => { if (open) search.current?.focus(); }, [open]);
 
@@ -288,19 +267,18 @@ function FontSelect({ axis, label, chosen, onChoose }: {
   const first = !term ? undefined : families[0]?.id ?? (shown.length ? customFontId(shown[0]!) : undefined);
 
   const option = (id: string, name: string) => (
-    <li key={id} role="none">
-      <button
-        type="button"
-        role="option"
-        aria-selected={id === current.id}
-        className={[id === current.id && "chosen", id === first && "next"].filter(Boolean).join(" ") || undefined}
-        onClick={() => choose(id)}
-        {...faceProps(axis, id)}
-      >
-        <span>{name}</span>
-        {id === first ? <EnterMark /> : id === current.id && <Check size={14} aria-hidden="true" />}
-      </button>
-    </li>
+    <MenuItem
+      key={id}
+      role="option"
+      checked={id === current.id}
+      active={id === first}
+      className={id === first ? "next" : undefined}
+      shortcut={id === first ? <EnterMark /> : undefined}
+      onClick={() => choose(id)}
+      {...faceProps(axis, id)}
+    >
+      {name}
+    </MenuItem>
   );
 
   return (
@@ -320,28 +298,16 @@ function FontSelect({ axis, label, chosen, onChoose }: {
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {open && (
-        <div className="font-select-popover" onKeyDown={moveListFocus}>
-          <label className="font-select-search">
-            <Search size={14} aria-hidden="true" />
-            <input
-              ref={search}
-              type="search"
-              value={query}
-              placeholder="Search fonts"
-              aria-label={`Search fonts for ${label.toLowerCase()}`}
-              onInput={(event) => setQuery(event.currentTarget.value)}
-              onKeyDown={(event) => { if (event.key === "Enter" && first) choose(first); }}
-            />
-          </label>
-          <ul className="font-select-list" role="listbox" aria-label={label}>
+        <MenuSurface checkable className="font-select-popover" onKeyDown={listKeys}>
+          <MenuSearch inputRef={search} label={`Search fonts for ${label.toLowerCase()}`} placeholder="Search fonts" value={query} onChange={setQuery} onSubmit={() => { if (first) choose(first); }} />
+          <MenuScroll className="font-select-list" role="listbox" aria-label={label}>
             {families.map((font) => option(font.id, font.label))}
-            {shown.length > 0 && <li className="font-select-heading" role="none">On this computer</li>}
-            {shown.map((family) => option(customFontId(family), family))}
-          </ul>
-          {installed === "reading" && <p className="font-select-note">Reading installed fonts…</p>}
-          {extras.length > shown.length && <p className="font-select-note">Showing the first 100 of {extras.length}. Narrow the search to see the rest.</p>}
-          {!families.length && !shown.length && installed !== "reading" && <p className="font-select-note">No font here is called that.</p>}
-        </div>
+            {shown.length > 0 && <MenuGroup label="On this computer">{shown.map((family) => option(customFontId(family), family))}</MenuGroup>}
+          </MenuScroll>
+          {installed === "reading" && <MenuNote>Reading installed fonts…</MenuNote>}
+          {extras.length > shown.length && <MenuNote>Showing the first 100 of {extras.length}. Narrow the search to see the rest.</MenuNote>}
+          {!families.length && !shown.length && installed !== "reading" && <MenuNote>No font here is called that.</MenuNote>}
+        </MenuSurface>
       )}
     </div>
   );
@@ -427,49 +393,15 @@ export function AppearanceSettings({
 
   return (
     <>
-      <div className="settings-page-heading">
-        <h2>Appearance</h2>
-        <p>The window's colours, fonts, and text sizes. Every choice applies the moment you make it.</p>
-      </div>
-
-      <section className="settings-group" aria-labelledby="theme-heading">
-        <div className="settings-group-heading">
-          <div>
-            <h3 id="theme-heading">Theme</h3>
-            <p>Each theme comes in light and dark. Auto follows the system.</p>
-          </div>
-          <div className="settings-group-action">
-            <div className="segmented" role="radiogroup" aria-label="Light or dark" onKeyDown={moveSegment}>
-              {MODES.map((mode) => (
-                <button
-                  key={mode.id}
-                  type="button"
-                  role="radio"
-                  className={mode.id === themeMode ? "chosen" : ""}
-                  aria-checked={mode.id === themeMode}
-                  tabIndex={mode.id === themeMode ? 0 : -1}
-                  onClick={() => onSetThemeMode(mode.id)}
-                >
-                  {mode.icon}
-                  <span>{mode.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+      <SettingsSection title="Theme" description="Each theme comes in light and dark. Auto follows the system." action={
+        <Segmented label="Light or dark" value={themeMode} onChange={onSetThemeMode} options={MODES.map((mode) => ({ value: mode.id, label: <>{mode.icon}<span>{mode.label}</span></> }))} />
+      }>
         <SettingRow id="appearance.theme" description={`${THEMES.length} themes, each drawn in its own colours.`}>
           <ThemeSelect current={current} onChoose={onSetThemeFamily} />
         </SettingRow>
-      </section>
+      </SettingsSection>
 
-      <section className="settings-group" aria-labelledby="fonts-heading">
-        <div className="settings-group-heading">
-          <div>
-            <h3 id="fonts-heading">Fonts</h3>
-            <p>The families AI Coding Tool ships, or any font installed on this computer.</p>
-          </div>
-        </div>
-
+      <SettingsSection title="Fonts" description="The families AI Coding Tool ships, or any font installed on this computer.">
         <SettingRow id="appearance.ui-font" description="The window itself: its threads, its menus, and what the agent writes back.">
           <FontSelect axis="uiFont" label="Interface font" chosen={uiFont} onChoose={onSetUiFont} />
         </SettingRow>
@@ -477,16 +409,9 @@ export function AppearanceSettings({
         <SettingRow id="appearance.mono-font" description="Code, diffs, and every shell.">
           <FontSelect axis="monoFont" label="Code and terminal font" chosen={monoFont} onChoose={onSetMonoFont} />
         </SettingRow>
-      </section>
+      </SettingsSection>
 
-      <section className="settings-group" aria-labelledby="text-size-heading">
-        <div className="settings-group-heading">
-          <div>
-            <h3 id="text-size-heading">Text size</h3>
-            <p>The sidebar, the tabs, and the menus keep the size they were drawn at.</p>
-          </div>
-        </div>
-
+      <SettingsSection title="Text size" description="The sidebar, the tabs, and the menus keep the size they were drawn at.">
         <SettingRow id="appearance.reading-size" description={<p className="size-sample">Ran the tests. Three failed in the parser.</p>}>
           <SizeField label="Conversation text size" range={READING_SIZE} value={readingSize} onChoose={onSetReadingSize} />
         </SettingRow>
@@ -494,7 +419,7 @@ export function AppearanceSettings({
         <SettingRow id="appearance.terminal-size" description={<p className="size-sample terminal">$ git status</p>}>
           <SizeField label="Terminal text size" range={TERMINAL_SIZE} value={terminalSize} onChoose={onSetTerminalSize} />
         </SettingRow>
-      </section>
+      </SettingsSection>
     </>
   );
 }

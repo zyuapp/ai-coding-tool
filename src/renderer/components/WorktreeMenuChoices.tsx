@@ -1,8 +1,12 @@
 import { useLayoutEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { LuCheck as Check, LuPlus as Plus } from "react-icons/lu";
+import { LuPlus as Plus } from "react-icons/lu";
 import type { AppCommand } from "../../contracts/commands";
 import type { WorktreeMenuChoice, WorktreeMenuList, WorktreeMenuView } from "../../application/worktree-menu";
+import { MenuEdgeAction, MenuItem, MenuNote, MenuSearch } from "../ui/Menu";
+
+/** A two-line row's height, which the virtual list lays rows out by. */
+const ROW_HEIGHT = 42;
 
 function emptyNote(list: WorktreeMenuList, view: WorktreeMenuView): string {
   if (list === "destinations" && view.loading) return "Reading worktrees…";
@@ -17,7 +21,7 @@ export function WorktreeMenuChoices({ view, list, dispatch }: { view: WorktreeMe
   const rows = list === "threads" ? view.threads : view.destinations;
   const searchable = list === "destinations" || view.count > 8;
   const virtual = rows.length > 40;
-  const virtualizer = useVirtualizer({ count: rows.length, getScrollElement: () => scroll.current, estimateSize: () => 44, getItemKey: (index) => rows[index].id, overscan: 4, initialRect: { width: 280, height: 220 }, enabled: virtual });
+  const virtualizer = useVirtualizer({ count: rows.length, getScrollElement: () => scroll.current, estimateSize: () => ROW_HEIGHT, getItemKey: (index) => rows[index].id, overscan: 4, initialRect: { width: 280, height: 220 }, enabled: virtual });
   const query = view.search[list];
   useLayoutEffect(() => { if (scroll.current) scroll.current.scrollTop = 0; }, [query]);
 
@@ -27,21 +31,23 @@ export function WorktreeMenuChoices({ view, list, dispatch }: { view: WorktreeMe
   }
 
   function choice(row: WorktreeMenuChoice, index: number) {
-    return <button type="button" role="menuitem" className="worktree-menu-choice" data-choice-index={index} aria-disabled={row.disabled ? "true" : undefined} aria-current={row.current ? "true" : undefined} data-tip={`${row.title} · ${row.detail}`} onClick={row.disabled ? undefined : () => select(row.command)}>
-      <span className="worktree-menu-copy"><span>{row.title}</span><small>{row.detail}</small></span>
-      {row.current && <Check size={12} aria-hidden="true" />}
-    </button>;
+    return <MenuItem
+      role="menuitem"
+      className="worktree-menu-choice"
+      data-choice-index={index}
+      checked={row.current}
+      disabled={row.disabled}
+      aria-current={row.current ? "true" : undefined}
+      data-tip={`${row.title} · ${row.detail}`}
+      description={row.detail}
+      onClick={() => select(row.command)}
+    >
+      {row.title}
+    </MenuItem>;
   }
 
-  return <div className="worktree-menu-panel" onKeyDown={(event) => {
-    if (event.key === "Enter" && event.target === search.current) {
-      const first = rows.find((row) => !row.disabled);
-      if (!first) return;
-      event.preventDefault();
-      event.stopPropagation();
-      select(first.command);
-      return;
-    }
+  /** The rows are virtual past a few dozen, so the keys walk them by index and scroll the next one in before focusing it. */
+  return <div className="worktree-menu-panel" data-checkable onKeyDown={(event) => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
     event.stopPropagation();
     const target = event.target as HTMLElement;
@@ -63,22 +69,25 @@ export function WorktreeMenuChoices({ view, list, dispatch }: { view: WorktreeMe
       if (!virtual) button?.scrollIntoView({ block: "nearest" });
     });
   }}>
-    {searchable && <div className="worktree-menu-search"><label className="menu-search-field">
-      <input ref={search} type="search" value={query} placeholder={list === "threads" ? "Search threads…" : "Search worktrees…"} aria-label={list === "threads" ? "Search shared threads" : "Search worktrees or branches"} onInput={(event) => dispatch({ type: "worktree.menu-search", list, query: event.currentTarget.value })} onKeyDown={(event) => {
-        if (event.key !== "Escape" || !query) return;
-        event.preventDefault();
-        event.stopPropagation();
-        dispatch({ type: "worktree.menu-search", list, query: "" });
-      }} />
-    </label></div>}
-    {list === "destinations" && <><button ref={creating} type="button" role="menuitem" className="worktree-menu-new" aria-disabled={view.canMove ? undefined : "true"} onClick={view.canMove ? () => select({ type: "task.move-worktree", taskId: view.threadId, destination: { kind: "new" } }) : undefined}><Plus size={14} aria-hidden="true" />New worktree</button><div className="menu-separator" role="separator" /></>}
-    <div ref={scroll} className="worktree-menu-list" role="menu" aria-label={list === "threads" ? "Threads here" : "Move destinations"} style={{ height: Math.min(rows.length, 5) * 44 }}>
+    {searchable && <MenuSearch
+      inputRef={search}
+      label={list === "threads" ? "Search shared threads" : "Search worktrees or branches"}
+      placeholder={list === "threads" ? "Search threads…" : "Search worktrees…"}
+      value={query}
+      onChange={(next) => dispatch({ type: "worktree.menu-search", list, query: next })}
+      onSubmit={() => { const first = rows.find((row) => !row.disabled); if (first) select(first.command); }}
+    />}
+    {list === "destinations" && <MenuEdgeAction edge="top" ref={creating} className="worktree-menu-new" mark={<Plus size={14} />} disabled={!view.canMove} onClick={() => select({ type: "task.move-worktree", taskId: view.threadId, destination: { kind: "new" } })}>New worktree</MenuEdgeAction>}
+    <div ref={scroll} className="worktree-menu-list" role="menu" aria-label={list === "threads" ? "Threads here" : "Move destinations"} style={{ height: Math.min(rows.length, 5) * ROW_HEIGHT }}>
       {virtual ? <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>{virtualizer.getVirtualItems().map((item) => <div key={item.key} style={{ position: "absolute", top: item.start, height: item.size, width: "100%" }}>{choice(rows[item.index], item.index)}</div>)}</div> : rows.map((row, index) => <div key={row.id}>{choice(row, index)}</div>)}
     </div>
-    {!rows.length && <p className="worktree-menu-note">{emptyNote(list, view)}</p>}
+    {!rows.length && <MenuNote className="worktree-menu-note">{emptyNote(list, view)}</MenuNote>}
     {list === "destinations" && <>
-      {view.error && <div className="worktree-menu-error"><p role="alert">{view.error}</p><button type="button" onClick={() => dispatch({ type: "worktree.menu-open", list: "destinations" })}>Retry</button></div>}
-      <p className="worktree-menu-note">Existing file changes stay in the old checkout.</p>
+      {view.error && <>
+        <MenuNote tone="danger" role="alert">{view.error}</MenuNote>
+        <MenuItem onClick={() => dispatch({ type: "worktree.menu-open", list: "destinations" })}>Retry</MenuItem>
+      </>}
+      <MenuNote className="worktree-menu-note">Existing file changes stay in the old checkout.</MenuNote>
     </>}
   </div>;
 }

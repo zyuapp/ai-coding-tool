@@ -1,5 +1,5 @@
-import { LuChevronDown as ChevronDown, LuCircleAlert as CircleAlert, LuClock as Clock, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuMessageCircle as MessageCircle, LuPlus as Plus, LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
-import { useRef, useState } from "react";
+import { LuCircleAlert as CircleAlert, LuClock as Clock, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuMessageCircle as MessageCircle, LuPlus as Plus, LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
+import { Fragment, useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import type { ThreadHost } from "../../application/computers";
 import type { MobileWorktreeChoice } from "../../contracts/mobile";
@@ -7,7 +7,10 @@ import { HostMark } from "./HostMark";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { folderName, projectName, type Project } from "../../domain/project";
 import { useDismissibleLayer } from "../focus";
-import { PickerOption, PickerPopover, PickerSearch } from "./Picker";
+import { MenuEdgeAction, MenuGroup, MenuItem, MenuNote, MenuScroll, MenuSearch, MenuSeparator, MenuSurface, MenuTrigger, useListKeys } from "../ui/Menu";
+import { Button, IconButton, ToggleButton } from "../ui/Button";
+import { Chip } from "../ui/Chip";
+import "../ui/glass.css";
 
 /** Which projects a typed query keeps, matched on the name, path, and computer shown. */
 export function matchProjects(projects: Project[], query: string, projectHosts?: ReadonlyMap<string, ThreadHost>) {
@@ -97,47 +100,35 @@ function WorktreeField({ worktree, choices, onSetWorktree, onStartIn }: { worktr
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const listKeys = useListKeys();
   useDismissibleLayer(open, [root], () => setOpen(false), trigger);
   if (!choices.length || !onStartIn) {
-    return (
-      <button type="button" className="thread-start-toggle" aria-pressed={worktree} onClick={() => onSetWorktree(!worktree)}>
-        <FolderSymlink size={14} />
-        <span>Worktree</span>
-      </button>
-    );
+    return <ToggleButton className="thread-start-toggle" tone="accent" pressed={worktree} icon={<FolderSymlink size={14} />} onClick={() => onSetWorktree(!worktree)}>Worktree</ToggleButton>;
   }
   const pick = (act: () => void) => () => { setOpen(false); act(); };
   return (
-    <div className={`thread-start-field thread-start-worktrees ${open ? "open" : ""}`} ref={root}>
-      <button ref={trigger} type="button" className={worktree ? "chosen" : undefined} aria-label={`Worktree: ${worktree ? "New worktree" : "None"}`} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <FolderSymlink size={14} />
+    <div className="thread-start-field" ref={root}>
+      <MenuTrigger ref={trigger} variant="field" chosen={worktree} icon={<FolderSymlink size={14} />} aria-label={`Worktree: ${worktree ? "New worktree" : "None"}`} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)}>
         <span>{worktree ? "New worktree" : "Worktree"}</span>
-        <ChevronDown size={14} />
-      </button>
-      {open && <PickerPopover className="thread-start-popover">
+      </MenuTrigger>
+      {open && <MenuSurface checkable scroll className="picker-popover thread-start-popover" onKeyDown={listKeys}>
         <div role="listbox" aria-label="Worktree">
-          <PickerOption selected={!worktree} onClick={pick(() => { if (worktree) onSetWorktree(false); })}>No worktree</PickerOption>
-          <PickerOption selected={worktree} onClick={pick(() => { if (!worktree) onSetWorktree(true); })}>New worktree</PickerOption>
-          <div role="group" aria-label="Existing worktrees">
-            <div className="thread-start-group-heading" aria-hidden="true"><span className="thread-start-group-label"><span>Existing</span></span></div>
+          <MenuItem role="option" checked={!worktree} onClick={pick(() => { if (worktree) onSetWorktree(false); })}>No worktree</MenuItem>
+          <MenuItem role="option" checked={worktree} onClick={pick(() => { if (!worktree) onSetWorktree(true); })}>New worktree</MenuItem>
+          <MenuGroup label="Existing worktrees">
             {choices.map((choice) => (
-              <PickerOption key={choice.id} selected={false} onClick={pick(() => onStartIn(choice.id))}>
-                {choice.name}<small>{choice.branch ?? "Detached"}</small>
-              </PickerOption>
+              <MenuItem key={choice.id} role="option" checked={false} detail={choice.branch ?? "Detached"} onClick={pick(() => onStartIn(choice.id))}>{choice.name}</MenuItem>
             ))}
-          </div>
+          </MenuGroup>
         </div>
-      </PickerPopover>}
+      </MenuSurface>}
     </div>
   );
 }
 
 function CoordinatorToggle({ coordinator, onSetCoordinator }: Pick<ThreadStartOptionsProps, "coordinator" | "onSetCoordinator">) {
   return (
-    <button type="button" className="thread-start-toggle thread-start-coordinator" aria-pressed={coordinator} onClick={() => onSetCoordinator(!coordinator)}>
-      <Waypoints size={14} />
-      <span>Coordinator</span>
-    </button>
+    <ToggleButton className="thread-start-toggle thread-start-coordinator" tone="accent" pressed={coordinator} icon={<Waypoints size={14} />} onClick={() => onSetCoordinator(!coordinator)}>Coordinator</ToggleButton>
   );
 }
 
@@ -154,51 +145,50 @@ function ProjectPicker({ projects, projectHosts, projectId, recentProjectIds, on
   const recent = query.trim() ? [] : recentProjects(projects, recentProjectIds);
   const hostName = (item: Project) => projectHosts?.get(item.id)?.name ?? "This computer";
   const sharedNames = namesakes(projects, projectHosts);
+  const listKeys = useListKeys();
   /** Recent rows sit under no computer heading, so they name their computer themselves. */
   const option = (item: Project, showsHost = false) => {
     const itemHost = projectHosts?.get(item.id);
     const parent = sharedNames.has(item.id) ? parentFolder(item.root) : undefined;
     return (
-      <PickerOption
+      <MenuItem
         key={item.id}
+        role="option"
         aria-label={showComputers || parent ? `${projectName(item)}${parent ? ` in ${parent}` : ""}${showComputers ? ` on ${hostName(item)}` : ""}` : undefined}
-        selected={item.id === projectId}
+        checked={item.id === projectId}
         onClick={() => onPick(item.id)}
       >
         <span className="thread-start-project-name" data-tip={projectName(item)} data-tip-overflow>{projectName(item)}</span>
         {parent && <small data-tip={parent} data-tip-overflow>{parent}</small>}
         {showsHost && showComputers && <HostMark name={hostName(item)} offline={itemHost?.offline} reconnecting={itemHost?.reconnecting} />}
-      </PickerOption>
+      </MenuItem>
     );
   };
   return (
-    <PickerPopover className="thread-start-popover" data-keeps-keys>
-      <PickerSearch label="Search projects" value={query} onChange={setQuery} />
-      <div role="listbox" aria-label="Projects">
-        {/** Leaving the project behind is how a chat is started, so it leads the list rather than hiding in it. */}
-        {!query.trim() && <PickerOption className="thread-start-no-project" selected={!projectId} onClick={() => onPick(undefined)}>No project</PickerOption>}
+    <MenuSurface checkable scroll className="picker-popover thread-start-popover" data-keeps-keys onKeyDown={listKeys}>
+      <MenuSearch label="Search projects" value={query} onChange={setQuery} autoFocus />
+      <MenuScroll role="listbox" aria-label="Projects">
+        {/** Leaving the project behind is how a chat is started, so it leads the list, set apart from the projects. */}
+        {!query.trim() && <>
+          <MenuItem role="option" checked={!projectId} onClick={() => onPick(undefined)}>No project</MenuItem>
+          <MenuSeparator />
+        </>}
         {recent.length > 0 && (
-          <div role="group" aria-label="Recent">
-            <div className="thread-start-group-heading" aria-hidden="true"><span className="thread-start-group-label"><Clock size={12} /><span>Recent</span></span></div>
+          <MenuGroup label={<span className="thread-start-group-label"><Clock size={12} />Recent</span>}>
             {recent.map((item) => option(item, true))}
-          </div>
+          </MenuGroup>
         )}
-        {matched.length === 0 && <p className="thread-start-empty">No project matches</p>}
+        {matched.length === 0 && <MenuNote className="thread-start-empty">No project matches</MenuNote>}
         {/** Below Recent, an unlabelled list would read as more of it, so it is named when no computer names it. */}
-        {groupProjects(matched, projectHosts).map(({ host, projects: grouped }) => (
-          <div key={host ? `remote:${host.id}` : "local"} role={showComputers || recent.length ? "group" : undefined} aria-label={showComputers ? host?.name ?? "This computer" : recent.length ? "All projects" : undefined}>
-            {showComputers
-              ? <div className="thread-start-group-heading" aria-hidden="true"><HostMark name={host?.name ?? "This computer"} offline={host?.offline} reconnecting={host?.reconnecting} /></div>
-              : recent.length > 0 && <div className="thread-start-group-heading" aria-hidden="true"><span className="thread-start-group-label"><span>All projects</span></span></div>}
-            {grouped.map((item) => option(item))}
-          </div>
-        ))}
-      </div>
-      <button type="button" className="picker-option thread-start-add-project" onClick={onAddProject}>
-        <span className="picker-mark" aria-hidden="true"><Plus size={14} /></span>
-        <span className="picker-label">Add project…</span>
-      </button>
-    </PickerPopover>
+        {groupProjects(matched, projectHosts).map(({ host, projects: grouped }) => {
+          const key = host ? `remote:${host.id}` : "local";
+          if (showComputers) return <MenuGroup key={key} label={<HostMark name={host?.name ?? "This computer"} offline={host?.offline} reconnecting={host?.reconnecting} />}>{grouped.map((item) => option(item))}</MenuGroup>;
+          if (recent.length) return <MenuGroup key={key} label="All projects">{grouped.map((item) => option(item))}</MenuGroup>;
+          return <Fragment key={key}>{grouped.map((item) => option(item))}</Fragment>;
+        })}
+      </MenuScroll>
+      <MenuEdgeAction className="thread-start-add-project" mark={<Plus size={14} />} onClick={onAddProject}>Add project…</MenuEdgeAction>
+    </MenuSurface>
   );
 }
 
@@ -228,9 +218,9 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, projects
   /** With nowhere to work a thread can only be a chat, so all it has left to answer is whether it coordinates. */
   if (!projects.length) {
     return (
-      <div className="thread-start" aria-label="How this thread starts">
+      <div className="thread-start glass-pane" aria-label="How this thread starts">
         <div className="thread-start-git">
-          <button type="button" className="thread-start-toggle" onClick={onAddProject}><Plus size={14} /><span>Add project</span></button>
+          <Button variant="ghost" icon={<Plus size={14} />} onClick={onAddProject}>Add project</Button>
           <CoordinatorToggle coordinator={coordinator} onSetCoordinator={onSetCoordinator} />
         </div>
       </div>
@@ -241,16 +231,14 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, projects
   const label = project ? projectName(project) : "No project";
 
   return (
-    <div className="thread-start" aria-label="How this thread starts">
-      <div className={`thread-start-field thread-start-project ${projectsOpen ? "open" : ""}`} ref={projectRef}>
-        <button ref={projectTrigger} type="button" aria-label={`Project: ${label}${showComputers && project ? ` on ${host?.name ?? "This computer"}` : ""}`} aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => onSetProjectsOpen(!projectsOpen)}>
-          {project ? <FolderGit2 size={14} /> : <MessageCircle size={14} />}
+    <div className="thread-start glass-pane" aria-label="How this thread starts">
+      <div className="thread-start-field thread-start-project" ref={projectRef}>
+        <MenuTrigger ref={projectTrigger} variant="field" icon={project ? <FolderGit2 size={14} /> : <MessageCircle size={14} />} aria-label={`Project: ${label}${showComputers && project ? ` on ${host?.name ?? "This computer"}` : ""}`} aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => onSetProjectsOpen(!projectsOpen)}>
           <span className="thread-start-project-label">
             <span>{label}</span>
             {showComputers && project && <HostMark name={host?.name ?? "This computer"} offline={host?.offline} reconnecting={host?.reconnecting} />}
           </span>
-          <ChevronDown size={14} />
-        </button>
+        </MenuTrigger>
         {projectsOpen && <ProjectPicker
           key={projectsToken}
           projects={projects}
@@ -267,19 +255,17 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, projects
           *  and no second checkout to ask for. Clearing it puts the thread back in the project. A chat
           *  has neither. */}
         {!project ? null : startsInWorktree ? (
-          <div className="thread-start-worktree">
+          <div className="thread-start-worktree glass-chip">
             <FolderSymlink size={16} />
             <span data-tip={startsInWorktree} data-tip-overflow>{startsInWorktree}</span>
-            <button type="button" aria-label={`Leave ${startsInWorktree}`} data-tip="Start in the project instead" onClick={() => onSetWorktree(false)}><X size={14} /></button>
+            <IconButton size="xs" label={`Leave ${startsInWorktree}`} tip="Start in the project instead" onClick={() => onSetWorktree(false)}><X size={14} /></IconButton>
           </div>
         ) : (<>
-        <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
-          <button ref={branchTrigger} type="button" className={unreadable ? "error" : undefined} aria-label={`Starting branch: ${branchLabel}${branch?.create ? " (new)" : ""}`} aria-haspopup="listbox" aria-expanded={branchesOpen} aria-disabled={!workspaceId || undefined} tabIndex={workspaceId ? undefined : -1} data-tip={!workspaceId ? "Starts from the project's current branch" : unreadable ? branches.message : undefined} onClick={() => { if (workspaceId) setBranchesOpen(!branchesOpen); }}>
-            {unreadable ? <CircleAlert size={14} /> : <GitBranch size={14} />}
+        <div className="thread-start-field" ref={branchRef}>
+          <MenuTrigger ref={branchTrigger} variant="field" tone={unreadable ? "danger" : undefined} icon={unreadable ? <CircleAlert size={14} /> : <GitBranch size={14} />} aria-label={`Starting branch: ${branchLabel}${branch?.create ? " (new)" : ""}`} aria-haspopup="listbox" aria-expanded={branchesOpen} aria-disabled={!workspaceId || undefined} tabIndex={workspaceId ? undefined : -1} data-tip={!workspaceId ? "Starts from the project's current branch" : unreadable ? branches.message : undefined} onClick={() => { if (workspaceId) setBranchesOpen(!branchesOpen); }}>
             <span>{branchLabel}</span>
-            {branch?.create && <small>new</small>}
-            <ChevronDown size={14} />
-          </button>
+            {branch?.create && <Chip variant="tag">new</Chip>}
+          </MenuTrigger>
           {branchesOpen && (
             <BranchMenu
               menuRef={branchMenu}

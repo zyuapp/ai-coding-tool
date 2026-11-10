@@ -10,6 +10,9 @@ import { isCoordinator } from "../../domain/coordination";
 import type { RetryNotice } from "../../domain/run";
 import { liftTime, resumesOnItsOwn, type LimitPause } from "../../domain/usage-limit";
 import { CommandButton } from "./CommandControl";
+import { IconButton } from "../ui/Button";
+import { Chip } from "../ui/Chip";
+import { Notice } from "../ui/Notice";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import type { Thread } from "../../domain/thread";
 import { groupTimeline, messageRows } from "../timeline/grouping";
@@ -100,13 +103,13 @@ function retryLabel(retry: RetryNotice) {
  */
 function ThinkingRow({ since, blocked }: { since: number | undefined; blocked: boolean }) {
   const [shownAt] = useState(Date.now);
-  if (blocked) return <div className="thinking-row" role="status"><i className="run-bead held" aria-hidden="true" /><span>Waiting for your approval</span></div>;
+  if (blocked) return <Chip as="div" variant="capsule" className="thinking-row" role="status"><i className="run-bead held" aria-hidden="true" /><span>Waiting for your approval</span></Chip>;
   return (
-    <div className="thinking-row" role="status">
+    <Chip as="div" variant="capsule" className="thinking-row" role="status">
       <i className="run-bead" aria-hidden="true" />
       <span className="text-sweep">Working<SweepBand>Working</SweepBand></span>
       <span className="thinking-elapsed" aria-hidden="true"><Elapsed startedAt={Math.min(since ?? shownAt, shownAt)} endsAt={null} /></span>
-    </div>
+    </Chip>
   );
 }
 
@@ -114,11 +117,11 @@ function ThinkingRow({ since, blocked }: { since: number | undefined; blocked: b
 function WaitingRow({ wait }: { wait: ThreadWait }) {
   const [shownAt] = useState(Date.now);
   return (
-    <div className="waiting-row" role="status" aria-live="polite">
-      <FolderSymlink aria-hidden="true" />
+    <Chip as="div" variant="capsule" className="waiting-row" role="status" aria-live="polite">
+      <FolderSymlink size={14} strokeWidth={1.8} aria-hidden="true" />
       <span className="text-sweep">{WAIT_LABELS[wait]}<SweepBand>{WAIT_LABELS[wait]}</SweepBand></span>
       <span className="thinking-elapsed" aria-hidden="true"><Elapsed startedAt={shownAt} endsAt={null} /></span>
-    </div>
+    </Chip>
   );
 }
 
@@ -132,14 +135,13 @@ function LimitRow({ pause, taskId }: { pause: LimitPause & { position: number | 
     const timer = setInterval(() => setNow(Date.now()), LIMIT_TICK_MS);
     return () => clearInterval(timer);
   }, [pause.resetsAt]);
+  const action = resumesOnItsOwn(pause)
+    ? <CommandButton variant="secondary" pill command={{ type: "limit.cancel", taskId }}>Cancel auto-resume</CommandButton>
+    : <CommandButton variant="secondary" pill command={{ type: "limit.resume", taskId }}>Resume</CommandButton>;
   return (
-    <div className="limit-row" role="status">
-      <Hourglass aria-hidden="true" />
-      <span>{limitLabel(pause, now)}</span>
-      {resumesOnItsOwn(pause)
-        ? <CommandButton type="button" className="limit-action" command={{ type: "limit.cancel", taskId }}>Cancel auto-resume</CommandButton>
-        : <CommandButton type="button" className="limit-action" command={{ type: "limit.resume", taskId }}>Resume</CommandButton>}
-    </div>
+    <Notice tone="warning" className="limit-row" icon={<Hourglass size={16} strokeWidth={1.8} />} actions={action}>
+      {limitLabel(pause, now)}
+    </Notice>
   );
 }
 
@@ -259,31 +261,25 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
       {waitingOn && <WaitingRow key={waitingOn} wait={waitingOn} />}
       {status !== "running" && limitPause && currentThread && <LimitRow pause={limitPause} taskId={currentThread.id} />}
       {status === "running" && compacting && (
-        <div className="compacting-row" role="status" aria-live="polite">
+        <Chip as="div" variant="capsule" className="compacting-row" role="status" aria-live="polite">
           <i className="run-bead" aria-hidden="true" />
           <span className="text-sweep">Compacting messages…<SweepBand>Compacting messages…</SweepBand></span>
-        </div>
+        </Chip>
       )}
       {status === "running" && !compacting && retrying && (
-        <div className="retrying-row" role="status" aria-live="polite">
+        <Chip as="div" variant="capsule" className="retrying-row" role="status" aria-live="polite">
           <i className="run-bead" aria-hidden="true" />
           <span className="text-sweep">{retryLabel(retrying)}<SweepBand>{retryLabel(retrying)}</SweepBand></span>
-        </div>
+        </Chip>
       )}
       {status === "running" && !compacting && !retrying && (
         <ThinkingRow since={liveSince} blocked={blocked} />
       )}
       {!atBottom && (
         <div className="scroll-to-end-dock">
-        <button
-          type="button"
-          className="scroll-to-end"
-          aria-label="Scroll to the latest message"
-          data-tip="Latest message"
-          onClick={scrollToFoot}
-        >
-          <ChevronDown size={18} aria-hidden="true" />
-        </button>
+          <IconButton variant="glass" size="lg" round className="scroll-to-end" label="Scroll to the latest message" tip="Latest message" onClick={scrollToFoot}>
+            <ChevronDown size={18} aria-hidden="true" />
+          </IconButton>
         </div>
       )}
       {annotate.selection && !annotate.noting && onAnnotateAdd && (

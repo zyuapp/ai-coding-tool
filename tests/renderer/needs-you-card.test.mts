@@ -435,8 +435,8 @@ test("the Needs-you card's approval page names the keys that answer it in their 
   assert.equal(query(view.container, ".decision-count").textContent, "1 of 2");
 
   await act(async () => { button("Later").click(); });
-  const own = query<HTMLLabelElement>(view.container, "label.decision-own");
-  assert.equal(own.firstChild?.textContent, "Or your own answer", "the own answer is named on screen, not only in its placeholder");
-  assert.equal(query<HTMLInputElement>(own, "input").labels?.[0], own);
+  const own = query<HTMLLabelElement>(view.container, ".decision-own label");
+  assert.equal(own.textContent, "Or your own answer", "the own answer is named on screen, not only in its placeholder");
+  assert.equal(query<HTMLInputElement>(view.container, ".decision-own input").labels?.[0], own);
   await view.unmount();
 });

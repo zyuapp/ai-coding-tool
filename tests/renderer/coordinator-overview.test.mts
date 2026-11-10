@@ -58,17 +58,17 @@ test("a coordinator's Overview groups its threads by what they need, each openin
   assert.match(needs.textContent, /Needs you · Retry or skip\?/);
   const busy = query(view.container, '[aria-label="Working"]');
   assert.ok(query(busy, 'button[aria-label="Open Dark mode"] [aria-label="Works in dark-mode"]'), "a thread in a worktree carries its sidebar mark");
-  assert.equal(busy.querySelectorAll(".coordination-row").length, 5, "a group shows five threads");
+  assert.equal(busy.querySelectorAll(".coordination-thread").length, 5, "a group shows five threads");
   await act(async () => { query<HTMLButtonElement>(busy, ".coordination-more").click(); });
   const finished = query(view.container, '[aria-label="Done"]');
-  assert.equal(query(finished, ".coordination-group-head").getAttribute("aria-expanded"), "false", "a long Done starts folded");
-  assert.equal(finished.querySelectorAll(".coordination-row").length, 0);
-  await act(async () => { query<HTMLButtonElement>(finished, ".coordination-group-head").click(); });
+  assert.equal(query(finished, ".list-heading-label").getAttribute("aria-expanded"), "false", "a long Done starts folded");
+  assert.equal(finished.querySelectorAll(".coordination-thread").length, 0);
+  await act(async () => { query<HTMLButtonElement>(finished, ".list-heading-label").click(); });
   assert.deepEqual(folded, [["working", { all: true }], ["done", { open: true }]], "folding and showing more are commands");
 
   await view.render(overview({ working: { all: true }, done: { open: true } }));
-  assert.equal(query(view.container, '[aria-label="Working"]').querySelectorAll(".coordination-row").length, 8, "a group the user asked to see whole shows every thread");
-  assert.equal(query(view.container, '[aria-label="Done"]').querySelectorAll(".coordination-row").length, 5);
+  assert.equal(query(view.container, '[aria-label="Working"]').querySelectorAll(".coordination-thread").length, 8, "a group the user asked to see whole shows every thread");
+  assert.equal(query(view.container, '[aria-label="Done"]').querySelectorAll(".coordination-thread").length, 5);
 
   await act(async () => { query<HTMLButtonElement>(busy, 'button[aria-label="Open Dark mode"]').click(); });
   assert.equal(opened, "a");
@@ -103,7 +103,7 @@ test("the Overview files threads ready for review and resolved apart, and resolv
     stoppable: true,
   }));
   const view = await mount(overview({}));
-  const labels = [...view.container.querySelectorAll(".coordination-group:not(.coordination-memory) .coordination-group-head > span:not(.coordination-group-count)")].map((node) => node.textContent);
+  const labels = [...view.container.querySelectorAll(".coordination-group:not(.coordination-memory) .list-heading-text")].map((node) => node.textContent);
   assert.deepEqual(labels, ["Needs you", "Ready for review", "Working", "Done", "Resolved"]);
   const review = query(view.container, '[aria-label="Ready for review"]');
   assert.match(review.textContent, /Ready for review · #212 · Checks passing/);
@@ -120,10 +120,10 @@ test("the Overview files threads ready for review and resolved apart, and resolv
   assert.ok(query(view.container, '[aria-label="Done"]').querySelector('button[aria-label="Resolve Docs"]'));
 
   const resolved = query(view.container, '[aria-label="Resolved"]');
-  assert.equal(query(resolved, ".coordination-group-head").getAttribute("aria-expanded"), "false", "Resolved starts folded");
-  assert.match(query(resolved, ".coordination-group-head").textContent, /Resolved2/);
-  assert.equal(resolved.querySelectorAll(".coordination-row").length, 0);
-  await act(async () => { query<HTMLButtonElement>(resolved, ".coordination-group-head").click(); });
+  assert.equal(query(resolved, ".list-heading-label").getAttribute("aria-expanded"), "false", "Resolved starts folded");
+  assert.match(query(resolved, ".list-heading-label").textContent, /Resolved2/);
+  assert.equal(resolved.querySelectorAll(".coordination-thread").length, 0);
+  await act(async () => { query<HTMLButtonElement>(resolved, ".list-heading-label").click(); });
   await view.render(overview({ resolved: { open: true } }));
   const reopen = query<HTMLButtonElement>(view.container, 'button[aria-label="Reopen Old work"]');
   assert.ok(reopen.querySelector(".resolution-ticked") && reopen.querySelector(".resolution-undo"), "a resolved row is ticked, turning to an undo only when pointed at");
@@ -165,7 +165,7 @@ test("resolving or reopening from a row, or showing more, keeps the keyboard's p
   await press('button[aria-label="Resolve Dark mode"]');
   await view.render(overview([resolved(ready), ...rest.slice(1)], { done: { open: true, all: true } }));
   assert.equal(view.container.querySelector('[aria-label="Ready for review"]'), null);
-  assert.ok(dom.window.document.activeElement === query(view.container, '[aria-label="Resolved"] .coordination-group-head'), "a group left empty hands focus to the group its thread went to");
+  assert.ok(dom.window.document.activeElement === query(view.container, '[aria-label="Resolved"] .list-heading-label'), "a group left empty hands focus to the group its thread went to");
 
   const reopened = [ready, ...rest.slice(1)];
   await view.render(overview([resolved(ready), ...rest.slice(1)], { done: { open: true, all: true }, resolved: { open: true } }));
@@ -192,7 +192,7 @@ test("Stop all keeps the keyboard's place once the group it heads is gone", asyn
   await act(async () => { query<HTMLButtonElement>(view.container, ".coordination-stop > .armed").click(); });
   await view.render(overview([{ ...working, status: "idle" }, done]));
   assert.ok(!view.container.querySelector('[aria-label="Working"]'), "nothing under the coordinator works any more");
-  const head = query(view.container, '[aria-label="Done"] .coordination-group-head');
+  const head = query(view.container, '[aria-label="Done"] .list-heading-label');
   assert.ok(dom.window.document.activeElement === head, "focus goes to the head of the group that took its place");
   await view.unmount();
 });
@@ -212,8 +212,8 @@ test("an Overview row shows its whole status line on hover, where the row clips 
     stoppable: true,
   }));
   const line = query(view.container, 'button[aria-label="Open Payments"] small');
-  assert.equal(line.title, `Blocked · ${reason}`);
-  assert.equal(line.textContent, line.title);
+  assert.equal(line.dataset.tip, `Blocked · ${reason}`);
+  assert.equal(line.textContent, line.dataset.tip);
   const described = query(view.container, 'button[aria-label="Open Payments"]').getAttribute("aria-describedby");
   assert.equal(described && dom.window.document.getElementById(described)?.textContent, `Blocked · ${reason}`, "the row is read with how its thread stands, not just its name");
   await view.unmount();
@@ -234,7 +234,7 @@ test("the Overview says what a coordinator's threads run on, and picks another w
   await act(async () => {
     [...item(model).querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("All models"))!.click();
   });
-  const offered = [...item(model).querySelectorAll(".model-choice strong")].map((node) => node.textContent);
+  const offered = [...item(model).querySelectorAll(".model-choice .menu-label")].map((node) => node.textContent);
   assert.ok(offered.includes("Opus") && !offered.includes("Haiku"), "a coordinator's threads are never offered Haiku");
   await act(async () => { [...item(model).querySelectorAll<HTMLButtonElement>(".model-choice")].find((button) => button.textContent?.includes("Opus"))!.click(); });
   assert.ok(item(model).open, "picking a model leaves the library open to fit the effort");
@@ -300,8 +300,8 @@ test("the Overview's Working group stops the coordinator and every thread under 
   const working = query(mounted.container, '[aria-label="Working"]');
   const stop = query<HTMLButtonElement>(working, ".coordination-stop-all");
   assert.equal(stop.textContent, "Stop all");
-  assert.equal(stop.closest(".coordination-group-head"), null, "it sits beside the fold button, never inside it");
-  assert.ok(stop.closest(".coordination-group-heading")?.querySelector(".coordination-group-head"));
+  assert.equal(stop.closest(".list-heading-label"), null, "it sits beside the fold button, never inside it");
+  assert.ok(stop.closest(".list-heading")?.querySelector(".list-heading-label"));
   assert.equal(query(mounted.container, '[aria-label="Done"]').querySelector(".coordination-stop-all"), null, "only the Working group stops anything");
   await act(async () => { stop.click(); });
   assert.equal(dispatched.filter((input) => input.type === "coordination.stop-all").length, 0, "the first press only asks");
@@ -338,7 +338,7 @@ test("the Overview's Usage section shows what the coordinator and its threads sp
   };
   const mounted = await mount(shown({}));
   const usage = query(mounted.container, '[aria-label="Usage"]');
-  const head = query<HTMLButtonElement>(usage, ".coordination-group-head");
+  const head = query<HTMLButtonElement>(usage, ".list-heading-label");
   assert.equal(head.textContent, "Usage3.1M");
   assert.equal(head.dataset.tip, "3,104,220 tokens");
   assert.equal(head.getAttribute("aria-expanded"), "false", "it starts folded");
@@ -408,7 +408,7 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
   assert.ok(dom.window.document.activeElement === query(container, 'button[aria-label^="Edit purpose: "]'), "so does saving it with Enter");
 
   const section = query(container, '[aria-label="Memory"]');
-  assert.match(query(section, ".coordination-group-head").textContent, /Memory2/);
+  assert.match(query(section, ".list-heading-label").textContent, /Memory2/);
   const [first] = section.querySelectorAll<HTMLButtonElement>('button[aria-label^="Edit note: "]');
   assert.equal(first.textContent, "Propose threads first");
   await act(async () => { first.click(); });

@@ -10,12 +10,16 @@ import type { Thread } from "../../domain/thread";
 import type { CoordinationApprovalView, CoordinationDecisionView, ElsewhereView, ProposalView } from "../../application/coordination-view";
 import type { ApprovalView } from "../../application/thread-run-state";
 import { ApprovalAction, DecideButton, type DecideBindings } from "./ApprovalCard";
-import { CommandButton, useCommandControls } from "./CommandControl";
+import { CommandButton, CommandIconButton, useCommandControls } from "./CommandControl";
 import { BriefDetails } from "./Coordination";
 import { HostMark } from "./HostMark";
 import { firstFocusable, placeOf, ReturnFocusContext, useKeyboardPlace } from "../focus";
-import { ConfirmAction, type ConfirmActionProps } from "./SettingRow";
+import { ConfirmAction, type ConfirmActionProps } from "../ui/ConfirmAction";
 import { shortcutTip } from "./TooltipLayer";
+import { Button, IconButton } from "../ui/Button";
+import { Chip } from "../ui/Chip";
+import { Checkbox, Select, TextField } from "../ui/Field";
+import "../ui/glass.css";
 import "./coordination.css";
 
 /**
@@ -182,7 +186,7 @@ function NeedsYouHead({ id, thread, position, onStep, onSelect }: { id: string; 
   return (
     <div className="decision-head">
       <strong>Needs you</strong>
-      <button type="button" id={id} className="decision-from" data-tip="Open thread" onClick={() => onSelect(thread.id)}>{thread.title}<ArrowUpRight className="decision-from-arrow" size={12} aria-hidden="true" /></button>
+      <Chip as="button" variant="link" type="button" id={id} className="decision-from" data-tip="Open thread" onClick={() => onSelect(thread.id)}>{thread.title}<ArrowUpRight className="decision-from-arrow" size={12} aria-hidden="true" /></Chip>
       <PagerControls position={position} onStep={onStep} />
     </div>
   );
@@ -192,11 +196,16 @@ function PagerControls({ position, onStep }: { position: Pager; onStep: (delta: 
   if (!position) return null;
   return (
     <span className="decision-pager">
-      <button type="button" aria-label="Previous" aria-keyshortcuts="ArrowLeft" data-tip={shortcutTip("Previous", "ArrowLeft")} data-action="previous" onClick={() => onStep(-1)}><ChevronLeft size={14} aria-hidden="true" /></button>
-      <span className="decision-count">{position.index + 1} of {position.count}</span>
-      <button type="button" aria-label="Next" aria-keyshortcuts="ArrowRight" data-tip={shortcutTip("Next", "ArrowRight")} data-action="next" onClick={() => onStep(1)}><ChevronRight size={14} aria-hidden="true" /></button>
+      <IconButton variant="soft" size="xs" label="Previous" tip={shortcutTip("Previous", "ArrowLeft")} aria-keyshortcuts="ArrowLeft" data-action="previous" onClick={() => onStep(-1)}><ChevronLeft size={14} aria-hidden="true" /></IconButton>
+      <Chip variant="count" tone="accent" className="decision-count">{position.index + 1} of {position.count}</Chip>
+      <IconButton variant="soft" size="xs" label="Next" tip={shortcutTip("Next", "ArrowRight")} aria-keyshortcuts="ArrowRight" data-action="next" onClick={() => onStep(1)}><ChevronRight size={14} aria-hidden="true" /></IconButton>
     </span>
   );
+}
+
+/** Turns to the next page, leaving this one waiting. */
+function LaterButton({ onStep }: { onStep: (delta: 1 | -1) => void }) {
+  return <Button variant="secondary" data-action="later" onClick={() => onStep(1)}>Later</Button>;
 }
 
 /** The threads a coordinator suggested, each started or dismissed on its own row, or all at once. */
@@ -209,7 +218,7 @@ function SuggestionsForm({ suggestions, position, onStep }: { suggestions: Sugge
   const shown = proposals.flatMap(({ proposal, starting }) => starting ? [] : [proposal.id]);
   const waiting = shown.length > 0;
   return (
-    <section className="decision-card" aria-label="Suggested threads" tabIndex={-1}>
+    <section className="glass-float decision-card" data-tone="accent" aria-label="Suggested threads" tabIndex={-1}>
       <div className="decision-head">
         <strong>Suggested threads</strong>
         <PagerControls position={position} onStep={onStep} />
@@ -218,10 +227,10 @@ function SuggestionsForm({ suggestions, position, onStep }: { suggestions: Sugge
         {proposals.map((view) => <SuggestionRow key={view.proposal.id} taskId={taskId} threadModel={threadModel} view={view} />)}
       </ul>
       <div className="decision-foot">
-        {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
+        {position && <LaterButton onStep={onStep} />}
         <span className="decision-foot-gap" />
-        <ConfirmCommand className="secondary" confirm="Dismiss all" command={{ type: "proposal.dismiss", taskId, proposalIds: shown }} disabled={!waiting}>Dismiss all</ConfirmCommand>
-        <CommandButton type="button" className="suggestion-start-all" command={{ type: "proposal.start", taskId, proposalIds: shown }} disabled={!waiting}>Start all</CommandButton>
+        <ConfirmCommand variant="secondary" confirm="Dismiss all" command={{ type: "proposal.dismiss", taskId, proposalIds: shown }} disabled={!waiting}>Dismiss all</ConfirmCommand>
+        <CommandButton type="button" variant="inverse" className="suggestion-start-all" command={{ type: "proposal.start", taskId, proposalIds: shown }} disabled={!waiting}>Start all</CommandButton>
       </div>
     </section>
   );
@@ -241,24 +250,22 @@ function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadMo
         <small title={proposal.brief?.intent ?? proposal.prompt}>{proposal.brief?.intent ?? proposal.prompt}</small>
         {proposal.error && !starting && <small className="suggestion-error" role="alert">{proposal.error}</small>}
       </span>
-      {model && <span className="suggestion-chip">{modelLabel(catalog, engine, model)}</span>}
-      {worktree && <span className="suggestion-chip">Worktree</span>}
+      {model && <Chip variant="tag" className="suggestion-chip">{modelLabel(catalog, engine, model)}</Chip>}
+      {worktree && <Chip variant="tag" className="suggestion-chip">Worktree</Chip>}
       {!starting && <span className="suggestion-dismiss-slot" data-action="dismiss">
         <ConfirmCommand
+          variant="ghost"
           className="suggestion-dismiss"
+          icon={<X size={14} aria-hidden="true" />}
           aria-label={`Dismiss ${proposal.title}`}
           data-tip="Dismiss"
           confirm="Dismiss"
           command={{ type: "proposal.dismiss", taskId, proposalId: proposal.id }}
-        >
-          <X size={14} aria-hidden="true" />
-        </ConfirmCommand>
+        />
       </span>}
       {starting
         ? <span className="suggestion-start task-spinner" role="status" aria-label={`Starting ${proposal.title}`} />
-        : <CommandButton type="button" className="suggestion-start" data-action="start" aria-label={`Start ${proposal.title}`} data-tip="Start" command={{ type: "proposal.start", taskId, proposalId: proposal.id }}>
-            <Play size={12} fill="currentColor" aria-hidden="true" />
-          </CommandButton>}
+        : <CommandIconButton variant="inverse" round className="suggestion-start" data-action="start" label={`Start ${proposal.title}`} tip="Start" command={{ type: "proposal.start", taskId, proposalId: proposal.id }}><Play size={12} fill="currentColor" aria-hidden="true" /></CommandIconButton>}
     </li>
   );
 }
@@ -283,7 +290,7 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
   const project = picked !== null && projects.some((item) => item.id === picked) ? picked : elsewhere.project ?? "";
   const ids = pageIds(useId());
   return (
-    <section className="decision-card elsewhere-card" aria-label={`Run on ${computer.name}?`} aria-describedby={ids.question} tabIndex={-1}>
+    <section className="glass-float decision-card elsewhere-card" data-tone="accent" aria-label={`Run on ${computer.name}?`} aria-describedby={ids.question} tabIndex={-1}>
       <div className="decision-head">
         <strong className="elsewhere-heading">Run on <HostMark name={computer.name} offline={computer.offline} reconnecting={computer.reconnecting} />?</strong>
         <PagerControls position={position} onStep={onStep} />
@@ -293,14 +300,11 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
         <div className="elsewhere-place">
           {projects.length > 0 && <label className="elsewhere-folder">
             <span>Folder</span>
-            <select value={project} onChange={(event) => onDraft({ kind: "elsewhere", picked: event.currentTarget.value, worktree })}>
+            <Select value={project} onChange={(event) => onDraft({ kind: "elsewhere", picked: event.currentTarget.value, worktree })}>
               {projects.map((item) => <option key={item.id} value={item.id} title={item.root}>{projectName(item)}</option>)}
-            </select>
+            </Select>
           </label>}
-          <label className="elsewhere-worktree">
-            <input type="checkbox" checked={worktree} onChange={(event) => onDraft({ kind: "elsewhere", picked, worktree: event.currentTarget.checked })} />
-            New worktree
-          </label>
+          <Checkbox wrapClassName="elsewhere-worktree" label="New worktree" checked={worktree} onChange={(event) => onDraft({ kind: "elsewhere", picked, worktree: event.currentTarget.checked })} />
         </div>
         {proposal.brief && <BriefDetails brief={proposal.brief} />}
         {refusal
@@ -308,11 +312,12 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
           : proposal.error && !starting && <p className="suggestion-error" role="alert">{proposal.error}</p>}
       </div>
       <div className="decision-foot">
-        {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
+        {position && <LaterButton onStep={onStep} />}
         <span className="decision-foot-gap" />
-        <ConfirmCommand className="secondary" confirm="Deny" command={{ type: "proposal.dismiss", taskId, proposalId: proposal.id }} disabled={starting}>Deny</ConfirmCommand>
+        <ConfirmCommand variant="secondary" confirm="Deny" command={{ type: "proposal.dismiss", taskId, proposalId: proposal.id }} disabled={starting}>Deny</ConfirmCommand>
         <CommandButton
           type="button"
+          variant="inverse"
           className="decision-allow"
           command={{ type: "proposal.start", taskId, proposalId: proposal.id, place: { project, worktree } }}
           disabled={starting || refusal !== null}
@@ -338,7 +343,7 @@ function ApprovalForm({ view, bindings, position, onStep, onDecide, onSelect }: 
   const read = approvalPreview(approval.input).kind !== "raw";
   const ids = pageIds(useId());
   return (
-    <section className="decision-card" aria-label="Approval waiting on you" aria-describedby={describedBy(ids.from, ids.question, approval.description && ids.context, read && ids.command)} tabIndex={-1}>
+    <section className="glass-float decision-card" data-tone="accent" aria-label="Approval waiting on you" aria-describedby={describedBy(ids.from, ids.question, approval.description && ids.context, read && ids.command)} tabIndex={-1}>
       <NeedsYouHead id={ids.from} thread={thread} position={position} onStep={onStep} onSelect={onSelect} />
       <div className="decision-body">
         <p className="decision-question" id={ids.question}>{approval.title}</p>
@@ -346,7 +351,7 @@ function ApprovalForm({ view, bindings, position, onStep, onDecide, onSelect }: 
         <ApprovalAction input={approval.input} toolName={approval.toolName} id={ids.command} />
       </div>
       <div className="decision-foot">
-        {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
+        {position && <LaterButton onStep={onStep} />}
         <span className="decision-foot-gap" />
         <DecideButton label="Deny" binding={bindings.deny} secondary onDecide={() => onDecide(approval, false)} />
         <DecideButton label="Allow once" binding={bindings.allow} onDecide={() => onDecide(approval, true)} />
@@ -371,7 +376,7 @@ function DecisionForm({ view, draft, position, onStep, onDraft, onAnswer, onSele
   const { choice, own } = draft ?? { choice: decision.options.find((option) => option.recommended)?.label ?? "", own: "" };
   const answer = own.trim() || choice;
   return (
-    <form className="decision-card" aria-label="Decision waiting on you" aria-describedby={describedBy(ids.from, ids.question, decision.context && ids.context)} tabIndex={-1} onSubmit={(event) => {
+    <form className="glass-float decision-card" data-tone="accent" aria-label="Decision waiting on you" aria-describedby={describedBy(ids.from, ids.question, decision.context && ids.context)} tabIndex={-1} onSubmit={(event) => {
       event.preventDefault();
       if (answer) onAnswer(answer);
     }}>
@@ -381,10 +386,10 @@ function DecisionForm({ view, draft, position, onStep, onDraft, onAnswer, onSele
         {decision.context && <p className="decision-context" id={ids.context}>{decision.context}</p>}
         {decision.options.length > 0 && <div className={`decision-options${own.trim() ? " overridden" : ""}`} role="radiogroup" aria-labelledby={ids.question}>
           {decision.options.map((option) => (
-            <label className="decision-option" key={option.label}>
+            <label className="decision-option raised" key={option.label}>
               <input type="radio" name={id} value={option.label} checked={!own.trim() && choice === option.label} onChange={() => onDraft({ kind: "decision", choice: option.label, own: "" })} />
               <span>
-                <span className="decision-option-label">{option.label}{option.recommended && <span className="decision-recommended">Recommended</span>}</span>
+                <span className="decision-option-label">{option.label}{option.recommended && <Chip variant="tag" tone="accent">Recommended</Chip>}</span>
                 {option.description && <span className="decision-option-description">{option.description}</span>}
               </span>
             </label>
@@ -392,12 +397,9 @@ function DecisionForm({ view, draft, position, onStep, onDraft, onAnswer, onSele
         </div>}
       </div>
       <div className="decision-foot">
-        <label className="decision-own">
-          <span>{decision.options.length ? "Or your own answer" : "Your answer"}</span>
-          <input value={own} onChange={(event) => onDraft({ kind: "decision", choice, own: event.currentTarget.value })} />
-        </label>
-        {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
-        <button type="submit" disabled={!answer}>Send answer</button>
+        <TextField wrapClassName="decision-own" label={decision.options.length ? "Or your own answer" : "Your answer"} value={own} onChange={(event) => onDraft({ kind: "decision", choice, own: event.currentTarget.value })} />
+        {position && <LaterButton onStep={onStep} />}
+        <Button type="submit" variant="inverse" disabled={!answer}>Send answer</Button>
       </div>
     </form>
   );

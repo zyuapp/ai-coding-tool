@@ -55,7 +55,7 @@ async function openLocationMenu() { await click(".session-location-row > .menu-t
 async function choose(label: string) { await act(async () => menuButton(label).click()); }
 
 async function search(value: string) {
-  const input = query<HTMLInputElement>(document, '.worktree-menu-search input');
+  const input = query<HTMLInputElement>(document, '.worktree-menu-panel .menu-search input');
   await act(async () => {
     input.focus();
     item(Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set).call(input, value);
@@ -68,7 +68,7 @@ test("the compact worktree menu navigates shared threads and creates a draft in 
   try {
     assert.match(query(view.container, ".session-location-name").textContent, /Login redesign2 threads/);
     await openLocationMenu();
-    const labels = [...document.querySelectorAll('.session-menu-popover > button > .menu-label')].map(node => node.textContent);
+    const labels = [...document.querySelectorAll('.session-menu-popover > button .menu-label')].map(node => node.textContent);
     assert.deepEqual(labels, ["New thread here", "Threads here", "Move to worktree", "Return to local", "Delete worktree…"]);
     await choose("Threads here");
     await click('[data-choice-index="1"]');
@@ -88,7 +88,7 @@ test("Local offers creation and moving, and choosing a worktree moves immediatel
   const view = await renderMenu(initial);
   try {
     await openLocationMenu();
-    assert.deepEqual([...document.querySelectorAll('.session-menu-popover > button > .menu-label')].map(node => node.textContent), ["New thread here", "Move to worktree"]);
+    assert.deepEqual([...document.querySelectorAll('.session-menu-popover > button .menu-label')].map(node => node.textContent), ["New thread here", "Move to worktree"]);
     await choose("Move to worktree");
     assert.equal(document.activeElement?.getAttribute("aria-label"), "Search worktrees or branches");
     assert.ok(view.effects.some(effect => effect.type === "list-worktrees"));
@@ -113,7 +113,7 @@ test("Enter in the destination search moves to the top match", async () => {
     await choose("Move to worktree");
     await view.send({ type: "worktrees.loaded", worktrees: initial.managedWorktrees! });
     await search("feat/login");
-    const input = query<HTMLInputElement>(document, '.worktree-menu-search input');
+    const input = query<HTMLInputElement>(document, '.worktree-menu-panel .menu-search input');
     await act(async () => input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
     assert.equal(view.state().threads[0].worktreeId, "wt1");
     assert.equal(view.state().openMenu, null);
@@ -130,7 +130,7 @@ test("a destination that cannot be chosen yet still takes the keyboard, like oth
     const row = query<HTMLButtonElement>(document, '[data-choice-index="0"]');
     assert.equal(row.getAttribute("aria-disabled"), "true");
     assert.equal(row.disabled, false);
-    const input = query<HTMLInputElement>(document, '.worktree-menu-search input');
+    const input = query<HTMLInputElement>(document, '.worktree-menu-panel .menu-search input');
     await act(async () => input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
     assert.equal(document.activeElement, query(document, ".worktree-menu-new"));
     await act(async () => {
@@ -163,11 +163,11 @@ test("Escape in the destination search clears what was typed before it closes th
     await openLocationMenu();
     await choose("Move to worktree");
     await search("login");
-    const input = query<HTMLInputElement>(document, ".worktree-menu-search input");
-    assert.ok(input.closest(".menu-search-field"), "the field matches the other menu searches");
+    const input = query<HTMLInputElement>(document, ".worktree-menu-panel .menu-search input");
+    assert.ok(input.closest('.search-field[data-variant="menu"]'), "the field matches the other menu searches");
     await act(async () => input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
-    assert.equal(query<HTMLInputElement>(document, ".worktree-menu-search input").value, "");
-    assert.ok(document.querySelector(".worktree-menu-search"), "the list stays open");
+    assert.equal(query<HTMLInputElement>(document, ".worktree-menu-panel .menu-search input").value, "");
+    assert.ok(document.querySelector(".worktree-menu-panel .menu-search"), "the list stays open");
   } finally { await view.unmount(); }
 });
 
@@ -190,7 +190,7 @@ test("submenus support keyboard entry, Escape, and normal search cursor keys", a
       menuButton("Move to worktree").focus();
       menuButton("Move to worktree").dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
     });
-    const input = query<HTMLInputElement>(document, '.worktree-menu-search input');
+    const input = query<HTMLInputElement>(document, '.worktree-menu-panel .menu-search input');
     assert.equal(document.activeElement, input);
     await act(async () => input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
     assert.equal(document.activeElement, input);
@@ -261,7 +261,7 @@ test("deletion uses the standard warning and a linked run blocks an open confirm
     assert.match(described[1] ?? "", /Git-ignored files are deleted/);
     assert.equal(document.activeElement?.textContent, "Cancel");
     await view.send({ type: "task.send", taskId: "thread-1", text: "Continue", attachments: [] });
-    assert.equal(query<HTMLButtonElement>(document, '.worktree-delete-actions .danger').disabled, true);
+    assert.equal(query<HTMLButtonElement>(document, '.dialog-actions .btn[data-variant=danger]').disabled, true);
     assert.equal(view.effects.some(effect => effect.type === "delete-worktree"), false);
   } finally { await view.unmount(); }
 });
@@ -270,7 +270,7 @@ test("deletion confirmation and new-worktree selection dispatch their effects", 
   const view = await renderMenu();
   try {
     await openLocationMenu(); await choose("Delete worktree…");
-    await click('.worktree-delete-actions .danger');
+    await click('.dialog-actions .btn[data-variant=danger]');
     assert.equal(view.effects.filter(effect => effect.type === "delete-worktree").length, 1);
   } finally { await view.unmount(); }
   const creating = await renderMenu();
@@ -308,7 +308,7 @@ test("deleting closes the question and the row says the worktree is going", asyn
   const view = await renderMenu();
   try {
     await openLocationMenu(); await choose("Delete worktree…");
-    await click(".worktree-delete-actions .danger");
+    await click(".dialog-actions .btn[data-variant=danger]");
     assert.equal(document.querySelector(".worktree-delete-dialog"), null);
     assert.match(query(view.container, ".session-location-name").textContent ?? "", /^Removing worktree…/);
   } finally { await view.unmount(); }
@@ -324,7 +324,7 @@ test("Enter in the destination search does nothing when nothing matches", async 
     await view.send({ type: "worktrees.loaded", worktrees: initial.managedWorktrees! });
     await search("no such branch");
     assert.equal(query(document, ".worktree-menu-panel .worktree-menu-note").textContent, "No matches");
-    const input = query<HTMLInputElement>(document, ".worktree-menu-search input");
+    const input = query<HTMLInputElement>(document, ".worktree-menu-panel .menu-search input");
     await act(async () => input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
     assert.equal(view.state().threads[0].worktreeId, undefined);
     assert.equal(view.state().openMenu, "session:location", "Enter with nothing to take leaves the menu open");

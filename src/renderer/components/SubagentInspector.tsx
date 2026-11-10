@@ -1,13 +1,17 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { LuBot as Bot, LuChevronUp as ChevronUp, LuLoaderCircle as LoaderCircle, LuWrench as Wrench, LuX as X } from "react-icons/lu";
+import { LuBot as Bot, LuChevronUp as ChevronUp, LuLoaderCircle as LoaderCircle, LuWrench as Wrench } from "react-icons/lu";
 import { subagentStatusLabel, type Subagent, type SubagentActivity } from "../../domain/run";
 import { effortLabel } from "../../domain/agent-engine";
 import { Copyable } from "./CopyButton";
-import { ConfirmAction } from "./SettingRow";
+import { ConfirmAction } from "../ui/ConfirmAction";
 import { SpinningIcon } from "./SpinningIcon";
 import { StatusIcon } from "./SubagentList";
 import { shortcutTip } from "./TooltipLayer";
+import { Button } from "../ui/Button";
+import { EmptyState } from "../ui/EmptyState";
+import { PanelHeader } from "../ui/PanelHeader";
+import "../ui/glass.css";
 
 /** How much of a log opens with the subagent. The rest is read backwards, each window twice the last. */
 const TAIL = 60;
@@ -18,7 +22,7 @@ const VIRTUALIZE_ABOVE = 50;
 function activityItem(item: SubagentActivity, finding: boolean) {
   return item.kind === "tool" ? (
     /** A search reads what is drawn, so a tool's output is drawn open while one is reading the panel. */
-    <details className="agent-tool" {...(finding ? { open: true } : {})}>
+    <details className="agent-tool raised" {...(finding ? { open: true } : {})}>
       <summary><Wrench size={14} aria-hidden="true" />{item.title ?? "Tool"}</summary>
       <Copyable text={item.text} label="Copy the output"><pre>{item.text}</pre></Copyable>
     </details>
@@ -79,10 +83,7 @@ export function SubagentInspector({ subagent, finding = false, onClose, onStop }
         onClose();
       }}
     >
-      <header className="inspector-header">
-        <span>Subagent</span>
-        <button type="button" aria-label="Close subagent details" data-tip={shortcutTip("Close", "Escape")} onClick={onClose}><X size={18} aria-hidden="true" /></button>
-      </header>
+      <PanelHeader title="Subagent" closeLabel="Close subagent details" closeTip={shortcutTip("Close", "Escape")} onClose={onClose} />
       <div className="inspector-scroll" ref={scrollRef}>
         <div ref={introductionRef}>
           <div className="agent-detail-heading">
@@ -94,8 +95,8 @@ export function SubagentInspector({ subagent, finding = false, onClose, onStop }
             {subagent.status === "working" && (
               <span className="workflow-stop-actions">
                 {subagent.stopping
-                  ? <button className="workflow-stop" type="button" disabled><SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />Stopping…</button>
-                  : <ConfirmAction className="workflow-stop" confirm="Stop subagent" onConfirm={() => onStop(subagent.id)}>Stop</ConfirmAction>}
+                  ? <Button className="workflow-stop" variant="danger" disabled icon={<SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />}>Stopping…</Button>
+                  : <ConfirmAction className="workflow-stop" variant="danger" confirm="Stop subagent" onConfirm={() => onStop(subagent.id)}>Stop</ConfirmAction>}
               </span>
             )}
           </div>
@@ -123,12 +124,12 @@ export function SubagentInspector({ subagent, finding = false, onClose, onStop }
         </div>
         <div className="agent-activity" aria-live="polite">
           {start > 0 && (
-            <button className="agent-activity-earlier" type="button" onClick={() => setLimit(limit * 2)}>
-              <ChevronUp size={14} aria-hidden="true" />Show {Math.min(start, limit)} earlier
-            </button>
+            <Button className="agent-activity-earlier" icon={<ChevronUp size={14} aria-hidden="true" />} onClick={() => setLimit(limit * 2)}>
+              Show {Math.min(start, limit)} earlier
+            </Button>
           )}
           {shown === 0 ? (
-            <p className="session-empty">Waiting for activity…</p>
+            <EmptyState size="inline" title="Waiting for activity…" />
           ) : (
             <div className="agent-activity-items" ref={activityRef} style={virtual ? { height: virtualizer.getTotalSize() } : undefined}>
               {virtual

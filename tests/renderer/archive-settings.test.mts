@@ -59,7 +59,7 @@ test("an archive offers a filter, and a filter that misses offers the way back",
   const short = await mount(renderSettingsPanel({ initialSection: "archive", archivedThreads: threads.slice(0, 3) }));
   await act(async () => {});
   assert.equal(short.container.querySelector('input[aria-label="Filter archived threads"]'), null, "a short archive lists its threads without a filter");
-  assert.ok(query(short.container, ".settings-group-action button").classList.contains("danger"), "Clear all looks destructive before it is armed");
+  assert.equal(query(short.container, ".settings-group-action button").dataset.variant, "danger", "Clear all looks destructive before it is armed");
   await short.unmount();
 
   const none = await mount(renderSettingsPanel({ initialSection: "archive", archivedThreads: [] }));

@@ -23,7 +23,7 @@ test("a diagram that failed names why in view, and draws on a second try", async
   const error = query(view.container, ".mermaid-error");
   assert.equal(error.getAttribute("role"), "alert");
   assert.equal(query(error, ".block-error-reason").textContent, "Parse error on line 2:", "the first line shows without opening the details");
-  const retry = query<HTMLButtonElement>(error, ".limit-action");
+  const retry = query<HTMLButtonElement>(error, ".block-error-retry");
   assert.equal(retry.textContent, "Try again");
 
   await act(async () => { retry.click(); });

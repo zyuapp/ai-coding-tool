@@ -1,11 +1,13 @@
 import { memo, useMemo, type ReactNode } from "react";
-import { LuCheck as Check, LuUndo2 as Reopen, LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
+import { LuCheck as Check, LuUndo2 as Reopen, LuWaypoints as Waypoints } from "react-icons/lu";
 import { DockConversation } from "./SideChat";
 import { chatHandlers } from "./DockSideChat";
 import { CoordinationStatusMark, coordinationStatusLine } from "./Coordination";
 import { CommandButton } from "./CommandControl";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { ThreadTabStrip } from "./ThreadTabStrip";
+import { PanelHeader } from "../ui/PanelHeader";
+import "../ui/glass.css";
 import { threadAsking } from "../../application/pull-request-view";
 import { canResolve, type CoordinatedThreadStatus } from "../../application/coordinated-thread-status";
 import { AUTOMATION_PANEL } from "../../application/workspace-reducer";
@@ -38,8 +40,8 @@ function PullRequestReads({ tab, dispatch }: { tab: ThreadTabView; dispatch: Dis
 function TabResolution({ taskId, title, status }: { taskId: string; title: string; status: CoordinatedThreadStatus }) {
   if (status === "resolved") {
     return (
-      <CommandButton command={{ type: "task.reopen", taskId }} className="thread-tab-resolution" data-action="reopen" aria-label={`Reopen ${title}`}>
-        <Reopen size={14} aria-hidden="true" />Reopen
+      <CommandButton command={{ type: "task.reopen", taskId }} className="thread-tab-resolution" variant="soft" icon={<Reopen size={14} aria-hidden="true" />} data-action="reopen" aria-label={`Reopen ${title}`}>
+        Reopen
       </CommandButton>
     );
   }
@@ -57,20 +59,22 @@ function ThreadTabHeader({ tab, leadTitle, dispatch, branchMenuOpen, onClose }: 
   const status = coordinationStatusLine(standing, summary);
   return (
     <>
-      <header className="side-chat-header thread-tab-header">
-        <div className="side-chat-title">
-          <span className={`thread-tab-mark ${standing}`}>
+      <PanelHeader
+        className="thread-tab-header"
+        data-standing={standing}
+        icon={(
+          <span className={`thread-tab-mark raised ${standing}`}>
             <ThreadEngineIcon engine={thread.engine} size={16} />
             <CoordinationStatusMark status={standing} />
           </span>
-          <div>
-            <h2 data-tip={thread.title} data-tip-overflow>{thread.title}</h2>
-            <p className={`thread-tab-status ${standing}`} data-tip={status} data-tip-overflow>{status}</p>
-          </div>
-        </div>
-        <TabResolution taskId={tab.id} title={thread.title} status={standing} />
-        <button type="button" aria-label={`Close ${thread.title} and return to ${leadTitle}`} data-tip={`Close · back to ${leadTitle}`} onClick={onClose}><X size={18} /></button>
-      </header>
+        )}
+        title={thread.title}
+        subtitle={status}
+        actions={<TabResolution taskId={tab.id} title={thread.title} status={standing} />}
+        closeLabel={`Close ${thread.title} and return to ${leadTitle}`}
+        closeTip={`Close · back to ${leadTitle}`}
+        onClose={onClose}
+      />
       <ThreadTabStrip
         tab={tab}
         branchMenuOpen={branchMenuOpen}

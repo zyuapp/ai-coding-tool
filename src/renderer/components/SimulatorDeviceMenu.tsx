@@ -1,11 +1,10 @@
-import { Fragment, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LuChevronDown as ChevronDown, LuSmartphone as Smartphone, LuTablet as Tablet } from "react-icons/lu";
 import { simulatorGroups, type SimulatorAvailability, type SimulatorDevice } from "../../domain/simulator";
 import { useDismissibleLayer } from "../focus";
-import { useAnchoredStyle } from "./BranchMenu";
 import { useCommandControls } from "./CommandControl";
-import { PickerOption, PickerPopover, PickerSearch } from "./Picker";
+import { MenuGroup, MenuItem, MenuNote, MenuOptions, MenuSearch, MenuSurface, useListKeys, useMenuAnchor } from "../ui/Menu";
 
 const DEVICE_MENU = "simulator-device";
 /** Wide enough for the longest iPad name beside its state. */
@@ -25,39 +24,34 @@ function DeviceList({ devices, empty, selected, anchor, menuRef, onPick }: {
   onPick: (udid: string) => void;
 }) {
   const [query, setQuery] = useState("");
-  const anchored = useAnchoredStyle(anchor, MENU_WIDTH, MENU_WIDTH);
+  const anchored = useMenuAnchor(anchor, menuRef, { minWidth: MENU_WIDTH, maxWidth: MENU_WIDTH });
+  const listKeys = useListKeys();
   const groups = simulatorGroups(devices, query);
   const top = groups[0]?.devices[0];
   return createPortal(
-    <PickerPopover
-      ref={menuRef}
-      className="simulator-device-popover"
-      style={anchored ?? { visibility: "hidden" }}
-      onKeyDownCapture={(event) => {
-        if (event.key !== "Escape" || !query || (event.target as HTMLElement).tagName !== "INPUT") return;
-        event.preventDefault();
-        setQuery("");
-      }}
-    >
-      <PickerSearch label="Search simulators" value={query} onChange={setQuery} onSubmit={() => { if (top) onPick(top.udid); }} />
-      <div role="listbox" aria-label="Simulators">
-        {!groups.length && <p className="simulator-device-empty" role="status">{devices.length ? "No simulator matches" : empty}</p>}
+    <MenuSurface ref={menuRef} checkable scroll anchored className="simulator-device-popover" style={anchored} onKeyDown={listKeys}>
+      <MenuSearch label="Search simulators" value={query} onChange={setQuery} onSubmit={() => { if (top) onPick(top.udid); }} autoFocus />
+      <MenuOptions aria-label="Simulators">
+        {!groups.length && <MenuNote role="status">{devices.length ? "No simulator matches" : empty}</MenuNote>}
         {groups.map((group) => (
-          <Fragment key={group.label}>
-            <p className="simulator-device-group">{group.label}</p>
+          <MenuGroup key={group.label} label={group.label}>
             {group.devices.map((device) => (
-              <PickerOption key={device.udid} selected={device.udid === selected} onClick={() => onPick(device.udid)}>
-                <DeviceIcon name={device.name} />
-                <span className="simulator-device-name">{device.name}</span>
-                {group.running
-                  ? <small className={`simulator-device-state ${device.state}`}>{device.state === "booted" ? "Running" : "Starting"} · {device.runtime}</small>
-                  : null}
-              </PickerOption>
+              <MenuItem
+                key={device.udid}
+                role="option"
+                checked={device.udid === selected}
+                icon={<DeviceIcon name={device.name} />}
+                data-default={device === top ? "" : undefined}
+                detail={group.running ? <span className={`simulator-device-state ${device.state}`}>{device.state === "booted" ? "Running" : "Starting"} · {device.runtime}</span> : undefined}
+                onClick={() => onPick(device.udid)}
+              >
+                {device.name}
+              </MenuItem>
             ))}
-          </Fragment>
+          </MenuGroup>
         ))}
-      </div>
-    </PickerPopover>,
+      </MenuOptions>
+    </MenuSurface>,
     document.body,
   );
 }

@@ -232,7 +232,7 @@ test("the subagents panel windows a large roster, leads with failures, and filte
   assert.match(query(view.container, ".subagent-group").textContent ?? "", /Failed/);
   assert.match(view.container.textContent, /Agent 700/);
 
-  await act(async () => { query<HTMLButtonElement>(view.container, '.agent-status-strip button.failed').click(); });
+  await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>('.agent-status-strip [role="radio"]')].find((pill) => pill.textContent?.startsWith("Failed"))).click(); });
   assert.deepEqual(
     [...view.container.querySelectorAll(".subagent-list strong")].map((node) => node.textContent),
     ["Agent 700"],
@@ -256,7 +256,7 @@ test("a folded status group hides its rows and reports the fold", async () => {
   }));
 
   assert.match(view.container.textContent, /Explore renderer/);
-  const completed = [...view.container.querySelectorAll<HTMLButtonElement>(".subagent-group")].find((node) => node.textContent?.includes("Completed"));
+  const completed = [...view.container.querySelectorAll<HTMLButtonElement>(".subagent-group > button")].find((node) => node.textContent?.includes("Completed"));
   await act(async () => { item(completed).click(); });
   assert.deepEqual(folds, [["completed", false]]);
 
@@ -278,7 +278,7 @@ test("the sidebar folds its subagent list and leaves the count on show", async (
   const view = await mount(renderSessionPanel({ subagents, onSetSubagentGroup(group, open) { folds.push([group, open]); } }));
 
   assert.match(view.container.textContent, /Explore renderer/);
-  await act(async () => { query<HTMLButtonElement>(view.container, ".subagent-heading .section-toggle").click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, ".session-heading > button").click(); });
   assert.deepEqual(folds, [["sidebar", false]]);
 
   await view.render(renderSessionPanel({ subagents, subagentGroups: { ...OPEN_SUBAGENT_GROUPS, sidebar: false } }));
@@ -473,7 +473,7 @@ test("workspace header keeps session summary and right panel controls separate",
   assert.equal(summary.dataset.tip, "Session summary · 2 agents working");
   assert.match(query(view.container, 'button[aria-label="Show sidebar"]').dataset.tip ?? "", /^Sidebar \(.+B\)$/);
   assert.match(query(view.container, 'button[aria-label="Hide right panel"]').dataset.tip ?? "", /^Right panel \(.+\\\)$/);
-  assert.equal(query(view.container, ".open-in .session-toggle").dataset.tip, "Open in…");
+  assert.equal(query(view.container, ".open-in .icon-btn").dataset.tip, "Open in…");
   assert.match(view.container.textContent, /2/);
   await act(async () => {
     query<HTMLButtonElement>(view.container, 'button[aria-label="Show sidebar"]').click();
@@ -507,7 +507,7 @@ test("the open-in list groups the applications this machine has, and hands one t
     onOpenInApp: (appId: string) => chosen.push(appId),
   });
   const view = await mount(openIn(null));
-  const trigger = () => query<HTMLButtonElement>(view.container, ".open-in .session-toggle");
+  const trigger = () => query<HTMLButtonElement>(view.container, ".open-in .icon-btn");
 
   assert.equal(trigger().getAttribute("aria-expanded"), "false");
   assert.equal(lists, 0, "a list nobody has opened is not worth a scan");
@@ -522,11 +522,11 @@ test("the open-in list groups the applications this machine has, and hands one t
   await view.render(openIn(apps));
   await act(async () => {});
 
-  assert.deepEqual([...view.container.querySelectorAll(".open-in-group")].map((group) => group.textContent), ["Editors", "Terminals", "Files"]);
+  assert.deepEqual([...view.container.querySelectorAll(".open-in-popover .menu-group-label")].map((group) => group.textContent), ["Editors", "Terminals", "Files"]);
   const rows = [...view.container.querySelectorAll<HTMLButtonElement>(".open-in-popover button")];
   assert.deepEqual(rows.map((row) => item(row.textContent)), ["Cursor", "Terminal", "Finder"]);
   assert.ok(rows[0].querySelector("img"), "an application whose own icon can be read shows it");
-  assert.ok(rows[1].querySelector(".open-in-icon svg"), "one whose icon cannot be read falls back to the mark for its kind");
+  assert.ok(rows[1].querySelector(".menu-icon svg"), "one whose icon cannot be read falls back to the mark for its kind");
 
   await act(async () => { rows[0].click(); });
   assert.deepEqual(chosen, ["cursor"]);
@@ -541,7 +541,7 @@ test("Open in says what it waits for while the folder cannot be handed over", as
   const openIn = (blocked: string | null) => React.createElement(OpenInMenu, { openMenu: menu, onSetOpenMenu: (next: string | null) => { menu = next; }, blocked, apps, onListApps: () => {}, onOpenInApp: () => {} });
   const view = await mount(openIn("Worktree is still being created"));
 
-  const trigger = query<HTMLButtonElement>(view.container, ".open-in .session-toggle");
+  const trigger = query<HTMLButtonElement>(view.container, ".open-in .icon-btn");
   assert.equal(trigger.getAttribute("aria-disabled"), "true", "it stays focusable, so its tip still says why");
   assert.equal(trigger.dataset.tip, "Open in… · Worktree is still being created");
   await act(async () => { trigger.click(); });
@@ -553,7 +553,7 @@ test("Open in says what it waits for while the folder cannot be handed over", as
   assert.equal(trigger.hasAttribute("aria-disabled"), false);
   await act(async () => { trigger.click(); });
   await view.render(openIn(null));
-  assert.equal(view.container.querySelector(".open-in-empty"), null);
+  assert.equal(view.container.querySelector(".open-in-popover .menu-note"), null);
   assert.equal(view.container.querySelectorAll(".open-in-popover button").length, 1);
   await view.unmount();
 });
@@ -659,10 +659,10 @@ test("the subagent search clears from its button or Escape", async () => {
   });
   const names = () => [...view.container.querySelectorAll(".subagent-list strong")].map((node) => node.textContent);
 
-  assert.equal(view.container.querySelector(".agent-search-clear"), null, "an empty search has nothing to clear");
+  assert.equal(view.container.querySelector(".search-field-clear"), null, "an empty search has nothing to clear");
   await type("reducer");
   assert.deepEqual(names(), ["Read the reducer"]);
-  await act(async () => { query<HTMLButtonElement>(view.container, ".agent-search-clear").click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, ".search-field-clear").click(); });
   assert.equal(search.value, "");
   assert.equal(names().length, 2);
 

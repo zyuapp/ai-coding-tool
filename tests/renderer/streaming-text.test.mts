@@ -220,7 +220,7 @@ test("a reader who scrolls away keeps the view, and is offered a way back to the
   await view.render(harness.render(messages, "running", null));
   const live = query<HTMLButtonElement>(view.container, ".scroll-to-end");
   assert.equal(live.getAttribute("aria-label"), "Scroll to the latest message");
-  assert.equal(live.className, "scroll-to-end", "a running thread adds no mark");
+  assert.deepEqual([...live.classList].filter((name) => name !== "icon-btn"), ["scroll-to-end"], "a running thread adds no mark");
   await view.render(harness.render(messages, "idle", null));
 
   await act(async () => { query<HTMLButtonElement>(view.container, ".scroll-to-end").click(); });

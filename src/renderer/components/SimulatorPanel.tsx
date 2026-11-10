@@ -3,9 +3,13 @@ import { LuHouse as House, LuLock as Lock, LuRotateCcw as RotateLeft, LuRotateCw
 import { hidUsage, MAX_SIMULATOR_TEXT, screenCornerRadius, screenTurns, turned, untilted, type SimulatorInput, type SimulatorOrientation, type SimulatorState } from "../../domain/simulator";
 import { useSimulatorStream } from "../simulator/use-simulator-stream";
 import { WheelSwipe } from "../simulator/wheel-swipe";
-import { CommandButton } from "./CommandControl";
+import { CommandButton, CommandIconButton } from "./CommandControl";
 import { SimulatorDeviceMenu } from "./SimulatorDeviceMenu";
 import { SpinningIcon } from "./SpinningIcon";
+import { Button } from "../ui/Button";
+import { EmptyState } from "../ui/EmptyState";
+import { Toolbar } from "../ui/PanelHeader";
+import "../ui/glass.css";
 
 export type SimulatorPanelProps = {
   simulator: SimulatorState;
@@ -18,15 +22,8 @@ export type SimulatorPanelProps = {
   onInput: (udid: string, input: SimulatorInput) => void;
 };
 
-function Notice({ icon, title, detail, action, tone }: { icon: ReactNode; title: string; detail?: string; action?: ReactNode; tone?: "error" }) {
-  return (
-    <div className={`simulator-notice ${tone ?? ""}`.trimEnd()} role={tone === "error" ? "alert" : "status"}>
-      <span className="agent-orb">{icon}</span>
-      <h2>{title}</h2>
-      {detail && <p>{detail}</p>}
-      {action}
-    </div>
-  );
+function Notice({ icon, title, detail, action, tone }: { icon: ReactNode; title: string; detail?: string; action?: ReactNode; tone?: "danger" }) {
+  return <EmptyState className="simulator-notice" role={tone === "danger" ? "alert" : "status"} tone={tone} icon={icon} title={title} detail={detail} action={action} />;
 }
 
 /** Where a pointer is on the screen as it is shown, as fractions of it from its top left. */
@@ -103,29 +100,31 @@ export function SimulatorPanel({ simulator, udid, active, openMenu, onSetOpenMen
   } else if (!device) {
     body = <Notice icon={<SpinningIcon icon={Smartphone} spinning={simulator.availability.status === "unknown"} size={18} />} title={simulator.availability.status === "unknown" ? "Looking for simulators" : "No simulators"} detail={simulator.availability.status === "unknown" ? undefined : "Add an iOS simulator in Xcode, then open this panel again."} />;
   } else if (error && !booting) {
-    body = <Notice tone="error" icon={<AlertTriangle size={18} />} title={`${device.name} could not start`} detail={error}
-      action={<CommandButton type="button" command={{ type: "simulator.select", udid: device.udid }}>Try again</CommandButton>} />;
+    body = <Notice tone="danger" icon={<AlertTriangle size={18} />} title={`${device.name} could not start`} detail={error}
+      action={<CommandButton variant="soft" size="lg" command={{ type: "simulator.select", udid: device.udid }}>Try again</CommandButton>} />;
   } else if (!booted) {
     body = booting
       ? <Notice icon={<SpinningIcon icon={Smartphone} spinning size={18} />} title={`Starting ${device.name}`} detail="It runs in the background, so you can keep working." />
       : <Notice icon={<Smartphone size={18} />} title={`${device.name} is off`}
-        action={<CommandButton type="button" command={{ type: "simulator.select", udid: device.udid }}>Start</CommandButton>} />;
+        action={<CommandButton variant="soft" size="lg" command={{ type: "simulator.select", udid: device.udid }}>Start</CommandButton>} />;
   }
 
   return (
     <section className="simulator-panel" aria-label="Simulator">
-      <header className="simulator-bar">
-        <SimulatorDeviceMenu devices={simulator.devices} availability={simulator.availability} selected={device} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
-        {driving && <span className="simulator-driving" role="status"><i aria-hidden="true" />Agent is using this device</span>}
-        <span className="simulator-bar-gap" />
-        {device && (
-          <>
-            <CommandButton type="button" aria-label="Rotate left" data-tip="Rotate left" disabled={!booted} command={{ type: "simulator.input", udid: device.udid, input: { kind: "rotate", orientation: turned(orientation, -1) } }}><RotateLeft size={16} /></CommandButton>
-            <CommandButton type="button" aria-label="Rotate right" data-tip="Rotate right" disabled={!booted} command={{ type: "simulator.input", udid: device.udid, input: { kind: "rotate", orientation: turned(orientation, 1) } }}><RotateRight size={16} /></CommandButton>
-            <CommandButton type="button" aria-label="Home" data-tip="Home" disabled={!booted} command={{ type: "simulator.input", udid: device.udid, input: { kind: "button", button: "home" } }}><House size={16} /></CommandButton>
-            <CommandButton type="button" aria-label="Lock" data-tip="Lock" disabled={!booted} command={{ type: "simulator.input", udid: device.udid, input: { kind: "button", button: "lock" } }}><Lock size={16} /></CommandButton>
-          </>
-        )}
+      <header>
+        <Toolbar className="simulator-bar">
+          <SimulatorDeviceMenu devices={simulator.devices} availability={simulator.availability} selected={device} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
+          {driving && <span className="simulator-driving raised" role="status"><i aria-hidden="true" />Agent is using this device</span>}
+          <span className="simulator-bar-gap" />
+          {device && (
+            <>
+              <CommandIconButton label="Rotate left" disabled={!booted} command={{ type: "simulator.input", udid: device.udid, input: { kind: "rotate", orientation: turned(orientation, -1) } }}><RotateLeft size={16} aria-hidden="true" /></CommandIconButton>
+              <CommandIconButton label="Rotate right" disabled={!booted} command={{ type: "simulator.input", udid: device.udid, input: { kind: "rotate", orientation: turned(orientation, 1) } }}><RotateRight size={16} aria-hidden="true" /></CommandIconButton>
+              <CommandIconButton label="Home" disabled={!booted} command={{ type: "simulator.input", udid: device.udid, input: { kind: "button", button: "home" } }}><House size={16} aria-hidden="true" /></CommandIconButton>
+              <CommandIconButton label="Lock" disabled={!booted} command={{ type: "simulator.input", udid: device.udid, input: { kind: "button", button: "lock" } }}><Lock size={16} aria-hidden="true" /></CommandIconButton>
+            </>
+          )}
+        </Toolbar>
       </header>
       <div className="simulator-stage">
         {body}
@@ -180,8 +179,8 @@ export function SimulatorPanel({ simulator, udid, active, openMenu, onSetOpenMen
             <canvas ref={canvas} />
           </div>
         )}
-        {booted && stream.error && <Notice tone="error" icon={<AlertTriangle size={18} />} title={`Could not show ${device.name}`} detail={stream.error}
-          action={<button type="button" onClick={stream.retry}>Try again</button>} />}
+        {booted && stream.error && <Notice tone="danger" icon={<AlertTriangle size={18} />} title={`Could not show ${device.name}`} detail={stream.error}
+          action={<Button variant="soft" size="lg" onClick={stream.retry}>Try again</Button>} />}
         {booted && !size && !stream.error && <Notice icon={<SpinningIcon icon={Smartphone} spinning size={18} />} title={`Connecting to ${device.name}`} />}
       </div>
     </section>

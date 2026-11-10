@@ -23,7 +23,7 @@ test("a folder picker that fails says so in the dialog, and typing a path clears
   const view = await dialog(() => Promise.reject(new Error("Picker unavailable")));
   try {
     await act(async () => { choose().click(); });
-    assert.equal(query(document.body, ".project-edit-error[role=alert]").textContent, "Picker unavailable");
+    assert.equal(query(document.body, ".text-field-error[role=alert]").textContent, "Picker unavailable");
     await act(async () => {
       const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")!.set!;
       rootField().focus();
@@ -31,7 +31,7 @@ test("a folder picker that fails says so in the dialog, and typing a path clears
       rootField().dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText" }));
       rootField().dispatchEvent(new dom.window.KeyboardEvent("keyup", { bubbles: true, key: "b" }));
     });
-    assert.equal(document.querySelector(".project-edit-error"), null);
+    assert.equal(document.querySelector(".text-field-error"), null);
   } finally { await view.unmount(); }
 });
 
@@ -44,7 +44,7 @@ test("a chosen folder fills the field and is what Save saves; a cancelled pick l
     answer = { root: "/work/web" };
     await act(async () => { choose().click(); });
     assert.equal(rootField().value, "/work/web");
-    assert.equal(document.querySelector(".project-edit-error"), null);
+    assert.equal(document.querySelector(".text-field-error"), null);
     await act(async () => { query<HTMLButtonElement>(document.body, "button[type=submit]").click(); });
     assert.deepEqual(view.saved, [{ name: null, root: "/work/web" }]);
     assert.equal(view.closed(), 0);
@@ -54,7 +54,7 @@ test("a chosen folder fills the field and is what Save saves; a cancelled pick l
 test("the editor opens with the name selected, and Save with nothing changed just closes it", async () => {
   const view = await dialog(() => Promise.resolve(null));
   try {
-    const name = query<HTMLInputElement>(document.body, ".project-edit-field input");
+    const name = query<HTMLInputElement>(document.body, ".text-field");
     assert.equal(document.activeElement, name);
     assert.equal(name.selectionStart, 0);
     assert.equal(name.selectionEnd, name.value.length);
@@ -70,7 +70,7 @@ test("while saving, the form is busy and Save says so", async () => {
   Object.defineProperty(window, "desktop", { configurable: true, value: { openFolder: () => Promise.resolve(null) } });
   const view = await mount(createElement(ProjectEditDialog, { editor: { ...editor, saving: true }, onSave: () => {}, onClose: () => {} }));
   try {
-    assert.equal(query(document.body, ".project-edit-panel").getAttribute("aria-busy"), "true");
+    assert.equal(query(document.body, ".dialog").getAttribute("aria-busy"), "true");
     const save = query<HTMLButtonElement>(document.body, "button[type=submit]");
     assert.equal(save.disabled, true);
     assert.equal(save.textContent, "Saving…");

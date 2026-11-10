@@ -1,9 +1,11 @@
 import { LuCode as Code, LuFolder as Folder, LuFolderCode as FolderCode, LuSquareTerminal as SquareTerminal } from "react-icons/lu";
-import { Fragment, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { InstalledApp } from "../../contracts/ipc";
 import type { ExternalAppKind } from "../../domain/external-apps";
-import { moveListFocus, useDismissibleLayer } from "../focus";
-import { useTypeahead } from "./PopoverMenu";
+import { useDismissibleLayer } from "../focus";
+import { IconButton } from "../ui/Button";
+import { MenuNote } from "../ui/Menu";
+import { MenuList, type MenuSection } from "./PopoverMenu";
 
 export const OPEN_IN_MENU = "workspace:open-in";
 
@@ -40,15 +42,21 @@ export function OpenInMenu({ openMenu, onSetOpenMenu, blocked, apps, onListApps,
   const open = openMenu === OPEN_IN_MENU && !blocked;
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const list = useRef<HTMLDivElement>(null);
   useDismissibleLayer(open, [root], () => onSetOpenMenu(null), trigger);
-  const typeahead = useTypeahead();
   useEffect(() => { if (open) onListApps(); }, [open]);
-  /** The list itself takes focus, not a row, so it opens with nothing highlighted and still hears the arrow keys. */
-  useEffect(() => { if (open) list.current?.focus(); }, [open]);
-  const groups = GROUPS
-    .map((group) => ({ ...group, apps: (apps ?? []).filter((app) => app.kind === group.kind) }))
-    .filter((group) => group.apps.length > 0);
+  const entries: MenuSection[] = GROUPS
+    .map((group) => ({
+      group: group.label,
+      items: (apps ?? []).filter((app) => app.kind === group.kind).map((app) => {
+        const Icon = KIND_ICONS[app.kind];
+        return {
+          label: app.label,
+          icon: app.icon ? <img src={app.icon} alt="" width={20} height={20} /> : <Icon size={20} />,
+          onSelect: () => onOpenInApp(app.id),
+        };
+      }),
+    }))
+    .filter((group) => group.items.length > 0);
 
   const triggerProps = {
     ref: trigger,
@@ -60,52 +68,19 @@ export function OpenInMenu({ openMenu, onSetOpenMenu, blocked, apps, onListApps,
   };
 
   const popover = open && (
-    <div ref={list} className="menu-popover open-in-popover" data-popover-menu role="menu" tabIndex={-1} onKeyDown={(event) => {
-      const rows = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button")];
-      if ((event.key === "Home" || event.key === "End") && rows.length) {
-        event.preventDefault();
-        rows[event.key === "Home" ? 0 : rows.length - 1]!.focus();
-      } else if (!typeahead(event, rows)) moveListFocus(event);
-    }}>
-      {!apps && <p className="open-in-empty" role="status">Looking for applications…</p>}
-      {apps && groups.length === 0 && <p className="open-in-empty">No application found</p>}
-      {groups.map((group) => (
-        <Fragment key={group.kind}>
-          <p className="open-in-group">{group.label}</p>
-          {group.apps.map((app) => {
-            const Icon = KIND_ICONS[app.kind];
-            return (
-              <button
-                key={app.id}
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onSetOpenMenu(null);
-                  onOpenInApp(app.id);
-                }}
-              >
-                <span className="open-in-icon">
-                  {app.icon ? <img src={app.icon} alt="" width={20} height={20} /> : <Icon size={20} />}
-                </span>
-                <span>{app.label}</span>
-              </button>
-            );
-          })}
-        </Fragment>
-      ))}
-    </div>
+    <MenuList
+      entries={entries}
+      onClose={() => onSetOpenMenu(null)}
+      className="open-in-popover"
+      empty={<MenuNote role={apps ? undefined : "status"}>{apps ? "No application found" : "Looking for applications…"}</MenuNote>}
+    />
   );
 
   return (
     <div ref={root} className={`open-in ${open ? "open" : ""}`.trimEnd()} data-popover-menu>
-      <button
-        {...triggerProps}
-        className={`session-toggle ${open ? "active" : ""}`}
-        aria-label="Open this folder in another application"
-        data-tip={blocked ? `Open in… · ${blocked}` : "Open in…"}
-      >
+      <IconButton {...triggerProps} size="lg" label="Open this folder in another application" tip={blocked ? `Open in… · ${blocked}` : "Open in…"}>
         <FolderCode size={18} aria-hidden="true" />
-      </button>
+      </IconButton>
       {popover}
     </div>
   );

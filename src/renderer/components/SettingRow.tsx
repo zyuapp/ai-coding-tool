@@ -1,7 +1,8 @@
 import { LuCheck as Check } from "react-icons/lu";
-import { createContext, isValidElement, useContext, useEffect, useRef, useState, type ComponentPropsWithoutRef, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
+import { createContext, isValidElement, useContext, useEffect, useRef, type ComponentPropsWithRef, type ReactNode } from "react";
 import { settingControl, type SettingId, type SettingMark } from "../../domain/settings-catalog";
 import { firstFocusable, placeOf, useKeyboardPlace } from "../focus";
+import { Switch } from "../ui/Field";
 
 export const SettingFocus = createContext<SettingMark | null>(null);
 
@@ -36,24 +37,15 @@ export function useSettingMark<T extends HTMLElement>(id: string) {
   return { ref: element, found: visit !== null };
 }
 
-export type SettingRowProps = {
-  /** The catalog entry the row draws its name from, which is also what the jump panel offers. */
-  id: SettingId;
-  /** Whether the row's step is done. Left out, the row is a plain control with no circle. */
-  status?: boolean;
-  /** What the row says under its name. */
-  description: ReactNode;
-  className?: string;
-  /** The control itself, on the right of the row. */
-  children?: ReactNode;
-};
-
-/** The circle at the start of a row: ticked once its step is done, a dashed ring while it is still to do. */
-export function SettingStatus({ done, children }: { done: boolean; children?: ReactNode }) {
+/**
+ * The circle at the start of a row: ticked once its step is done, a dashed ring while it is still to do.
+ * A quiet one marks a row that is not a step, drawing only its icon until it is done, and says nothing aloud.
+ */
+export function SettingStatus({ done, quiet, children }: { done: boolean; quiet?: boolean; children?: ReactNode }) {
   return (
-    <span className={`setting-status ${done ? "granted" : "pending"}`}>
+    <span className={`setting-status ${done ? "granted" : quiet ? "blank" : "pending"}`} aria-hidden={quiet || undefined}>
       {children ?? (done && <Check size={14} aria-hidden="true" />)}
-      <span className="setting-status-label">{done ? "Done" : "Not done"}</span>
+      {!quiet && <span className="setting-status-label">{done ? "Done" : "Not done"}</span>}
     </span>
   );
 }
@@ -79,89 +71,67 @@ export function useRowListFocus<T extends HTMLElement>() {
 
 const switchId = (id: SettingId) => `setting-switch-${id}`;
 
-/**
- * One control on a settings page. Its name comes from the catalog, so nothing can be drawn here that
- * the jump panel cannot find.
- */
-export function SettingRow({ id, status, description, className, children }: SettingRowProps) {
-  const { ref, found } = useSettingMark<HTMLDivElement>(id);
+export type SettingRowBaseProps = Omit<ComponentPropsWithRef<"div">, "title" | "children"> & {
+  /** The row's name. A string is drawn as the row's title; anything else is drawn as given. */
+  title: ReactNode;
+  /** What the row says under its name. A string is one line of it; anything else is drawn as given. */
+  description?: ReactNode;
+  /** A mark in the row's lead column, such as a glyph. */
+  leading?: ReactNode;
+  /** Whether the row's step is done, drawn as the circle in its lead column. */
+  status?: boolean;
+  /** The setting a search can land on this row by. */
+  mark?: string;
+  /** Tighter rows for a checklist. */
+  density?: "compact";
+  /** Names the control the row's text toggles, so clicking the text works the control. */
+  labelFor?: string;
+  actionClassName?: string;
+  /** The controls, at the row's trailing edge. */
+  children?: ReactNode;
+  /** Drawn under the row's text and controls, across both. */
+  footer?: ReactNode;
+};
+
+/** One line of a settings page: a lead mark, a name over what it says, and the controls at its end. */
+export function SettingRowBase({ title, description, leading, status, mark, density, labelFor, actionClassName, className, children, footer, ref, ...rest }: SettingRowBaseProps) {
+  const landing = useSettingMark<HTMLDivElement>(mark ?? "");
+  const lead = status !== undefined ? <SettingStatus done={status} /> : leading;
   const text = <>
-    <strong>{settingControl(id).label}</strong>
+    {typeof title === "string" ? <strong>{title}</strong> : title}
     {typeof description === "string" ? <p>{description}</p> : description}
   </>;
-
+  const classes = ["setting-row", lead === undefined && "plain", landing.found && "found", className].filter(Boolean).join(" ");
+  const attach = (element: HTMLDivElement | null) => {
+    landing.ref.current = element;
+    if (typeof ref === "function") ref(element);
+    else if (ref) ref.current = element;
+  };
   return (
-    <div ref={ref} className={`setting-row${status === undefined ? " plain" : ""}${found ? " found" : ""}${className ? ` ${className}` : ""}`} data-setting={id}>
-      {status !== undefined && <SettingStatus done={status} />}
-      {isValidElement(children) && children.type === SettingSwitch
-        ? <label className="setting-row-text" htmlFor={switchId(id)}>{text}</label>
-        : <div>{text}</div>}
-      {children && <div className="setting-row-action">{children}</div>}
+    <div {...rest} ref={attach} className={classes} data-setting={mark} data-density={density}>
+      {lead}
+      {labelFor ? <label className="setting-row-text" htmlFor={labelFor}>{text}</label> : <div>{text}</div>}
+      {children && <div className={actionClassName ? `setting-row-action ${actionClassName}` : "setting-row-action"}>{children}</div>}
+      {footer}
     </div>
   );
 }
 
-/** A group of rows a search can land on as a whole. Its heading should draw the catalog's label for `setting`. */
-export function SettingGroup({ setting, children, ...section }: { setting: SettingId } & Omit<ComponentPropsWithoutRef<"section">, "className">) {
-  const { ref, found } = useSettingMark<HTMLElement>(setting);
-  return <section ref={ref} className={`settings-group${found ? " found" : ""}`} data-setting={setting} {...section}>{children}</section>;
+export type SettingRowProps = Omit<SettingRowBaseProps, "title" | "mark" | "labelFor"> & {
+  /** The catalog entry the row draws its name from, which is also what the jump panel offers. */
+  id: SettingId;
+};
+
+/**
+ * One control on a settings page. Its name comes from the catalog, so nothing can be drawn here that
+ * the jump panel cannot find.
+ */
+export function SettingRow({ id, children, ...row }: SettingRowProps) {
+  const switched = isValidElement(children) && children.type === SettingSwitch;
+  return <SettingRowBase {...row} title={settingControl(id).label} mark={id} labelFor={switched ? switchId(id) : undefined}>{children}</SettingRowBase>;
 }
 
 /** An on/off control whose name is the catalog label of the row it sits in. The row's text toggles it too. */
 export function SettingSwitch({ id, on, onChange }: { id: SettingId; on: boolean; onChange: (on: boolean) => void }) {
-  return (
-    <button id={switchId(id)} type="button" role="switch" className="setting-switch" aria-checked={on} aria-label={settingControl(id).label} onClick={() => onChange(!on)}>
-      <span aria-hidden="true" />
-    </button>
-  );
-}
-
-export type ConfirmActionProps = Omit<ComponentPropsWithoutRef<"button">, "onClick" | "type"> & {
-  /** The destructive button the first press reveals, beside Cancel. It keeps the first button's `aria-label`, which names what it acts on. */
-  confirm: string;
-  onConfirm: () => void;
-};
-
-/**
- * A button that asks once more before it acts. The first press swaps it for the destructive button
- * and Cancel, with the focus on Cancel; any answer, or Esc, puts the first button back and focuses it.
- * Moving the focus anywhere else takes the question back too, leaving the focus where it went.
- */
-export function ConfirmAction({ confirm, onConfirm, children, ...trigger }: ConfirmActionProps) {
-  const [confirming, setConfirming] = useState(false);
-  const first = useRef<HTMLButtonElement>(null);
-  const cancel = useRef<HTMLButtonElement>(null);
-  const danger = useRef<HTMLButtonElement>(null);
-  const asked = useRef(false);
-  const answered = useRef(false);
-  useEffect(() => {
-    if (confirming) cancel.current?.focus();
-    else if (asked.current) first.current?.focus();
-    asked.current = confirming;
-  }, [confirming]);
-  const answer = () => {
-    answered.current = true;
-    setConfirming(false);
-  };
-  const escape = (event: KeyboardEvent) => {
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    event.stopPropagation();
-    answer();
-  };
-  const leave = (event: FocusEvent) => {
-    if (answered.current || event.relatedTarget === cancel.current || event.relatedTarget === danger.current) return;
-    asked.current = false;
-    setConfirming(false);
-  };
-  if (!confirming) return <button ref={first} type="button" {...trigger} onClick={() => { answered.current = false; setConfirming(true); }}>{children}</button>;
-  return (
-    <>
-      <button ref={danger} type="button" className="danger armed" aria-label={trigger["aria-label"]} onKeyDown={escape} onBlur={leave} onClick={() => {
-        answer();
-        onConfirm();
-      }}>{confirm}</button>
-      <button ref={cancel} type="button" onKeyDown={escape} onBlur={leave} onClick={answer}>Cancel</button>
-    </>
-  );
+  return <Switch id={switchId(id)} className="setting-switch" on={on} onChange={onChange} label={settingControl(id).label} />;
 }

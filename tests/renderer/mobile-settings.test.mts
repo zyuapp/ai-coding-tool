@@ -70,15 +70,15 @@ function text() {
 
 test("a bridge that is off says so and offers nothing to pair with", () => {
   const calls = draw(emptyMobileServerState());
-  const pill = document.querySelector<HTMLElement>("[aria-labelledby='phone-availability-heading'] .settings-group-heading > span");
+  const pill = document.querySelector<HTMLElement>(".settings-group:has([data-setting='phone.availability']) .settings-group-heading > span");
   assert.equal(pill?.textContent, "Off");
   assert.equal(pill?.className, "neutral", "a bridge the user turned off is not drawn as a problem");
   assert.match(text(), /Turn phone access on and finish the Tailscale steps/);
   assert.match(text(), /No phone has paired/);
-  assert.equal(document.querySelector<HTMLButtonElement>("[aria-labelledby='phone-pairing-heading'] button")?.disabled, true);
+  assert.equal(document.querySelector<HTMLButtonElement>("[data-setting='phone.pairing'] button")?.disabled, true);
   assert.equal(calls.codes, 0, "a code was asked for with nothing to reach it by");
 
-  click("[aria-labelledby='phone-availability-heading'] [role='switch']");
+  click(".settings-group:has([data-setting='phone.availability']) [role='switch']");
   assert.deepEqual(calls.enabled, [true]);
 });
 
@@ -98,7 +98,7 @@ test("a served bridge draws the QR of the code on screen, and the address it is 
   assert.match(qr.src, /^data:image\/png;base64,/);
   assert.equal(qr.alt, `QR code for ${pairingUrl(TAILNET, "K7M2P9QX")}`);
 
-  click("[aria-labelledby='phone-pairing-heading'] button");
+  click("[data-setting='phone.pairing'] button");
   assert.equal(calls.codes, 1);
 });
 
@@ -129,7 +129,7 @@ test("paired phones are listed once each, with what they are doing and a way to 
   assert.match(document.querySelector("[data-device='device-1']")?.textContent ?? "", /Connected/);
   assert.match(document.querySelector("[data-device='device-2']")?.textContent ?? "", /Never connected/);
 
-  click("[data-device='device-2'] button.danger");
+  click("[data-device='device-2'] button[data-variant='danger']");
   assert.deepEqual(calls.revoked, [], "one press only asks");
   assert.equal(document.activeElement?.textContent, "Cancel", "the focus waits on the safe answer");
   click("[data-device='device-2'] button:last-child");
@@ -137,9 +137,9 @@ test("paired phones are listed once each, with what they are doing and a way to 
   assert.equal(document.querySelector("[data-device='device-2'] button")?.textContent, "Remove");
   assert.equal(document.querySelector("[data-device='device-2'] button")?.getAttribute("aria-label"), "Remove iPad");
 
-  click("[data-device='device-2'] button.danger");
-  assert.equal(document.querySelector("[data-device='device-2'] button.danger")?.textContent, "Remove iPad");
-  click("[data-device='device-2'] button.danger");
+  click("[data-device='device-2'] button[data-variant='danger']");
+  assert.equal(document.querySelector("[data-device='device-2'] button[data-variant='danger']")?.textContent, "Remove iPad");
+  click("[data-device='device-2'] button[data-variant='danger']");
   assert.deepEqual(calls.revoked, ["device-2"]);
 });
 
@@ -158,7 +158,7 @@ test("a machine without Tailscale is told to install it, and nothing to scan is 
   assert.equal(document.querySelector(".phone-pairing"), null, "a QR was drawn that no phone could use");
   assert.equal(calls.codes, 0);
 
-  click("[aria-labelledby='phone-tailscale-heading'] button");
+  click("[data-setting='phone.tailscale'] button");
   assert.equal(calls.refreshes, 1);
 });
 
@@ -195,7 +195,7 @@ test("a tailnet that issues no certificate says where to turn it on", () => {
 test("a bridge that failed to start says why", () => {
   draw({ ...emptyMobileServerState(), enabled: true, status: "error", error: "listen EADDRINUSE: address already in use 127.0.0.1:7737" });
   assert.match(text(), /Failed to start/);
-  assert.equal(document.querySelector("[aria-labelledby='phone-availability-heading'] .settings-group-heading > span")?.className, "", "a failure keeps the warning tone");
+  assert.equal(document.querySelector(".settings-group:has([data-setting='phone.availability']) .settings-group-heading > span")?.className, "", "a failure keeps the warning tone");
   assert.match(document.querySelector("[role='alert']")?.textContent ?? "", /EADDRINUSE/);
 });
 
@@ -236,5 +236,5 @@ test("Waiting for Tailscale takes the user to the step that unblocks it, marked,
 test("a served bridge's status is plain text, with nothing to jump to", () => {
   draw(served());
   assert.equal(statusPill(), null);
-  assert.equal(document.querySelector("[aria-labelledby='phone-availability-heading'] .settings-group-heading > span")?.textContent, "On");
+  assert.equal(document.querySelector(".settings-group:has([data-setting='phone.availability']) .settings-group-heading > span")?.textContent, "On");
 });

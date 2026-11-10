@@ -20,7 +20,7 @@ test("an error and a notice under the header take a row each, so neither is draw
     desktop.refuseShortcut({ binding: "Alt+Shift+S", reason: "taken" });
   });
   const banners = query(view.container, ".workspace-banners");
-  const rows = [...banners.children].map((child) => child.className);
+  const rows = [...banners.children].map((child) => ["storage-error", "storage-notice"].filter((name) => child.classList.contains(name)).join(" "));
   assert.deepEqual(rows, ["storage-error", "storage-notice"]);
   assert.match(query(banners, ".storage-error").textContent, /belongs to another app/);
   assert.match(query(banners, ".storage-notice").textContent, /1 thread needs a newer version/);

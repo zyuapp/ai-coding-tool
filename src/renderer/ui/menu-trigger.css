@@ -1,0 +1,63 @@
+/**
+ * What opens a menu. A pill is a raised capsule of glass; a field and a ghost carry no edge, only a
+ * wash on hover or while open, and share a button's metrics so they sit in a row of buttons as one.
+ */
+.menu-opener {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  list-style: none;
+  cursor: pointer;
+  transition: background var(--touch-time) var(--touch-ease), color var(--touch-time) var(--touch-ease);
+}
+.menu-opener::-webkit-details-marker { display: none; }
+.menu-opener > svg { flex: none; }
+.menu-opener-chevron { align-self: center; transition: transform 140ms ease, color var(--touch-time) var(--touch-ease); }
+
+.menu-opener:where([data-variant="pill"]) {
+  align-items: baseline;
+  min-height: 30px;
+  border: 0;
+  border-radius: 15px;
+  padding: 5px 8px;
+  background: var(--glass-control);
+  box-shadow: var(--glass-rim);
+  color: var(--ink-faint);
+  font-size: var(--text-control);
+  line-height: 20px;
+}
+.menu-opener:where([data-variant="pill"]) > .menu-opener-chevron { margin-left: -2px; color: var(--quiet); }
+.menu-opener:where([data-variant="pill"]):hover { background: var(--glass-control-hover); color: var(--ink); }
+.menu-opener:where([data-variant="pill"]):is([aria-expanded="true"], [open] > *) { background: var(--surface-active); color: var(--ink); }
+.menu-opener:where([data-variant="pill"]):is(:hover, [aria-expanded="true"], [open] > *) > .menu-opener-chevron { color: var(--muted); }
+
+.menu-opener:where([data-variant="field"], [data-variant="ghost"]) {
+  min-height: 28px;
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: var(--text-meta);
+  font-weight: 560;
+  line-height: 1.2;
+}
+.menu-opener:where([data-variant="field"]) { color: var(--ink-soft); }
+.menu-opener:where([data-variant="field"]) > svg { color: var(--muted-soft); }
+.menu-opener:where([data-variant="field"]) > .menu-opener-chevron { color: var(--muted); }
+.menu-opener:where([data-variant="ghost"]) { color: var(--muted); }
+.menu-opener:where([data-variant="field"], [data-variant="ghost"]):is(:hover:not([aria-disabled="true"]), [aria-expanded="true"], [open] > *) { background: var(--surface-hover); color: var(--ink-soft); }
+/** The list may open either way, so the chevron turns over while it is open. */
+.menu-opener:where([data-variant="field"], [data-variant="ghost"]):is([aria-expanded="true"], [open] > *) > .menu-opener-chevron { transform: rotate(180deg); }
+
+.menu-opener[data-chosen] { border-color: var(--accent-line); background: var(--glass-sheen), var(--accent-surface); box-shadow: var(--glass-rim); color: var(--accent-soft); }
+.menu-opener[data-chosen]:is(:hover, [aria-expanded="true"], [open] > *) { background: var(--glass-sheen), var(--accent-chip); color: var(--accent-soft); }
+.menu-opener[data-chosen] > svg { color: inherit; }
+.menu-opener[data-tone="danger"]:is(*, :hover), .menu-opener[data-tone="danger"] > svg { color: var(--danger-soft); }
+/** One that cannot be opened reads as a fact rather than a faded control: it keeps its words and drops the chevron. */
+.menu-opener[aria-disabled="true"] { opacity: 1; cursor: default; }
+.menu-opener[aria-disabled="true"] > .menu-opener-chevron { display: none; }
+@media (prefers-reduced-motion: reduce) { .menu-opener, .menu-opener-chevron { transition: none; } }

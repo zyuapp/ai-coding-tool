@@ -1,5 +1,9 @@
-import { LuCheck as Check, LuChevronDown as ChevronDown, LuChevronRight as ChevronRight, LuFilePlus2 as FilePlus2, LuFileMinus2 as FileMinus2, LuFilePen as FilePen, LuFileSymlink as FileSymlink, LuSquareArrowOutUpRight as OpenOut } from "react-icons/lu";
+import { LuChevronDown as ChevronDown, LuChevronRight as ChevronRight, LuFilePlus2 as FilePlus2, LuFileMinus2 as FileMinus2, LuFilePen as FilePen, LuFileSymlink as FileSymlink, LuSquareArrowOutUpRight as OpenOut } from "react-icons/lu";
 import type { DiffFileSummary } from "../../domain/diff";
+import { IconButton } from "../ui/Button";
+import { Chip } from "../ui/Chip";
+import { Checkbox } from "../ui/Field";
+import "../ui/glass.css";
 
 function StatusIcon({ status }: { status: DiffFileSummary["status"] }) {
   if (status === "added" || status === "untracked") return <FilePlus2 size={16} />;
@@ -39,7 +43,7 @@ export function FileHeader({ file, open, viewed, echo = false, onToggle, onOpenF
   const { folder, name } = splitPath(file.path);
   const reach = echo ? { tabIndex: -1 } : {};
   return (
-    <div className={`diff-file-row ${viewed ? "viewed" : ""}`.trimEnd()}>
+    <div className={["diff-file-row", viewed && "viewed", echo && "glass-strip"].filter(Boolean).join(" ")}>
       <button className="diff-file-open" type="button" aria-expanded={open} {...reach} onClick={onToggle}>
         <span className="diff-file-caret" aria-hidden="true" data-tip={open ? "Fold" : "Unfold"}>
           {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -48,29 +52,26 @@ export function FileHeader({ file, open, viewed, echo = false, onToggle, onOpenF
         <span className="diff-file-name" data-find-row={`${file.path}\n`} data-tip={file.path}>
           <em>{folder}</em>{name}
         </span>
-        {file.previousPath && <span className="diff-file-renamed" data-tip={file.previousPath}>renamed</span>}
+        {file.previousPath && <Chip variant="tag" className="diff-file-renamed" data-tip={file.previousPath}>renamed</Chip>}
         {!file.binary && <span className="change-counts"><strong>+{file.additions}</strong><em>−{file.deletions}</em></span>}
       </button>
-      <button
+      <IconButton
         className="diff-file-editor"
-        type="button"
-        aria-label={`Open ${file.path} in your editor`}
-        data-tip="Open in editor"
+        label={`Open ${file.path} in your editor`}
+        tip="Open in editor"
         {...reach}
         onClick={() => onOpenFile(file.path)}
       >
         <OpenOut size={16} />
-      </button>
-      <label className="diff-file-viewed" data-tip={viewed ? "Mark unviewed" : "Mark viewed"}>
-        <input
-          type="checkbox"
-          aria-label={`Mark ${file.path} viewed`}
-          {...reach}
-          checked={viewed}
-          onChange={(event) => onSetViewed(file.path, event.currentTarget.checked)}
-        />
-        <Check size={14} aria-hidden="true" />
-      </label>
+      </IconButton>
+      <Checkbox
+        wrapClassName="diff-file-viewed"
+        tip={viewed ? "Mark unviewed" : "Mark viewed"}
+        aria-label={`Mark ${file.path} viewed`}
+        {...reach}
+        checked={viewed}
+        onChange={(event) => onSetViewed(file.path, event.currentTarget.checked)}
+      />
     </div>
   );
 }

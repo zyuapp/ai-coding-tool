@@ -1,8 +1,8 @@
-import { useEffect, useId, useRef } from "react";
-import { createPortal } from "react-dom";
+import { useId, useRef } from "react";
 import { LuFolderSymlink as FolderSymlink, LuHouse as House, LuMoveRight as MoveRight } from "react-icons/lu";
 import type { WorktreeMoveView } from "../../application/workspace-state";
-import { useModalFocus } from "../focus";
+import { Button } from "../ui/Button";
+import { Dialog } from "../ui/Dialog";
 
 export type WorktreeMoveDialogProps = {
   move: WorktreeMoveView;
@@ -21,64 +21,40 @@ function explain({ worktree, changes, others }: WorktreeMoveView) {
 
 /** The question the thread menu asks before a move: where it goes, what it costs, and two answers. */
 export function WorktreeMoveDialog({ move, onConfirm, onClose }: WorktreeMoveDialogProps) {
-  const dialog = useRef<HTMLDivElement>(null);
   const confirm = useRef<HTMLButtonElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
   const explanation = useId();
-  useModalFocus(dialog);
-
-  /** Enter takes a move that costs nothing; returning commits changes and can remove the worktree, so Cancel holds the focus. */
-  useEffect(() => { (move.worktree ? confirm : cancel).current?.focus(); }, []);
-
-  /** Escape closes the question rather than reaching the window, which would answer it by stopping a run. */
-  useEffect(() => {
-    function close(event: KeyboardEvent) {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      event.preventDefault();
-      onClose();
-    }
-    document.addEventListener("keydown", close);
-    return () => document.removeEventListener("keydown", close);
-  }, [onClose]);
-
-  const title = move.worktree ? "Give this thread a worktree?" : "Return this thread to your project checkout?";
   const [from, to] = move.worktree
     ? [{ label: "Local", Icon: House }, { label: "Worktree", Icon: FolderSymlink }]
     : [{ label: "Worktree", Icon: FolderSymlink }, { label: "Local", Icon: House }];
 
-  return createPortal(
-    <div
-      className="modal-scrim"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
+  return (
+    <Dialog
+      title={move.worktree ? "Give this thread a worktree?" : "Return this thread to your project checkout?"}
+      className="worktree-move"
+      onClose={onClose}
+      /** Enter takes a move that costs nothing; returning commits changes and can remove the worktree, so Cancel holds the focus. */
+      initialFocus={move.worktree ? confirm : cancel}
       aria-describedby={explanation}
-      ref={dialog}
-      tabIndex={-1}
-      onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
-    >
-      <div className="modal-panel worktree-move">
+      media={
         <div className="worktree-move-places" aria-hidden="true">
           <div className="worktree-move-place">
-            <span className="worktree-move-disc"><from.Icon size={20} /></span>
+            <span className="worktree-move-disc raised"><from.Icon size={20} /></span>
             <em>{from.label}</em>
           </div>
           <span className="worktree-move-arrow"><MoveRight size={22} /></span>
           <div className="worktree-move-place target">
-            <span className="worktree-move-disc"><to.Icon size={20} /></span>
+            <span className="worktree-move-disc raised"><to.Icon size={20} /></span>
             <em>{to.label}</em>
           </div>
         </div>
-        <div className="worktree-move-copy">
-          <h2>{title}</h2>
-          <p id={explanation}>{explain(move)}</p>
-        </div>
-        <div className="worktree-move-actions">
-          <button ref={cancel} type="button" onClick={onClose}>Cancel</button>
-          <button ref={confirm} type="button" className="primary" onClick={onConfirm}>{move.worktree ? "Move to worktree" : "Return to local"}</button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+      }
+      actions={<>
+        <Button ref={cancel} size="lg" onClick={onClose}>Cancel</Button>
+        <Button ref={confirm} variant="primary" size="lg" onClick={onConfirm}>{move.worktree ? "Move to worktree" : "Return to local"}</Button>
+      </>}
+    >
+      <p id={explanation}>{explain(move)}</p>
+    </Dialog>
   );
 }

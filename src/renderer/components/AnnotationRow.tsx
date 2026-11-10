@@ -1,6 +1,8 @@
-import { LuPencil as Pencil, LuX as X } from "react-icons/lu";
+import { LuPencil as Pencil } from "react-icons/lu";
 import { useEffect, useId, useRef, useState } from "react";
 import type { Annotation } from "../../domain/conversation";
+import "../ui/glass.css";
+import { AttachedPill, AttachedRow } from "./AttachedPill";
 
 /** Whether a clamped or ellipsized element cuts its text, so what stands in for the rest only shows when there is a rest. */
 export function useClamped<T extends HTMLElement = HTMLSpanElement>(text: string) {
@@ -27,7 +29,7 @@ function AnnotationCard({ annotation, index, id }: { annotation: Annotation; ind
   const [written, noteClamped] = useClamped(note);
 
   return (
-    <span className="annotation-card" id={id} role="tooltip">
+    <span className="glass-float annotation-card" id={id} role="tooltip">
       <span className="annotation-card-head">
         <span className="annotation-pill-number">{index + 1}</span>
         Annotation
@@ -51,8 +53,8 @@ function AnnotationCard({ annotation, index, id }: { annotation: Annotation; ind
 function AnnotationPill({ annotation, index, onRemove, onReveal }: {
   annotation: Annotation;
   index: number;
-  onRemove?: (annotationId: string) => void;
-  onReveal?: (annotationId: string) => void;
+  onRemove?: ((annotationId: string) => void) | undefined;
+  onReveal?: ((annotationId: string) => void) | undefined;
 }) {
   const cardId = useId();
   const note = annotation.note.trim();
@@ -67,19 +69,20 @@ function AnnotationPill({ annotation, index, onRemove, onReveal }: {
   );
 
   return (
-    <span className="annotation-pill" role="listitem">
+    <AttachedPill
+      className="annotation-pill"
+      tone="info"
+      removeLabel={`Remove annotation ${index + 1}`}
+      removeClassName="annotation-pill-remove"
+      onRemove={onRemove && (() => onRemove(annotation.id))}
+      after={<AnnotationCard annotation={annotation} index={index} id={cardId} />}
+    >
       {revealable ? (
-        <button type="button" className="annotation-pill-face" aria-label={`Show annotation ${index + 1}`} aria-describedby={cardId} onClick={() => onReveal?.(annotation.id)}>{face}</button>
+        <button type="button" className="attached-pill-face annotation-pill-face" aria-label={`Show annotation ${index + 1}`} aria-describedby={cardId} onClick={() => onReveal?.(annotation.id)}>{face}</button>
       ) : (
-        <span className="annotation-pill-face" tabIndex={0} aria-label={`Annotation ${index + 1}`} aria-describedby={cardId}>{face}</span>
+        <span className="attached-pill-face annotation-pill-face" tabIndex={0} aria-label={`Annotation ${index + 1}`} aria-describedby={cardId}>{face}</span>
       )}
-      {onRemove && (
-        <button type="button" className="annotation-pill-remove" aria-label={`Remove annotation ${index + 1}`} data-tip="Remove" onClick={() => onRemove(annotation.id)}>
-          <X size={12} />
-        </button>
-      )}
-      <AnnotationCard annotation={annotation} index={index} id={cardId} />
-    </span>
+    </AttachedPill>
   );
 }
 
@@ -93,10 +96,10 @@ export function AnnotationRow({ annotations, onRemove, onReveal }: {
   if (annotations.length === 0) return null;
 
   return (
-    <div className="annotation-row" role="list" aria-label="Annotations">
+    <AttachedRow className="annotation-row" label="Annotations">
       {annotations.map((annotation, index) => (
         <AnnotationPill key={annotation.id} annotation={annotation} index={index} onRemove={onRemove} onReveal={onReveal} />
       ))}
-    </div>
+    </AttachedRow>
   );
 }

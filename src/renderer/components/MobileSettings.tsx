@@ -1,8 +1,10 @@
 import { LuArrowDown as ArrowDown, LuCheck as Check, LuRefreshCw as RefreshCw, LuSmartphone as Smartphone } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import { addressOrigin, type MobileAddress, type MobileConnectionState, type MobilePairingOffer, type MobileServerState, type MobileSessionView, type PairedDeviceView, type TailscaleState } from "../../domain/mobile";
-import { ConfirmAction, SettingGroup, SettingRow, SettingStatus, SettingSwitch } from "./SettingRow";
-import { settingControl } from "../../domain/settings-catalog";
+import { SettingRow, SettingRowBase, SettingStatus, SettingSwitch } from "./SettingRow";
+import { SettingsPage, SettingsSection } from "./SettingsLayout";
+import { Button, ButtonLink } from "../ui/Button";
+import { ConfirmAction } from "../ui/ConfirmAction";
 import { ComputerSettings, type ComputerSettingsProps } from "./ComputerSettings";
 import { SpinningIcon } from "./SpinningIcon";
 import { CopyButton } from "./CopyButton";
@@ -125,29 +127,21 @@ function TailscaleSection({ remote, checking, onRefresh, shown }: { remote: Mobi
     control?.focus({ preventScroll: true });
   }, [shown]);
   return (
-    <SettingGroup setting="phone.tailscale" aria-labelledby="phone-tailscale-heading">
-      <div className="settings-group-heading">
-        <div>
-          <h3 id="phone-tailscale-heading">{settingControl("phone.tailscale").label}</h3>
-          <p>The phone reaches this computer over your tailnet, so both need Tailscale signed into the same account.</p>
-        </div>
-        <div className="settings-group-action">
-          <button ref={check} type="button" disabled={checking} aria-busy={checking || undefined} onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={checking} size={14} aria-hidden="true" />{checking ? "Checking…" : "Check again"}</button>
-        </div>
-      </div>
+    <SettingsSection setting="phone.tailscale" description="The phone reaches this computer over your tailnet, so both need Tailscale signed into the same account."
+      action={<Button ref={check} disabled={checking} aria-busy={checking || undefined} onClick={onRefresh} icon={<SpinningIcon icon={RefreshCw} spinning={checking} size={14} aria-hidden="true" />}>{checking ? "Checking…" : "Check again"}</Button>}>
       {steps.map((step) => (
-        <div ref={step.id === needed ? neededRow : undefined} className={`phone-check${step.done ? "" : " waiting"}${step.id === needed ? " needed" : ""}${step.id === needed && shown ? " found" : ""}`} key={step.id === needed ? `${step.id}-${shown}` : step.id} data-step={step.id}>
-          <SettingStatus done={step.done} />
-          <div>
-            <strong>{step.name}</strong>
+        <SettingRowBase ref={step.id === needed ? neededRow : undefined} density="compact" status={step.done}
+          className={`phone-check${step.done ? "" : " waiting"}${step.id === needed ? " needed" : ""}${step.id === needed && shown ? " found" : ""}`}
+          key={step.id === needed ? `${step.id}-${shown}` : step.id} data-step={step.id} title={step.name}
+          description={<>
             {step.done && step.id === "serving" && address && <p><code>{addressOrigin(address)}</code></p>}
             {!step.done && step.hint && <p>{step.hint}</p>}
-          </div>
-          {step.id === needed && step.link && <a className="phone-check-link" href={step.link.href} target="_blank" rel="noreferrer">{step.link.label}</a>}
-        </div>
+          </>}>
+          {step.id === needed && step.link && <ButtonLink className="phone-check-link" href={step.link.href} target="_blank" rel="noreferrer">{step.link.label}</ButtonLink>}
+        </SettingRowBase>
       ))}
       {remote.tailscale.error && <p className="settings-error" role="alert">{remote.tailscale.error}</p>}
-    </SettingGroup>
+    </SettingsSection>
   );
 }
 
@@ -171,17 +165,8 @@ function PairingSection({ pairing, ready, onCreatePairingCode }: { pairing: Mobi
   }, [ready, live, pairing?.code, onCreatePairingCode]);
 
   return (
-    <SettingGroup setting="phone.pairing" aria-labelledby="phone-pairing-heading">
-      <div className="settings-group-heading">
-        <div>
-          <h3 id="phone-pairing-heading">{settingControl("phone.pairing").label}</h3>
-          <p>Scan the code with the phone's camera. Each code works once and lasts two minutes.</p>
-        </div>
-        <div className="settings-group-action">
-          <button type="button" disabled={!ready} onClick={onCreatePairingCode}>New code</button>
-        </div>
-      </div>
-
+    <SettingsSection setting="phone.pairing" description="Scan the code with the phone's camera. Each code works once and lasts two minutes."
+      action={<Button disabled={!ready} onClick={onCreatePairingCode}>New code</Button>}>
       {!ready && <p className="settings-empty">Turn phone access on and finish the Tailscale steps to pair a phone.</p>}
       {ready && !pairing && <p className="settings-empty">Making a code…</p>}
       {ready && pairing && (
@@ -201,7 +186,7 @@ function PairingSection({ pairing, ready, onCreatePairingCode }: { pairing: Mobi
           </div>
         </div>
       )}
-    </SettingGroup>
+    </SettingsSection>
   );
 }
 
@@ -228,33 +213,21 @@ function DeviceSection({ devices: paired, sessions, onRevokeDevice }: { devices:
   const devices = paired.filter((device) => device.kind === "phone");
   const connected = devices.filter((device) => deviceConnection(device, sessions) === "live").length;
   return (
-    <SettingGroup setting="phone.phones" aria-labelledby="phone-devices-heading">
-      <div className="settings-group-heading">
-        <div>
-          <h3 id="phone-devices-heading">{settingControl("phone.phones").label}</h3>
-          <p>A connected phone keeps this computer awake. Closing this window stops phone access. Removing a phone cuts it off at once.</p>
-        </div>
-        <div className="settings-group-action"><span>{devices.length === 0 ? "None paired" : `${connected} of ${devices.length} connected`}</span></div>
-      </div>
-
+    <SettingsSection setting="phone.phones" description="A connected phone keeps this computer awake. Closing this window stops phone access. Removing a phone cuts it off at once."
+      action={<span>{devices.length === 0 ? "None paired" : `${connected} of ${devices.length} connected`}</span>}>
       {devices.length === 0
         ? <p className="settings-empty">No phone has paired yet.</p>
         : devices.map((device) => {
           const connection = deviceConnection(device, sessions);
           return (
-            <div className="setting-row" key={device.id} data-device={device.id}>
-              <span className={`setting-status ${connection === "live" ? "granted" : "blank"}`} aria-hidden="true">{connection === "live" ? <Check size={14} /> : <Smartphone size={14} />}</span>
-              <div>
-                <strong>{device.name}</strong>
-                <p className={`phone-device-state${connection === "live" ? " live" : ""}`}>{deviceLabel(device, connection)}</p>
-              </div>
-              <div className="setting-row-action">
-                <ConfirmAction className="danger" aria-label={`Remove ${device.name}`} confirm={`Remove ${device.name}`} onConfirm={() => onRevokeDevice(device.id)}>Remove</ConfirmAction>
-              </div>
-            </div>
+            <SettingRowBase key={device.id} data-device={device.id} title={device.name}
+              leading={<SettingStatus done={connection === "live"} quiet>{connection === "live" ? <Check size={14} /> : <Smartphone size={14} />}</SettingStatus>}
+              description={<p className={`phone-device-state${connection === "live" ? " live" : ""}`}>{deviceLabel(device, connection)}</p>}>
+              <ConfirmAction variant="danger" aria-label={`Remove ${device.name}`} confirm={`Remove ${device.name}`} onConfirm={() => onRevokeDevice(device.id)}>Remove</ConfirmAction>
+            </SettingRowBase>
           );
         })}
-    </SettingGroup>
+    </SettingsSection>
   );
 }
 
@@ -274,34 +247,24 @@ export function MobileSettings({ remote, remoteChecking, onSetEnabled, onCreateP
   const [shownStep, setShownStep] = useState(0);
 
   return (
-    <main className="settings-main">
-      <div className="settings-page-heading">
-        <h2>Devices</h2>
-        <p>Your threads from the iPhone app or another computer, anywhere your tailnet reaches.</p>
-      </div>
-
+    <SettingsPage title="Devices" description="Your threads from the iPhone app or another computer, anywhere your tailnet reaches.">
       <ComputerSettings {...computers} />
 
-      <section className="settings-group" aria-labelledby="phone-availability-heading">
-        <div className="settings-group-heading">
-          <div><h3 id="phone-availability-heading">Access</h3></div>
-          {listening && !ready
-            ? <button type="button" className="settings-pill-jump" onClick={() => setShownStep((count) => count + 1)}>{statusLabel(remote)}<ArrowDown size={12} aria-hidden="true" /></button>
-            : <span className={statusTone(remote)}>{statusLabel(remote)}</span>}
-        </div>
-
+      <SettingsSection title="Access" badge={listening && !ready
+        ? <button type="button" className="settings-pill-jump" onClick={() => setShownStep((count) => count + 1)}>{statusLabel(remote)}<ArrowDown size={12} aria-hidden="true" /></button>
+        : <span className={statusTone(remote)}>{statusLabel(remote)}</span>}>
         <SettingRow id="phone.availability" description="Lets the iPhone app reach this computer through Tailscale. Turning it off drops every phone.">
           <SettingSwitch id="phone.availability" on={remote.enabled} onChange={onSetEnabled} />
         </SettingRow>
 
         {remote.error && <p className="settings-error" role="alert">{remote.error}</p>}
-      </section>
+      </SettingsSection>
 
       <TailscaleSection remote={remote} checking={remoteChecking} onRefresh={onRefreshTailscale} shown={shownStep} />
 
       <PairingSection pairing={remote.pairing} ready={ready} onCreatePairingCode={onCreatePairingCode} />
 
       <DeviceSection devices={remote.devices} sessions={remote.sessions} onRevokeDevice={onRevokeDevice} />
-    </main>
+    </SettingsPage>
   );
 }

@@ -3,7 +3,8 @@ import type { TerminalSession } from "../../domain/terminal";
 import type { ComputerLink } from "../../domain/computers";
 import { LuCheck as Check, LuPlus as Plus, LuRotateCw as RotateCw, LuTriangleAlert as AlertTriangle, LuUnplug as Unplug } from "react-icons/lu";
 import { CommandButton } from "./CommandControl";
-import { ConfirmAction } from "./SettingRow";
+import { ConfirmAction } from "../ui/ConfirmAction";
+import { Notice } from "../ui/Notice";
 import { fitTerminalView, focusTerminalView, hideTerminalView, onTerminalInput, showTerminalView } from "../task-workspace/terminal-views";
 
 export type TerminalPanelProps = {
@@ -83,8 +84,8 @@ export function TerminalPanel({ terminal, computer, visible, focusToken = 0, fin
           : <em role="status"><AlertTriangle size={12} aria-hidden="true" />{terminal.error ?? exitLabel}</em>)}
         {/** An exited shell restarts in its own tab, so dead tabs never pile up. */}
         {terminal.status === "exited"
-          ? <CommandButton command={{ type: "terminal.restart", terminalId: terminal.id }} type="button" className="terminal-new-shell primary"><RotateCw size={12} aria-hidden="true" />Restart shell</CommandButton>
-          : <CommandButton command={{ type: "terminal.open", cwd: terminal.cwd }} type="button" className="terminal-new-shell"><Plus size={12} aria-hidden="true" />New shell</CommandButton>}
+          ? <CommandButton command={{ type: "terminal.restart", terminalId: terminal.id }} className="terminal-new-shell" variant="primary" size="sm" icon={<RotateCw size={12} aria-hidden="true" />}>Restart shell</CommandButton>
+          : <CommandButton command={{ type: "terminal.open", cwd: terminal.cwd }} className="terminal-new-shell" size="sm" icon={<Plus size={12} aria-hidden="true" />}>New shell</CommandButton>}
       </p>
 
       {find}
@@ -92,14 +93,16 @@ export function TerminalPanel({ terminal, computer, visible, focusToken = 0, fin
       {/** The viewport is wider than the rows it holds, so a click in the margin still means the shell. */}
       <div className="terminal-viewport" ref={viewport} onMouseDown={() => focusTerminalView(terminal.id)}>
         {drawError && (
-          <div className="terminal-error">
-            {/** A module that failed to load stays failed for the life of the window, so reloading is the way back. */}
-            <p><AlertTriangle size={14} aria-hidden="true" />The terminal could not load.</p>
+          /** A module that failed to load stays failed for the life of the window, so reloading is the way back. */
+          <Notice
+            className="terminal-error"
+            tone="danger"
+            icon={<AlertTriangle size={14} />}
+            actions={<ConfirmAction size="sm" confirm="Reload window" onConfirm={() => window.location.reload()}>Reload window…</ConfirmAction>}
+          >
+            <strong>The terminal could not load.</strong>
             <small>{drawError}</small>
-            <span className="terminal-error-actions">
-              <ConfirmAction confirm="Reload window" onConfirm={() => window.location.reload()}>Reload window…</ConfirmAction>
-            </span>
-          </div>
+          </Notice>
         )}
       </div>
     </section>

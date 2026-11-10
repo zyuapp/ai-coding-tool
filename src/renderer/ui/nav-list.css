@@ -1,0 +1,24 @@
+/** A column of filters: quiet rows, the chosen one raised. */
+.nav-list { display: flex; flex-direction: column; }
+.nav-item {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 7px;
+  padding: 8px 9px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-meta);
+  text-align: left;
+  cursor: pointer;
+}
+.nav-item > svg { flex: none; }
+.nav-item:hover { background: var(--wash); }
+.nav-item[aria-pressed="true"] { background: var(--surface-active); box-shadow: var(--glass-rim); color: var(--ink); font-weight: 560; }
+.nav-item-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-item-count { flex: none; margin-left: auto; color: var(--quiet); font-size: var(--text-badge); font-variant-numeric: tabular-nums; }
+.nav-separator { flex: none; margin: 10px 8px; border: 0; border-top: 1px solid var(--line-soft); }

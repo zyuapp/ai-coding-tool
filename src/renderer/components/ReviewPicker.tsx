@@ -1,4 +1,4 @@
-import { LuChevronLeft as ChevronLeft, LuGitBranch as GitBranch, LuGitCommitHorizontal as GitCommit, LuListChecks as ListChecks, LuMessageSquareText as MessageSquareText, LuSearch as Search, LuX as X } from "react-icons/lu";
+import { LuChevronLeft as ChevronLeft, LuGitBranch as GitBranch, LuGitCommitHorizontal as GitCommit, LuListChecks as ListChecks, LuMessageSquareText as MessageSquareText, LuX as X } from "react-icons/lu";
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
 import type { ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
 import type { ReviewTarget } from "../../domain/review";
@@ -6,6 +6,10 @@ import type { BranchesResult } from "../../contracts/ipc";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 import { matchBranches, useBranches } from "./BranchMenu";
 import { shortcutTip } from "./TooltipLayer";
+import { Button, IconButton } from "../ui/Button";
+import { SearchField, TextField } from "../ui/Field";
+import { Chip } from "../ui/Chip";
+import "../ui/glass.css";
 
 type ReviewPickerProps = {
   picker: ReviewPickerState;
@@ -35,9 +39,9 @@ function Heading({ step, current, onBack, onClose }: { step: ReviewPickerState["
     <div className="command-menu-heading review-heading">
       {step === "targets"
         ? <ListChecks size={14} aria-hidden="true" />
-        : <button type="button" className="review-back" aria-label="Back to review options" data-tip={shortcutTip("Back", "Escape")} onClick={onBack}><ChevronLeft size={16} /></button>}
+        : <IconButton className="review-back" label="Back to review options" tip={shortcutTip("Back", "Escape")} onClick={onBack}><ChevronLeft size={16} /></IconButton>}
       <span>{title}</span>
-      <button type="button" className="review-close" aria-label="Close review picker" data-tip={step === "targets" ? shortcutTip("Close", "Escape") : "Close"} onClick={onClose}><X size={16} /></button>
+      <IconButton className="review-close" label="Close review picker" tip={step === "targets" ? shortcutTip("Close", "Escape") : "Close"} onClick={onClose}><X size={16} /></IconButton>
     </div>
   );
 }
@@ -60,9 +64,9 @@ function TargetOptions({ engineLabel, onStep, onReview }: Pick<ReviewPickerProps
             onMouseEnter={(event) => event.currentTarget.focus()}
             onClick={() => option.target ? onReview(option.target) : onStep(option.step)}
           >
-            <span className="command-mark app" aria-hidden="true"><Icon size={16} /></span>
+            <span className="raised command-mark app" aria-hidden="true"><Icon size={16} /></span>
             <span className="command-copy"><strong>{option.label}</strong><small>{option.description}</small></span>
-            <span className="command-source">{engineLabel}</span>
+            <Chip variant="tag" className="command-source">{engineLabel}</Chip>
           </button>
         );
       })}
@@ -88,31 +92,31 @@ function BaseBranchPicker({ branches, onReview }: Pick<ReviewPickerProps, "onRev
   }, [chosen]);
   return (
     <div className="review-branch-stage">
-      <label className="review-search">
-        <Search size={14} aria-hidden="true" />
-        <input
-          autoFocus
-          role="combobox"
-          aria-label="Search base branches"
-          aria-autocomplete="list"
-          aria-expanded={names.length > 0}
-          aria-controls={listId}
-          aria-activedescendant={chosen < 0 ? undefined : `${listId}-${chosen}`}
-          placeholder="Search branches"
-          spellCheck={false}
-          value={query}
-          onChange={(event) => { setQuery(event.target.value); setActive(0); }}
-          onKeyDown={(event) => {
-            if ((event.key === "ArrowDown" || event.key === "ArrowUp") && names.length) {
-              event.preventDefault();
-              setActive((chosen + (event.key === "ArrowDown" ? 1 : names.length - 1)) % names.length);
-            } else if (event.key === "Enter" && chosen >= 0) {
-              event.preventDefault();
-              onReview({ type: "baseBranch", branch: names[chosen]! });
-            }
-          }}
-        />
-      </label>
+      <SearchField
+        wrapClassName="review-search"
+        variant="menu"
+        label="Search base branches"
+        type="text"
+        autoFocus
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={names.length > 0}
+        aria-controls={listId}
+        aria-activedescendant={chosen < 0 ? undefined : `${listId}-${chosen}`}
+        placeholder="Search branches"
+        spellCheck={false}
+        value={query}
+        onChange={(event) => { setQuery(event.target.value); setActive(0); }}
+        onKeyDown={(event) => {
+          if ((event.key === "ArrowDown" || event.key === "ArrowUp") && names.length) {
+            event.preventDefault();
+            setActive((chosen + (event.key === "ArrowDown" ? 1 : names.length - 1)) % names.length);
+          } else if (event.key === "Enter" && chosen >= 0) {
+            event.preventDefault();
+            onReview({ type: "baseBranch", branch: names[chosen]! });
+          }
+        }}
+      />
       <div ref={list} id={listId} className="review-branch-list" role="listbox" aria-label="Base branches">
         {names.map((branch, index) => (
           <button
@@ -151,7 +155,6 @@ function caretAtEnd(field: HTMLInputElement | HTMLTextAreaElement | null) {
 }
 
 function CommitPicker({ onReview, value: sha, onChange: setSha }: Pick<ReviewPickerProps, "onReview"> & Draft) {
-  const errorId = useId();
   const commit = sha.trim();
   const valid = COMMIT_SHA.test(commit);
   const invalid = !valid && (/[^0-9a-f]/i.test(commit) || commit.length > 64);
@@ -162,18 +165,18 @@ function CommitPicker({ onReview, value: sha, onChange: setSha }: Pick<ReviewPic
   }
   return (
     <form className="review-form" onSubmit={submit}>
-      <label><span>Commit SHA</span><input
+      <TextField
+        label="Commit SHA"
+        mono
         ref={caretAtEnd}
         spellCheck={false}
         placeholder="e.g. a1b2c3d"
         value={sha}
-        aria-invalid={invalid || undefined}
-        aria-describedby={invalid || short ? errorId : undefined}
+        hint={short ? "At least 4 characters" : undefined}
+        error={invalid ? <span className="review-form-error" role="alert">Enter a hex commit SHA</span> : undefined}
         onChange={(event) => setSha(event.target.value)}
-      /></label>
-      {invalid && <p id={errorId} className="review-form-error" role="alert">Enter a hex commit SHA</p>}
-      {short && <p id={errorId} className="review-form-hint">At least 4 characters</p>}
-      <div className="review-form-actions"><button type="submit" className="primary" disabled={!valid}>Start review</button></div>
+      />
+      <div className="review-form-actions"><Button type="submit" variant="primary" disabled={!valid}>Start review</Button></div>
     </form>
   );
 }
@@ -186,15 +189,17 @@ function CustomPicker({ engineLabel, onReview, value: instructions, onChange: se
   }
   return (
     <form className="review-form" onSubmit={submit}>
-      <label><span>Review instructions</span><textarea
+      <TextField
+        multiline
+        label="Review instructions"
         ref={caretAtEnd}
         rows={4}
         placeholder={`What should ${engineLabel} focus on?`}
         value={instructions}
         onChange={(event) => setInstructions(event.target.value)}
         onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) submit(event); }}
-      /></label>
-      <div className="review-form-actions"><button type="submit" className="primary" disabled={!custom}>Start review</button></div>
+      />
+      <div className="review-form-actions"><Button type="submit" variant="primary" disabled={!custom}>Start review</Button></div>
     </form>
   );
 }
@@ -214,7 +219,7 @@ export function ReviewPicker({ picker, workspaceId, engineLabel, returnFocus, on
     else onStep("targets");
   }
   return (
-    <div ref={root} id="review-picker" className="command-menu review-menu" role="dialog" aria-label="Start code review" onKeyDown={keyDown}>
+    <div ref={root} id="review-picker" className="glass-popover command-menu review-menu" role="dialog" aria-label="Start code review" onKeyDown={keyDown}>
       <Heading step={picker.step} current={branches?.status === "available" ? branches.current : null} onBack={() => onStep("targets")} onClose={onClose} />
       {picker.step === "targets" && <TargetOptions engineLabel={engineLabel} onStep={onStep} onReview={onReview} />}
       {picker.step === "base" && <BaseBranchPicker branches={branches} onReview={onReview} />}

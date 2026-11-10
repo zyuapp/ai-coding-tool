@@ -1,6 +1,7 @@
-import { LuChevronDown as ChevronDown, LuRefreshCw as RefreshCw } from "react-icons/lu";
-import { SettingGroup } from "./SettingRow";
-import { settingControl } from "../../domain/settings-catalog";
+import { LuRefreshCw as RefreshCw } from "react-icons/lu";
+import { SettingsSection } from "./SettingsLayout";
+import { Button } from "../ui/Button";
+import { Select } from "../ui/Field";
 import { useEffect } from "react";
 import type { ComputerUsage, PlanUsageState } from "../../application/plan-limits";
 import { AGENT_ENGINES, engineLabel, type AgentEngine } from "../../domain/agent-engine";
@@ -43,33 +44,21 @@ export function UsageSettings({ usage, name = "", computers = [], selected = nul
   const reading = computer ? Boolean(computer.usage?.reading.length) : usage.reading.length > 0;
 
   return (
-    <SettingGroup setting="usage.plan-limits" aria-labelledby="plan-limits-heading" aria-live="polite">
-      <div className="settings-group-heading">
-        <div>
-          <h3 id="plan-limits-heading">{settingControl("usage.plan-limits").label}</h3>
-          <p>Usage and reset times reported by each provider.</p>
-        </div>
-        <div className="settings-group-action">
-          {computers.length > 0 && (
-            <div className="settings-select">
-              <select aria-label="Computer" value={computer?.id ?? THIS_COMPUTER} onChange={(event) => onSelect(event.target.value || null)}>
-                <option value={THIS_COMPUTER}>{name ? `This computer · ${name}` : "This computer"}</option>
-                {computers.map((paired) => <option key={paired.id} value={paired.id}>{paired.name}{paired.status === "connected" ? "" : " · Offline"}</option>)}
-              </select>
-              <ChevronDown size={14} aria-hidden="true" />
-            </div>
-          )}
-          <button type="button" disabled={reading} aria-busy={reading || undefined} onClick={onRefresh}>
-            <SpinningIcon icon={RefreshCw} spinning={reading} size={14} aria-hidden="true" />
-            <span>{reading ? "Reading…" : "Refresh"}</span>
-          </button>
-        </div>
-      </div>
-
+    <SettingsSection setting="usage.plan-limits" description="Usage and reset times reported by each provider." aria-live="polite" action={<>
+      {computers.length > 0 && (
+        <Select label="Computer" value={computer?.id ?? THIS_COMPUTER} onChange={(event) => onSelect(event.target.value || null)}>
+          <option value={THIS_COMPUTER}>{name ? `This computer · ${name}` : "This computer"}</option>
+          {computers.map((paired) => <option key={paired.id} value={paired.id}>{paired.name}{paired.status === "connected" ? "" : " · Offline"}</option>)}
+        </Select>
+      )}
+      <Button disabled={reading} aria-busy={reading || undefined} onClick={onRefresh} icon={<SpinningIcon icon={RefreshCw} spinning={reading} size={14} aria-hidden="true" />}>
+        <span>{reading ? "Reading…" : "Refresh"}</span>
+      </Button>
+    </>}>
       {computer
         ? <PairedUsage key={computer.id} computer={computer} timeZone={timeZone} />
         : <Providers usage={usage} scope="this" asked onRetry={onRefresh} timeZone={timeZone} />}
-    </SettingGroup>
+    </SettingsSection>
   );
 }
 
@@ -107,7 +96,7 @@ function ProviderUsage({ engine, usage, reading, retrying, onRetry, scope, timeZ
       {usage?.status === "unavailable" && (
         <p className="settings-error" role="alert">
           {usage.message}
-          {onRetry && <button type="button" className="settings-empty-action" disabled={retrying} aria-busy={retrying || undefined} onClick={onRetry}>{retrying ? "Reading…" : "Try again"}</button>}
+          {onRetry && <Button variant="link" className="settings-empty-action" disabled={retrying} aria-busy={retrying || undefined} onClick={onRetry}>{retrying ? "Reading…" : "Try again"}</Button>}
         </p>
       )}
       {usage?.status === "available" && <UsageWindows usage={usage} timeZone={timeZone} />}

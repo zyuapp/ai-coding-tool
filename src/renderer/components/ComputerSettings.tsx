@@ -4,8 +4,11 @@ import { computerAddress, MAX_COMPUTER_NAME, type ComputerLink, type ComputerPai
 import type { ComputerUpkeep, UpkeepItem, UpkeepPart } from "../../application/computer-updates";
 import type { AppCommand } from "../../contracts/commands";
 import { RenameInput, useRenaming } from "./SidebarRename";
-import { ConfirmAction, SettingGroup } from "./SettingRow";
-import { settingControl } from "../../domain/settings-catalog";
+import { SettingRowBase } from "./SettingRow";
+import { SettingsSection } from "./SettingsLayout";
+import { Button } from "../ui/Button";
+import { TextField } from "../ui/Field";
+import { ConfirmAction } from "../ui/ConfirmAction";
 import { SpinningIcon } from "./SpinningIcon";
 import { PAIRING_CODE_LENGTH } from "../../domain/mobile";
 
@@ -35,6 +38,8 @@ export type ComputerSettingsProps = {
 
 const NO_UPKEEP: readonly ComputerUpkeep[] = [];
 
+const GLYPH = <span className="setting-glyph" aria-hidden="true"><Monitor size={16} /></span>;
+
 /** Where the line stands, and while it is down, the last fault it reported, for a row nothing else describes. */
 function linkParts(link: ComputerLink): UpkeepPart[] {
   if (link.status === "connected") return [{ text: "Connected", tone: "live" }];
@@ -61,7 +66,7 @@ function Software({ items, onCommand }: { items: readonly UpkeepItem[]; onComman
           <span className="computer-software-version">{item.version ?? "—"}</span>
           <span className={`computer-software-state ${item.state.tone ?? ""}`}>{item.state.text}</span>
           <span className="computer-software-action">
-            {item.action && onCommand && <button type="button" className={item.state.tone === "error" ? "primary" : ""} onClick={() => onCommand(item.action!.command)}>{item.action.label}</button>}
+            {item.action && onCommand && <Button {...(item.state.tone === "error" ? { variant: "primary", tone: "info" } as const : {})} onClick={() => onCommand(item.action!.command)}>{item.action.label}</Button>}
           </span>
         </li>
       ))}
@@ -84,7 +89,8 @@ function CodeEntry({ pairing, onPair, onCancel }: { pairing: ComputerPairing; on
     >
       <label>
         <span>Code shown by {pairing.name}</span>
-        <input
+        <TextField
+          mono
           autoFocus
           autoComplete="off"
           spellCheck={false}
@@ -95,8 +101,8 @@ function CodeEntry({ pairing, onPair, onCancel }: { pairing: ComputerPairing; on
         />
       </label>
       <div className="computer-code-actions">
-        <button type="submit" disabled={!ready} aria-busy={pairing.busy}>{pairing.busy ? "Pairing…" : "Pair"}</button>
-        <button type="button" onClick={onCancel} disabled={pairing.busy}>Cancel</button>
+        <Button type="submit" disabled={!ready} aria-busy={pairing.busy}>{pairing.busy ? "Pairing…" : "Pair"}</Button>
+        <Button onClick={onCancel} disabled={pairing.busy}>Cancel</Button>
       </div>
       {pairing.error && <p className="settings-error" role="alert">{pairing.error}</p>}
     </form>
@@ -120,7 +126,8 @@ function AddressEntry({ pairing, onPair }: { pairing: ComputerPairing | null; on
     >
       <label>
         <span>Or pair by address</span>
-        <input
+        <TextField
+          mono
           autoComplete="off"
           spellCheck={false}
           value={host}
@@ -131,7 +138,7 @@ function AddressEntry({ pairing, onPair }: { pairing: ComputerPairing | null; on
           onInput={(event) => { setHost(event.currentTarget.value); setInvalid(false); }}
         />
       </label>
-      <button type="submit" disabled={!typed || (pairing !== null && pairing.busy)}>Pair</button>
+      <Button type="submit" disabled={!typed || (pairing !== null && pairing.busy)}>Pair</Button>
       {invalid && <p id="computer-address-error" className="settings-error" role="alert">Not a valid address</p>}
     </form>
   );
@@ -157,7 +164,7 @@ function NameEntry({ name, onRename }: { name: string; onRename: (name: string) 
     >
       <label>
         <strong>This computer's name</strong>
-        <input
+        <TextField
           autoComplete="off"
           spellCheck={false}
           maxLength={MAX_COMPUTER_NAME}
@@ -187,29 +194,15 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
   const offered = found.filter((computer) => !paired.has(computer.host));
   const upkeepOf = new Map(upkeep.map((item) => [item.id, item]));
   return (
-    <SettingGroup setting="phone.computers" aria-labelledby="computers-heading">
-      <div className="settings-group-heading">
-        <div>
-          <h3 id="computers-heading">{settingControl("phone.computers").label}</h3>
-          <p>Another computer running AI Coding Tool, or <code>aic serve</code>, shows its threads here beside your own.</p>
-        </div>
-        <div className="settings-group-action">
-          <button type="button" disabled={searching} aria-busy={searching} onClick={onDiscover}><SpinningIcon icon={RefreshCw} spinning={searching} size={14} aria-hidden="true" />{searching ? "Looking…" : "Look again"}</button>
-        </div>
-      </div>
+    <SettingsSection setting="phone.computers" description={<>Another computer running AI Coding Tool, or <code>aic serve</code>, shows its threads here beside your own.</>}
+      action={<Button disabled={searching} aria-busy={searching} onClick={onDiscover} icon={<SpinningIcon icon={RefreshCw} spinning={searching} size={14} aria-hidden="true" />}>{searching ? "Looking…" : "Look again"}</Button>}>
+      <SettingRowBase data-this-computer leading={GLYPH} title={<NameEntry name={name} onRename={onRename} />} />
 
-      <div className="setting-row" data-this-computer>
-        <span className="setting-glyph" aria-hidden="true"><Monitor size={16} /></span>
-        <div>
-          <NameEntry name={name} onRename={onRename} />
-        </div>
-      </div>
-
-      {links.map((link) => (
-        <div className="setting-row" key={link.id} data-computer={link.id}>
-          <span className="setting-glyph" aria-hidden="true"><Monitor size={16} /></span>
-          <div>
-            {labels.editing === link.id
+      {links.map((link) => {
+        const upkept = upkeepOf.get(link.id);
+        return (
+          <SettingRowBase key={link.id} data-computer={link.id} leading={GLYPH} actionClassName="computer-actions"
+            title={labels.editing === link.id
               ? <RenameInput
                   inputRef={labels.input}
                   className="computer-rename"
@@ -222,42 +215,32 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
                   <strong onDoubleClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}>{link.name}</strong>
                   {link.host !== link.name && <span className="computer-host">{link.host}</span>}
                 </span>}
-            <StatusLine parts={upkeepOf.get(link.id)?.status ?? linkParts(link)} />
-          </div>
-          <div className="setting-row-action computer-actions">
-            {link.status !== "connected" && !upkeepOf.has(link.id) && <button type="button" onClick={() => onReconnect(link.id)}>Reconnect</button>}
-            {upkeepOf.get(link.id)?.action && onCommand && <button type="button" onClick={() => onCommand(upkeepOf.get(link.id)!.action!.command)}>{upkeepOf.get(link.id)!.action!.label}</button>}
-            <button type="button" className="icon" aria-label={`Rename ${link.name}`} data-tip="Rename" disabled={labels.editing === link.id} onClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}><Pencil size={16} aria-hidden="true" /></button>
-            <ConfirmAction className="icon danger" aria-label={`Remove ${link.name}`} data-tip="Remove" confirm="Remove" onConfirm={() => onForget(link.id)}><Trash size={16} aria-hidden="true" /></ConfirmAction>
-          </div>
-          <Software items={upkeepOf.get(link.id)?.items ?? []} onCommand={onCommand} />
-        </div>
-      ))}
+            description={<StatusLine parts={upkept?.status ?? linkParts(link)} />}
+            footer={<Software items={upkept?.items ?? []} onCommand={onCommand} />}>
+            {link.status !== "connected" && !upkept && <Button onClick={() => onReconnect(link.id)}>Reconnect</Button>}
+            {upkept?.action && onCommand && <Button onClick={() => onCommand(upkept.action!.command)}>{upkept.action.label}</Button>}
+            <Button className="computer-rename-trigger" icon={<Pencil size={16} aria-hidden="true" />} aria-label={`Rename ${link.name}`} data-tip="Rename" disabled={labels.editing === link.id} onClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))} />
+            <ConfirmAction variant="danger" icon={<Trash size={16} aria-hidden="true" />} aria-label={`Remove ${link.name}`} data-tip="Remove" confirm="Remove" onConfirm={() => onForget(link.id)} />
+          </SettingRowBase>
+        );
+      })}
 
       {offered.map((computer) => (
-        <div className="setting-row" key={computer.host} data-found={computer.host}>
-          <span className="setting-glyph" aria-hidden="true"><Monitor size={16} /></span>
-          <div>
-            <strong>{computer.name}</strong>
-            <p>{computer.host}{computer.os ? ` · ${computer.os}` : ""}</p>
-            {pairing?.host === computer.host && <CodeEntry pairing={pairing} onPair={(code) => onPair(computer.host, computer.name, code)} onCancel={onCancelPairing} />}
-          </div>
-          <div className="setting-row-action">
-            {pairing?.host !== computer.host && <button type="button" disabled={pairing !== null && pairing.busy} onClick={() => onPair(computer.host, computer.name, "")}>Pair</button>}
-          </div>
-        </div>
+        <SettingRowBase key={computer.host} data-found={computer.host} leading={GLYPH} title={computer.name} description={<>
+          <p>{computer.host}{computer.os ? ` · ${computer.os}` : ""}</p>
+          {pairing?.host === computer.host && <CodeEntry pairing={pairing} onPair={(code) => onPair(computer.host, computer.name, code)} onCancel={onCancelPairing} />}
+        </>}>
+          {pairing?.host !== computer.host && <Button disabled={pairing !== null && pairing.busy} onClick={() => onPair(computer.host, computer.name, "")}>Pair</Button>}
+        </SettingRowBase>
       ))}
 
-      <div className="setting-row" data-address>
-        <span className="setting-glyph" aria-hidden="true"><Plus size={16} /></span>
-        <div>
-          <AddressEntry pairing={pairing} onPair={(host) => onPair(host, host, "")} />
-          {pairing && !offered.some((computer) => computer.host === pairing.host) && <CodeEntry pairing={pairing} onPair={(code) => onPair(pairing.host, pairing.name, code)} onCancel={onCancelPairing} />}
-        </div>
-      </div>
+      <SettingRowBase data-address leading={<span className="setting-glyph" aria-hidden="true"><Plus size={16} /></span>} title={<>
+        <AddressEntry pairing={pairing} onPair={(host) => onPair(host, host, "")} />
+        {pairing && !offered.some((computer) => computer.host === pairing.host) && <CodeEntry pairing={pairing} onPair={(code) => onPair(pairing.host, pairing.name, code)} onCancel={onCancelPairing} />}
+      </>} />
 
       {searchError && <p className="settings-error" role="alert">{searchError}</p>}
       {!searchError && !searching && offered.length === 0 && links.length === 0 && <p className="settings-empty">No other computer on your tailnet is serving AI Coding Tool.</p>}
-    </SettingGroup>
+    </SettingsSection>
   );
 }

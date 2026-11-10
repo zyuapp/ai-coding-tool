@@ -22,7 +22,7 @@ test("the library filters providers, searches globally, pins without choosing, a
   const view = await mount(React.createElement(ComposerSettings, props));
   const menu = view.container.querySelectorAll(".setting-menu")[1]!;
   await act(async () => { query<HTMLElement>(menu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  assert.equal(query(menu, ".model-choice strong").textContent, "Astra");
+  assert.equal(query(menu, ".model-choice .menu-label").textContent, "Astra");
   assert.equal(menu.querySelectorAll(".model-choice").length, 1);
   const input = query<HTMLInputElement>(menu, "input");
   assert.equal(document.activeElement, input);
@@ -42,7 +42,7 @@ test("the library filters providers, searches globally, pins without choosing, a
     setter.call(input, "sol");
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  assert.deepEqual([...menu.querySelectorAll(".model-choice strong")].map((node) => node.textContent), ["Sol"]);
+  assert.deepEqual([...menu.querySelectorAll(".model-choice .menu-label")].map((node) => node.textContent), ["Sol"]);
   await act(async () => { input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })); });
   assert.equal(document.activeElement, query(menu, ".model-choice"));
   await act(async () => { input.focus(); input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 0)); });
@@ -100,7 +100,7 @@ test("a library narrowed to some models offers only those, in its counts as well
   };
   const view = await mount(React.createElement(ModelMenu, { ...props, models: (engine: AgentEngine, model: string) => modelDelegable(BUILT_IN_MODELS, engine, model) }));
   await act(async () => { query<HTMLElement>(view.container, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  const names = () => [...view.container.querySelectorAll(".model-choice strong")].map((node) => node.textContent);
+  const names = () => [...view.container.querySelectorAll(".model-choice .menu-label")].map((node) => node.textContent);
   assert.ok(names().includes("Sonnet"));
   assert.ok(!names().includes("Haiku"), "Haiku cannot run a coordinator's threads, so it is not offered");
   const claude = [...view.container.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("Claude"))!;
@@ -125,7 +125,7 @@ test("the library lists what the catalogue on screen holds, and a model it does 
   const view = await mount(menu("openai/gpt-9"));
   assert.equal(query(view.container, "summary").getAttribute("aria-label"), "Model and effort: GPT-9, High", "an effort the model does not take shows as the nearest one it does");
   await act(async () => { query<HTMLElement>(view.container, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  const names = [...view.container.querySelectorAll(".model-choice strong")].map((node) => node.textContent);
+  const names = [...view.container.querySelectorAll(".model-choice .menu-label")].map((node) => node.textContent);
   assert.ok(names.includes("GPT-9"));
   assert.ok(names.includes("Opus"), "an engine that names no models keeps the built-in ones");
   assert.ok(!names.includes("Sol"), "an engine that names its own models replaces the built-in ones");
@@ -153,7 +153,7 @@ test("an engine that runs many providers' models lists them under each provider,
   assert.ok(chips.includes("Model: GLM-5.3-Flash"));
   const mode = [...view.container.querySelectorAll<HTMLElement>("summary")].find((node) => node.getAttribute("aria-label")?.startsWith("Permission mode"))!;
   await act(async () => { mode.click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  const modes = [...view.container.querySelectorAll(".setting-option strong")].map((node) => node.textContent);
+  const modes = [...view.container.querySelectorAll('.setting-popover [role="option"] .menu-label')].map((node) => node.textContent);
   assert.ok(!modes.includes("Auto"), "Auto is not offered on an engine with no reviewer to stand on");
   assert.ok(modes.includes("Edits"));
   await act(async () => { mode.click(); });
@@ -168,7 +168,7 @@ test("an engine that runs many providers' models lists them under each provider,
   assert.ok(rail.some((text) => text?.includes("OpenCode Go1")));
   assert.equal(query(view.container, ".model-results-heading span").textContent, "OpenRouter", "a locked thread opens on the provider of its model");
   await act(async () => { [...view.container.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((node) => node.textContent?.includes("OpenCode Go"))!.click(); });
-  assert.deepEqual([...view.container.querySelectorAll(".model-choice strong")].map((node) => node.textContent), ["GLM-5.3"]);
+  assert.deepEqual([...view.container.querySelectorAll(".model-choice .menu-label")].map((node) => node.textContent), ["GLM-5.3"]);
   await act(async () => { query<HTMLButtonElement>(view.container, ".model-choice").click(); });
   assert.deepEqual(chosen, ["opencode-go/glm-5.3"]);
   await view.unmount();

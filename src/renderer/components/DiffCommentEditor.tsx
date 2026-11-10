@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 import { shortcutTip } from "./TooltipLayer";
-import { ConfirmAction } from "./SettingRow";
+import { ConfirmAction } from "../ui/ConfirmAction";
+import { IconButton } from "../ui/Button";
 import { LuArrowUp as ArrowUp, LuCheck as Check, LuMessageSquarePlus as MessageSquarePlus, LuTrash2 as Trash2, LuX as X } from "react-icons/lu";
 
 export function DiffCommentEditor({ quote, note, editing, noteRef, onNote, onSubmit, onClear, onRemove }: {
@@ -35,8 +36,8 @@ export function DiffCommentEditor({ quote, note, editing, noteRef, onNote, onSub
       <header>
         <MessageSquarePlus size={14} aria-hidden="true" />
         <span className="diff-comment-range">{quote?.split("\n")[0]}</span>
-        {editing && <ConfirmAction className="diff-comment-remove" aria-label="Remove comment" data-tip="Remove comment" confirm="Remove" onConfirm={onRemove}><Trash2 size={14} /></ConfirmAction>}
-        <button type="button" aria-label="Clear the selection" data-tip={shortcutTip("Cancel", "Escape")} onClick={onClear}><X size={14} /></button>
+        {editing && <ConfirmAction className="diff-comment-remove" variant="ghost" size="sm" icon={<Trash2 size={14} aria-hidden="true" />} aria-label="Remove comment" data-tip="Remove comment" confirm="Remove" onConfirm={onRemove} />}
+        <IconButton size="xs" label="Clear the selection" tip={shortcutTip("Cancel", "Escape")} onClick={onClear}><X size={14} /></IconButton>
       </header>
       <textarea
         ref={noteRef}

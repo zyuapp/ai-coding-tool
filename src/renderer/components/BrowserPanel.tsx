@@ -5,6 +5,11 @@ import { useDismissibleLayer } from "../focus";
 import { NativeSurface } from "./NativeSurface";
 import { SpinningIcon } from "./SpinningIcon";
 import { shortcutTip } from "./TooltipLayer";
+import { Button, IconButton } from "../ui/Button";
+import { EmptyState } from "../ui/EmptyState";
+import { TextField } from "../ui/Field";
+import { Notice } from "../ui/Notice";
+import { Toolbar } from "../ui/PanelHeader";
 
 export type BrowserPanelProps = {
   tab: BrowserTab;
@@ -49,13 +54,13 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
 
   return (
     <section className="browser-panel" aria-label="Browser">
-      <div className="browser-bar">
-        <button type="button" aria-label="Back" data-tip={shortcutTip("Back", "Mod+[")} disabled={!tab.canGoBack} onClick={() => onGo(-1)}><ArrowLeft size={16} /></button>
-        <button type="button" aria-label="Forward" data-tip={shortcutTip("Forward", "Mod+]")} disabled={!tab.canGoForward} onClick={() => onGo(1)}><ArrowRight size={16} /></button>
+      <Toolbar className="browser-bar">
+        <IconButton label="Back" tip={shortcutTip("Back", "Mod+[")} disabled={!tab.canGoBack} onClick={() => onGo(-1)}><ArrowLeft size={16} /></IconButton>
+        <IconButton label="Forward" tip={shortcutTip("Forward", "Mod+]")} disabled={!tab.canGoForward} onClick={() => onGo(1)}><ArrowRight size={16} /></IconButton>
         {tab.loading && onStop
-          ? <button type="button" aria-label="Stop" data-tip="Stop" onClick={onStop}><X size={16} /></button>
-          : <button type="button" aria-label="Reload" data-tip={shortcutTip("Reload", "Mod+R")} disabled={!tab.url} onClick={onReload}><SpinningIcon icon={RotateCw} spinning={tab.loading} size={16} /></button>}
-        <input
+          ? <IconButton label="Stop" onClick={onStop}><X size={16} /></IconButton>
+          : <IconButton label="Reload" tip={shortcutTip("Reload", "Mod+R")} disabled={!tab.url} onClick={onReload}><SpinningIcon icon={RotateCw} spinning={tab.loading} size={16} /></IconButton>}
+        <TextField
           ref={addressInput}
           value={address}
           aria-label="Address"
@@ -86,33 +91,39 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
           }}
           onBlur={() => setEditing(false)}
         />
-      </div>
+      </Toolbar>
 
       {find}
 
       {approval && (
-        <div className="browser-approval" role="alert">
-          <ShieldAlert size={16} aria-hidden="true" />
-          <p>The agent wants to open <strong>{browserTabTitle({ title: "", url: approval.url })}</strong>. It browses with every login you have here.</p>
-          <button type="button" onClick={() => onDecide(approval.approvalId, false)}>Block</button>
-          <button type="button" className="browser-approval-always" onClick={() => onDecide(approval.approvalId, true)}>Always allow this site</button>
-        </div>
+        <Notice
+          className="browser-approval"
+          tone="accent"
+          role="alert"
+          icon={<ShieldAlert size={16} />}
+          actions={<>
+            <Button onClick={() => onDecide(approval.approvalId, false)}>Block</Button>
+            <Button variant="danger" onClick={() => onDecide(approval.approvalId, true)}>Always allow this site</Button>
+          </>}
+        >
+          The agent wants to open <strong>{browserTabTitle({ title: "", url: approval.url })}</strong>. It browses with every login you have here.
+        </Notice>
       )}
 
       <NativeSurface className="browser-viewport" report={(box) => void window.desktop.setBrowserBounds(box)}>
         {!tab.url && (
-          <div className="browser-empty">
-            <span className="agent-orb"><Globe size={18} /></span>
-            <h2>No page open</h2>
-            <p>Open a page here and every thread can read it, signed in as you, in one session for the whole app.</p>
-            <button type="button" onClick={() => addressInput.current?.focus()}>Type an address</button>
-          </div>
+          <EmptyState
+            className="browser-empty"
+            icon={<Globe size={18} />}
+            title="No page open"
+            detail="Open a page here and every thread can read it, signed in as you, in one session for the whole app."
+            action={<Button variant="soft" size="lg" onClick={() => addressInput.current?.focus()}>Type an address</Button>}
+          />
         )}
         {tab.error && (
-          <p className="browser-error" role="alert">
-            <span>{tab.error}</span>
-            {tab.url && <button type="button" onClick={onReload}>Try again</button>}
-          </p>
+          <Notice className="browser-error" tone="danger" actions={tab.url && <Button size="sm" variant="soft" onClick={onReload}>Try again</Button>}>
+            {tab.error}
+          </Notice>
         )}
       </NativeSurface>
     </section>

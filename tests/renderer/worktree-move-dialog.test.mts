@@ -20,21 +20,21 @@ test("the move confirmation says where the thread goes and what the move costs",
   const view = await mount(dialog({ worktree: true, changes: 0, others: 0 }, calls));
   const places = () => [...document.querySelectorAll<HTMLElement>(".worktree-move-place em")].map((element) => element.textContent);
   assert.deepEqual(places(), ["Local", "Worktree"]);
-  assert.equal(document.activeElement, query(document, ".worktree-move-actions button.primary"), "Confirm holds the focus, so Enter answers");
-  assert.equal(query(document, ".worktree-move-actions button.primary").textContent, "Move to worktree");
+  assert.equal(document.activeElement, query(document, ".dialog-actions .btn[data-variant=primary]"), "Confirm holds the focus, so Enter answers");
+  assert.equal(query(document, ".dialog-actions .btn[data-variant=primary]").textContent, "Move to worktree");
 
   await view.render(dialog({ worktree: false, changes: 1, others: 0 }, calls));
   assert.deepEqual(places(), ["Worktree", "Local"], "the move turns around with it");
-  assert.equal(query(document, ".worktree-move-actions button.primary").textContent, "Return to local");
-  assert.match(query(document, ".worktree-move-copy p").textContent, /Its 1 uncommitted change is committed first .* the worktree is removed\./);
+  assert.equal(query(document, ".dialog-actions .btn[data-variant=primary]").textContent, "Return to local");
+  assert.match(query(document, ".worktree-move > p").textContent, /Its 1 uncommitted change is committed first .* the worktree is removed\./);
 
   await view.render(dialog({ worktree: false, changes: 3, others: 2 }, calls));
-  assert.match(query(document, ".worktree-move-copy p").textContent, /Its 3 uncommitted changes are committed first .* the worktree stays for the threads still in it\./);
+  assert.match(query(document, ".worktree-move > p").textContent, /Its 3 uncommitted changes are committed first .* the worktree stays for the threads still in it\./);
 
-  await act(async () => { query<HTMLButtonElement>(document, ".worktree-move-actions button.primary").click(); });
+  await act(async () => { query<HTMLButtonElement>(document, ".dialog-actions .btn[data-variant=primary]").click(); });
   assert.deepEqual(calls, { confirmed: 1, closed: 0 });
 
-  await act(async () => { query<HTMLButtonElement>(document, ".worktree-move-actions button").click(); });
+  await act(async () => { query<HTMLButtonElement>(document, ".dialog-actions .btn").click(); });
   assert.deepEqual(calls, { confirmed: 1, closed: 1 }, "Cancel answers without moving anything");
 
   await act(async () => { document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });

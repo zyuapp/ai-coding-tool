@@ -1,0 +1,30 @@
+/**
+ * What a panel or list shows with nothing in it. A panel's fills it and centres on it, a little
+ * above the middle; a list's is one quiet line where its rows would be.
+ */
+.empty-view[data-size="panel"] {
+  flex: 1;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  padding: 24px 24px 10vh;
+  text-align: center;
+}
+.empty-view-orb {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--glass-sheen), var(--info-surface);
+  box-shadow: var(--glass-rim);
+  color: var(--info);
+}
+.empty-view[data-tone="danger"] > .empty-view-orb { background: var(--glass-sheen), var(--danger-surface); color: var(--danger); }
+.empty-view-title { margin: 15px 0 7px; color: var(--ink-dim); font-size: var(--text-heading); font-weight: 560; }
+.empty-view-title:first-child { margin-top: 0; }
+.empty-view-detail { max-width: 300px; margin: 0; color: var(--quiet-strong); font-size: var(--text-control); line-height: 1.5; }
+.empty-view-action { margin-top: 14px; }
+
+.empty-view[data-size="inline"] { margin: 7px 0 0; color: var(--quiet-soft); font-size: var(--text-meta); line-height: 1.5; }
+.empty-view[data-size="inline"] > .empty-view-action { margin: 0 0 0 6px; }

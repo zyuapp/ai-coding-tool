@@ -11,6 +11,9 @@ function fakeDesktop() {
   return { branches: async () => branches } as unknown as typeof window.desktop;
 }
 
+/** A group's name, from its label or the heading it is labelled by. */
+const groupName = (group: Element) => group.getAttribute("aria-label") ?? document.getElementById(group.getAttribute("aria-labelledby") ?? "")?.textContent ?? null;
+
 /** The start options with the project list's open state held the way the workspace holds it. */
 async function heldStartOptions() {
   const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
@@ -309,8 +312,8 @@ test("the project picker labels and groups duplicate repository names by compute
   await act(async () => { trigger.click(); });
   const groups = () => [...view.container.querySelectorAll('[role="group"]')];
   const rows = () => [...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')];
-  assert.deepEqual(groups().map((group) => group.getAttribute("aria-label")), ["This computer", "Air", "Studio Mac"]);
-  assert.deepEqual([...view.container.querySelectorAll(".thread-start-group-heading .host-mark")].map((heading) => heading.textContent), ["This computer", "Air", "Studio Mac"]);
+  assert.deepEqual(groups().map(groupName), ["This computer", "Air", "Studio Mac"]);
+  assert.deepEqual([...view.container.querySelectorAll(".thread-start-popover .menu-group-label .host-mark")].map((heading) => heading.textContent), ["This computer", "Air", "Studio Mac"]);
   assert.deepEqual(rows().map((row) => row.getAttribute("aria-label")), [
     null, "another on This computer", "shared on This computer", "shared on Air", "second on Studio Mac", "shared on Studio Mac",
   ], "groups sort each computer's projects by name despite interleaving in the input");
@@ -330,7 +333,7 @@ test("the project picker labels and groups duplicate repository names by compute
     });
   };
   await type("STUDIO");
-  assert.deepEqual(groups().map((group) => group.getAttribute("aria-label")), ["Studio Mac"]);
+  assert.deepEqual(groups().map(groupName), ["Studio Mac"]);
   assert.equal(rows().length, 2, "a host search includes every repository on that computer");
   await type("missing");
   assert.equal(query(view.container, ".thread-start-empty").textContent, "No project matches");
@@ -416,10 +419,10 @@ test("a branch list that cannot be read says so on the picker, which still opens
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
   const picker = query<HTMLButtonElement>(view.container, 'button[aria-label^="Starting branch: "]');
   assert.equal(picker.textContent, "Branches unavailable");
-  assert.ok(picker.classList.contains("error"));
+  assert.equal(picker.dataset.tone, "danger");
   assert.equal(picker.dataset.tip, "not a git repository");
   await act(async () => { picker.click(); });
-  assert.equal(query(view.container, ".branch-menu-empty.error").textContent, "not a git repository");
+  assert.equal(query(view.container, '.branch-menu-empty[data-tone="danger"]').textContent, "not a git repository");
   await view.unmount();
 });
 
@@ -438,10 +441,10 @@ test("the project picker leads with recent projects until a search starts", asyn
   const view = await mount(options(["gamma", "removed", "alpha"]));
   const trigger = query<HTMLButtonElement>(view.container, 'button[aria-label^="Project: "]');
   await act(async () => { trigger.click(); });
-  const groups = () => [...view.container.querySelectorAll('[role="group"]')].map((group) => group.getAttribute("aria-label"));
+  const groups = () => [...view.container.querySelectorAll('[role="group"]')].map(groupName);
   const rows = () => [...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')];
   assert.deepEqual(groups(), ["Recent", "All projects"], "recent projects sit above every project, which is named apart from them");
-  assert.deepEqual([...view.container.querySelectorAll(".thread-start-group-heading")].map((heading) => heading.textContent), ["Recent", "All projects"]);
+  assert.deepEqual([...view.container.querySelectorAll(".thread-start-popover .menu-group-label")].map((heading) => heading.textContent), ["Recent", "All projects"]);
   assert.deepEqual(rows().map((row) => row.textContent), ["No project", "gamma", "alpha", "alpha", "beta", "gamma"], "a project gone from the list is skipped, and recent ones stay in their own group");
   assert.deepEqual(rows().filter((row) => row.getAttribute("aria-selected") === "true").map((row) => row.textContent), ["gamma", "gamma"], "the selected project is marked wherever it appears");
   await act(async () => { item(rows()[2]).click(); });
@@ -535,7 +538,7 @@ test("with checkouts the project already has, the worktree control picks none, a
     ["loader-fixfix-loader", "false"],
     ["spikeDetached", "false"],
   ]);
-  assert.ok(listbox.querySelector('[role="group"][aria-label="Existing worktrees"]'));
+  assert.deepEqual([...listbox.querySelectorAll('[role="group"]')].map(groupName), ["Existing worktrees"]);
   const option = (name: string) => item([...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')].find((candidate) => candidate.textContent?.startsWith(name)));
 
   await act(async () => { option("loader-fix").click(); });

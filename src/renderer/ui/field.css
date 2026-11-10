@@ -1,0 +1,71 @@
+/** Every field shows keyboard focus as a thin accent edge with a soft halo. */
+.search-field:not([data-variant="palette"]):has(input:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *),
+.text-field:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *),
+.select > select:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *),
+.switch:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) {
+  outline: 1px solid var(--focus-ring);
+  outline-offset: -1px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 18%, transparent);
+}
+.select > select:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) { box-shadow: var(--glass-rim), 0 0 0 3px color-mix(in srgb, var(--focus-ring) 18%, transparent); }
+.switch:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) { box-shadow: var(--glint), 0 0 0 3px color-mix(in srgb, var(--focus-ring) 18%, transparent); }
+.checkbox:has(> input:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *) > svg { border-color: var(--focus-ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 18%, transparent); }
+
+/* Search field */
+.search-field { display: flex; align-items: center; min-width: 0; color: var(--quiet); }
+.search-field-box { flex: 1; align-self: stretch; display: flex; align-items: center; min-width: 0; cursor: text; }
+.search-field-box > svg { flex: none; }
+.search-field input { flex: 1; width: 100%; min-width: 0; margin: 0; border: 0; border-radius: 0; padding: 0; background: none; color: var(--ink); font: inherit; outline: none; }
+.search-field input::-webkit-search-cancel-button { opacity: 0.4; cursor: pointer; }
+.search-field input::-webkit-search-cancel-button:hover { opacity: 0.75; }
+.search-field[data-clearable] input::-webkit-search-cancel-button { display: none; }
+.search-field-clear { flex: none; margin-right: 2px; }
+
+.search-field[data-variant="field"] { border: 1px solid var(--line-strong); border-radius: 8px; background: var(--control-soft); }
+.search-field[data-variant="field"] > .search-field-box { gap: 8px; padding: 0 10px; }
+.search-field[data-variant="field"] > .search-field-box > svg { color: var(--quiet-strong); }
+.search-field[data-variant="field"] input { padding: 8px 0; font-size: var(--text-control); }
+
+.search-field[data-variant="menu"] { height: 28px; border: 1px solid var(--line-glass); border-radius: 7px; background: var(--frame-field); }
+.search-field[data-variant="menu"] > .search-field-box { gap: 6px; padding: 0 8px; }
+.search-field[data-variant="menu"] input { height: 100%; font-size: var(--text-menu); }
+
+.search-field[data-variant="palette"] { border-bottom: 1px solid var(--line-soft); }
+.search-field[data-variant="palette"] > .search-field-box { gap: 10px; padding: 0 15px; }
+.search-field[data-variant="palette"] input { height: 48px; font-size: var(--text-content); }
+
+/* Text field */
+.text-field-group { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.text-field-label { color: var(--muted); font-size: var(--text-menu); font-weight: 500; }
+.text-field-hint, .text-field-error { margin: 0; font-size: var(--text-meta); }
+.text-field-hint { color: var(--muted); }
+.text-field-error { color: var(--danger-soft); }
+.text-field { width: 100%; min-width: 0; height: 30px; margin: 0; border: 1px solid var(--line-input); border-radius: 8px; padding: 0 9px; background: var(--surface-input); color: var(--ink); font: inherit; font-size: var(--text-control); }
+.text-field[data-size="sm"] { height: 26px; border-radius: 7px; padding: 0 8px; font-size: var(--text-meta); }
+.text-field[data-multiline] { height: auto; min-height: 60px; padding-block: 6px; line-height: 1.45; resize: vertical; }
+.text-field[data-mono] { font-family: var(--mono); }
+.text-field:is(:read-only, :disabled) { color: var(--muted); }
+.text-field[aria-invalid="true"] { border-color: var(--danger-line); }
+
+/* Select */
+.select { position: relative; display: inline-flex; min-width: 0; }
+.select > select { appearance: none; min-width: 0; max-width: 260px; margin: 0; border: 1px solid var(--line-strong); border-radius: 7px; padding: 8px 34px 8px 12px; background: var(--surface); box-shadow: var(--glass-rim); color: var(--ink); font: inherit; font-size: var(--text-meta); text-overflow: ellipsis; cursor: pointer; }
+.select > select:disabled { cursor: default; }
+.select > select[aria-invalid="true"] { border-color: var(--danger-line); }
+.select > svg { position: absolute; top: 50%; right: 11px; transform: translateY(-50%); pointer-events: none; color: var(--muted); }
+
+/* Switch */
+.switch { position: relative; flex: none; width: 42px; height: 24px; margin: 0; border: 1px solid var(--line-input); border-radius: 999px; padding: 0; background: var(--sunken); box-shadow: var(--glint); cursor: pointer; }
+.switch:not([aria-checked="true"], :disabled):hover { border-color: var(--line-bright); }
+.switch[aria-checked="true"] { border-color: var(--accent); background: var(--accent); }
+.switch:disabled { opacity: var(--disabled-opacity); cursor: default; }
+.switch > span { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: transform 140ms ease, background 140ms ease; }
+.switch[aria-checked="true"] > span { transform: translateX(18px); background: var(--accent-ink); }
+
+/* Checkbox */
+.checkbox { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 28px; border-radius: 6px; padding: 0 6px; color: var(--ink-soft); font-size: var(--text-control); cursor: pointer; }
+.checkbox > input { position: absolute; width: 0; height: 0; margin: 0; opacity: 0; outline: none; }
+.checkbox > svg { flex: none; box-sizing: border-box; width: 16px; height: 16px; padding: 1px; border: 1.5px solid var(--line-input); border-radius: 4px; color: transparent; }
+.checkbox:hover > svg { border-color: var(--quiet-strong); color: var(--quiet-strong); }
+.checkbox:has(> input:checked) > svg { border-color: var(--success); background: var(--success); color: var(--canvas); }
+.checkbox:has(> input:disabled) { opacity: var(--disabled-opacity); cursor: default; }

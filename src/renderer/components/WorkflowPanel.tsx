@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSecondClock } from "../second-clock";
 import { shortcutTip } from "./TooltipLayer";
-import { ConfirmAction } from "./SettingRow";
+import { ConfirmAction } from "../ui/ConfirmAction";
+import { Button } from "../ui/Button";
+import { Chip } from "../ui/Chip";
+import { EmptyState } from "../ui/EmptyState";
+import { ListHeading, ListRow } from "../ui/List";
+import { Meter } from "../ui/Meter";
+import { PanelHeader } from "../ui/PanelHeader";
 import { LuArrowLeft as ArrowLeft, LuBoxes as Boxes, LuCircleCheckBig as CheckCircle2, LuCircleDot as CircleDot, LuCircleX as XCircle, LuClock as Clock, LuSquare as Square, LuTriangleAlert as AlertTriangle } from "react-icons/lu";
 import {
   agentStateIn,
@@ -39,11 +45,11 @@ function tokens(value: number) {
 function AgentBadges({ agent }: { agent: WorkflowAgent }) {
   return (
     <>
-      {agent.model && <span className="workflow-badge">{agent.model}</span>}
-      {agent.isolation && <span className="workflow-badge isolation">{agent.isolation}</span>}
-      {agent.cached && <span className="workflow-badge cached">cached</span>}
+      {agent.model && <Chip variant="tag" className="workflow-badge">{agent.model}</Chip>}
+      {agent.isolation && <Chip variant="tag" tone="info" className="workflow-badge isolation">{agent.isolation}</Chip>}
+      {agent.cached && <Chip variant="tag" tone="success" className="workflow-badge cached">cached</Chip>}
       {agent.attempt !== undefined && agent.attempt > 1 && (
-        <span className="workflow-badge retry" data-tip={agent.lastAttemptReason}>retry {agent.attempt}</span>
+        <Chip variant="tag" tone="accent" className="workflow-badge retry" data-tip={agent.lastAttemptReason}>retry {agent.attempt}</Chip>
       )}
     </>
   );
@@ -52,17 +58,21 @@ function AgentBadges({ agent }: { agent: WorkflowAgent }) {
 function AgentRow({ agent, state, now, onSelect }: { agent: WorkflowAgent; state: WorkflowAgentState; now: number; onSelect: () => void }) {
   const duration = workflowAgentDuration(agent, now);
   return (
-    <button className="workflow-row" type="button" onClick={onSelect} aria-label={`Open ${agent.label} details`}>
-      <span className={`agent-orb ${state}`}><AgentIcon state={state} /></span>
-      <span className="workflow-row-main">
-        <span className="workflow-row-label"><strong>{agent.label}</strong><AgentBadges agent={agent} /></span>
-        <small className={state === "error" ? "failed" : ""}>{workflowAgentNote(agent, state)}</small>
-      </span>
-      <span className="workflow-row-spend">
-        {agent.tokens ? <span>{tokens(agent.tokens)}</span> : null}
-        {duration === undefined ? null : <small>{formatElapsed(duration)}</small>}
-      </span>
-    </button>
+    <ListRow
+      className="workflow-row"
+      data-state={state}
+      aria-label={`Open ${agent.label} details`}
+      leading={<span className={`agent-orb ${state}`}><AgentIcon state={state} /></span>}
+      title={<span className="workflow-row-label"><span>{agent.label}</span><AgentBadges agent={agent} /></span>}
+      detail={workflowAgentNote(agent, state)}
+      trailing={(
+        <span className="workflow-row-spend">
+          {agent.tokens ? <span>{tokens(agent.tokens)}</span> : null}
+          {duration === undefined ? null : <small>{formatElapsed(duration)}</small>}
+        </span>
+      )}
+      onClick={onSelect}
+    />
   );
 }
 
@@ -124,7 +134,7 @@ function AgentInspector({ workflow, agent, now, onBack }: { workflow: Workflow; 
       event.stopPropagation();
       onBack();
     }}>
-      <button className="session-back" type="button" autoFocus data-tip={shortcutTip("Back", "Escape")} onClick={onBack}><ArrowLeft size={16} />{workflow.name}</button>
+      <Button className="session-back" variant="ghost" icon={<ArrowLeft size={16} aria-hidden="true" />} autoFocus data-tip={shortcutTip("Back", "Escape")} onClick={onBack}>{workflow.name}</Button>
       <div className="workflow-inspect-body">
         <div className="workflow-inspect-heading">
           <span className={`agent-orb ${state}`}><AgentIcon state={state} /></span>
@@ -133,7 +143,7 @@ function AgentInspector({ workflow, agent, now, onBack }: { workflow: Workflow; 
             <p>{agent.phaseTitle ? `${agent.phaseTitle} · ` : ""}{workflowAgentNote(agent, state)}</p>
           </div>
         </div>
-        <div className="workflow-chips"><AgentBadges agent={agent} />{agent.agentType && <span className="workflow-badge">{agent.agentType}</span>}</div>
+        <div className="workflow-chips"><AgentBadges agent={agent} />{agent.agentType && <Chip variant="tag" className="workflow-badge">{agent.agentType}</Chip>}</div>
         <dl className="workflow-facts">
           {waited !== undefined && <><dt>Waited</dt><dd>{formatElapsed(waited)}</dd></>}
           {duration !== undefined && <><dt>Ran</dt><dd>{formatElapsed(duration)}</dd></>}
@@ -174,35 +184,31 @@ export function WorkflowPanel({ workflow, onStop }: { workflow: Workflow; onStop
 
   return (
     <section className="workflow-panel" aria-label={`Workflow ${workflow.name}`}>
-      <header className="workflow-head">
-        <div className="workflow-head-top">
-          <span className={`agent-orb ${live ? "" : workflow.status === "completed" ? "done" : "error"}`}><Boxes size={16} /></span>
-          <h2>{workflow.name}</h2>
-          {live && (
-            <span className="workflow-stop-actions">
-              {workflow.stopping
-                ? <button className="workflow-stop" type="button" disabled>Stopping…</button>
-                : <ConfirmAction className="workflow-stop" confirm="Stop workflow" onConfirm={() => onStop(workflow.id)}>Stop</ConfirmAction>}
-            </span>
-          )}
-        </div>
-        <p className="workflow-head-sub">
-          {workflowStatusLabel(workflow)} · {workflow.agents.length} {workflow.agents.length === 1 ? "agent" : "agents"} · {formatElapsed(now - workflow.startedAt)}
-        </p>
+      <PanelHeader
+        icon={<span className={`agent-orb ${live ? "" : workflow.status === "completed" ? "done" : "error"}`}><Boxes size={16} /></span>}
+        title={workflow.name}
+        subtitle={`${workflowStatusLabel(workflow)} · ${workflow.agents.length} ${workflow.agents.length === 1 ? "agent" : "agents"} · ${formatElapsed(now - workflow.startedAt)}`}
+        actions={live ? (
+          <span className="workflow-stop-actions">
+            {workflow.stopping
+              ? <Button className="workflow-stop" variant="danger" disabled>Stopping…</Button>
+              : <ConfirmAction className="workflow-stop" variant="danger" confirm="Stop workflow" onConfirm={() => onStop(workflow.id)}>Stop</ConfirmAction>}
+          </span>
+        ) : undefined}
+      />
+      <div className="workflow-overview">
         <div className="workflow-stats">
           <div><strong>{done}/{workflow.agents.length}</strong><span>Agents</span></div>
           <div><strong>{tokens(workflow.totalTokens)}</strong><span>Tokens</span></div>
           <div><strong>{workflow.totalToolCalls}</strong><span>Tool calls</span></div>
           {failed > 0 && <div className="failed"><strong>{failed}</strong><span>Failed</span></div>}
         </div>
-        <div className="workflow-meter">
-          <i style={{ width: `${workflow.agents.length ? done / workflow.agents.length * 100 : 0}%` }} />
-        </div>
-      </header>
+        <Meter size="hair" tone="info" value={workflow.agents.length ? done / workflow.agents.length : 0} />
+      </div>
 
       <div className="workflow-body">
         {workflow.agents.length === 0 ? (
-          <p className="session-empty">Waiting for the workflow's first agents…</p>
+          <EmptyState size="inline" title="Waiting for the workflow's first agents…" />
         ) : (
           <>
             <Timeline workflow={workflow} groups={groups} now={now} onSelect={setSelected} />
@@ -210,10 +216,7 @@ export function WorkflowPanel({ workflow, onStop }: { workflow: Workflow; onStop
               const groupDone = group.agents.filter((item) => item.state === "done" || item.state === "error").length;
               return (
                 <section className="workflow-group" key={group.key}>
-                  <div className="workflow-group-head">
-                    <h3>{group.title}</h3>
-                    <span>{groupDone}/{group.agents.length}</span>
-                  </div>
+                  <ListHeading className="workflow-group-head" role="heading" aria-level={3} label={group.title} count={`${groupDone}/${group.agents.length}`} />
                   {group.agents.map((item) => (
                     <AgentRow key={item.index} agent={item} state={agentStateIn(workflow, item)} now={now} onSelect={() => setSelected(item.index)} />
                   ))}

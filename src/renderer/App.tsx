@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback } from "react";
 import { CommandControlsProvider } from "./components/CommandControl";
 import { ModelCatalogProvider } from "./model-catalog";
-import { LuFocus as Focus, LuX as X } from "react-icons/lu";
+import { LuFocus as Focus } from "react-icons/lu";
 import { MessageLinkProvider } from "./components/MarkdownMessage";
 import { ThreadNames } from "./thread-names";
 import { AttachmentViewer } from "./components/AttachmentViewer";
@@ -25,6 +25,8 @@ import { attachDroppedFiles, imageSources } from "./dropped-files";
 import { useComposerFocusRecovery, useEscapeLayers, useLatestDispatch, useMessageLinks, useSubagentInspection } from "./app-shell";
 import { PartBoundary } from "./components/PartBoundary";
 import type { Thread } from "../domain/thread";
+import { Button, IconButton } from "./ui/Button";
+import { Notice } from "./ui/Notice";
 
 /** A thread on a computer holding no coordinators can be moved under none. */
 const NO_COORDINATORS: readonly Thread[] = [];
@@ -43,13 +45,15 @@ function HiddenThreadsNotice({ workspace }: { workspace: ReturnType<typeof useTa
   if (hidden < 1) return null;
   const text = `${hidden} ${hidden === 1 ? "thread needs" : "threads need"} a newer version`;
   return (
-    <div className="storage-notice" role="status">
+    <Notice
+      floating
+      tone="info"
+      className="storage-notice"
+      actions={<Button size="sm" onClick={() => void workspace.actions.checkForUpdates()}>Update</Button>}
+      onDismiss={() => void workspace.actions.dismissHiddenThreads()}
+    >
       <span data-tip={text} data-tip-overflow>{text}</span>
-      <button className="storage-notice-link" type="button" onClick={() => void workspace.actions.checkForUpdates()}>Update</button>
-      <button type="button" aria-label="Dismiss" data-tip="Dismiss" onClick={() => void workspace.actions.dismissHiddenThreads()}>
-        <X size={16} aria-hidden="true" />
-      </button>
-    </div>
+    </Notice>
   );
 }
 
@@ -57,9 +61,9 @@ function HiddenThreadsNotice({ workspace }: { workspace: ReturnType<typeof useTa
 function ZenTitlebar({ tip, onLeave }: { tip: string; onLeave: () => void }) {
   return (
     <div className="zen-titlebar">
-      <button className="session-toggle active" type="button" aria-label="Leave zen mode" data-tip={tip} onClick={onLeave}>
+      <IconButton size="lg" label="Leave zen mode" tip={tip} onClick={onLeave}>
         <Focus size={18} aria-hidden="true" />
-      </button>
+      </IconButton>
     </div>
   );
 }
@@ -77,17 +81,16 @@ function ActionErrorBanner({ workspace }: { workspace: ReturnType<typeof useTask
   /** The settings page that clears the error, when one does. */
   const errorPage = workspace.actionErrorPage;
   return (
-    <div className="storage-error" role="alert">
-      <span>{message}</span>
-      {!workspace.storageError && errorPage && (
-        <button className="storage-error-link" type="button" onClick={() => void workspace.actions.openSettingsSection(errorPage)}>Open settings</button>
-      )}
-      {!workspace.storageError && (
-        <button type="button" aria-label="Dismiss error" data-tip="Dismiss" onClick={() => void workspace.dispatch({ type: "view.dismiss-action-error" })}>
-          <X size={16} aria-hidden="true" />
-        </button>
-      )}
-    </div>
+    <Notice
+      floating
+      tone="danger"
+      className="storage-error"
+      dismissLabel="Dismiss error"
+      actions={!workspace.storageError && errorPage && <Button size="sm" onClick={() => void workspace.actions.openSettingsSection(errorPage)}>Open settings</Button>}
+      onDismiss={workspace.storageError ? undefined : () => void workspace.dispatch({ type: "view.dismiss-action-error" })}
+    >
+      {message}
+    </Notice>
   );
 }
 

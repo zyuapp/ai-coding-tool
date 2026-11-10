@@ -110,7 +110,7 @@ test("computer-use settings refresh permissions", async () => {
   assert.match(view.container.textContent, /Setup required/);
   assert.match(view.container.textContent, /Enable Accessibility/);
   assert.match(view.container.textContent, /Enable Screen Recording/);
-  const buttons = query<HTMLElement>(view.container, "[aria-labelledby='permissions-heading']").querySelectorAll<HTMLButtonElement>(".setting-row-action button");
+  const buttons = query<HTMLElement>(view.container, ".settings-group:has([data-setting='computer-use.accessibility'])").querySelectorAll<HTMLButtonElement>(".setting-row-action button");
   assert.equal(buttons.length, 2);
   await act(async () => { item(buttons[0]).click(); });
   await act(async () => { item(buttons[1]).click(); });
@@ -435,7 +435,7 @@ test("settings rebind a shortcut, and the window is told what to match", async (
   await settleUntil(() => Boolean(view.container.querySelector(".settings-sidebar")), "settings never opened");
   await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === "Shortcuts")).click(); });
   const row = (label: string) => item([...view.container.querySelectorAll<HTMLElement>(".shortcut-row")].find((element) => query(element, "strong").textContent === label));
-  const keys = (label: string) => [...query(row(label), "kbd").querySelectorAll(".shortcut-key")].map((key) => key.textContent);
+  const keys = (label: string) => [...query(row(label), "kbd").querySelectorAll(".kbd-key")].map((key) => key.textContent);
   /** jsdom is no Mac, so the panel spells its modifiers out rather than drawing them. */
   assert.deepEqual(keys("Allow"), ["Ctrl", "Shift", "A"]);
 
@@ -463,7 +463,7 @@ test("settings rebind a shortcut, and the window is told what to match", async (
   assert.deepEqual(item(desktop.shortcuts.at(-1)), { "run.allow": null, "run.deny": "Mod+Shift+K" });
 
   await act(async () => { query<HTMLButtonElement>(view.container, ".settings-group-action button").click(); });
-  await act(async () => { query<HTMLButtonElement>(view.container, ".settings-group-action button.danger").click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, ".settings-group-action button[data-variant='danger']").click(); });
   assert.deepEqual(keys("Allow"), ["Ctrl", "Shift", "A"]);
   assert.deepEqual(item(desktop.shortcuts.at(-1)), {});
 
@@ -471,7 +471,7 @@ test("settings rebind a shortcut, and the window is told what to match", async (
 });
 
 const capabilitySwitch = (root: ParentNode, section: string) =>
-  query<HTMLButtonElement>(root, `[aria-labelledby='${section}-heading'] .setting-row-action button`);
+  query<HTMLButtonElement>(root, `[data-setting='${section}'] .setting-row-action button`);
 
 test("each capability page carries a switch that turns the whole capability off", async () => {
   const changed: Array<[string, boolean]> = [];
@@ -483,13 +483,13 @@ test("each capability page carries a switch that turns the whole capability off"
   }));
   await act(async () => {});
 
-  assert.equal(capabilitySwitch(view.container, "computer-use-availability").getAttribute("aria-checked"), "true");
-  await act(async () => { capabilitySwitch(view.container, "computer-use-availability").click(); });
+  assert.equal(capabilitySwitch(view.container, "computer-use.availability").getAttribute("aria-checked"), "true");
+  await act(async () => { capabilitySwitch(view.container, "computer-use.availability").click(); });
 
   const browserTab = item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === "Browser"));
   await act(async () => { browserTab.click(); });
-  assert.equal(capabilitySwitch(view.container, "browser-availability").getAttribute("aria-checked"), "true");
-  await act(async () => { capabilitySwitch(view.container, "browser-availability").click(); });
+  assert.equal(capabilitySwitch(view.container, "browser.availability").getAttribute("aria-checked"), "true");
+  await act(async () => { capabilitySwitch(view.container, "browser.availability").click(); });
 
   assert.deepEqual(changed, [["computer-use", false], ["browser-tools", false]]);
   await view.unmount();
@@ -515,7 +515,7 @@ test("Engines offers a reload and shows when it is waiting or complete", async (
   let reloads = 0;
   for (const status of ["idle", "reloading", "pending", "reloaded", "failed"] as const) {
     const view = await mount(renderSettingsPanel({ initialSection: "engines", agentSettingsReload: status, onReloadAgentSettings: () => { reloads++; } }));
-    const section = query<HTMLElement>(view.container, '[aria-labelledby="agent-settings-heading"]');
+    const section = query<HTMLElement>(view.container, '[data-setting="engines.agent-settings"]');
     const button = query<HTMLButtonElement>(section, "button");
     assert.equal(button.textContent, status === "reloading" ? "Reloading…" : "Reload agent settings");
     assert.equal(button.disabled, status === "reloading" || status === "pending");
@@ -641,7 +641,7 @@ test("an allowed site can be taken back alone, and clearing everything looks des
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Remove https://b.test"]').click(); });
   assert.deepEqual(forgotten, ["https://b.test"]);
   const clear = item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-group-action button")].find((button) => button.textContent === "Clear browser data"));
-  assert.ok(clear.classList.contains("danger"));
+  assert.equal(clear.dataset.variant, "danger");
   assert.equal(view.container.querySelector('[data-setting="browser.session"] .setting-status'), null, "a site row carries no step circle");
   await view.unmount();
 

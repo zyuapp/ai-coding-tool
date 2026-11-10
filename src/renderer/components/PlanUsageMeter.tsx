@@ -1,8 +1,10 @@
 import { useId } from "react";
-import { LuGauge as Gauge, LuX as X } from "react-icons/lu";
+import { LuGauge as Gauge } from "react-icons/lu";
 import { barShare, formatReset, NEAR_LIMIT_SHARE, planLabel, sessionAndWeek, tightestWindow, usageWarningKey, windowsFor, windowSpan, type PlanUsage, type UsageWindow } from "../../domain/plan-usage";
 import { modelLabel, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
 import { useModelCatalog } from "../model-catalog";
+import { Meter } from "../ui/Meter";
+import { Notice } from "../ui/Notice";
 import { UsageCard, UsageCardRow } from "./UsageCard";
 
 const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -46,14 +48,14 @@ export function PlanUsageMeter({ engine, engineLabel, model, usage, onOpen }: Pl
   if (usage?.status !== "available" || !rows.length) return null;
   const label = rows.map((row) => `${row.label} ${Math.round(barShare(row.utilization))}% used`).join(", ");
 
-  const Meter = onOpen ? "button" : "span";
+  const Reading = onOpen ? "button" : "span";
 
   return (
     <span className="plan-usage">
-      <Meter className="plan-usage-meter" {...(onOpen ? { type: "button" as const, onClick: onOpen } : { tabIndex: 0 })} aria-label={`${engineLabel} plan: ${label}`} aria-describedby={cardId}>
+      <Reading className="plan-usage-meter" {...(onOpen ? { type: "button" as const, onClick: onOpen } : { tabIndex: 0 })} aria-label={`${engineLabel} plan: ${label}`} aria-describedby={cardId}>
         <Gauge className="plan-usage-icon" size={14} aria-hidden="true" />
         <span className="plan-usage-parts" aria-hidden="true">{rows.map((row) => <MeterPart key={row.id} window={row} />)}</span>
-      </Meter>
+      </Reading>
       <UsageCard id={cardId} title={engineLabel} aside={planLabel(usage.subscription)}>
         {windows.map((window) => {
           const windowShare = Math.round(barShare(window.utilization));
@@ -82,14 +84,13 @@ export function PlanUsageWarning({ engine, engineLabel, model, usage, dismissed,
   const Summary = onOpen ? "button" : "span";
 
   return (
-    <div className="plan-usage-warning" role="status">
+    <Notice floating tone="accent" className="plan-usage-warning" dismissLabel="Hide usage warning until reset" dismissTip="Hide until reset" onDismiss={() => onDismiss(warning)}>
       <Summary className="plan-usage-warning-summary" {...(onOpen ? { type: "button" as const, onClick: onOpen, "data-tip": "Open usage settings" } : {})}>
-        <span className="plan-usage-track" aria-hidden="true"><span style={{ width: `${share}%` }} /></span>
+        <Meter className="plan-usage-track" value={share / 100} size="thin" tone="accent" />
         <strong>{share >= 100 ? "Limit reached" : `${share}% used`}</strong>
         <span className="plan-usage-warning-window">{engineLabel} · {tightest.label}</span>
       </Summary>
       {reset && <span className="plan-usage-warning-reset">{reset}</span>}
-      <button type="button" className="plan-usage-warning-dismiss" aria-label="Hide usage warning until reset" data-tip="Hide until reset" onClick={() => onDismiss(warning)}><X size={14} aria-hidden="true" /></button>
-    </div>
+    </Notice>
   );
 }

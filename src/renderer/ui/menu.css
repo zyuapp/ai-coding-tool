@@ -1,0 +1,102 @@
+/**
+ * Menus and pickers. The pane is a .glass-popover; this sheet lays out what sits on it. Surface
+ * layout is under :where() so whoever places a menu can size and pad it with one class.
+ */
+:where(.menu-popover) {
+  --menu-pad: 5px;
+  position: absolute;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 168px;
+  padding: var(--menu-pad);
+  font-size: var(--text-menu);
+  text-align: left;
+  outline: none;
+}
+/** The tick column: no room in a list nothing can be ticked in, the same room on every row once anything can. */
+.menu-popover { --menu-tick: 0px; --menu-tick-trim: -6px; }
+[data-checkable] { --menu-tick: 14px; --menu-tick-trim: 0px; }
+:where(.menu-popover[data-anchored]) { position: fixed; z-index: 1000; }
+:where(.menu-popover[data-scroll]) {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  max-height: min(var(--menu-max-height, 420px), var(--menu-room, calc(100vh - 16px)));
+}
+:where(.menu-popover:has(> .menu-scroll)) { overflow: hidden; }
+.menu-scroll { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+
+.menu-item {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: var(--text-menu);
+  text-align: left;
+  /** An arrow over a menu, not a hand: a menu is not a link. */
+  cursor: default;
+}
+.menu-tick { flex: none; display: grid; place-items: center; width: var(--menu-tick, 0px); margin-right: var(--menu-tick-trim, -6px); overflow: hidden; }
+.menu-icon { flex: none; display: grid; place-items: center; color: var(--quiet-strong); }
+.menu-icon > img { display: block; object-fit: contain; }
+.menu-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.menu-label, .menu-description { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-description { color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.35; }
+.menu-shortcut, .menu-chevron { flex: none; color: var(--muted); }
+.menu-item:is([aria-checked="true"], [aria-selected="true"], [aria-pressed="true"]) { color: var(--ink); }
+
+/** The row under the pointer or caret, the row whose list is open, and the row Enter takes while the caret is in the search all wear one wash. */
+.menu-item:is(:hover, [aria-expanded="true"], [data-active]):not([aria-disabled="true"]),
+.menu-popover:has(.menu-search input:focus) .menu-item[data-default],
+.menu-item:focus-visible:not([aria-disabled="true"]):where(:root:not([data-focus-appearance="quiet"]) *) { background: var(--glass-pick); box-shadow: var(--glass-rim); color: var(--ink); outline: none; }
+.menu-item:is(:hover, [aria-expanded="true"], [data-active]):not([aria-disabled="true"]) :is(.menu-icon, .menu-description, .menu-shortcut, .menu-chevron),
+.menu-popover:has(.menu-search input:focus) .menu-item[data-default] :is(.menu-icon, .menu-description, .menu-shortcut, .menu-chevron),
+.menu-item:focus-visible:not([aria-disabled="true"]):where(:root:not([data-focus-appearance="quiet"]) *) :is(.menu-icon, .menu-description, .menu-shortcut, .menu-chevron) { color: currentColor; }
+.menu-item[data-danger] { color: var(--danger); }
+.menu-item[data-danger]:hover:not([aria-disabled="true"]),
+.menu-item[data-danger]:focus-visible:not([aria-disabled="true"]):where(:root:not([data-focus-appearance="quiet"]) *) { background: var(--glass-pick-danger); color: var(--danger); }
+/** A row that cannot be chosen keeps readable words in the quietest text colour, and still takes the keyboard so its reason shows. */
+.menu-item[aria-disabled="true"] { opacity: 1; color: var(--quiet); }
+.menu-item[aria-disabled="true"] :is(.menu-icon, .menu-description, .menu-shortcut, .menu-chevron) { color: var(--quiet); }
+
+.menu-group { display: flex; flex-direction: column; }
+.menu-group-label { padding: 8px 8px 4px; color: var(--quiet); font-size: var(--text-meta); font-weight: 500; }
+.menu-group:first-child > .menu-group-label { padding-top: 3px; }
+.menu-separator { flex: none; height: 1px; margin: 5px 8px; background: var(--line-glass); }
+.menu-note { flex: none; margin: 0; padding: 6px 8px; color: var(--quiet); font-size: var(--text-meta); line-height: 1.45; }
+.menu-note[data-tone="danger"] { color: var(--danger); overflow-wrap: anywhere; }
+
+/** A searchable menu's field stays put while its rows scroll under it. */
+.menu-search {
+  flex: none;
+  position: sticky;
+  top: calc(-1 * var(--menu-pad, 5px));
+  z-index: 1;
+  margin: calc(-1 * var(--menu-pad, 5px)) calc(-1 * var(--menu-pad, 5px)) 0;
+  border-radius: 9px 9px 0 0;
+  padding: 6px 6px 4px;
+  background: var(--surface-glass);
+  backdrop-filter: var(--glass-menu-blur);
+}
+
+/**
+ * A list an item opened, just clear of its parent's edge. It sits inside the blurred parent, where a
+ * backdrop filter only samples the parent, so it is painted solid in the parent's own colour instead.
+ */
+.menu-popover.menu-submenu { top: 0; left: calc(100% + 3px); right: auto; z-index: 1; background: var(--p-bg-4); backdrop-filter: none; }
+.menu-popover.menu-submenu.menu-flipped { left: auto; right: calc(100% + 3px); }
+/** The list a trigger opens: as wide as its widest row, within bounds. */
+:where(.menu-list) { width: max-content; max-width: 320px; }
+:where(.menu-dropdown) { top: 29px; right: -30px; }
+/** What an open right-click menu acts on. */
+[data-menu-target] { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }

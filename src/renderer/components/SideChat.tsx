@@ -1,5 +1,5 @@
 import type { QuestionAddress } from "../../domain/agent-question";
-import { LuGitFork as GitFork, LuX as X } from "react-icons/lu";
+import { LuGitFork as GitFork } from "react-icons/lu";
 import { useRef, type ReactNode } from "react";
 import type { DockConversationView, FindView, SideChatView } from "../../application/workspace-state";
 import type { ReadingPoint } from "../../contracts/commands";
@@ -12,6 +12,9 @@ import { ConversationTimeline, type ConversationTimelineProps } from "./Conversa
 import { ConversationComposer } from "./ConversationComposer";
 import type { ComposerOutbox } from "./ComposerAttachments";
 import { useFileDrop } from "../file-drop";
+import { Notice } from "../ui/Notice";
+import { PanelHeader } from "../ui/PanelHeader";
+import "../ui/glass.css";
 
 export type DockConversationProps = {
   chat: DockConversationView;
@@ -107,7 +110,7 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
         />
         {chat.approval && <ApprovalCard approval={chat.approval} onDecide={onDecide} />}
       </div>
-      {error && <p className="side-chat-error" role="alert">{error}</p>}
+      {error && <Notice tone="danger" className="side-chat-error">{error}</Notice>}
       <ConversationComposer
         taskId={chat.thread.id}
         /** A chat on an engine only a newer build on a paired computer knows takes no typed message, as its thread does. */
@@ -187,13 +190,13 @@ export function SideChat({ chat, sourceTitle, sourceContinued, onClose, ...props
       surface="side"
       disabled={!available}
       header={
-        <header className="side-chat-header">
-          <div className="side-chat-title">
-            <span className="side-chat-fork"><GitFork size={18} /></span>
-            <div><h2>{chat.title}</h2><p>Temporary · forked from {sourceTitle}</p></div>
-          </div>
-          <button type="button" aria-label="Close side chat" data-tip="Close side chat" onClick={onClose}><X size={18} /></button>
-        </header>
+        <PanelHeader
+          icon={<span className="side-chat-fork raised"><GitFork size={18} /></span>}
+          title={chat.title}
+          subtitle={`Temporary · forked from ${sourceTitle}`}
+          closeLabel="Close side chat"
+          onClose={onClose}
+        />
       }
       empty={{
         icon: GitFork,

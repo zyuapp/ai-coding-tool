@@ -34,9 +34,9 @@ test("the workflow panel groups agents by phase, draws their lanes, and opens on
 
   assert.match(view.container.textContent, /review-changes/);
   assert.match(view.container.textContent, /2\/3/, "done counts both the finished and the failed");
-  assert.deepEqual([...view.container.querySelectorAll(".workflow-group-head h3")].map((head) => head.textContent), ["Review", "Verify"]);
+  assert.deepEqual([...view.container.querySelectorAll(".workflow-group-head .list-heading-text")].map((head) => head.textContent), ["Review", "Verify"]);
   assert.equal(view.container.querySelectorAll(".workflow-lane").length, 3);
-  assert.match(query(view.container, ".workflow-row .workflow-row-main small").textContent, /3 findings/);
+  assert.match(query(view.container, ".workflow-row .list-row-text > small").textContent, /3 findings/);
   assert.match(view.container.textContent, /Using Grep/);
   assert.match(view.container.textContent, /retry 2/);
   assert.match(view.container.textContent, /worktree/);

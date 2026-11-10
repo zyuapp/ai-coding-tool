@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
+import { Meter } from "../ui/Meter";
+import "../ui/glass.css";
 
 /** A meter's hover card: what it measures, then one bar per thing it counts. */
 export function UsageCard({ id, title, aside, children }: { id: string; title: string; aside?: string | null; children: ReactNode }) {
   return (
-    <span className="usage-card" id={id} role="tooltip">
+    <span className="glass-popover usage-card" id={id} role="tooltip">
       <span className="usage-card-heading"><strong>{title}</strong>{aside && <span>{aside}</span>}</span>
       {children}
     </span>
@@ -15,7 +17,7 @@ export function UsageCardRow({ label, value, share, high = false, detail }: { la
   return (
     <span className="usage-card-row">
       <span className="usage-card-label"><span>{label}</span><span className={high ? "high" : undefined}>{value}</span></span>
-      <span className="usage-card-track" aria-hidden="true"><span className={high ? "high" : undefined} style={{ width: `${share}%` }} /></span>
+      <Meter className="usage-card-track" value={share / 100} size="groove" tone={high ? "accent" : "info"} />
       {detail && <span className="usage-card-detail">{detail}</span>}
     </span>
   );

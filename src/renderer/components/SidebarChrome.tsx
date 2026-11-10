@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight, LuMonitor as Monitor, LuMonitorOff as MonitorOff } from "react-icons/lu";
 import { awayStatus, type ComputerFilter, type ComputerLink } from "../../domain/computers";
 import { useDismissibleLayer } from "../focus";
+import { IconButton } from "../ui/Button";
 import { MenuList, type MenuItem } from "./PopoverMenu";
 import { shortcutTip } from "./TooltipLayer";
 
@@ -53,14 +54,13 @@ function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenM
     <div ref={root} className="computer-switch" data-popover-menu onBlur={(event) => {
       if (open && !event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
     }}>
-      <button
+      <IconButton
         ref={trigger}
-        type="button"
-        className={`thread-nav-button computer-switch-trigger${narrowed ? " active" : ""}${selected.away ? " offline" : ""}${away.length ? " some-away" : ""}`}
-        aria-label={away.length ? `Computers, ${away.length} offline` : "Computers"}
+        className={`computer-switch-trigger${narrowed ? " active" : ""}${selected.away ? " offline" : ""}${away.length ? " some-away" : ""}`}
+        label={away.length ? `Computers, ${away.length} offline` : "Computers"}
+        tip={tip}
         aria-haspopup="menu"
         aria-expanded={open}
-        data-tip={tip}
         onClick={() => onSetOpenMenu(open ? null : COMPUTER_MENU)}
         onKeyDown={(event) => {
           if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
@@ -70,7 +70,7 @@ function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenM
       >
         <Screen size={16} aria-hidden="true" />
         {narrowed && <span className="computer-switch-name">{selected.label}</span>}
-      </button>
+      </IconButton>
       {open && <MenuList entries={entries} onClose={() => onSetOpenMenu(null)} className="computer-switch-menu" />}
     </div>
   );
@@ -95,12 +95,12 @@ export function SidebarHeader({ canGoBack, canGoForward, computerLinks, computer
     <div className="traffic-space">
       {computerLinks.length > 0 && <ComputerSwitch links={computerLinks} name={computerName} filter={computerFilter} onSetFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
       <div className="thread-nav">
-        <button className="thread-nav-button" type="button" aria-label="Go back" data-tip={BACK_TIP} disabled={!canGoBack} onClick={onGoBack}>
+        <IconButton label="Go back" tip={BACK_TIP} disabled={!canGoBack} onClick={onGoBack}>
           <ChevronLeft size={16} aria-hidden="true" />
-        </button>
-        <button className="thread-nav-button" type="button" aria-label="Go forward" data-tip={FORWARD_TIP} disabled={!canGoForward} onClick={onGoForward}>
+        </IconButton>
+        <IconButton label="Go forward" tip={FORWARD_TIP} disabled={!canGoForward} onClick={onGoForward}>
           <ChevronRight size={16} aria-hidden="true" />
-        </button>
+        </IconButton>
       </div>
     </div>
   );

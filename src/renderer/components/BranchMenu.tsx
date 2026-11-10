@@ -1,8 +1,11 @@
 import { LuPlus as Plus } from "react-icons/lu";
-import { Fragment, useEffect, useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
+import { Fragment, useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { BranchesResult } from "../../contracts/ipc";
-import { PickerOption, PickerPopover, PickerSearch } from "./Picker";
+import { MenuGroup, MenuHeading, MenuItem, MenuNote, MenuOptions, MenuSearch, MenuSeparator, MenuSurface, useListKeys, useMenuAnchor } from "../ui/Menu";
+
+/** The narrowest a list may be, for a trigger too small to hold a ref of any length. */
+const MIN_MENU_WIDTH = 260;
 
 /**
  * The branch a typed query would make: what the user typed, once it is a name no branch already has.
@@ -40,55 +43,6 @@ export function useBranches(workspaceId: string | undefined, enabled = true) {
   return result;
 }
 
-/** The gap between the row a list hangs off and the list itself. */
-const ANCHOR_GAP = 4;
-
-/** The narrowest a list may be, for a trigger too small to hold a ref of any length. */
-const MIN_MENU_WIDTH = 260;
-
-/** Where a list sits beside a row it is not inside: on whichever side of it the viewport leaves more room. */
-function anchoredStyle(anchor: HTMLElement, minimumWidth: number, maximumWidth: number): CSSProperties {
-  const rect = anchor.getBoundingClientRect();
-  const below = window.innerHeight - rect.bottom - ANCHOR_GAP * 2;
-  const above = rect.top - ANCHOR_GAP * 2;
-  const over = above > below;
-  const width = Math.min(Math.max(rect.width, minimumWidth), maximumWidth, window.innerWidth - ANCHOR_GAP * 2);
-  /** A list wider than the row it hangs off would run past the window, so it slides back inside. */
-  const left = Math.min(rect.left, window.innerWidth - width - ANCHOR_GAP);
-  return {
-    left: Math.max(ANCHOR_GAP, left),
-    width,
-    top: over ? undefined : rect.bottom + ANCHOR_GAP,
-    bottom: over ? window.innerHeight - rect.top + ANCHOR_GAP : undefined,
-    "--branch-menu-room": `${Math.max(above, below)}px`,
-  } as CSSProperties;
-}
-
-/** Follows the anchor, since the panel it sits in scrolls out from under a list that does not move. */
-export function useAnchoredStyle(anchor: HTMLElement | RefObject<HTMLElement | null> | null | undefined, minimumWidth = MIN_MENU_WIDTH, maximumWidth = Infinity) {
-  const [style, setStyle] = useState<CSSProperties | null>(null);
-
-  useLayoutEffect(() => {
-    const element = anchor && "current" in anchor ? anchor.current : anchor;
-    if (!element) return;
-    const place = () => setStyle(anchoredStyle(element, minimumWidth, maximumWidth));
-    place();
-    const observer = new ResizeObserver(place);
-    observer.observe(element);
-    const dock = element.closest(".right-dock");
-    if (dock) observer.observe(dock);
-    window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
-    return () => {
-      window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
-      observer.disconnect();
-    };
-  }, [anchor, minimumWidth, maximumWidth]);
-
-  return style;
-}
-
 export type BranchMenuProps = {
   branches: BranchesResult | null;
   /** The branch shown as chosen. A detached checkout has none, so nothing is ticked. */
@@ -112,7 +66,10 @@ export type BranchMenuProps = {
 /** The list a branch is chosen from: the branches, narrowed by search, and the name to make. */
 export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includeRemotes, extra, title }: BranchMenuProps) {
   const [query, setQuery] = useState("");
-  const anchored = useAnchoredStyle(anchor);
+  const fallback = useRef<HTMLDivElement>(null);
+  const surface = menuRef ?? fallback;
+  const anchored = useMenuAnchor(anchor, surface, { minWidth: MIN_MENU_WIDTH });
+  const listKeys = useListKeys();
   const available = branches?.status === "available" ? branches : null;
   const names = available ? [...available.branches, ...(includeRemotes ? available.remotes : [])] : [];
   const naming = extra || !available ? null : newBranchName(names, query);
@@ -135,51 +92,45 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
   if (branches?.status === "error") empty = branches.message;
   else if (branches) empty = "No branch matches";
 
-  const option = (name: string, label: string, className?: string) => (
-    <PickerOption
-      className={className}
+  const option = (name: string, label: string) => (
+    <MenuItem
       key={name}
-      selected={name === selected}
+      role="option"
+      checked={name === selected}
+      data-default={!naming && name === top ? "" : undefined}
       onClick={() => onPick(name, false)}
     >
       {label}
-    </PickerOption>
+    </MenuItem>
   );
 
   const menu = (
-    <PickerPopover
-      ref={menuRef}
-      onKeyDownCapture={(event) => {
-        if (event.key !== "Escape" || !query || (event.target as HTMLElement).tagName !== "INPUT") return;
-        event.preventDefault();
-        setQuery("");
-      }}
-      className={`branch-menu ${anchor ? "anchored" : ""} ${includeRemotes ? "grouped" : ""}`.trimEnd()}
-      style={anchored ?? undefined}
+    <MenuSurface
+      ref={surface}
+      checkable
+      scroll
+      anchored={Boolean(anchor)}
+      className="picker-popover branch-menu"
+      style={anchor ? anchored : undefined}
+      onKeyDown={listKeys}
     >
-      {title && <div className="branch-menu-title">{title}</div>}
-      <PickerSearch label="Search branches" value={query} onChange={setQuery} onSubmit={submit} />
-      <div role="listbox" aria-label="Branches">
+      {title && <MenuHeading>{title}</MenuHeading>}
+      <MenuSearch label="Search branches" value={query} onChange={setQuery} onSubmit={submit} autoFocus />
+      <MenuOptions aria-label="Branches">
         {naming && (
-          <PickerOption selected={false} mark={<Plus size={14} />} onClick={() => onPick(naming, true)}>
+          <MenuItem role="option" checked={false} mark={<Plus size={14} />} data-default="" onClick={() => onPick(naming, true)}>
             Create branch “{naming}”
-          </PickerOption>
+          </MenuItem>
         )}
-        {showExtra && (
-          <>
-            {includeRemotes && <p className="branch-menu-group">Not a branch</p>}
-            {option(extra.value, extra.label, "branch-menu-extra")}
-          </>
-        )}
-        {matched === 0 && !naming && !showExtra && <p className={`branch-menu-empty ${branches?.status === "error" ? "error" : ""}`.trimEnd()} role={branches?.status === "error" ? "alert" : "status"}>{empty}</p>}
-        {groups.map((group) => (
-          <Fragment key={group.label ?? "all"}>
-            {group.label && <p className="branch-menu-group">{group.label}</p>}
-            {group.names.map((name) => option(name, name))}
-          </Fragment>
-        ))}
-      </div>
-    </PickerPopover>
+        {showExtra && (includeRemotes
+          ? <MenuGroup label="Not a branch">{option(extra.value, extra.label)}</MenuGroup>
+          : <>{option(extra.value, extra.label)}{matched > 0 && <MenuSeparator />}</>)}
+        {matched === 0 && !naming && !showExtra && <MenuNote className="branch-menu-empty" tone={branches?.status === "error" ? "danger" : "quiet"} role={branches?.status === "error" ? "alert" : "status"}>{empty}</MenuNote>}
+        {groups.map((group) => group.label
+          ? <MenuGroup key={group.label} label={group.label}>{group.names.map((name) => option(name, name))}</MenuGroup>
+          : <Fragment key="all">{group.names.map((name) => option(name, name))}</Fragment>)}
+      </MenuOptions>
+    </MenuSurface>
   );
 
   return anchor ? createPortal(menu, document.body) : menu;

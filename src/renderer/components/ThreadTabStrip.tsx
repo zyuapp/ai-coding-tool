@@ -10,6 +10,8 @@ import type { AutomationView } from "../../domain/automation";
 import type { PullRequestAnswer, PullRequestState } from "../../domain/pull-request";
 import type { ThreadTabView } from "../../application/workspace-state";
 import { SweepBand } from "./SweepBand";
+import { Button, ButtonLink } from "../ui/Button";
+import "../ui/glass.css";
 
 export type ThreadTabStripActions = {
   onToggleChanges: () => void;
@@ -60,10 +62,9 @@ function BranchChip({ branch, workspaceId, open, onSetOpen, onPick }: {
   const branches = useBranches(workspaceId, open);
   return (
     <>
-      <button
+      <Button
         ref={trigger}
-        type="button"
-        className={`thread-tab-chip thread-tab-branch ${open ? "open" : ""}`.trimEnd()}
+        className="thread-tab-branch"
         aria-label={`Branch ${branch}`}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -74,7 +75,7 @@ function BranchChip({ branch, workspaceId, open, onSetOpen, onPick }: {
         <GitBranch size={14} aria-hidden="true" />
         <code>{branch}</code>
         <ChevronDown size={12} aria-hidden="true" />
-      </button>
+      </Button>
       {open && (
         <BranchMenu
           menuRef={menu}
@@ -95,8 +96,9 @@ function PullRequestChip({ pullRequest }: { pullRequest: PullRequestAnswer }) {
   const links = useMessageLinks();
   if (pullRequest.status === "gh-missing") {
     return (
-      <WebLink
-        className="thread-tab-chip quiet"
+      <ButtonLink
+        as={WebLink}
+        variant="ghost"
         href={GITHUB_CLI_URL}
         title=""
         data-tip="Pull requests are read with the GitHub CLI, which is not installed"
@@ -104,15 +106,16 @@ function PullRequestChip({ pullRequest }: { pullRequest: PullRequestAnswer }) {
       >
         <GitPullRequest size={14} aria-hidden="true" />
         <span>Install gh</span>
-      </WebLink>
+      </ButtonLink>
     );
   }
   if (pullRequest.status !== "found") return null;
   const { url, number, title, state } = pullRequest.pullRequest;
   const Icon = PULL_REQUEST_ICONS[state];
   return (
-    <WebLink
-      className="thread-tab-chip thread-tab-pull-request"
+    <ButtonLink
+      as={WebLink}
+      className="thread-tab-pull-request"
       data-state={state}
       href={url}
       title=""
@@ -121,7 +124,7 @@ function PullRequestChip({ pullRequest }: { pullRequest: PullRequestAnswer }) {
     >
       <Icon size={14} aria-hidden="true" />
       <span>#{number} · {PULL_REQUEST_STATES[state]}</span>
-    </WebLink>
+    </ButtonLink>
   );
 }
 
@@ -163,9 +166,8 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
           />
         )}
         {available && (
-          <button
-            type="button"
-            className={`thread-tab-chip ${clean ? "quiet" : ""}`.trimEnd()}
+          <Button
+            variant={clean ? "ghost" : "secondary"}
             aria-label={clean ? "Review changes, none" : `Review changes, +${available.additions} −${available.deletions}`}
             data-tip={available.baseline ? `Changes since ${available.baseline}` : "Uncommitted changes"}
             onClick={actions.onToggleChanges}
@@ -174,28 +176,26 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
             {clean
               ? <span>No changes</span>
               : <span className="change-counts"><strong>+{available.additions}</strong><em>−{available.deletions}</em></span>}
-          </button>
+          </Button>
         )}
         {note && (note.failed
-          ? <span className="thread-tab-note failed" role="alert">
+          ? <span className="thread-tab-note failed raised" role="alert">
               <span id={noteId} data-tip={note.text} data-tip-overflow>{note.text}</span>
-              <CommandButton type="button" className="thread-tab-retry" aria-describedby={noteId} command={{ type: "view.refresh-environment" }}>Retry</CommandButton>
+              <CommandButton type="button" variant="ghost" size="sm" className="thread-tab-retry" aria-describedby={noteId} command={{ type: "view.refresh-environment" }}>Retry</CommandButton>
             </span>
           : <span className="thread-tab-note" role={note.reading ? "status" : undefined}><span className={note.reading ? "text-sweep" : undefined}>{note.text}{note.reading && <SweepBand>{note.text}</SweepBand>}</span></span>)}
         <PullRequestChip pullRequest={tab.pullRequest} />
-        <button
-          type="button"
-          className={`thread-tab-chip${tab.automation && !tab.automation.paused ? " scheduled" : ""}`}
+        <Button
+          className={tab.automation && !tab.automation.paused ? "scheduled" : undefined}
           data-tip="Automation"
           onClick={actions.onOpenAutomations}
         >
           <AlarmClock size={14} aria-hidden="true" />
           <span>{scheduleChipLabel(tab.automation)}</span>
-        </button>
+        </Button>
         {brief && (
-          <button
-            type="button"
-            className={`thread-tab-chip thread-tab-brief-toggle ${briefOpen ? "open" : ""}`.trimEnd()}
+          <Button
+            className="thread-tab-brief-toggle"
             aria-expanded={briefOpen}
             aria-controls={briefOpen ? briefId : undefined}
             onClick={() => setBriefOpen(!briefOpen)}
@@ -203,7 +203,7 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
             <ScrollText size={14} aria-hidden="true" />
             <span>Brief</span>
             <ChevronDown size={12} aria-hidden="true" />
-          </button>
+          </Button>
         )}
       </div>
       {brief && briefOpen && <BriefCard id={briefId} brief={brief} />}

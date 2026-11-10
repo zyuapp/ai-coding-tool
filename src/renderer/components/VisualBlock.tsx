@@ -1,9 +1,8 @@
-import { LuCircleAlert as CircleAlert, LuMaximize2 as Maximize, LuX as X } from "react-icons/lu";
+import { LuCircleAlert as CircleAlert, LuMaximize2 as Maximize } from "react-icons/lu";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { renderMessage, themeMessage, VISUAL_FRAME_URL, visualFrameMessage, type VisualTheme } from "../../domain/visual-frame";
-import { useModalFocus } from "../focus";
-import { shortcutTip } from "./TooltipLayer";
+import { Button, IconButton } from "../ui/Button";
+import { Viewer } from "../ui/Dialog";
 import { SweepBand } from "./SweepBand";
 
 /** What a visual is styled with, by the names the visualize skill documents, read from the app's own tokens. */
@@ -83,43 +82,8 @@ export function BlockError({ title, error, className, onRetry, children }: { tit
         <summary><CircleAlert className="notice-icon" aria-hidden="true" />{title}{reason && <span className="block-error-reason">{reason}</span>}</summary>
         {children}
       </details>
-      <button type="button" className="limit-action" onClick={onRetry}>Try again</button>
+      <Button pill className="block-error-retry" onClick={onRetry}>Try again</Button>
     </div>
-  );
-}
-
-/** A block over the whole window, closed by Escape, its close button, or a press and release on the backdrop. */
-export function BlockViewer({ label, className, controls, onClose, children }: { label: string; className: string; controls?: ReactNode; onClose: () => void; children: ReactNode }) {
-  const dialog = useRef<HTMLDivElement>(null);
-  const pressedOn = useRef<EventTarget | null>(null);
-  useModalFocus(dialog);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      onClose();
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  return createPortal(
-    <div
-      ref={dialog}
-      className={`viewer ${className}`}
-      role="dialog"
-      aria-modal="true"
-      aria-label={label}
-      tabIndex={-1}
-      onPointerDown={(event) => { pressedOn.current = event.target; }}
-      onClick={(event) => { if (event.target === pressedOn.current) onClose(); }}
-    >
-      {controls}
-      <button type="button" className="viewer-close" onClick={onClose} aria-label={`Close ${label.toLowerCase()}`} data-tip={shortcutTip("Close", "Escape")}><X size={16} /></button>
-      {children}
-    </div>,
-    document.body,
   );
 }
 
@@ -128,13 +92,13 @@ export const OpenVisual = createContext<((source: string) => void) | null>(null)
 
 export function VisualViewer({ source, onClose }: { source: string; onClose: () => void }) {
   return (
-    <BlockViewer label="Visual" className="visual" onClose={onClose}>
+    <Viewer label="Visual" className="visual" onClose={onClose}>
       <div className="viewer-stage">
         <div className="viewer-visual" onClick={(event) => event.stopPropagation()}>
           <VisualBlock source={source} full />
         </div>
       </div>
-    </BlockViewer>
+    </Viewer>
   );
 }
 
@@ -233,9 +197,9 @@ export function VisualBlock({ source, pending = false, full = false }: { source:
         ) : null}
       </div>
       {live && !full && !error && open && (
-        <button type="button" className="diagram-expand" aria-label="Open the visual at full size" data-tip="Full size" onClick={() => open(source)}>
+        <IconButton variant="glass" className="diagram-expand" label="Open the visual at full size" tip="Full size" onClick={() => open(source)}>
           <Maximize size={14} aria-hidden="true" />
-        </button>
+        </IconButton>
       )}
     </>
   );

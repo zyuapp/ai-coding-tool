@@ -96,8 +96,8 @@ test("a paired computer's row lists its software in one column of steps", async 
     assert.equal(row.querySelector(".computer-status")!.textContent, "Connected");
     assert.deepEqual([...row.querySelectorAll("[data-software]")].map((line) => line.textContent), ["AI Coding Tool0.7.100.7.11 availableUpdate", "Claude2.1.301Up to date", "Codex0.160.0Needs 0.162.1 to runUpdate"]);
     assert.equal(row.querySelector("[data-software='claude'] button"), null, "nothing to do, nothing to press");
-    assert.ok(row.querySelector("[data-software='codex'] button.primary"), "the update that unblocks runs stands out");
-    assert.equal(row.querySelector("[data-software='app'] button.primary"), null);
+    assert.ok(row.querySelector("[data-software='codex'] button[data-variant='primary']"), "the update that unblocks runs stands out");
+    assert.equal(row.querySelector("[data-software='app'] button[data-variant='primary']"), null);
     await act(async () => { row.querySelector<HTMLButtonElement>("[data-software='codex'] button")!.click(); });
     await act(async () => { row.querySelector<HTMLButtonElement>("[data-software='app'] button")!.click(); });
     assert.deepEqual(commands, [{ type: "engine.update", engine: "codex", computerId: "mac" }, { type: "app.update", computerId: "mac" }]);

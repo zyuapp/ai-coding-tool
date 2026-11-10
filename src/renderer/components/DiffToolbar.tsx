@@ -3,11 +3,14 @@ import { createPortal } from "react-dom";
 import { LuArrowRight as ArrowRight, LuCheck as Check, LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuGitCommitHorizontal as Commit, LuPilcrow as Pilcrow, LuRefreshCw as RefreshCw } from "react-icons/lu";
 import { DIFF_MODE_MENU, type DiffState } from "../../application/workspace-diff";
 import { DEFAULT_BRANCH_RANGE, type DiffMode, type DiffRange } from "../../domain/diff";
-import { BranchMenu, useAnchoredStyle, useBranches } from "./BranchMenu";
+import { BranchMenu, useBranches } from "./BranchMenu";
 import { useDismissibleLayer } from "../focus";
-import { PickerOption, PickerPopover } from "./Picker";
+import { MenuItem, MenuSurface, useListKeys, useMenuAnchor } from "../ui/Menu";
 import { SpinningIcon } from "./SpinningIcon";
 import { copyText } from "../clipboard";
+import { ToggleButton } from "../ui/Button";
+import { CommandIconButton } from "./CommandControl";
+import "../ui/glass.css";
 
 const BASE_MENU = "diff:base";
 const COMPARE_MENU = "diff:compare";
@@ -62,7 +65,7 @@ function SidePicker({ id, label, role, value, extra, currentBranch, workspaceId,
     <div ref={row} className="diff-side" data-popover-menu>
       <button
         ref={trigger}
-        className="diff-side-trigger"
+        className="diff-side-trigger raised"
         type="button"
         aria-label={`${label}: ${description}`}
         aria-haspopup="listbox"
@@ -82,13 +85,14 @@ function ModePicker({ mode, disabled, openMenu, onSetOpenMenu, onSetMode }: Menu
   const open = openMenu === DIFF_MODE_MENU;
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  const anchored = useAnchoredStyle(open ? trigger.current : null, 230);
+  const anchored = useMenuAnchor(open ? trigger.current : null, menu, { minWidth: 230 });
+  const listKeys = useListKeys();
   useDismissibleLayer(open, [trigger, menu], () => onSetOpenMenu(null), trigger);
   const label = mode === "commit" ? "Commit" : MODES.find((item) => item.value === mode)!.label;
   return <>
     <button
       ref={trigger}
-      className="diff-mode-trigger"
+      className="diff-mode-trigger raised"
       type="button"
       aria-label={`Review mode: ${label}`}
       aria-haspopup="menu"
@@ -98,9 +102,9 @@ function ModePicker({ mode, disabled, openMenu, onSetOpenMenu, onSetMode }: Menu
       onClick={disabled ? undefined : () => onSetOpenMenu(open ? null : DIFF_MODE_MENU)}
     ><small>Review</small><span>{label}</span><ChevronDown size={12} /></button>
     {open && createPortal(
-      <PickerPopover ref={menu} className="branch-menu anchored diff-mode-menu" role="menu" aria-label="Review mode" style={anchored ?? undefined}>
-        {MODES.map((item) => <PickerOption key={item.value} role="menuitemradio" selected={mode === item.value} autoFocus={mode === item.value || (mode === "commit" && item.value === "uncommitted")} onClick={() => onSetMode(item.value)}>{item.label}<small>{item.description}</small></PickerOption>)}
-      </PickerPopover>, document.body,
+      <MenuSurface ref={menu} checkable anchored className="diff-mode-menu" role="menu" aria-label="Review mode" style={anchored} onKeyDown={listKeys}>
+        {MODES.map((item) => <MenuItem key={item.value} role="menuitemradio" checked={mode === item.value} description={item.description} autoFocus={mode === item.value || (mode === "commit" && item.value === "uncommitted")} onClick={() => onSetMode(item.value)}>{item.label}</MenuItem>)}
+      </MenuSurface>, document.body,
     )}
   </>;
 }
@@ -116,7 +120,7 @@ function LinkedCommit({ commit }: { commit: string }) {
   const tip = copied === true ? "Copied" : copied === false ? "Copy failed" : `Copy ${commit}`;
   return (
     <button
-      className={`diff-linked-commit ${copied ? "copied" : ""}`.trimEnd()}
+      className={`diff-linked-commit raised${copied ? " copied" : ""}`}
       type="button"
       aria-label={copied === null ? `Copy commit ${commit}` : tip}
       data-tip={tip}
@@ -151,19 +155,17 @@ export function DiffToolbar({ diff, split, roomForTwo, currentBranch, workspaceI
           {diff.range.kind === "commit" && <LinkedCommit commit={diff.range.commit} />}
         </div>
         <div className="diff-toolbar-actions">
-          <button
-            type="button"
+          <ToggleButton
+            tone="accent"
+            pressed={split}
+            icon={<Columns2 size={16} aria-hidden="true" />}
             aria-label="Two columns"
-            aria-pressed={split}
             aria-disabled={!roomForTwo || undefined}
-            className={split ? "on" : ""}
             data-tip={roomForTwo ? "Two columns" : "Two columns need a wider panel"}
             onClick={roomForTwo ? onToggleSplit : undefined}
-          >
-            <Columns2 size={16} />
-          </button>
-          <button type="button" aria-label="Hide spacing changes" aria-pressed={diff.ignoreWhitespace} className={diff.ignoreWhitespace ? "on" : ""} data-tip={diff.ignoreWhitespace ? "Spacing changes hidden" : "Hide spacing changes"} onClick={onToggleWhitespace}><Pilcrow size={16} /></button>
-          <button type="button" aria-label="Refresh changes" aria-busy={diff.loading || undefined} data-tip={diff.loading ? "Refreshing…" : "Refresh"} onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={diff.loading} size={16} /></button>
+          />
+          <ToggleButton tone="accent" pressed={diff.ignoreWhitespace} icon={<Pilcrow size={16} aria-hidden="true" />} aria-label="Hide spacing changes" data-tip={diff.ignoreWhitespace ? "Spacing changes hidden" : "Hide spacing changes"} onClick={onToggleWhitespace} />
+          <CommandIconButton command={{ type: "diff.refresh" }} label="Refresh changes" tip={diff.loading ? "Refreshing…" : "Refresh"} aria-busy={diff.loading || undefined} onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={diff.loading} size={16} /></CommandIconButton>
         </div>
       </div>
       {diff.mode === "branch" && <div className="diff-compare">

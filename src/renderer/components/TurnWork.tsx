@@ -6,6 +6,8 @@ import type { AgentEngine } from "../../domain/agent-engine";
 import type { ConversationMessage } from "../../domain/conversation";
 import { describeToolCall, type ToolCall, type ToolFamily } from "../../domain/tool-call";
 import { timeSteps, toSegments, type TimedStep, type TurnSegment } from "../timeline/grouping";
+import { Chip } from "../ui/Chip";
+import "../ui/glass.css";
 import { Copyable } from "./CopyButton";
 import { MarkdownMessage, useMessageLinks } from "./MarkdownMessage";
 import { StreamingText } from "./StreamingText";
@@ -68,7 +70,7 @@ const FAMILY_ICONS: Record<ToolFamily, IconType> = {
 
 function ToolGlyph({ family }: { family: ToolFamily }) {
   const Icon = FAMILY_ICONS[family];
-  return <span className="work-glyph" aria-hidden="true"><Icon size={12} strokeWidth={1.75} /></span>;
+  return <span className="work-glyph raised" aria-hidden="true"><Icon size={12} strokeWidth={1.75} /></span>;
 }
 
 /** Messages never change once written, so a call is read from its input once per engine. */
@@ -127,7 +129,7 @@ const ToolStep = memo(function ToolStep({ engine, step, named = true }: { engine
     </>
   );
   return (
-    <Fold className="work-row" tip={tipOf(call)} holds={[step.message.id]} messageId={step.message.id} summary={summary}>
+    <Fold className="work-row glass-chip" tip={tipOf(call)} holds={[step.message.id]} messageId={step.message.id} summary={summary}>
       {() => step.message.detail
         ? <Copyable text={step.message.detail} label="Copy the input"><pre>{step.message.detail}</pre></Copyable>
         : <p className="work-empty">No input</p>}
@@ -149,13 +151,13 @@ const ToolRun = memo(function ToolRun({ engine, steps }: { engine: AgentEngine; 
       {labelShown && <span className="work-tool">{call.label}</span>}
       <ToolSubject call={call} labelShown={labelShown} />
       <span className="work-meta">
-        <span className="work-count" role="img" aria-label={`${hidden} earlier tool ${hidden === 1 ? "call" : "calls"}`}>+{hidden}</span>
+        <Chip variant="count" className="work-count" role="img" aria-label={`${hidden} earlier tool ${hidden === 1 ? "call" : "calls"}`}>+{hidden}</Chip>
         <Elapsed startedAt={steps[0]!.message.at} endsAt={newest.endsAt} />
       </span>
     </>
   );
   return (
-    <Fold className="work-run" tip={tipOf(call)} holds={steps.map((step) => step.message.id)} summary={summary}>
+    <Fold className="work-run glass-chip" tip={tipOf(call)} holds={steps.map((step) => step.message.id)} summary={summary}>
       {() => (
         <div className="work-steps">
           {steps.map((step) => <ToolStep key={step.message.id} engine={engine} step={step} named={!uniform} />)}

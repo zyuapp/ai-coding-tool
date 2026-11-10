@@ -1,6 +1,8 @@
 import { LuArrowDown as ArrowDown, LuRotateCw as Restart, LuSettings as Settings } from "react-icons/lu";
 import type { AppUpdate } from "../../domain/app-update";
 import { shortcutTip } from "./TooltipLayer";
+import { Button } from "../ui/Button";
+import "../ui/glass.css";
 
 const SETTINGS_TIP = shortcutTip("Settings", "Mod+,");
 
@@ -35,7 +37,7 @@ function SidebarUpdate({ update, onDownload, onInstall }: {
     case "available": {
       const label = `Update to version ${update.version}`;
       return (
-        <button className="sidebar-update labelled" type="button" aria-label={label} data-tip={label} onClick={onDownload}>
+        <button className="sidebar-update labelled raised" type="button" aria-label={label} data-tip={label} onClick={onDownload}>
           <ArrowDown size={14} aria-hidden="true" />
           <span>Update</span>
         </button>
@@ -45,7 +47,7 @@ function SidebarUpdate({ update, onDownload, onInstall }: {
       const label = `Downloading version ${update.version}: ${update.percent}%`;
       return (
         <div
-          className="sidebar-update labelled downloading"
+          className="sidebar-update labelled downloading raised"
           role="progressbar"
           aria-label={label}
           aria-valuemin={0}
@@ -61,10 +63,9 @@ function SidebarUpdate({ update, onDownload, onInstall }: {
     case "ready": {
       const label = `Restart to install version ${update.version}`;
       return (
-        <button className="sidebar-update labelled ready" type="button" aria-label={label} data-tip={label} onClick={onInstall}>
-          <Restart size={14} aria-hidden="true" />
-          <span>Restart</span>
-        </button>
+        <Button variant="primary" pill className="sidebar-update" aria-label={label} data-tip={label} icon={<Restart size={14} aria-hidden="true" />} onClick={onInstall}>
+          Restart
+        </Button>
       );
     }
   }

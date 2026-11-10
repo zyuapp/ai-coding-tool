@@ -6,6 +6,7 @@ import { MAX_ATTACHMENTS, type OutgoingAttachment, type StagedImage } from "../.
 import type { ScreenshotContext } from "../../domain/screenshot-context";
 import { ImageAnnotator, type Annotation } from "./ImageAnnotator";
 import { renderAnnotatedSource } from "../annotate/marks";
+import "../ui/glass.css";
 
 type Attachment = {
   id: string;
@@ -250,13 +251,13 @@ export function AttachmentStrip({ attachments }: { attachments: ComposerAttachme
         <div className="attachment-chip" key={attachment.id}>
           <button
             type="button"
-            className="attachment-open"
+            className="raised attachment-open"
             onClick={() => attachments.annotate(attachment.id)}
             aria-label={`Annotate image ${index + 1}${markCount(attachment.annotations.length)}`}
             data-tip="Annotate"
           >
             <img src={attachment.preview} alt="" />
-            <span className="attachment-edit" aria-hidden="true"><Pencil size={14} /></span>
+            <span className="raised attachment-edit" aria-hidden="true"><Pencil size={14} /></span>
             {attachment.annotations.length > 0 && <span className="attachment-badge" aria-hidden="true">{attachment.annotations.length}</span>}
           </button>
           <button
