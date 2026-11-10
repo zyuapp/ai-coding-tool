@@ -4205,6 +4205,7 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   .annotation-marker.flash { animation: none; outline: 2px solid var(--info); outline-offset: 2px; }
 }
 
+/** What floats over a selection: a capsule of glass, with each thing it offers a pill set into it. */
 .annotate-popover,
 .annotate-editor {
   position: fixed;
@@ -4212,28 +4213,33 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   display: flex;
   transform: translate(-50%, calc(-100% - 8px));
   overflow: hidden;
-  border: 1px solid var(--line-mid);
-  border-radius: 10px;
-  background: var(--surface-menu);
-  box-shadow: var(--shadow-panel);
+  border: 1px solid var(--line-glass);
+  border-radius: 999px;
+  background: var(--glass-menu);
+  backdrop-filter: var(--glass-menu-blur);
+  box-shadow: var(--glass-rim), var(--shadow-popover);
   animation: command-menu-in 110ms ease-out;
 }
+.annotate-popover { gap: 2px; padding: 3px; }
 .annotate-popover button {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 11px;
+  padding: 6px 12px;
   border: 0;
+  border-radius: 999px;
   background: transparent;
   color: var(--ink-soft);
   font-size: var(--text-meta);
+  font-weight: 520;
   white-space: nowrap;
   cursor: pointer;
+  transition: background var(--touch-time) var(--touch-ease), color var(--touch-time) var(--touch-ease);
 }
-.annotate-popover button + button { border-left: 1px solid var(--line); }
-.annotate-popover button:hover { background: var(--surface-active); }
+.annotate-popover button:hover { background: var(--glass-control-hover); box-shadow: var(--glass-rim); color: var(--ink); }
 .annotate-popover button svg { color: var(--quiet-strong); }
-.annotate-editor { align-items: center; gap: 2px; padding: 4px 5px 4px 10px; }
+.annotate-popover button:hover svg { color: var(--accent-text); }
+.annotate-editor { align-items: center; gap: 2px; padding: 4px 5px 4px 14px; }
 .annotate-editor input {
   width: 270px;
   border: 0;
@@ -4249,7 +4255,7 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   height: 28px;
   padding: 0;
   border: none;
-  border-radius: 7px;
+  border-radius: 50%;
   background: none;
   color: var(--quiet);
   place-items: center;
