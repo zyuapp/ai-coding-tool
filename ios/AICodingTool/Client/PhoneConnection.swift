@@ -94,7 +94,7 @@ final class PhoneConnection {
     /// Unpairs from a computer on this phone. Its own list keeps the phone until it is revoked there.
     func forget(_ computer: PairedComputer) {
         if computer.origin == origin, state.connection == .live, state.takesPush, let socket {
-            socket.send(.string(MobileClientMessage.pushToken(nil).text)) { _ in }
+            socket.send(.string(MobileClientMessage.pushToken(push: nil).text)) { _ in }
         }
         computers.removeAll { $0.origin == computer.origin }
         storage.writeComputers(computers)
@@ -148,7 +148,7 @@ final class PhoneConnection {
                 guard !Task.isCancelled else { return }
                 self?.finishRead(requestId, .failure(QueryError(message: "Your computer did not answer in time.")))
             }
-            socket.send(.string(MobileClientMessage.query(requestId: requestId, query: query.json).text)) { _ in }
+            socket.send(.string(MobileClientMessage.query(requestId: requestId, query: query).text)) { _ in }
         }
     }
 

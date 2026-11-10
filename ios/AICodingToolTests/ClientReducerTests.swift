@@ -224,13 +224,13 @@ final class ClientReducerTests: XCTestCase {
         let start = MobileClientState(credential: MobileCredential(token: token, deviceId: "d1", deviceName: "iPhone"), code: nil, deviceName: "iPhone")
         let newer = MobileServerMessage.snapshot(sequence: 1, sessionId: "s1", view: view("Thread"), instance: "one", vocabulary: nil, computer: nil, push: true)
         let (live, opening) = run(start, [.opened(at: 0), .received(newer)])
-        XCTAssertTrue(sent(opening).contains(.pushToken(nil)), "a phone that may not show notices says so")
+        XCTAssertTrue(sent(opening).contains(.pushToken(push: nil)), "a phone that may not show notices says so")
 
         let (allowed, effects) = run(live, [.pushChanged(push)])
-        XCTAssertEqual(sent(effects), [.pushToken(push)])
+        XCTAssertEqual(sent(effects), [.pushToken(push: push)])
         XCTAssertEqual(sent(run(allowed, [.pushChanged(push)]).1), [], "the same token is not sent twice")
 
         let (_, resumed) = run(allowed, [.closed, .opened(at: 1), .received(newer)])
-        XCTAssertTrue(sent(resumed).contains(.pushToken(push)), "a computer is told again on every snapshot")
+        XCTAssertTrue(sent(resumed).contains(.pushToken(push: push)), "a computer is told again on every snapshot")
     }
 }

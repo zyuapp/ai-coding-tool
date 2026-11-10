@@ -176,21 +176,21 @@ struct ThreadScreen: View {
                     .bottomBar {
                         VStack(spacing: 0) {
                             if let approval = thread.approval {
-                                ApprovalCard(approval: approval, engine: thread.settings.engine, refused: model.state.returned?.command.type == "run.decide" ? model.state.returned?.requestId : nil) { allow in
+                                ApprovalCard(approval: approval, engine: thread.settings.engine, refused: model.state.returned?.command.kind == .runDecide ? model.state.returned?.requestId : nil) { allow in
                                     model.send(.decide(approval, allow: allow))
                                 }
                                 .id(approval.approvalId)
                                 .fitsShortScreens()
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                             } else if let decisions = thread.decisions, let decision = decisions.first {
-                                DecisionCard(decision: decision, count: decisions.count, refused: refused("decision.answer"), failure: model.view.error) { answer in
+                                DecisionCard(decision: decision, count: decisions.count, refused: refused(.decisionAnswer), failure: model.view.error) { answer in
                                     model.send(.answerDecision(decision, answer: answer))
                                 }
                                 .id("\(decision.taskId):\(decision.id)")
                                 .fitsShortScreens()
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                             } else if let suggestions = thread.suggestions, !suggestions.isEmpty {
-                                SuggestionsCard(suggestions: suggestions, refused: refused("proposal.start"), failure: model.view.error) { proposalId in
+                                SuggestionsCard(suggestions: suggestions, refused: refused(.proposalStart), failure: model.view.error) { proposalId in
                                     model.send(.startSuggestion(thread.id, proposalId: proposalId))
                                 }
                                 .id(thread.id)
@@ -198,7 +198,7 @@ struct ThreadScreen: View {
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
                             if let limit = thread.limit {
-                                LimitRow(pause: limit, refused: refused("limit.resume") ?? refused("limit.cancel"), failure: model.view.error, onResume: { model.send(.resumeLimit(thread.id)) }, onCancel: { model.send(.cancelLimit(thread.id)) })
+                                LimitRow(pause: limit, refused: refused(.limitResume) ?? refused(.limitCancel), failure: model.view.error, onResume: { model.send(.resumeLimit(thread.id)) }, onCancel: { model.send(.cancelLimit(thread.id)) })
                                     .id("\(thread.id):\(limit.window):\(limit.resetsAt)")
                                     .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
@@ -261,22 +261,22 @@ struct ThreadScreen: View {
     }
 
     /// The request the computer last turned down, when it was a command of this type.
-    private func refused(_ type: String) -> String? {
-        model.state.returned?.command.type == type ? model.state.returned?.requestId : nil
+    private func refused(_ kind: PhoneCommand.Kind) -> String? {
+        model.state.returned?.command.kind == kind ? model.state.returned?.requestId : nil
     }
 
     /// What the computer turned down here: a message's words, or the question it answered.
     private func returned(for taskId: String) -> ComposerReturned? {
         guard let returned = model.state.returned, returned.command.taskId == taskId else { return nil }
-        if returned.command.type == "task.send" || returned.command.type == "attachments.send", let text = returned.command.text { return .init(id: returned.requestId, text: text, answer: nil) }
-        if returned.command.type == "question.answer" { return .init(id: returned.requestId, text: nil, answer: returned.command.questionId) }
+        if returned.command.kind == .taskSend || returned.command.kind == .attachmentsSend, let text = returned.command.text { return .init(id: returned.requestId, text: text, answer: nil) }
+        if returned.command.kind == .questionAnswer { return .init(id: returned.requestId, text: nil, answer: returned.command.questionId) }
         return nil
     }
 
     /// A new thread's words the computer turned down, such as while the last send from it was still starting.
     private var draftReturned: ComposerReturned? {
         guard let returned = model.state.returned, returned.command.taskId == nil else { return nil }
-        let text = returned.command.type == "view.set-prompt" ? returned.command.json["prompt"]?.stringValue : returned.command.type == "attachments.send" ? returned.command.text : nil
+        let text = returned.command.kind == .viewSetPrompt ? returned.command.json["prompt"]?.stringValue : returned.command.kind == .attachmentsSend ? returned.command.text : nil
         return text.map { .init(id: returned.requestId, text: $0, answer: nil) }
     }
 

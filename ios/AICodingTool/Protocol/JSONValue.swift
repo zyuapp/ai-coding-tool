@@ -49,9 +49,24 @@ enum JSONValue: Codable, Equatable, Sendable {
         return nil
     }
 
+    var boolValue: Bool? {
+        if case .bool(let value) = self { return value }
+        return nil
+    }
+
+    var numberValue: Double? {
+        if case .number(let value) = self { return value }
+        return nil
+    }
+
     var objectValue: [String: JSONValue]? {
         if case .object(let value) = self { return value }
         return nil
+    }
+
+    /// An object of the fields that are set.
+    static func fields(_ fields: [String: JSONValue?]) -> JSONValue {
+        .object(fields.compactMapValues { $0 })
     }
 
     subscript(key: String) -> JSONValue? {

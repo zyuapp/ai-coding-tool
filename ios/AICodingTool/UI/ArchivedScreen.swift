@@ -61,7 +61,7 @@ struct ArchivedScreen: View {
             await load()
         }
         .onChange(of: model.state.returned?.requestId) { _, _ in
-            if let returned = model.state.returned, returned.command.type == "task.restore", let taskId = returned.command.taskId {
+            if let returned = model.state.returned, returned.command.kind == .taskRestore, let taskId = returned.command.taskId {
                 restoring.remove(taskId)
             }
         }

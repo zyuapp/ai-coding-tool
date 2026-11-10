@@ -299,7 +299,7 @@ struct LocationSheet: View {
                         OptionRow(label: name, detail: threads == 1 ? "Removed once this thread leaves" : "\(threads) threads work here", symbol: "folder.badge.gearshape", selected: true) {}
                     }
                     ForEach(thread.worktrees) { choice in
-                        OptionRow(label: choice.name, detail: choice.branch ?? "Detached", symbol: "folder.badge.gearshape", selected: false, disabled: locked) { move(.worktree(choice.id)) }
+                        OptionRow(label: choice.name, detail: choice.branch ?? "Detached", symbol: "folder.badge.gearshape", selected: false, disabled: locked) { move(.worktree(id: choice.id)) }
                     }
                     OptionRow(label: "New worktree", detail: "A checkout of its own, cut from the project", symbol: "plus", selected: false, disabled: locked) { move(.new) }
                 } footer: {

@@ -9,6 +9,7 @@ import type { ThemeMode } from "../domain/theme.js";
 import type { ThreadOutcome } from "../domain/thread-run.js";
 import type { TaskMessageKind } from "./threads.js";
 import type { ToolFamily } from "../domain/tool-call.js";
+import type { DiffPatchResult, DiffSummaryResult } from "./ipc.js";
 import type { ThreadRole } from "../domain/thread-role.js";
 import { isBlankable, isCount, isRecord, isString, MAX_PATH_LENGTH, MAX_PROMPT_LENGTH } from "./phone-commands.js";
 import { isPhoneCommand, type PhoneCommandType } from "./workspace-view-input.js";
@@ -389,6 +390,12 @@ export type MobileThreadDelta = Partial<Omit<MobileThreadView, "id" | "messages"
   tail?: { from: Count; text: string };
 };
 
+/** How the open thread moved: it went away, it is a thread the phone has never seen, or it changed. */
+export type MobileThreadPatch =
+  | { kind: "closed" }
+  | { kind: "opened"; thread: MobileThreadView }
+  | { kind: "changed"; id: string; delta: MobileThreadDelta };
+
 /**
  * What changed between two views. The open thread is described three ways because they mean three
  * different things to a phone: it went away, it is a thread the phone has never seen, or it moved.
@@ -402,10 +409,7 @@ export type MobilePatch = {
   dictation?: boolean;
   usage?: MobileUsage;
   archived?: Count;
-  thread?:
-    | { kind: "closed" }
-    | { kind: "opened"; thread: MobileThreadView }
-    | { kind: "changed"; id: string; delta: MobileThreadDelta };
+  thread?: MobileThreadPatch;
   /** Present only when it moved, and null when a thread took its place. */
   draft?: MobileDraftView | null;
   /** Present only when it moved, because null is a value here rather than an absence. */
@@ -440,7 +444,7 @@ export type MobileQuery =
   /** A thread's transcript without opening it, for one working under the open coordinator. */
   | { kind: "thread"; taskId: string }
   /** The page of a thread's messages just before index `before`, answered as {@link MobileThreadHistory}. */
-  | { kind: "history"; taskId: string; before: number }
+  | { kind: "history"; taskId: string; before: Count }
   /** A held recording, base64 WAV, turned into words by this computer's speech model. Answers `{ text }`. */
   | { kind: "transcribe"; audio: string }
   /**
@@ -458,6 +462,12 @@ export type MobileQuery =
   | { kind: "commands"; taskId?: string };
 
 export type MobileImageRead = { data: string; contentType: string };
+
+/** What a {@link MobileQuery} of kind "diff-summary" answers. */
+export type MobileDiffSummary = DiffSummaryResult;
+
+/** What a {@link MobileQuery} of kind "diff-patch" answers. */
+export type MobileDiffPatch = DiffPatchResult;
 
 /** What a {@link MobileQuery} of kind "thread" answers: the thread as its own screen would read it. */
 export type MobileThreadRead = { title: string; status: MobileRunStatus; messages: MobileMessage[]; omitted: Count; streamingTail: string | null };
@@ -511,7 +521,7 @@ export type MobileResumeRequest = {
   token: string;
   /** The session it was last on. A session the server no longer holds starts a new one. */
   sessionId?: string;
-  lastSequence: number;
+  lastSequence: Count;
 };
 
 /** One command on its way through the desktop's own reducer, answered by exactly one acknowledgement. */

@@ -132,11 +132,11 @@ enum MobileClient {
     static let outOfDate = "This app is out of date for your computer. Update the app to carry on."
 
     /// Commands that only move what the phone is looking at: only the last one asked for is worth sending.
-    static let viewCommands: Set<String> = ["task.select", "task.new"]
+    static let viewCommands: Set<PhoneCommand.Kind> = [.taskSelect, .taskNew]
     /// Commands that act on a run as it stood when asked, dropped rather than carried out late.
-    static let momentCommands: Set<String> = ["run.cancel", "run.decide"]
+    static let momentCommands: Set<PhoneCommand.Kind> = [.runCancel, .runDecide]
     /// Commands whose screen acts only once the computer has taken them.
-    static let confirmedCommands: Set<String> = ["task.edit-queued"]
+    static let confirmedCommands: Set<PhoneCommand.Kind> = [.taskEditQueued]
 
     static func backoffDelay(_ attempt: Int) -> Int {
         if attempt <= 1 { return retryBaseMs }
@@ -150,7 +150,7 @@ enum MobileClient {
         case .unauthorized: "This phone is no longer paired. Scan a fresh QR code on your computer."
         case .expiredCode: "That pairing code has expired. Scan a fresh QR code on your computer."
         case .rateLimited: "The computer is turning connections away. Trying again shortly."
-        case .unreadable, .internalError: nil
+        case .unreadable, .internal: nil
         }
     }
 
@@ -228,7 +228,7 @@ enum MobileClient {
             guard push != state.push else { return (state, []) }
             var next = state
             next.push = push
-            return (next, state.connection == .live && state.takesPush ? [.send(.pushToken(push))] : [])
+            return (next, state.connection == .live && state.takesPush ? [.send(.pushToken(push: push))] : [])
         }
     }
 
@@ -258,7 +258,7 @@ enum MobileClient {
 
     private static func dispatch(_ state: MobileClientState, requestId: String, command: PhoneCommand, at: Double) -> (MobileClientState, [MobileClientEffect]) {
         let live = state.connection == .live
-        let kept = live || !viewCommands.contains(command.type) ? state.outbox : withoutTrailingMoves(state.outbox)
+        let kept = live || command.kind.map(viewCommands.contains) != true ? state.outbox : withoutTrailingMoves(state.outbox)
         var next = state
         if kept.count >= outboxLimit {
             next.notice = "Too much is already waiting for your computer. Wait for it to catch up."
@@ -271,7 +271,7 @@ enum MobileClient {
 
     private static func withoutTrailingMoves(_ outbox: [OutboxEntry]) -> [OutboxEntry] {
         var end = outbox.count
-        while end > 0, !outbox[end - 1].sent, viewCommands.contains(outbox[end - 1].command.type) { end -= 1 }
+        while end > 0, !outbox[end - 1].sent, outbox[end - 1].command.kind.map(viewCommands.contains) == true { end -= 1 }
         return Array(outbox[0..<end])
     }
 
@@ -306,7 +306,7 @@ enum MobileClient {
         next.connection = .live
         next.attempt = 0
         if state.connection == .live { return flush(next, owed: next.outbox.filter { !$0.sent }) }
-        let late = next.outbox.filter { momentCommands.contains($0.command.type) && next.openedAt - $0.queuedAt > staleCommandMs }
+        let late = next.outbox.filter { $0.command.kind.map(momentCommands.contains) == true && next.openedAt - $0.queuedAt > staleCommandMs }
         if !late.isEmpty {
             let lateIds = Set(late.map(\.requestId))
             next.outbox.removeAll { lateIds.contains($0.requestId) }
@@ -347,7 +347,7 @@ enum MobileClient {
             if let computer { kept.computerName = computer }
             kept.takesPush = push
             var (next, effects) = live(shown(kept, view))
-            if push { effects.append(.send(.pushToken(next.push))) }
+            if push { effects.append(.send(.pushToken(push: next.push))) }
             return (next, effects)
         case .patch(_, let patch):
             guard let view = seen.view.applying(patch) else { return resync(state) }
@@ -356,7 +356,7 @@ enum MobileClient {
             let asked = seen.outbox.first { $0.requestId == requestId }
             seen.outbox.removeAll { $0.requestId == requestId }
             if ok {
-                if let asked, confirmedCommands.contains(asked.command.type) { seen.accepted = requestId }
+                if let asked, asked.command.kind.map(confirmedCommands.contains) == true { seen.accepted = requestId }
                 return settled(seen)
             }
             if let asked { seen = givenBack(seen, [asked], message: text) }
@@ -377,7 +377,7 @@ enum MobileClient {
     /// words come back. A draft's send carries no words of its own, so it never hides the refusal of
     /// the words that went just before it.
     private static func givenBack(_ state: MobileClientState, _ dropped: [OutboxEntry], message: String) -> MobileClientState {
-        guard let last = dropped.last(where: { !($0.command.type == "task.send" && $0.command.taskId == nil && $0.command.text == nil) }) else { return state }
+        guard let last = dropped.last(where: { !($0.command.kind == .taskSend && $0.command.taskId == nil && $0.command.text == nil) }) else { return state }
         var next = state
         next.returned = ReturnedCommand(requestId: last.requestId, command: last.command, message: message)
         return next
