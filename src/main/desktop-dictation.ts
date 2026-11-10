@@ -1,6 +1,7 @@
 import { app, systemPreferences } from "electron";
 import path from "node:path";
 import { DictationHost, dictationHelper } from "./dictation-host.js";
+import type { WindowCapability } from "./window-capability.js";
 
 /** A source build can point at another model folder, to try the download without touching the shared one. */
 const DEV_MODELS = "AIC_DICTATION_MODELS";
@@ -27,3 +28,8 @@ export function desktopDictation(): DictationHost {
 export function stopDesktopDictation() {
   host?.stop();
 }
+
+export const dictationCapability: WindowCapability = {
+  start: ({ send }) => { desktopDictation().onDictationLevel((level) => send("dictation:level", level)); },
+  stopAtQuit: stopDesktopDictation,
+};

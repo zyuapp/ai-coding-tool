@@ -10,7 +10,7 @@ import { useMessageImageStore } from "./message-image-store.js";
 import { handleImageProtocols, registerAppSchemes } from "./image-protocols.js";
 import { guardVisualFrames, handleVisualProtocol } from "./visual-frame-host.js";
 import { isVisualFrameUrl } from "../domain/visual-frame.js";
-import { isWindowTheme, type BrowserPageEvent, type WindowTheme } from "../contracts/ipc.js";
+import { isWindowTheme, type WindowTheme } from "../contracts/ipc.js";
 import { CLI_URL_SCHEME, projectPathFromArgv, projectPathFromUrl } from "../domain/cli.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolution-mode": "import" };
@@ -49,10 +49,7 @@ import { windowFrameOptions } from "./platform-capabilities.js";
 import { glassRegionsInPoints, loadWindowGlass, systemGlassTint, windowMaterial, windowMaterialOptions, WINDOW_MATERIAL_ARGUMENT } from "./window-backdrop.js";
 import { serveWindowDesktop } from "./window-desktop.js";
 import { recheckMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
-import * as browser from "./browser-host.js";
-import * as terminal from "./terminal-host.js";
-import * as simulator from "./simulator-host.js";
-import { desktopDictation, stopDesktopDictation } from "./desktop-dictation.js";
+import { startWindowCapabilities, stopCapabilitiesAtQuit, stopWindowCapabilities } from "./window-capabilities.js";
 
 const profile = appProfile(app.getPath("appData"), homedir(), app.isPackaged);
 app.setName(profile.name);
@@ -269,6 +266,10 @@ function rememberWindowTheme(theme: WindowTheme) {
   themeWritten = themeWritten.then(() => writeFile(windowThemePath(), JSON.stringify(theme))).catch(() => undefined);
 }
 
+function sendToWindow(channel: string, payload: unknown) {
+  if (window && !window.isDestroyed()) window.webContents.send(channel, payload);
+}
+
 function revealWindow() {
   if (quitState !== "running") return;
   if (!window || window.isDestroyed()) return;
@@ -378,23 +379,7 @@ async function createWindow() {
     window.setAutoHideMenuBar(false);
     window.setMenuBarVisibility(false);
   }
-  browser.startBrowserHost(window, {
-    onPage: (event: BrowserPageEvent) => { events.emit("browser:event", event); },
-    onFind: (tabId, results) => { events.emit("browser:find", { tabId, ...results }); },
-    onKey: (input) => keyboard.handleKey(input, "browser"),
-  });
-  simulator.startSimulatorHost((frame) => {
-    if (window && !window.isDestroyed()) window.webContents.send("simulator:frame", frame);
-  });
-  desktopDictation().onDictationLevel((level) => {
-    if (window && !window.isDestroyed()) window.webContents.send("dictation:level", level);
-  });
-  terminal.startTerminalHost({
-    onData: (event) => {
-      if (window && !window.isDestroyed()) window.webContents.send("terminal:data", event);
-    },
-    onUpdate: (update) => { events.emit("terminal:event", update); },
-  });
+  startWindowCapabilities({ window, send: sendToWindow, events, keyboard });
   /** The window owns no menu shortcut the app wants back; preventing it here is what frees ⌘W. */
   window.webContents.on("before-input-event", (event, input) => {
     if (keyboard.handleKey(input, "any")) event.preventDefault();
@@ -432,9 +417,7 @@ async function createWindow() {
   active();
   window.on("closed", () => {
     workspaceRuntime.setViewVisible(false);
-    browser.stopBrowserHost();
-    terminal.stopTerminalHost();
-    simulator.stopSimulatorHost();
+    stopWindowCapabilities();
     if (quitState === "running") {
       void workspaceRuntime.dispatch({ type: "view.closed" })
         .catch((error) => console.error("Could not release closed window panels:", error));
@@ -633,8 +616,7 @@ app.on("will-quit", () => {
   lockAwake?.stop();
   lockAwake = null;
   globalShortcut.unregisterAll();
-  simulator.stopSimulatorHost();
-  stopDesktopDictation();
+  stopCapabilitiesAtQuit();
   automationScheduler?.stop();
   void taskDatabase?.close().catch((error) => console.error("Could not close task storage:", error));
   workspaceRuntime.close();

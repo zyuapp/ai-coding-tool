@@ -20,6 +20,7 @@ import type {
 import { cookieOnSite } from "../domain/browser-import.js";
 import type { FindResults } from "../domain/find.js";
 import { chromeHeaders, chromeIdentity } from "./browser-headers.js";
+import type { WindowCapability } from "./window-capability.js";
 
 /**
  * The browser panel's pages. One partition serves the whole app, so a login the user makes in the
@@ -754,3 +755,12 @@ export async function replaceCookies(cookies: Electron.CookiesSetDetails[], site
   }
   return added;
 }
+
+export const browserCapability: WindowCapability = {
+  start: ({ window, events, keyboard }) => startBrowserHost(window, {
+    onPage: (event) => { events.emit("browser:event", event); },
+    onFind: (tabId, results) => { events.emit("browser:find", { tabId, ...results }); },
+    onKey: (input) => keyboard.handleKey(input, "browser"),
+  }),
+  stopWithWindow: stopBrowserHost,
+};

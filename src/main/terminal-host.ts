@@ -8,6 +8,7 @@ import { isTerminalDimension, MAX_TERMINAL_INPUT, type TerminalOutputRead } from
 import { TerminalOutputBuffer } from "./terminal-output-buffer.js";
 import type { TerminalPort } from "../contracts/terminal-port.js";
 import type { DesktopEvents } from "./desktop-events.js";
+import type { WindowCapability } from "./window-capability.js";
 
 /**
  * The terminal panel's shells. This is the only place a pseudo-terminal is created, written to, or
@@ -251,3 +252,11 @@ export function terminalDesktop(events: DesktopEvents): TerminalPort["runtime"] 
     onTerminalEvent: (listener) => events.on("terminal:event", listener),
   };
 }
+
+export const terminalCapability: WindowCapability = {
+  start: ({ send, events }) => startTerminalHost({
+    onData: (event) => send("terminal:data", event),
+    onUpdate: (update) => { events.emit("terminal:event", update); },
+  }),
+  stopWithWindow: stopTerminalHost,
+};

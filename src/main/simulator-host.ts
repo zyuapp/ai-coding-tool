@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { app } from "electron";
 import { ORIENTATION_CODES, untilted, type SimulatorAvailability, type SimulatorDevice, type SimulatorDeviceState, type SimulatorElement, type SimulatorFrame, type SimulatorInput, type SimulatorOrientation, type SimulatorShot, type SimulatorSnapshot } from "../domain/simulator.js";
 import { FrameReader, type HelperMessage } from "./simulator-frames.js";
+import type { WindowCapability } from "./window-capability.js";
 
 const run = promisify(execFile);
 
@@ -377,3 +378,9 @@ export function stopSimulatorHost() {
   shots.length = 0;
   if (home) void home.then((folder) => rm(folder, { recursive: true, force: true })).catch(() => undefined);
 }
+
+export const simulatorCapability: WindowCapability = {
+  start: ({ send }) => startSimulatorHost((frame) => send("simulator:frame", frame)),
+  stopWithWindow: stopSimulatorHost,
+  stopAtQuit: stopSimulatorHost,
+};
