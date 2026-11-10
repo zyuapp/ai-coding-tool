@@ -134,21 +134,10 @@ function effortSteps(catalog: ModelCatalog, engine: AgentEngine, model: AgentMod
   return { steps: [...effortsFor(catalog, engine, model, role)].reverse(), value: effortForModel(catalog, engine, model, effort.value, role) };
 }
 
-/** Cuts the rail at every effort between the ends, so the track reads as one segment per step up. */
-function notches(last: number): CSSProperties | undefined {
-  if (last < 2) return undefined;
-  const cuts = Array.from({ length: last - 1 }, (_, step) => {
-    const x = `calc(var(--effort-travel) * ${(step + 1) / last} + var(--effort-knob) / 2`;
-    return `linear-gradient(to right, #000 ${x} - var(--effort-notch) / 2), transparent 0 ${x} + var(--effort-notch) / 2), #000 0)`;
-  });
-  return { maskImage: cuts.join(", "), maskComposite: "intersect" };
-}
-
-/** The efforts on a track the knob slides along freely while dragged, settling on the nearest effort when let go. */
+/** The efforts on a track the knob slides along freely while dragged, settling on the nearest effort when let go. Each effort is named under its stop. */
 function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]; value: AgentEffort; onChange: (effort: AgentEffort) => void }) {
   const rail = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<number | null>(null);
-  const [hovered, setHovered] = useState(-1);
   const last = steps.length - 1;
   const index = Math.max(0, steps.findIndex((spec) => spec.id === value));
   const at = (step: number) => (last ? step / last : 0);
@@ -176,49 +165,41 @@ function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]
     if (drag !== null) pick(nearest(drag));
     setDrag(null);
   };
-  return <>
-    <div
-      className={`effort-slider${drag === null ? "" : " dragging"}${steps[shown]?.delegates ? " delegates" : ""}`}
-      role="slider"
-      tabIndex={0}
-      aria-label="Effort"
-      aria-valuemin={0}
-      aria-valuemax={last}
-      aria-valuenow={index}
-      aria-valuetext={steps[index]?.label}
-      style={{ "--effort-at": drag ?? at(index) } as CSSProperties}
-      onKeyDown={keyDown}
-      onPointerDown={(event) => {
-        if (event.button !== 0 || !last) return;
-        event.preventDefault();
-        event.currentTarget.focus();
-        event.currentTarget.setPointerCapture?.(event.pointerId);
-        setHovered(-1);
-        setDrag(fraction(event));
-      }}
-      onPointerMove={(event) => {
-        const where = fraction(event);
-        if (drag !== null) return setDrag(where);
-        const step = nearest(where);
-        setHovered(Math.abs(where - at(step)) * (rail.current?.clientWidth ?? 0) < 12 && step !== index ? step : -1);
-      }}
-      onPointerUp={release}
-      onPointerCancel={() => setDrag(null)}
-      onPointerLeave={() => setHovered(-1)}
-    >
-      <div className="effort-rail" ref={rail}>
-        <div className="effort-groove" style={notches(last)}><div className="effort-fill" /></div>
-        {steps.map((spec, step) => <span
-          key={spec.id}
-          className={`effort-tick${step === hovered ? " hovered" : ""}`}
-          data-label={spec.label}
-          style={{ "--effort-tick": at(step) } as CSSProperties}
-        />)}
-        <div className="effort-knob" />
-      </div>
+  return <div
+    className={`effort-slider${drag === null ? "" : " dragging"}${steps[shown]?.delegates ? " delegates" : ""}`}
+    role="slider"
+    tabIndex={0}
+    aria-label="Effort"
+    aria-valuemin={0}
+    aria-valuemax={last}
+    aria-valuenow={index}
+    aria-valuetext={steps[index]?.label}
+    style={{ "--effort-at": drag ?? at(index) } as CSSProperties}
+    onKeyDown={keyDown}
+    onPointerDown={(event) => {
+      if (event.button !== 0 || !last) return;
+      event.preventDefault();
+      event.currentTarget.focus();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      setDrag(fraction(event));
+    }}
+    onPointerMove={(event) => { if (drag !== null) setDrag(fraction(event)); }}
+    onPointerUp={release}
+    onPointerCancel={() => setDrag(null)}
+  >
+    <div className="effort-rail" ref={rail}>
+      <div className="effort-fill" />
+      <div className="effort-knob" />
     </div>
-    <span className={`effort-strip-value${steps[shown]?.delegates ? " delegates" : ""}`} data-tip={steps[shown]?.description}>{steps[shown]?.label ?? value}</span>
-  </>;
+    <div className="effort-stops">
+      {steps.map((spec, step) => <span
+        key={spec.id}
+        className={`effort-stop${step === shown ? " current" : ""}`}
+        data-tip={spec.description}
+        style={{ "--effort-stop": at(step) } as CSSProperties}
+      >{spec.label}</span>)}
+    </div>
+  </div>;
 }
 
 /** The effort for the model in the library, pinned under the list so it stays in reach however long the list grows. With no model chosen, it says nothing of one. */

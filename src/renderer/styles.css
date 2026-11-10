@@ -5545,24 +5545,26 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .model-empty { margin: 18px 8px; color: var(--quiet); font-size: var(--text-meta); line-height: 1.6; }
 .model-library-footer { display: flex; justify-content: space-between; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line-soft); color: var(--quiet); font-size: var(--text-badge); flex-shrink: 0; }
 .model-library-footer span { display: flex; align-items: center; gap: 6px; }
-.effort-strip { display: grid; grid-template-columns: auto minmax(0, 1fr) 72px; align-items: center; gap: 8px; padding: 8px 16px 10px; border-top: 1px solid var(--line-soft); flex-shrink: 0; }
-.effort-strip-axis { display: flex; align-items: baseline; gap: 5px; min-width: 0; color: var(--quiet-strong); font-size: var(--text-meta); }
+.effort-strip { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 12px; padding: 8px 16px; border-top: 1px solid var(--line-soft); flex-shrink: 0; }
+.effort-strip-axis { display: flex; align-items: baseline; gap: 5px; min-width: 0; padding-top: 5px; color: var(--quiet-strong); font-size: var(--text-meta); }
 .effort-strip-axis small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-size: var(--text-meta); }
 .effort-strip-axis small::before { content: "· "; }
 .effort-strip-none { grid-column: 2 / -1; padding: 12px 8px; color: var(--quiet); font-size: var(--text-meta); }
-.effort-strip-value { color: var(--ink); font-size: var(--text-meta); font-weight: 540; text-align: right; white-space: nowrap; }
-.effort-strip-value.delegates { color: var(--accent-bright); }
 /** A thick track whose fill runs to the knob's middle; the knob tracks the pointer while dragged and glides to an effort otherwise. */
-.effort-slider { --effort-at: 0; --effort-knob: 30px; --effort-notch: 3px; --effort-travel: calc(100% - var(--effort-knob)); padding: 10px 0; border-radius: 14px; outline: none; cursor: grab; touch-action: none; user-select: none; }
+.effort-slider { --effort-at: 0; --effort-knob: 30px; --effort-travel: calc(100% - var(--effort-knob)); padding: 10px 0 2px; border-radius: 14px; outline: none; cursor: grab; touch-action: none; user-select: none; }
 .effort-slider.dragging { cursor: grabbing; }
 .effort-slider:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .effort-knob { box-shadow: 0 0 0 2px var(--focus-ring), var(--shadow-thumb); }
 /** A groove cut into the glass, a bar of light lying in it, and a bead of glass riding on top. */
-.effort-rail { position: relative; height: 6px; }
-.effort-groove { position: absolute; inset: 0; border-radius: 999px; background: var(--meter-track); box-shadow: inset 0 1px 2px rgb(var(--p-shadow) / calc(0.32 * var(--p-shadow-scale))), inset 0 0 0 1px var(--line-glass); }
+.effort-rail { position: relative; height: 6px; border-radius: 999px; background: var(--meter-track); box-shadow: inset 0 1px 2px rgb(var(--p-shadow) / calc(0.32 * var(--p-shadow-scale))), inset 0 0 0 1px var(--line-glass); }
 .effort-fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--effort-travel) * var(--effort-at) + var(--effort-knob) / 2); border-radius: 999px; background: var(--glass-sheen), var(--ink-faint); transition: width 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background 200ms; }
-/** A label anchor at each effort, shown only while the pointer is near it. */
-.effort-tick { position: absolute; top: 50%; left: calc(var(--effort-travel) * var(--effort-tick) + var(--effort-knob) / 2); pointer-events: none; }
-.effort-tick.hovered::after { content: attr(data-label); position: absolute; bottom: 18px; left: 50%; padding: 4px 8px; border: 1px solid var(--line-glass); border-radius: 7px; background: var(--glass-menu); backdrop-filter: var(--glass-menu-blur); box-shadow: var(--glass-rim), var(--shadow-tooltip); color: var(--ink-soft); font-size: 11px; line-height: 15px; white-space: nowrap; transform: translateX(-50%); }
+/** Each effort's name sits under its stop; the ends hug the rail's ends so the names stay inside it. */
+.effort-stops { position: relative; height: 16px; margin-top: 10px; }
+.effort-stop { position: absolute; left: calc(var(--effort-travel) * var(--effort-stop) + var(--effort-knob) / 2); color: var(--quiet); font-size: 11px; line-height: 16px; white-space: nowrap; transform: translateX(-50%); transition: color 140ms ease; }
+.effort-stop:first-child { left: 0; transform: none; }
+.effort-stop:last-child:not(:first-child) { left: auto; right: 0; transform: none; }
+.effort-stop:hover { color: var(--ink-soft); }
+.effort-stop.current { color: var(--ink); font-weight: 560; }
+.effort-slider.delegates .effort-stop.current { color: var(--accent-bright); }
 .effort-knob {
   position: absolute;
   top: -7px;
@@ -5580,16 +5582,17 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   backdrop-filter: blur(1.5px) saturate(190%) brightness(1.12);
   transform: scale(1.22, 1.34);
 }
+  .effort-stop:not(.current) { visibility: hidden; }
 .effort-slider:hover:not(.dragging) .effort-knob { transform: scale(1.06); }
 .effort-slider.dragging .effort-fill, .effort-slider.dragging .effort-knob { transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background 160ms ease; }
 .effort-slider.delegates .effort-fill { background: var(--accent); }
-@media (prefers-reduced-motion: reduce) { .effort-fill, .effort-knob { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .effort-fill, .effort-knob, .effort-stop { transition: none; } }
 @container (max-width: 540px) {
   .model-library-body { grid-template-columns: 116px minmax(0, 1fr); }
   .model-provider-rail button { gap: 6px; padding-inline: 5px; }
   .model-row-icon { display: none; }
   .model-library-footer span { display: none; }
-  .effort-strip { grid-template-columns: minmax(0, 1fr) 64px; }
+  .effort-strip { grid-template-columns: minmax(0, 1fr); }
   .effort-strip-axis { display: none; }
   .effort-strip-none { grid-column: 1 / -1; }
 }

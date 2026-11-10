@@ -367,7 +367,7 @@ test("the model menu's effort strip offers what the model takes, and says so for
     const chip = query(menu, "summary").textContent;
     await act(async () => { query<HTMLElement>(menu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
     const strip = query(menu, ".effort-strip");
-    const labels = [...strip.querySelectorAll<HTMLElement>(".effort-tick")].map((tick) => tick.dataset.label);
+    const labels = [...strip.querySelectorAll(".effort-stop")].map((stop) => stop.textContent);
     const slider = strip.querySelector<HTMLElement>("[role=slider]");
     if (slider) await act(async () => { slider.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })); });
     const none = strip.querySelector(".effort-strip-none")?.textContent;
