@@ -73,8 +73,14 @@ function packagedResources() {
   return null;
 }
 
-function pairingLine(offer: MobilePairingOffer) {
-  return `Pair with code ${offer.code} (expires in ${Math.round((offer.expiresAt - Date.now()) / 60_000)} minutes) or open ${offer.url}`;
+/** The pairing link drawn as a QR for the phone's camera, above the code to type instead. Output that
+ * is not a terminal, such as a log, gets the line alone, because the drawing is colour codes there. */
+async function pairingText(offer: MobilePairingOffer, terminal = Boolean(process.stdout.isTTY)) {
+  const line = `Pair with code ${offer.code} (expires in ${Math.round((offer.expiresAt - Date.now()) / 60_000)} minutes) or open ${offer.url}`;
+  if (!terminal) return line;
+  const { toString } = await import("qrcode");
+  const qr = await toString(offer.url, { type: "terminal", small: true, errorCorrectionLevel: "M" }).catch(() => "");
+  return qr ? `${qr}\n${line}` : line;
 }
 
 /** Runs the application headless: every service the desktop app has, reachable only through the bridge. */
@@ -205,7 +211,7 @@ export async function startServe(options: {
       if (name && name !== served) {
         served = name;
         say(`Serving as https://${name}`);
-        mobile.createMobilePairingCode().then((offer) => say(pairingLine(offer))).catch(() => undefined);
+        mobile.createMobilePairingCode().then((offer) => pairingText(offer)).then(say).catch(() => undefined);
       }
       if (state.error) say(`Bridge: ${state.error}`);
       /** Said once as it changes: the bridge checks Tailscale every minute, and a stuck reason is not news. */
@@ -260,7 +266,7 @@ async function main() {
     const offer = await requestPairing(path.join(userData, "serve.sock")).catch((error: unknown) => {
       throw new Error(`No AI Coding Tool is serving here. Start one with \`aic serve\`. (${error instanceof Error ? error.message : String(error)})`);
     });
-    console.log(pairingLine(offer));
+    console.log(await pairingText(offer));
     return;
   }
   const resources = packagedResources();
