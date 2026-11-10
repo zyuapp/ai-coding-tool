@@ -168,15 +168,14 @@ extension View {
     }
 }
 
-/// Which computer the phone is talking to, and the way to the others: switch, pair another, or forget this one.
+/// Which computer the phone is talking to, and the way to the others: switch, pair another, or open this one's settings.
 struct ComputerMenu: View {
     var model: PhoneModel
     @Environment(\.palette) private var palette
     @State private var panel: Panel?
-    @State private var forgetting: PairedComputer?
 
     private enum Panel: String, Identifiable {
-        case pairing, usage
+        case pairing, computer
         var id: String { rawValue }
     }
 
@@ -196,20 +195,12 @@ struct ComputerMenu: View {
                 }
                 Button { panel = .pairing } label: { Text("Pair a Computer…") }
             }
-            if model.live, model.view.upkeep != nil || model.view.usage != nil {
+            if current != nil {
                 Section {
-                    if let upkeep = model.view.upkeep { UpkeepRows(model: model, items: model.view.pendingUpkeep, all: upkeep) }
-                    if let usage = model.view.usage {
-                        Button { panel = .usage } label: {
-                            Text("Usage")
-                            if let summary = usage.summary { Text(summary) }
-                        }
+                    Button { panel = .computer } label: {
+                        Text("Computer Settings")
+                        if model.live, let note = model.view.upkeepNote { Text(note) }
                     }
-                }
-            }
-            if let current {
-                Section {
-                    Button(role: .destructive) { forgetting = current } label: { Text("Forget \(current.title)…") }
                 }
             }
         } label: {
@@ -259,57 +250,9 @@ struct ComputerMenu: View {
         .sheet(item: $panel) { panel in
             switch panel {
             case .pairing: PairAnotherSheet(model: model)
-            case .usage: UsageSheet(model: model)
+            case .computer:
+                if let current { ComputerSheet(model: model, computer: current) }
             }
-        }
-        .confirmationDialog(forgetting.map { "Forget \($0.title)?" } ?? "", isPresented: Binding(get: { forgetting != nil }, set: { if !$0 { forgetting = nil } }), titleVisibility: .visible) {
-            Button("Forget", role: .destructive) {
-                if let forgetting { model.connection.forget(forgetting) }
-            }
-        } message: {
-            Text("This phone stops connecting to it. Remove the phone from that computer's Settings › Devices too.")
-        }
-    }
-}
-
-/// The computer's app and engines that want the user: one row inline, several behind an Updates submenu; "Up to Date" when none do.
-private struct UpkeepRows: View {
-    var model: PhoneModel
-    var items: [MobileUpkeepItem]
-    var all: [MobileUpkeepItem]
-
-    var body: some View {
-        if items.isEmpty {
-            Button {} label: {
-                Text("Up to Date")
-                if let app = all.first(where: { $0.key == "app" }), let version = app.version { Text("\(app.label) \(version)") }
-            }
-            .disabled(true)
-        } else if items.count == 1, let item = items.first {
-            row(item)
-        } else {
-            Menu {
-                ForEach(items) { row($0) }
-            } label: {
-                Text("Updates")
-                Text(summary)
-            }
-        }
-    }
-
-    private var summary: String {
-        if let busy = items.first(where: { $0.state.tone == "progress" || $0.state.tone == "error" }) { return "\(busy.label) · \(busy.state.text)" }
-        return "\(items.count) available"
-    }
-
-    @ViewBuilder private func row(_ item: MobileUpkeepItem) -> some View {
-        if let action = item.action {
-            Button { model.send(action.command) } label: {
-                Text(action.label == "Update" ? "Update \(item.label)" : action.label)
-                Text(action.label == "Update" ? item.state.text : "\(item.label) · \(item.state.text)")
-            }
-        } else {
-            Button {} label: { Text(item.label); Text(item.state.text) }.disabled(true)
         }
     }
 }

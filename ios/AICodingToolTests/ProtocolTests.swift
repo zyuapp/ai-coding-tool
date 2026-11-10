@@ -92,6 +92,13 @@ final class ProtocolTests: XCTestCase {
         view.upkeep = [item("app", tone: "progress", installing: true)]
         XCTAssertTrue(view.installingUpdate)
         XCTAssertFalse(MobileView.empty.installingUpdate)
+
+        let update = MobileUpkeepItem.Action(label: "Update", command: PhoneCommand("engine.update"))
+        view.upkeep = [MobileUpkeepItem(key: "claude", label: "Claude", state: .init(text: "2.1 available", tone: "offer"), action: update),
+                       MobileUpkeepItem(key: "codex", label: "Codex", state: .init(text: "0.9 available", tone: "offer"), action: update)]
+        XCTAssertEqual(view.upkeepNote, "2 updates available")
+        view.upkeep?.append(MobileUpkeepItem(key: "opencode", label: "OpenCode", state: .init(text: "Won't start", tone: "error")))
+        XCTAssertEqual(view.upkeepNote, "OpenCode · Won't start", "a failure outranks the offers")
     }
 
     func testTailGrowsByUTF16Count() throws {

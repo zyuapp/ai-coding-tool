@@ -119,39 +119,49 @@ struct UsageSheet: View {
     /// The windows the open thread's model spends; empty when opened from outside a thread.
     var spends: Set<String> = []
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.palette) private var palette
 
     var body: some View {
-        let engines = model.view.usage?.engines ?? []
         SheetFrame(title: "Usage") {
-            List {
-                if engines.isEmpty {
-                    Text(model.live ? "No plan limits reported yet." : "Connect to the computer to see its limits.")
-                        .foregroundStyle(palette.muted)
-                        .listRowBackground(Color.clear)
-                }
-                ForEach(engines) { engine in
-                    Section {
-                        if let message = engine.message {
-                            Text(message).foregroundStyle(palette.muted).sheetRow()
-                        }
-                        ForEach(engine.windows) { window in
-                            row(window, spent: spends.contains(window.id)).sheetRow()
-                        }
-                    } header: {
-                        HStack {
-                            SectionLabel(engine.label)
-                            Spacer()
-                            if let plan = engine.plan { Text(plan).font(.footnote).foregroundStyle(palette.muted).textCase(nil) }
-                        }
-                    }
-                }
-            }
-            .refreshable { model.readUsage(within: 0) }
+            UsageList(model: model, spends: spends)
         } actions: {
             SheetClose { dismiss() }
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+/// Each engine's plan windows as list sections, refreshed on pull.
+struct UsageList: View {
+    var model: PhoneModel
+    var spends: Set<String> = []
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        let engines = model.view.usage?.engines ?? []
+        List {
+            if engines.isEmpty {
+                Text(model.live ? "No plan limits reported yet." : "Connect to the computer to see its limits.")
+                    .foregroundStyle(palette.muted)
+                    .listRowBackground(Color.clear)
+            }
+            ForEach(engines) { engine in
+                Section {
+                    if let message = engine.message {
+                        Text(message).foregroundStyle(palette.muted).sheetRow()
+                    }
+                    ForEach(engine.windows) { window in
+                        row(window, spent: spends.contains(window.id)).sheetRow()
+                    }
+                } header: {
+                    HStack {
+                        SectionLabel(engine.label)
+                        Spacer()
+                        if let plan = engine.plan { Text(plan).font(.footnote).foregroundStyle(palette.muted).textCase(nil) }
+                    }
+                }
+            }
+        }
+        .refreshable { model.readUsage(within: 0) }
         .onAppear { model.readUsage(within: 60) }
     }
 

@@ -11,13 +11,8 @@ struct SheetFrame<Content: View, Actions: ToolbarContent>: View {
     var body: some View {
         NavigationStack {
             content
-                .listSectionSpacing(.compact)
-                .contentMargins(.top, 8, for: .scrollContent)
-                .scrollContentBackground(.hidden)
-                .navigationTitle(title)
-                .navigationBarTitleDisplayMode(.inline)
+                .sheetPage(title, palette: palette)
                 .toolbar { actions }
-                .sheetGround(palette)
         }
         .presentationDragIndicator(.visible)
         .sheetPresentationGround(palette)
@@ -26,6 +21,16 @@ struct SheetFrame<Content: View, Actions: ToolbarContent>: View {
 }
 
 extension View {
+    /// A list laid out as a sheet's page, for the sheet's root and the pages pushed inside it.
+    func sheetPage(_ title: String, palette: Palette) -> some View {
+        listSectionSpacing(.compact)
+            .contentMargins(.top, 8, for: .scrollContent)
+            .scrollContentBackground(.hidden)
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .sheetGround(palette)
+    }
+
     @ViewBuilder fileprivate func sheetGround(_ palette: Palette) -> some View {
         if #available(iOS 26, *) {
             self

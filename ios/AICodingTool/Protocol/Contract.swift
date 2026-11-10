@@ -48,6 +48,15 @@ extension MobileView {
         (upkeep ?? []).filter { $0.action != nil || ["offer", "progress", "error"].contains($0.state.tone) }
     }
 
+    /// One line for the software that wants the user: a failure first, then work under way, then how many updates wait.
+    var upkeepNote: String? {
+        let rows = pendingUpkeep
+        if let failed = rows.first(where: { $0.state.tone == "error" }) { return "\(failed.label) · \(failed.state.text)" }
+        if rows.contains(where: { $0.state.tone == "progress" }) { return "Updating…" }
+        let offers = rows.filter { $0.action?.label == "Update" }.count
+        return offers == 0 ? nil : offers == 1 ? "1 update available" : "\(offers) updates available"
+    }
+
     /// Whether any row offers a step that moves software on, which the computer chip marks.
     var updateOffered: Bool {
         (upkeep ?? []).contains { $0.action?.command.kind == .appUpdate || $0.action?.command.kind == .engineUpdate }
