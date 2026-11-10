@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useFloatingSidebar } from "../floating-sidebar";
 import { ProjectSidebar } from "./ProjectSidebar";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 
@@ -11,6 +12,7 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
 }) {
   const { threadsByCoordinator, waitingLines, coordinatorsByComputer, notifications, stoppableCoordinatorIds: stoppable, actions } = workspace;
   const sidebarCoordination = useMemo(() => ({ threadsByCoordinator, waitingLines, coordinatorsByComputer, onSetCoordinator: actions.setCoordinator, notifications, onSetMuted: actions.setMuted, stoppable, onStopAll: actions.stopAll }), [threadsByCoordinator, waitingLines, coordinatorsByComputer, notifications, stoppable, actions]);
+  useFloatingSidebar(open, actions.setSidebarOpen, workspace.dockOpen && !workspace.dockExpanded && !workspace.zen);
 
   return (
     <ProjectSidebar

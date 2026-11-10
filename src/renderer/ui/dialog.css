@@ -20,8 +20,6 @@
   flex-direction: column;
   gap: 14px;
   padding: 24px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--scroll-thumb) transparent;
   animation: modal-panel-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 /** An illustration that bleeds to the panel's edges, above the title. */

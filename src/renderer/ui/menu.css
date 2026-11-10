@@ -92,7 +92,7 @@
  * A list an item opened, just clear of its parent's edge. It sits inside the blurred parent, where a
  * backdrop filter only samples the parent, so it is painted solid in the parent's own colour instead.
  */
-.menu-popover.menu-submenu { top: 0; left: calc(100% + 3px); right: auto; z-index: 1; background: var(--p-bg-4); backdrop-filter: none; }
+.menu-popover.menu-submenu { top: 0; left: calc(100% + 3px); right: auto; z-index: 1; background: var(--glass-edge), var(--p-bg-4); background-clip: border-area, border-box, border-box; backdrop-filter: none; }
 .menu-popover.menu-submenu.menu-flipped { left: auto; right: calc(100% + 3px); }
 /** The list a trigger opens: as wide as its widest row, within bounds. */
 :where(.menu-list) { width: max-content; max-width: 320px; }

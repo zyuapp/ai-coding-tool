@@ -91,7 +91,7 @@
 .icon-btn:where([data-variant="soft"]) { background: var(--control); box-shadow: var(--glass-rim); color: var(--ink-dim); }
 .icon-btn:where([data-variant="soft"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--control-hover); color: var(--ink); }
 
-.icon-btn:where([data-variant="glass"]) { border-color: var(--line-glass); background: var(--glass-menu); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-rim); color: var(--muted); }
+.icon-btn:where([data-variant="glass"]) { border-color: var(--line-glass); background: var(--glass-clear); backdrop-filter: var(--glass-blur) var(--glass-lens,); box-shadow: var(--glass-float-rim); color: var(--muted); }
 .icon-btn:where([data-variant="glass"]):where(:hover:not(:disabled, [aria-disabled="true"])) { border-color: var(--line-bright); color: var(--ink-soft); }
 
 .icon-btn:where([data-variant="inverse"]) { background: var(--surface-inverse); box-shadow: var(--glint); color: var(--ink-inverse); }

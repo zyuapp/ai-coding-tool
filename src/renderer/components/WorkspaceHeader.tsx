@@ -145,7 +145,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
       <div className="workspace-controls">
         {folder && <OpenInMenu {...openIn} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
         {folder && zen.available && (
-          <IconButton size="lg" label="Enter zen mode" tip={zen.tip} onClick={zen.onEnter}>
+          <IconButton size="lg" className="zen-toggle" label="Enter zen mode" tip={zen.tip} onClick={zen.onEnter}>
             <Focus size={18} aria-hidden="true" />
           </IconButton>
         )}

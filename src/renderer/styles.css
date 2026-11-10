@@ -222,9 +222,9 @@
   --glint: inset 0 1px 0 rgb(255 255 255 / 0.075);
   /**
    * Glass, the material every float and raised control is cut from: a fill that lets the colour of
-   * what moves under it through, a sheen that is brightest at the top, a blur heavy enough that
-   * words under it never read as words, and a rim lit from above. --glass-menu is the same pane,
-   * thicker, for a list to be read on.
+   * what moves under it through, a sheen that is brightest at the top, a light blur, and a rim lit
+   * from the top left. --glass-menu is the same pane over the raised ground, for a list to be read
+   * on; --glass-clear is thinner, for a capsule or round key with a word or two on it.
    */
   --glass-sheen: linear-gradient(to bottom, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.02));
   /**
@@ -232,13 +232,31 @@
    * there, so the window's panes clear and cloud with the rest of their desktop.
    */
   --glass-tint: 0.6;
-  --glass: var(--glass-sheen), rgb(from var(--p-bg-2) r g b / calc(0.66 + 0.26 * var(--glass-tint)));
-  --glass-menu: var(--glass-sheen), rgb(from var(--p-bg-4) r g b / calc(0.8 + 0.16 * var(--glass-tint)));
-  --glass-blur: blur(calc(28px + 8px * var(--glass-tint))) saturate(170%);
-  --glass-menu-blur: blur(calc(32px + 8px * var(--glass-tint))) saturate(170%);
+  --glass: var(--glass-sheen), rgb(from var(--p-bg-2) r g b / calc(0.6 + 0.35 * var(--glass-tint)));
+  --glass-menu: var(--glass-sheen), rgb(from var(--p-bg-4) r g b / calc(0.6 + 0.35 * var(--glass-tint)));
+  --glass-clear: var(--glass-sheen), rgb(from var(--p-bg-4) r g b / calc(0.31 + 0.5 * var(--glass-tint)));
+  --glass-blur: blur(calc(7px + 16px * var(--glass-tint))) saturate(170%);
+  --glass-menu-blur: var(--glass-blur);
   /* A bar pinned over a scrolling list: flat, with no sheen, so it reads as the page going out of focus under it. */
   --glass-strip: rgb(from var(--canvas) r g b / calc(0.78 + 0.16 * var(--glass-tint)));
-  --glass-rim: inset 0 1px 0 rgb(255 255 255 / 0.26), inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  /* The rim: a hairline of light all round, caught along the top edge and faintly along the bottom. */
+  --glass-rim:
+    inset 0 0 0 0.5px light-dark(rgb(255 255 255 / 0.15), rgb(255 255 255 / 0.03)),
+    inset 0 1.5px 1px -1px light-dark(rgb(255 255 255 / 0.25), rgb(255 255 255 / 0.1)),
+    inset 0 -1.5px 1px -1px light-dark(rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.03));
+  /* A float's rim, with the glow of the glass's thickness inside it and a dark hairline outside. */
+  --glass-float-rim:
+    var(--glass-rim),
+    inset 0 0 14px light-dark(rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.015)),
+    0 0 0 0.5px light-dark(rgb(0 0 0 / 0.12), rgb(0 0 0 / 0.35));
+  /**
+   * The light a float's 1px edge catches, brightest at the top-left corner and again at the
+   * bottom-right. It is the first background layer, clipped to the border area.
+   */
+  --glass-edge: conic-gradient(
+    rgb(255 255 255 / 0.05) 0deg, rgb(255 255 255 / 0.01) 60deg, rgb(255 255 255 / 0.02) 100deg,
+    rgb(255 255 255 / 0.08) 140deg, rgb(255 255 255 / 0.01) 185deg, rgb(255 255 255 / 0.005) 225deg,
+    rgb(255 255 255 / 0.03) 280deg, rgb(255 255 255 / 0.15) 315deg, rgb(255 255 255 / 0.05) 360deg);
   /* A control cut from it: a wash of ink under the same sheen. */
   --glass-control: var(--glass-sheen), var(--wash);
   --glass-control-hover: var(--glass-sheen), var(--surface-hover);
@@ -297,6 +315,8 @@
   /** The frame showing around the page, and the corner the page turns inside it. */
   --frame-gap: 8px;
   --page-radius: 11px;
+  /** The narrowest the conversation goes with the right panel beside it; past that the panel gives way, then the sidebar. */
+  --page-min: 480px;
   /** The room either side of the conversation, less what the frame already took, so its column is as wide as the window allows. */
   --page-inset: clamp(20px, calc(4vw - var(--frame-gap)), 64px);
   /** The sidebar toolbar remains useful below a native frame; on macOS its left side also houses the traffic lights. */
@@ -403,6 +423,7 @@
   :root, [data-theme] {
     --glass: var(--surface);
     --glass-menu: var(--surface-menu);
+    --glass-clear: var(--surface-menu);
     --glass-blur: none;
     --glass-menu-blur: none;
     --veil: var(--scrim);
@@ -438,10 +459,29 @@
   color: var(--ink);
   background: var(--canvas);
   font-synthesis: none;
-  scrollbar-color: var(--scroll-thumb) transparent;
 }
 
-* { box-sizing: border-box; scrollbar-width: thin; }
+* { box-sizing: border-box; }
+/**
+ * A scrollbar is a capsule of glass floating clear of the edge, with no track. Chromium drops these
+ * rules for an element that sets scrollbar-width or scrollbar-color, so only `none` is ever set.
+ */
+::-webkit-scrollbar { width: 12px; height: 12px; background: transparent; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+/* Clear of a rounded container's corners. */
+::-webkit-scrollbar-track:vertical { margin-block: 8px; }
+::-webkit-scrollbar-track:horizontal { margin-inline: 8px; }
+::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  min-width: 32px;
+  border: 3.5px solid transparent;
+  border-radius: 999px;
+  background: linear-gradient(to right, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0)) padding-box, var(--scroll-thumb) padding-box;
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.1);
+}
+::-webkit-scrollbar-thumb:horizontal { background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0)); }
+/* Under the pointer it swells, as the system's own does. */
+::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { border-width: 2px; background-color: var(--line-bright); }
 html, body, #root { height: 100%; margin: 0; }
 body { overflow: hidden; font-size: var(--text-content); }
 button, textarea, select { font: inherit; }
@@ -584,7 +624,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   font-size: var(--text-meta);
   font-weight: 600;
 }
-.sidebar-scroll { min-height: 0; flex: 1; overflow-y: auto; overflow-x: hidden; padding-block: 6px 12px; scroll-padding-block: 16px; mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 12px), transparent); scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+.sidebar-scroll { min-height: 0; flex: 1; overflow-y: auto; overflow-x: hidden; padding-block: 6px 12px; scroll-padding-block: 16px; mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 12px), transparent); }
 .section-heading {
   display: grid;
   grid-template-columns: minmax(0, 1fr) repeat(2, var(--row-slot));
@@ -868,7 +908,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   position: relative;
   min-width: 0;
   flex: 1;
-  --dock-width: min(var(--right-dock-width, clamp(380px, 40vw, 620px)), calc(100vw - 320px));
+  --dock-width: min(var(--right-dock-width, clamp(380px, 40vw, 620px)), 100% - var(--page-min));
   display: grid;
   /**
    * The last track is the room under a new thread's composer. A thread with a transcript gives it
@@ -995,6 +1035,15 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 @container topbar (max-width: 620px) {
   .heading-choose-folder { width: 28px; padding: 0; }
   .heading-choose-folder > span { display: none; }
+}
+/** A narrow top bar keeps the thread's own name: the project, then the secondary actions, give way first. */
+@container topbar (max-width: 480px) {
+  .heading-project, .heading-separator { display: none; }
+  .task-heading h1 > button.heading-thread, .heading-thread.renamable { min-width: 0; }
+  .heading-thread.renamable > svg { display: none; }
+}
+@container topbar (max-width: 400px) {
+  .workspace-controls > :is(.open-in, .zen-toggle) { display: none; }
 }
 .workspace.drafting { grid-template-rows: var(--chrome-head) minmax(0, 1fr) auto minmax(0, 1.5fr); }
 @media (prefers-reduced-motion: reduce) { .workspace { transition: none; } }
@@ -1262,8 +1311,6 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   /** The transcript anchors its own view; the browser adjusting scrollTop here reads as a reader's move. */
   overflow-anchor: none;
   padding: 54px var(--page-inset) 24px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--scroll-thumb) transparent;
 }
 .empty-state {
   height: 100%;
@@ -1403,8 +1450,8 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .message.system .message-text { font-size: var(--text-menu); line-height: 18px; }
 .message.system.error { padding: 7px 40px 7px 10px; color: var(--danger); }
 .message.system.error .message-detail { color: var(--muted); }
-.message.system.error > .copy-affordance { position: absolute; top: 5px; right: 6px; opacity: 1; pointer-events: auto; }
-.message.system.error > .copy-affordance:not(:hover, .copied, .failed) { border-color: transparent; background: transparent; color: var(--muted); }
+.message.system.error > .copy-affordance { position: absolute; top: 2px; right: 4px; opacity: 1; pointer-events: auto; }
+.message.system.error > .copy-affordance:not(:hover, .copied, .failed) { border-color: transparent; background: transparent; box-shadow: none; backdrop-filter: none; color: var(--muted); }
 .notice-icon { width: 14px; height: 14px; margin-right: 7px; vertical-align: -3px; }
 .message.system:not(.error) .notice-icon { color: var(--info); }
 .message-origin { color: var(--quiet-strong); font-size: var(--text-meta); overflow-wrap: anywhere; }
@@ -1501,7 +1548,7 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 .copyable:is(:hover, :focus-within) > :is(.copy-affordance, .diagram-expand),
 .copyable > :is(.copy-affordance, .diagram-expand):is(.copied, .failed),
 .timeline-row.newest .copyable > :is(.copy-affordance, .diagram-expand) { opacity: 1; pointer-events: auto; }
-.timeline-row.newest .copyable:not(:hover, :focus-within) > :is(.copy-affordance, .diagram-expand):not(.copied, .failed) { border-color: transparent; background: transparent; color: var(--quiet); }
+.timeline-row.newest .copyable:not(:hover, :focus-within) > :is(.copy-affordance, .diagram-expand):not(.copied, .failed) { border-color: transparent; background: transparent; box-shadow: none; backdrop-filter: none; color: var(--quiet); }
 .copyable:is(:hover, :focus-within) > :is(.copy-affordance, .diagram-expand):not(.copied, .failed, :hover) { border-color: var(--line-strong); color: var(--ink-dim); }
 .copy-affordance.copied { border-color: var(--success-line); color: var(--success-soft); }
 .copy-affordance.failed { border-color: var(--danger); color: var(--danger-soft); }
@@ -1518,9 +1565,9 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 .message-time { color: var(--quiet-strong); font-size: var(--text-meta); font-variant-numeric: tabular-nums; white-space: nowrap; user-select: none; }
 .message-time::before { content: attr(data-clock); }
 /* At rest on the newest row the copy is a bare glyph; its tile comes up with the pointer or focus. */
-.timeline-row:not(:hover, :focus-within) .message-actions > .copy-affordance:not(.copied, .failed) { border-color: transparent; background: transparent; }
+.timeline-row:not(:hover, :focus-within) .message-actions > .copy-affordance:not(.copied, .failed) { border-color: transparent; background: transparent; box-shadow: none; backdrop-filter: none; }
 @media (prefers-reduced-motion: reduce) { .copy-affordance, .message-actions { transition: none; } }
-.mermaid-block { min-height: 76px; margin: 17px 0; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 15px; background: var(--sunken); scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+.mermaid-block { min-height: 76px; margin: 17px 0; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 15px; background: var(--sunken); }
 .mermaid-block:has(.mermaid-open:hover), .copyable:has(> .diagram-expand:is(:hover, :focus-visible)) > .mermaid-block { border-color: var(--line-bright); }
 .mermaid-loading { display: block; padding: 16px; color: var(--muted); text-align: center; font-size: var(--text-meta); }
 /* max-content wraps a diagram wider than the block so all of it stays clickable; the full width centres a narrow one. */
@@ -2290,8 +2337,6 @@ pre {
   border-radius: 12px;
   box-shadow: 0 0 0 1px var(--line-glass), var(--glint), 0 4px 14px rgb(var(--p-shadow) / calc(0.12 * var(--p-shadow-scale)));
   animation: panel-in 150ms ease-out;
-  scrollbar-width: thin;
-  scrollbar-color: var(--scroll-thumb) transparent;
 }
 .session-card { overflow: hidden; border-radius: 12px; }
 .subagent-inspector {
@@ -2336,8 +2381,6 @@ pre {
   overflow: auto;
   overflow-anchor: none;
   padding: 30px 22px 34px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--scroll-thumb) transparent;
 }
 .side-chat-transcript .empty-state { padding: 0 18px 7vh; }
 .side-chat-transcript .empty-glyph { width: 32px; height: 32px; color: var(--info-soft); }
@@ -2357,7 +2400,7 @@ pre {
 .composer-wrap.side textarea:disabled { cursor: not-allowed; }
 .composer-wrap.tab { padding-bottom: 14px; }
 .side-chat-note { margin: 7px 17px 12px; color: var(--muted); font-size: var(--text-meta); }
-.inspector-scroll { min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+.inspector-scroll { min-height: 0; overflow: auto; }
 .subagent-inspector .agent-detail-heading { grid-template-columns: 36px minmax(0, 1fr) auto; padding: 26px 24px 22px; }
 .subagent-inspector .agent-detail-heading .workflow-stop-actions { align-self: start; margin-top: 2px; }
 .subagent-inspector .agent-detail-heading h2 { font-size: var(--text-heading); }
@@ -2622,7 +2665,7 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
   margin: 0 auto;
   overflow: visible;
   border-radius: 17px;
-  box-shadow: 0 0 0 1px var(--line-glass), var(--shadow-composer);
+  box-shadow: var(--shadow-composer);
 }
 
 .command-menu {
@@ -2799,8 +2842,8 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
   border-radius: 999px;
   padding: 6px 14px;
   background: var(--glass-menu);
-  backdrop-filter: var(--glass-menu-blur);
-  box-shadow: var(--glass-rim), var(--shadow-float);
+  backdrop-filter: var(--glass-menu-blur) var(--glass-lens,);
+  box-shadow: var(--glass-float-rim), var(--shadow-float);
   color: var(--ink-soft);
   font-size: var(--text-meta);
   pointer-events: none;
@@ -2982,7 +3025,7 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
 .viewer.diagram, .viewer.image, .viewer.visual { display: block; }
 /* A visual draws on the conversation's own canvas, so the viewer lays one under it. */
 .viewer-visual { flex: none; width: min(1100px, 100%); margin: auto; border-radius: 12px; padding: 8px 20px; background: var(--canvas); cursor: default; }
-.viewer-stage { display: flex; width: 100%; height: 100%; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+.viewer-stage { display: flex; width: 100%; height: 100%; overflow: auto; }
 /* Auto margins centre a view that fits without cutting off the start of one that does not. */
 .viewer-stage .mermaid-svg, .viewer-stage img { flex: none; margin: auto; cursor: default; }
 .viewer-zoom {
@@ -3077,10 +3120,10 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
   padding: 7px 9px;
   outline: 0;
   background: var(--glass-menu);
-  backdrop-filter: var(--glass-menu-blur);
+  backdrop-filter: var(--glass-menu-blur) var(--glass-lens,);
   color: var(--ink);
   font-size: var(--text-control);
-  box-shadow: var(--glass-rim), var(--shadow-menu);
+  box-shadow: var(--glass-float-rim), var(--shadow-menu);
 }
 .annotator-label::placeholder { color: var(--quiet); }
 .annotator-bar {
@@ -3136,8 +3179,6 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
   max-height: calc(100vh - 150px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--scroll-thumb) transparent;
   --glass-radius: 14px;
 }
 /** Bypass acts without asking, so its mark says so while it is the chosen mode. */
@@ -3276,6 +3317,10 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   .composer-actions { gap: 8px; }
   .context-usage-value, .plan-usage-icon { display: none; }
 }
+/** The effort reads in the model's menu, so it goes before the names of the mode and model shorten. */
+@container (max-width: 400px) {
+  .composer-settings .setting-detail { display: none; }
+}
 @container (max-width: 300px) {
   .context-usage-value { display: none; }
   .composer-settings { gap: 0; }
@@ -3309,7 +3354,13 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   .session-panel { width: 260px; right: 12px; }
 }
 
-@media (max-width: 900px) {
+/**
+ * The sidebar floats over the workspace once the window is too narrow to keep it beside the
+ * conversation, sooner while the right panel takes room too. Zooming in narrows the window.
+ */
+@media (max-width: 900px) { :root { --sidebar-floats: 1; } }
+@media (max-width: 1080px) { :root:has(.workspace.dock-open:not(.dock-full)) { --sidebar-floats: 1; } }
+@container style(--sidebar-floats: 1) {
   .sidebar {
     position: absolute;
     z-index: 20;
@@ -3367,7 +3418,14 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   .setting-row.plain .setting-row-action { grid-column: 1; }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 520px) {
+  .settings-view { grid-template-columns: 160px minmax(0, 1fr); }
+  .settings-main { padding: 36px 16px; }
+  .settings-page-heading { margin-bottom: 24px; }
+}
+
+/** With no room for the conversation beside it, the right panel takes the whole workspace. */
+@media (max-width: 800px) {
   .workspace.dock-open { display: block; }
   .workspace.dock-open > :not(.right-dock) { visibility: hidden; }
   .right-dock { position: absolute; z-index: 30; inset: 0; width: auto; border-left: 0; }
@@ -3634,9 +3692,9 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .model-search .search-field-box { padding-right: 48px; }
 .model-search > .icon-btn { position: absolute; top: 10px; right: 10px; }
 .model-library-body { display: grid; grid-template-columns: 150px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); max-height: 330px; min-height: 0; }
-.model-provider-rail { padding: 10px 7px; border-right: 1px solid var(--line-soft); overflow-y: auto; scrollbar-width: thin; }
+.model-provider-rail { padding: 10px 7px; border-right: 1px solid var(--line-soft); overflow-y: auto; }
 .model-provider-glyph { flex-shrink: 0; width: 16px; }
-.model-results { padding: 14px 10px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.model-results { padding: 14px 10px; overflow-y: auto; overscroll-behavior: contain; }
 .model-results-heading { display: flex; justify-content: space-between; gap: 10px; padding: 0 8px 10px; color: var(--quiet-strong); font-size: var(--text-meta); }
 .model-results-heading > span:last-child { color: var(--quiet-soft); }
 .model-row { display: flex; align-items: center; gap: 2px; }

@@ -5,35 +5,42 @@
  * same wherever it is drawn; whoever places it sets only its position, size and padding. A
  * container rounds it differently through --glass-radius. Every kind carries its own blur, so
  * each reads the same on the glass sheet as off it.
+ *
+ * The edge is the first background layer, clipped to the border, so a rule that sets another
+ * background keeps --glass-edge first and restates the clip, which the shorthand resets.
+ * --glass-lens, set by glass-lens.ts, bends the backdrop along the rim.
  */
 .glass-popover, .glass-float, .glass-overlay, .glass-capsule {
-  border: 1px solid var(--line-glass);
-  background: var(--glass-menu);
-  backdrop-filter: var(--glass-menu-blur);
+  border: 1px solid transparent;
+  background: var(--glass-edge), var(--glass-menu);
+  background-clip: border-area, border-box, border-box;
+  backdrop-filter: var(--glass-menu-blur) var(--glass-lens,);
 }
 /** Menus, pickers, and the cards that open from a control. They fade in where they stand. */
 .glass-popover {
   border-radius: var(--glass-radius, 10px);
-  box-shadow: var(--glass-rim), var(--shadow-menu);
+  box-shadow: var(--glass-float-rim), var(--shadow-menu);
   animation: glass-in var(--touch-time) var(--touch-ease);
 }
 /** A popover the frame opened sits over it, where there is too little behind it to blur. */
 :root[data-window-material] :is(.sidebar, .settings-sidebar) .glass-popover,
-:root[data-window-material] body:has(:is(.sidebar, .settings-sidebar) :is([data-menu-target], [aria-expanded="true"])) > .glass-popover { background: var(--surface-glass); }
+:root[data-window-material] body:has(:is(.sidebar, .settings-sidebar) :is([data-menu-target], [aria-expanded="true"])) > .glass-popover { background: var(--glass-edge), var(--surface-glass); background-clip: border-area, border-box, border-box; }
 /** A card or banner floating over the transcript. */
 .glass-float {
   border-radius: var(--glass-radius, 14px);
-  box-shadow: var(--glass-rim), var(--shadow-float);
+  box-shadow: var(--glass-float-rim), var(--shadow-float);
 }
 /** A dialog or palette standing over the whole window. */
 .glass-overlay {
   border-radius: var(--glass-radius, 16px);
-  box-shadow: var(--glass-rim), var(--shadow-overlay);
+  box-shadow: var(--glass-float-rim), var(--shadow-overlay);
 }
 /** A float drawn as one rounded capsule, such as what opens over a selection. */
 .glass-capsule {
   border-radius: 999px;
-  box-shadow: var(--glass-rim), var(--shadow-popover);
+  background: var(--glass-edge), var(--glass-clear);
+  background-clip: border-area, border-box, border-box;
+  box-shadow: var(--glass-float-rim), var(--shadow-popover);
 }
 /** A chip of glass set in the flow: a wash of ink under the sheen, with no blur or shadow. */
 .glass-chip {
@@ -69,20 +76,24 @@
   position: absolute;
   z-index: -1;
   inset: 0;
+  border: 1px solid transparent;
   border-radius: inherit;
-  background: var(--glass);
-  backdrop-filter: var(--glass-blur);
-  box-shadow: var(--glass-rim), var(--glass-pane-shadow, 0 0 transparent);
+  background: var(--glass-edge), var(--glass);
+  background-clip: border-area, border-box, border-box;
+  backdrop-filter: var(--glass-blur) var(--glass-lens,);
+  box-shadow: var(--glass-float-rim), var(--glass-pane-shadow, 0 0 transparent);
   pointer-events: none;
 }
 /** A toned surface is the same glass with its hue mixed into the pane, edged in that hue. */
 :is(.glass-popover, .glass-float, .glass-overlay, .glass-capsule, .glass-chip, .glass-strip)[data-tone] {
   border-color: var(--tone-line);
-  background: var(--glass-sheen), color-mix(in srgb, var(--tone) 14%, rgb(from var(--p-bg-2) r g b / 0.62));
+  background: var(--glass-edge), var(--glass-sheen), color-mix(in srgb, var(--tone) 14%, rgb(from var(--p-bg-2) r g b / 0.62));
+  background-clip: border-area, border-box, border-box;
 }
 @media (prefers-reduced-transparency: reduce) {
   :is(.glass-popover, .glass-float, .glass-overlay, .glass-capsule, .glass-chip, .glass-strip)[data-tone] {
-    background: color-mix(in srgb, var(--tone) 14%, var(--surface-menu));
+    background: var(--glass-edge), color-mix(in srgb, var(--tone) 14%, var(--surface-menu));
+    background-clip: border-area, border-box, border-box;
   }
 }
 @keyframes glass-in { from { opacity: 0; } }

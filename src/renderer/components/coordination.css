@@ -231,8 +231,6 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 10px 10px 18px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--scroll-thumb) transparent;
 }
 /** What the coordinator's threads run on, picked with the composer's own chips, whose menus open downward here. */
 .coordination-overview-header {
@@ -364,8 +362,6 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   max-height: 216px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--scroll-thumb) transparent;
 }
 /** The title's link covers the whole row; the threads named under it sit above that and open themselves. */
 .coordination-pull-request { position: relative; grid-template-columns: 22px minmax(0, 1fr); }
