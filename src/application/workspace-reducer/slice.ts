@@ -50,6 +50,10 @@ export type SliceTransition<Own, Facet = Record<never, never>> = {
   patch?: OwnPatch<Own>;
   /** Joined in after the patch, in this order. One that changes nothing leaves the state as it was. */
   edits?: OwnerEdit<Facet>[];
+  /** An owner function's own answer is no slice's answer: the edit it holds goes in `edits`. */
+  docks?: never;
+  toasts?: never;
+  engines?: never;
   effects?: WorkspaceEffect[];
   result?: WorkspaceCommandResult;
   /** Turns the input down, saying why where the window shows errors. */

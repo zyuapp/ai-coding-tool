@@ -86,6 +86,19 @@ test("opening the thread in another application hands over the checkout it works
   assert.equal(refused.state.actionError, WORKSPACE_ERRORS.appFolder);
 });
 
+test("picking a shell brings it to the front of its dock and gives it the keyboard", () => {
+  const state = workspace({ currentId: "task-1", threads: [task("task-1")], docks: {
+    "task-1": { ...EMPTY_DOCK, open: false, tab: "agents", terminals: [
+      { id: "first", cwd: "/repo", title: "Shell", taskId: "task-1", status: "running" },
+      { id: "second", cwd: "/repo", title: "Shell", taskId: "task-1", status: "running" },
+    ], terminalId: "first" },
+  } });
+  const picked = reduce(state, { type: "terminal.select", terminalId: "second" });
+  assert.partialDeepStrictEqual(dock(picked.state), { open: true, tab: "second", terminalId: "second" });
+  assert.equal(picked.state.dockFocus?.tab, "second");
+  assert.deepEqual(reduce(state, { type: "terminal.select", terminalId: "gone" }).state, state);
+});
+
 test("a terminal needs a folder to start in", () => {
   const refused = reduce(workspace(), { type: "terminal.open" });
 

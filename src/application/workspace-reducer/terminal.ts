@@ -53,7 +53,8 @@ export function reduceTerminal(state: WorkspaceState, input: TerminalInput): Sli
       const owner = ownerOfTerminal(state, input.terminalId);
       if (!owner) return {};
       const shown = editDock(showDockTabIn(docksOf(state), owner, input.terminalId), owner, { terminalId: input.terminalId });
-      return focusDockTabIn(shown, owner, input.terminalId);
+      const focused = focusDockTabIn(shown, owner, input.terminalId);
+      return { edits: [focused.docks], effects: focused.effects };
     }
 
     case "terminal.close": {
