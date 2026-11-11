@@ -46,7 +46,7 @@ export function reduceDesktop(state: WorkspaceState, input: DesktopInput): Slice
     case "view.mounted": {
       const toasts = releasedToasts(toastsOf(state));
       return {
-        toasts,
+        edits: [toasts],
         effects: [
           { type: "apply-shortcuts", overrides: state.shortcuts },
           { type: "apply-capture-options", options: { sound: state.captureSound, focus: state.captureFocus } },
@@ -57,7 +57,7 @@ export function reduceDesktop(state: WorkspaceState, input: DesktopInput): Slice
     }
 
     case "view.closed":
-      return { patch: { focused: false, viewingImage: null, viewingGallery: [] }, docks: closedWindowDocks(docksOf(state)) };
+      return { patch: { focused: false, viewingImage: null, viewingGallery: [] }, edits: [closedWindowDocks(docksOf(state))] };
 
     case "file.open": {
       const roots = threadFileRoots(state, state.threads.find((item) => item.id === (input.taskId ?? state.currentId)));

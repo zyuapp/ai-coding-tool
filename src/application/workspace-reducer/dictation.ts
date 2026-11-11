@@ -62,7 +62,7 @@ export function reduceDictation(state: WorkspaceState, input: DictationInput): S
       const session = dictation.session;
       if (!session || session.phase === "transcribing" || session.handsFree) return {};
       const freed = { dictation: withDictation(dictation, { session: { ...session, handsFree: true } }) };
-      return session.key === promptKey(state) ? { patch: freed, composer: focusComposerIn(composerOf(state)) } : { patch: freed };
+      return session.key === promptKey(state) ? { patch: freed, edits: [focusComposerIn(composerOf(state))] } : { patch: freed };
     }
 
     case "dictation.stop": {
@@ -97,7 +97,7 @@ export function reduceDictation(state: WorkspaceState, input: DictationInput): S
 
     case "dictation.failed": {
       if (!current(state, input.id)) return {};
-      return { patch: { dictation: withDictation(dictation, { session: null }) }, composer: noticed(composerOf(state), input.message) };
+      return { patch: { dictation: withDictation(dictation, { session: null }) }, edits: [noticed(composerOf(state), input.message)] };
     }
 
     /**
@@ -108,12 +108,12 @@ export function reduceDictation(state: WorkspaceState, input: DictationInput): S
       const session = current(state, input.id);
       if (!session) return {};
       const ended = withDictation(dictation, { session: null });
-      if (!input.text.trim()) return { patch: { dictation: ended }, composer: noticed(composerOf(state), DICTATION_HEARD_NOTHING) };
+      if (!input.text.trim()) return { patch: { dictation: ended }, edits: [noticed(composerOf(state), DICTATION_HEARD_NOTHING)] };
       const written = noticed(withPromptIn(composerOf(state), session.key, withSpokenWords(state.prompts[session.key] ?? "", input.text)), null);
-      if (session.key !== promptKey(state)) return { patch: { dictation: ended }, composer: written };
+      if (session.key !== promptKey(state)) return { patch: { dictation: ended }, edits: [written] };
       return session.send
-        ? { patch: { dictation: withDictation(ended, { sends: ended.sends + 1 }) }, composer: written }
-        : { patch: { dictation: ended }, composer: focusComposerIn(written) };
+        ? { patch: { dictation: withDictation(ended, { sends: ended.sends + 1 }) }, edits: [written] }
+        : { patch: { dictation: ended }, edits: [focusComposerIn(written)] };
     }
   }
 }

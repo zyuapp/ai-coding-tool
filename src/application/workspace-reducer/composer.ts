@@ -29,7 +29,7 @@ function changed(state: WorkspaceState, next: WorkspaceState): SliceTransition<O
 function focusAfter(state: WorkspaceState, drafted: WorkspaceState, input: ComposerDraftCommand, key: string): SliceTransition<Own> {
   if (input.type !== "annotation.add" || input.anchor?.kind === "diff") return changed(state, drafted);
   const holder = tabHolderOf(drafted, key);
-  return holder ? { ...changed(state, drafted), docks: focusedTabIn(docksOf(drafted), holder, key) } : changed(state, focusComposer(drafted));
+  return holder ? { ...changed(state, drafted), edits: [focusedTabIn(docksOf(drafted), holder, key)] } : changed(state, focusComposer(drafted));
 }
 
 /** Every change to one composer's drafts. `key` is the composer: a thread's id, or the draft's. */

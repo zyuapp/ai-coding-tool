@@ -67,7 +67,7 @@ function workOf(state: WorkspaceState): Work {
 /** The answer a piece of work comes to, naming only what it changed. */
 function done(state: WorkspaceState, { engines, toasts, effects, error }: Work, result?: WorkspaceCommandResult): SliceTransition<Own> {
   const changed = Object.entries(engines).some(([field, value]) => state[field as keyof Own] !== value);
-  return { ...(changed ? { patch: engines } : {}), toasts, effects, ...(error ? { error } : {}), ...(result ? { result } : {}) };
+  return { ...(changed ? { patch: engines } : {}), edits: [toasts], effects, ...(error ? { error } : {}), ...(result ? { result } : {}) };
 }
 
 const NO_ERROR = { message: null, page: null };

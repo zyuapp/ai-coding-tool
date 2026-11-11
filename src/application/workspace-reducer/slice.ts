@@ -11,14 +11,16 @@ import { viewPreferences } from "../view-preferences.js";
 /** Fields of the slice's own state. Naming any other field of the workspace does not compile. */
 export type OwnPatch<Own> = Partial<Own> & { [Field in Exclude<keyof WorkspaceState, keyof Own>]?: never };
 
+/**
+ * State another owner keeps, as that owner's own functions left it. Each is a value only its owner's
+ * functions make, naming only that owner's fields, so a slice changes it through them or not at all.
+ */
+export type OwnerEdit = DocksEdit | ComposerEdit | ToastsEdit;
+
 export type SliceTransition<Own> = {
   patch?: OwnPatch<Own>;
-  /** The docks as the dock's own functions left them, for a slice whose pages, shells or panels live in one. */
-  docks?: DocksEdit;
-  /** The composers as their own functions left them. */
-  composer?: ComposerEdit;
-  /** The toasts as their own functions left them. */
-  toasts?: ToastsEdit;
+  /** Joined in after the patch, in this order. One that changes nothing leaves the state as it was. */
+  edits?: OwnerEdit[];
   effects?: WorkspaceEffect[];
   result?: WorkspaceCommandResult;
   /** Turns the input down, saying why where the window shows errors. */
@@ -34,7 +36,7 @@ export type SliceTransition<Own> = {
 };
 
 /** The state a slice's answer leaves, for reading what its own effects describe. */
-export function afterward<Own>(state: WorkspaceState, { patch, docks, composer, toasts, clearsError, error, closesMenu }: Omit<SliceTransition<Own>, "effects" | "result" | "refusal" | "persists">): WorkspaceState {
+export function afterward<Own>(state: WorkspaceState, { patch, edits = [], clearsError, error, closesMenu }: Omit<SliceTransition<Own>, "effects" | "result" | "refusal" | "persists">): WorkspaceState {
   let next = patch || clearsError || error || closesMenu ? {
     ...state,
     ...patch,
@@ -42,8 +44,8 @@ export function afterward<Own>(state: WorkspaceState, { patch, docks, composer, 
     ...(error ? { actionError: error.message, actionErrorPage: error.page } : {}),
     ...(closesMenu ? { openMenu: null } : {}),
   } : state;
-  for (const edit of [docks, composer, toasts]) {
-    if (edit && Object.entries(edit.view).some(([field, value]) => next[field as keyof WorkspaceState] !== value)) next = { ...next, ...edit.view };
+  for (const edit of edits) {
+    if (Object.entries(edit.view).some(([field, value]) => next[field as keyof WorkspaceState] !== value)) next = { ...next, ...edit.view };
   }
   return next;
 }

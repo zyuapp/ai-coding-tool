@@ -47,7 +47,7 @@ export function reduceBrowser(state: WorkspaceState, input: BrowserInput): Slice
       const owner = dockOwner(state);
       const { docks: opened, tab } = withBlankTab(docksOf(state), owner);
       const focused = focusDockTabIn(opened, owner, tab.id);
-      return { docks: focused.docks, effects: [{ type: "browser.open", tabId: tab.id }, { type: "browser.show", tabId: tab.id }, ...focused.effects] };
+      return { edits: [focused.docks], effects: [{ type: "browser.open", tabId: tab.id }, { type: "browser.show", tabId: tab.id }, ...focused.effects] };
     }
 
     case "browser.decide": {
@@ -65,7 +65,7 @@ export function reduceBrowser(state: WorkspaceState, input: BrowserInput): Slice
       const owner = ownerOfBrowserTab(state, input.tabId) ?? dockOwner(state, input.taskId);
       const tab = dockFor(state, owner).browserTabs.find((item) => item.id === input.tabId);
       if (!tab) return {};
-      return { docks: editDock(showDockTabIn(docksOf(state), owner, tab.id), owner, { browserTabId: tab.id }), effects: browserEffectsForTab(state, owner, tab.id) };
+      return { edits: [editDock(showDockTabIn(docksOf(state), owner, tab.id), owner, { browserTabId: tab.id })], effects: browserEffectsForTab(state, owner, tab.id) };
     }
 
     case "browser.close-tab":
@@ -81,7 +81,7 @@ export function reduceBrowser(state: WorkspaceState, input: BrowserInput): Slice
       const effect: WorkspaceEffect = input.type === "browser.go"
         ? { type: "browser.history", tabId: target.id, delta: input.delta, taskId: input.taskId }
         : { type: "browser.reload", tabId: target.id, taskId: input.taskId };
-      return { docks: patchBrowserTab(docksOf(state), owner, target.id, { loading: true, error: undefined }), effects: [effect] };
+      return { edits: [patchBrowserTab(docksOf(state), owner, target.id, { loading: true, error: undefined })], effects: [effect] };
     }
 
     case "browser.clear-data":
@@ -98,7 +98,7 @@ export function reduceBrowser(state: WorkspaceState, input: BrowserInput): Slice
       /** Landing on a different page clears the error the page before it left behind. */
       const clearing = current.error !== undefined && patch.error === undefined && patch.url !== undefined && patch.url !== current.url;
       const docks = patchBrowserTab(docksOf(state), owner, tabId, clearing ? { ...patch, error: undefined } : patch);
-      return { docks, effects: patch.url === undefined ? [] : persistView(afterward(state, { docks })) };
+      return { edits: [docks], effects: patch.url === undefined ? [] : persistView(afterward(state, { edits: [docks] })) };
     }
   }
 }

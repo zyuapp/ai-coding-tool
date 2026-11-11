@@ -35,7 +35,7 @@ export function loadBrowserPage(state: WorkspaceState, own: Pages["patch"], owne
   const target = newTab ? undefined : browserTarget(dockFor(docks.view, owner), tabId);
   const patch = { ...own, ...(allowing ? { browserOrigins } : {}), browserApproval: before.browserApproval?.tabId === target?.id ? null : before.browserApproval };
   const settledWith = (changed: DocksEdit, effects: (after: WorkspaceState) => WorkspaceEffect[]): Pages => ({
-    patch, clearsError: true, docks: changed, effects: effects(afterward(state, { patch, clearsError: true, docks: changed })),
+    patch, clearsError: true, edits: [changed], effects: effects(afterward(state, { patch, clearsError: true, edits: [changed] })),
   });
   if (target) {
     const surfaced = byUser ? showDockTabIn(docks, owner, target.id) : docks;
@@ -76,11 +76,11 @@ export function askToBrowse(state: WorkspaceState, owner: string, url: string, t
   const approvalId = crypto.randomUUID();
   const docks = docksOf(state);
   const target = newTab ? undefined : browserTarget(dockFor(docks.view, owner), tabId);
-  if (target) return { patch: { browserApproval: { approvalId, url, taskId, tabId: target.id } }, docks: showDockTabIn(docks, owner, target.id) };
+  if (target) return { patch: { browserApproval: { approvalId, url, taskId, tabId: target.id } }, edits: [showDockTabIn(docks, owner, target.id)] };
   const { docks: opened, tab } = withBlankTab(docks, owner);
   return {
     patch: { browserApproval: { approvalId, url, taskId, tabId: tab.id } },
-    docks: opened,
+    edits: [opened],
     effects: [{ type: "browser.open", tabId: tab.id }, { type: "browser.show", tabId: tab.id }],
   };
 }
@@ -103,11 +103,11 @@ export function closeBrowserTab(state: WorkspaceState, own: Pages["patch"], owne
     : [];
   return {
     ...(patch ? { patch } : {}),
-    docks,
+    edits: [docks],
     effects: [
       { type: "browser.close", tabId: tabId! },
       ...shows,
-      ...persistView(afterward(state, { patch, docks })),
+      ...persistView(afterward(state, { patch, edits: [docks] })),
     ],
   };
 }

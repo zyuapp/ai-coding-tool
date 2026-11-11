@@ -50,7 +50,7 @@ function workOf(state: WorkspaceState): Work {
 function done(state: WorkspaceState, { sim, docks, effects }: Work, result?: WorkspaceCommandResult): SliceTransition<Own> {
   const ownChanged = sim.simulator !== state.simulator || sim.simulatorDevice !== state.simulatorDevice;
   const docksChanged = docks.view.docks !== state.docks || docks.view.dockFocus !== state.dockFocus;
-  return { ...(ownChanged ? { patch: sim } : {}), ...(docksChanged ? { docks } : {}), effects, ...(result ? { result } : {}) };
+  return { ...(ownChanged ? { patch: sim } : {}), ...(docksChanged ? { edits: [docks] } : {}), effects, ...(result ? { result } : {}) };
 }
 
 function withSimulator(sim: Own, patch: Partial<SimulatorState>): Own {
@@ -67,7 +67,7 @@ function without<Value>(record: Record<string, Value>, udid: string) {
 function remember(state: WorkspaceState, work: Work, udid: string): Work {
   if (work.sim.simulatorDevice === udid) return work;
   const sim = { ...work.sim, simulatorDevice: udid };
-  return { ...work, sim, effects: [...work.effects, ...persistView(afterward(state, { patch: sim, docks: work.docks }))] };
+  return { ...work, sim, effects: [...work.effects, ...persistView(afterward(state, { patch: sim, edits: [work.docks] }))] };
 }
 
 function fallbackDevice(sim: Own) {

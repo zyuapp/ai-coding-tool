@@ -45,7 +45,7 @@ export function reduceTerminal(state: WorkspaceState, input: TerminalInput): Sli
         terminalId: terminal.id,
       });
       const focused = focusDockTabIn(opened, owner, terminal.id);
-      return { clearsError: true, docks: focused.docks, effects: [{ type: "terminal.start", terminalId: terminal.id, cwd }, ...focused.effects] };
+      return { clearsError: true, edits: [focused.docks], effects: [{ type: "terminal.start", terminalId: terminal.id, cwd }, ...focused.effects] };
     }
 
     /** A shell that is asked for is a shell to type in, so it takes the keyboard as a side chat does. */
@@ -66,7 +66,7 @@ export function reduceTerminal(state: WorkspaceState, input: TerminalInput): Sli
       const next = dock.terminalId === input.terminalId
         ? terminals[index - 1] ?? terminals[index] ?? null
         : terminals.find((terminal) => terminal.id === dock.terminalId) ?? null;
-      return { docks: editDock(docksOf(state), owner, { terminals, terminalId: next?.id ?? null, tab }), effects: [{ type: "terminal.close", terminalId: input.terminalId }] };
+      return { edits: [editDock(docksOf(state), owner, { terminals, terminalId: next?.id ?? null, tab })], effects: [{ type: "terminal.close", terminalId: input.terminalId }] };
     }
 
     case "terminal.restart": {
@@ -77,7 +77,7 @@ export function reduceTerminal(state: WorkspaceState, input: TerminalInput): Sli
       const terminal: TerminalSession = { id: crypto.randomUUID(), title: terminalTitle(old.cwd), cwd: old.cwd, taskId: old.taskId, status: "running" };
       const replaced = editDock(docksOf(state), owner, { terminals: dock.terminals.map((item) => item === old ? terminal : item), terminalId: terminal.id });
       const focused = focusDockTabIn(showDockTabIn(replaced, owner, terminal.id), owner, terminal.id);
-      return { clearsError: true, docks: focused.docks, effects: [{ type: "terminal.close", terminalId: old.id }, { type: "terminal.start", terminalId: terminal.id, cwd: old.cwd }, ...focused.effects] };
+      return { clearsError: true, edits: [focused.docks], effects: [{ type: "terminal.close", terminalId: old.id }, { type: "terminal.start", terminalId: terminal.id, cwd: old.cwd }, ...focused.effects] };
     }
 
     /** Keystrokes and the size the shell believes it has. Neither is state, so only the effect happens. */
@@ -92,9 +92,9 @@ export function reduceTerminal(state: WorkspaceState, input: TerminalInput): Sli
       const owner = ownerOfTerminal(state, terminalId);
       if (!owner) return {};
       return {
-        docks: editDock(docksOf(state), owner, {
+        edits: [editDock(docksOf(state), owner, {
           terminals: dockFor(state, owner).terminals.map((terminal) => terminal.id === terminalId ? { ...terminal, ...patch } : terminal),
-        }),
+        })],
       };
     }
   }

@@ -65,7 +65,7 @@ export function reduceAppUpdate(state: WorkspaceState, input: AppUpdateInput): S
     /** The launch an update brought owes the engines that build needs, once they have been read. */
     case "app.launched": {
       const shown = toastIn(toastsOf(state), { tone: "success", title: "AI Coding Tool updated", message: `Now on ${input.version}.` });
-      return { patch: { engineUpgradesOwed: true }, toasts: shown.toasts, effects: shown.effects };
+      return { patch: { engineUpgradesOwed: true }, edits: [shown.toasts], effects: shown.effects };
     }
     /** An install already under way cannot be called back. */
     case "app.cancel-update":
