@@ -6,6 +6,8 @@
  * coordinator keeps, so it is heard quietly after a restart here too.
  */
 import type { WorkspaceEffect } from "./workspace-reducer/types.js";
+import { runAnsweredIn, runsOf } from "./workspace-reducer/run-edits.js";
+import { afterward } from "./workspace-reducer/slice.js";
 import type { RemoteWork } from "./coordination.js";
 import { remotelyLedThreads } from "./state/threads.js";
 import type { StopIntent } from "./run-settlement.js";
@@ -104,7 +106,7 @@ export function stopIntentOf(state: Pick<WorkspaceState, "quietStops">, run: Pic
 
 /** The Stop all that cancelled this run answered by its end. */
 export function withRunAnswered(state: WorkspaceState, runId: string): WorkspaceState {
-  return { ...state, quietStops: state.quietStops.filter((id) => id !== runId) };
+  return afterward(state, { edits: [runAnsweredIn(runsOf(state), runId)] });
 }
 
 /**

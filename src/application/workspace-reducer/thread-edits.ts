@@ -3,12 +3,13 @@
  * through the functions here, and changes that span features are the functions here that make them.
  */
 import type { ThreadsState } from "../state/threads.js";
-import { openedTurn, type RunProvenance } from "../thread-run-state.js";
-import { dismissed } from "../../domain/attention.js";
-import { withAnswer, withCoordinationNote, withoutAnswer, type CoordinationNote } from "../../domain/coordination.js";
+import { endedTurn, openedTurn, restoredTestimony, withdrawRun, type ActiveRun, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
+import { dismissed, withClosedIssues } from "../../domain/attention.js";
+import { reopenedIfStuck, withCoordinationNote, withoutAnswer, type CoordinationNote } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
+import type { ThreadOutcome } from "../../domain/thread-run.js";
 import { withoutSnooze } from "../../domain/thread-snooze.js";
-import { withoutLimitPause } from "../../domain/usage-limit.js";
+import { withEngineLimit, withoutLimitPause, type LimitPause, type UsageLimit } from "../../domain/usage-limit.js";
 
 /** The threads as one input leaves them, where `Field` is every thread field patched directly. Only the functions here make one. */
 class ThreadsChange<Field extends keyof Thread> {
@@ -93,14 +94,60 @@ export function answerReopenedIn<Field extends keyof Thread>(edit: ThreadsChange
   return mapped(edit, id, (thread) => withoutAnswer(thread, decisionId));
 }
 
-/** A decision answered at `at`. */
-export function answeredIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, decisionId: string, answer: string, at: number): ThreadsChange<Field> {
-  return mapped(edit, id, (thread) => withAnswer(thread, decisionId, answer, at));
+/** Notes left for a coordinator to hear with its next wake. */
+export function notedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, leadId: string, ...notes: CoordinationNote[]): ThreadsChange<Field> {
+  return mapped(edit, leadId, (lead) => notes.reduce(withCoordinationNote, lead));
 }
 
-/** A note left for a coordinator to hear with its next wake. */
-export function notedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, leadId: string, note: CoordinationNote): ThreadsChange<Field> {
-  return mapped(edit, leadId, (lead) => withCoordinationNote(lead, note));
+/** What a coordinator holds of its news kept for a later wake, so none of it wakes it now. */
+export function newsQuietedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, leadId: string): ThreadsChange<Field> {
+  const lead = edit.view.threads.find((thread) => thread.id === leadId);
+  if (!lead?.coordinationNotes?.some((note) => !note.quiet)) return edit;
+  return mapped(edit, leadId, (thread) => ({ ...thread, coordinationNotes: thread.coordinationNotes!.map((note) => note.quiet ? note : { ...note, quiet: true as const }) }));
+}
+
+/** A thread whose turn ended with `status`, as {@link endedTurn} has it. */
+export function turnEndedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, status: Parameters<typeof endedTurn>[1]): ThreadsChange<Field> {
+  return mapped(edit, id, (thread) => endedTurn(thread, status));
+}
+
+/** The verdict a settled turn leaves its thread, unread unless the user was looking at it. A thread filed away is left none. */
+export function verdictIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, outcome: ThreadOutcome, unread: boolean): ThreadsChange<Field> {
+  return mapped(edit, id, (thread) => thread.archivedAt !== undefined ? thread : { ...thread, outcome, ...unread ? { outcomeUnread: true as const } : {} });
+}
+
+/** A tick's run withdrawn as if it never ran, or the filed-away issues it no longer reports closed, or both. */
+export function withdrawnIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, run: Pick<ActiveRun, "messagesBefore" | "before" | "reportedIssues">, { withdraws, closesIssues }: { withdraws: boolean; closesIssues: boolean }): ThreadsChange<Field> {
+  return mapped(edit, id, (thread) => {
+    const withdrawn = withdraws ? withdrawRun(thread, run.messagesBefore, run.before) : thread;
+    return closesIssues ? withClosedIssues(withdrawn, run.reportedIssues) : withdrawn;
+  });
+}
+
+/** How the last turn ended, its verdict and its report put back, as {@link restoredTestimony} has it. */
+export function testimonyRestoredIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, before: ThreadMark): ThreadsChange<Field> {
+  return mapped(edit, id, (thread) => restoredTestimony(thread, before));
+}
+
+/** A usage limit one thread's run reached, which every waiting thread of its engine waits for too. */
+export function engineLimitIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, limit: UsageLimit): ThreadsChange<Field> {
+  const thread = edit.view.threads.find((item) => item.id === id);
+  const threads = thread ? withEngineLimit(edit.view.threads, thread.engine, limit) : edit.view.threads;
+  return threads === edit.view.threads ? edit : new ThreadsChange({ threads });
+}
+
+/** A thread in its usage limit's line. One that carries on by itself has its verdict and its end taken off. */
+export function limitPausedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, pause: LimitPause, carriesOn: boolean): ThreadsChange<Field> {
+  return mapped(edit, id, (thread) => {
+    if (!carriesOn) return { ...thread, limitPause: pause };
+    const { outcome: _expected, outcomeUnread: _unread, runEndedAs: _carriedOn, ...rest } = thread;
+    return { ...rest, limitPause: pause };
+  });
+}
+
+/** A resolved thread its failed turn left stuck, open again. */
+export function reopenedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string): ThreadsChange<Field> {
+  return mapped(edit, id, reopenedIfStuck);
 }
 
 /** The list with `update` made to one thread. The list is new even when no thread has that id. */

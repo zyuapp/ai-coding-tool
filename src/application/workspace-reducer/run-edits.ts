@@ -5,6 +5,7 @@
  */
 import type { PendingQuestion } from "../../domain/agent-question.js";
 import type { PendingRun, QueuedMessage, RunsState } from "../state/runs.js";
+import { withRunStatus, type ThreadRunStatus } from "../thread-run-state.js";
 
 /** The run state as one input leaves it. Only the functions here make one. */
 class RunsChange {
@@ -67,4 +68,14 @@ export function proposalStartingIn(edit: RunsEdit, proposalId: string): RunsEdit
 export function proposalSettledIn(edit: RunsEdit, proposalId: string): RunsEdit {
   if (!edit.view.startingProposals.includes(proposalId)) return edit;
   return new RunsChange({ ...edit.view, startingProposals: edit.view.startingProposals.filter((id) => id !== proposalId) });
+}
+
+/** How a thread reads while no run of its own is live: idle, which is dropped, or stopped. */
+export function runStatusIn(edit: RunsEdit, taskId: string, status: ThreadRunStatus): RunsEdit {
+  return new RunsChange({ ...edit.view, runStatuses: withRunStatus({ runStatuses: edit.view.runStatuses }, taskId, status).runStatuses });
+}
+
+/** The Stop all that cancelled this run answered by its end. */
+export function runAnsweredIn(edit: RunsEdit, runId: string): RunsEdit {
+  return new RunsChange({ ...edit.view, quietStops: edit.view.quietStops.filter((id) => id !== runId) });
 }

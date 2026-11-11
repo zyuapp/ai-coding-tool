@@ -8,9 +8,8 @@ import { coordinationNote, decisionHeadline, decisionNote, reportHeadline, repor
 import { announced, waitingHeadline } from "./notices.js";
 import { settledHeadline, type RunSurfacing } from "./run-testimony.js";
 import type { TurnStatus } from "./run-settlement.js";
-import { updateThread } from "./thread-run-state.js";
 import { afterward } from "./workspace-reducer/slice.js";
-import { editThread, type ThreadsEdit } from "./workspace-reducer/thread-edits.js";
+import { editThread, notedIn, threadsOf, type ThreadsEdit } from "./workspace-reducer/thread-edits.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import { withCoordinationNote, type CoordinationNote, type CoordinationThread, type CoordinationReport, type Decision } from "../domain/coordination.js";
 import type { Thread } from "../domain/thread.js";
@@ -73,8 +72,7 @@ export function heardFacts(state: WorkspaceState, lead: Thread, member: Thread, 
 /** Its coordinator here hearing `member`'s facts: each note kept for its next wake, and what the user is told. */
 export function withFactsHeard(state: WorkspaceState, lead: Thread, member: Thread, facts: readonly MemberFact[], at: number): WorkspaceTransition {
   const { notes, effects } = heardFacts(state, lead, member, facts, at);
-  const next = notes.length ? updateThread(state, lead.id, (item) => notes.reduce(withCoordinationNote, item)) : state;
-  return { state: next, effects };
+  return { state: notes.length ? afterward(state, { edits: [notedIn(threadsOf(state), lead.id, ...notes)] }) : state, effects };
 }
 
 /** {@link withFactsHeard}, on the threads an input is changing, as `state` reads with them in. */

@@ -4,20 +4,21 @@
  * coordinator hears. Every way a turn ends, a run settling, a wait the user cancels, the app quitting
  * under it, or compacting, is settled here.
  */
-import { drainQueue, type QueueIntent } from "./workspace-reducer/run-queue.js";
+import { drained, type QueueIntent } from "./workspace-reducer/run-queue.js";
+import { runAnsweredIn, runStatusIn, runsOf } from "./workspace-reducer/run-edits.js";
+import { afterward, andThen, applied, type Step } from "./workspace-reducer/slice.js";
+import { engineLimitIn, limitPausedIn, newsQuietedIn, notedIn, reopenedIn, testimonyRestoredIn, threadsOf, turnEndedIn, verdictIn, withdrawnIn, type ThreadsEdit } from "./workspace-reducer/thread-edits.js";
 import type { WorkspaceTransition } from "./workspace-reducer/types.js";
-import { withNewsQuieted } from "./coordination-messages.js";
-import { withFactsHeard } from "./member-facts.js";
-import { withRunAnswered } from "./outstanding-stops.js";
-import { whyTurnSurfaces, withVerdict, type RunSurfacing } from "./run-testimony.js";
-import { updateThread, withdrawRun, type ActiveRun, type ThreadMark } from "./thread-run-state.js";
+import { heardFacts } from "./member-facts.js";
+import { whyTurnSurfaces, type RunSurfacing } from "./run-testimony.js";
+import { threadOnScreen } from "./thread-attention.js";
+import { turnEndStatus, type ActiveRun } from "./thread-run-state.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import type { RunEvent } from "../contracts/ipc.js";
-import { withClosedIssues } from "../domain/attention.js";
-import { coordinatorOf, endsAsStopped, isCoordinator, reopenedIfStuck } from "../domain/coordination.js";
+import { coordinatorOf, endsAsStopped, isCoordinator } from "../domain/coordination.js";
 import { runOutcome, type ThreadOutcome } from "../domain/thread-run.js";
 import type { Thread } from "../domain/thread.js";
-import { resumesOnItsOwn, withEngineLimit, type LimitPause, type UsageLimit } from "../domain/usage-limit.js";
+import { resumesOnItsOwn, type LimitPause, type UsageLimit } from "../domain/usage-limit.js";
 
 export type TurnStatus = "succeeded" | "failed" | "cancelled";
 
@@ -129,8 +130,13 @@ export function settledEvent(event: Extract<RunEvent, { type: "run.status" }>, s
  * stamped. `run` is the run that ended, when one did; `at` is when.
  */
 export function withSettledTurn(state: WorkspaceState, taskId: string, settlement: Settlement, run: ActiveRun | undefined, at: number): WorkspaceState {
-  if (settlement.restoresTestimony) return run ? withRestoredTestimony(state, taskId, run.before) : state;
-  return withTurnAftermath(withTurnTestimony(state, taskId, settlement, run), taskId, settlement, run, at);
+  return afterward(state, settledTurnStep(state, taskId, settlement, run, at));
+}
+
+/** {@link withSettledTurn}, as the edits it makes. */
+function settledTurnStep(state: WorkspaceState, taskId: string, settlement: Settlement, run: ActiveRun | undefined, at: number): Step {
+  if (settlement.restoresTestimony) return run ? { edits: [testimonyRestoredIn(threadsOf(state), taskId, run.before)] } : {};
+  return andThen(state, turnTestimony(state, taskId, settlement, run), (next) => turnAftermath(next, taskId, settlement, run, at));
 }
 
 /**
@@ -139,76 +145,64 @@ export function withSettledTurn(state: WorkspaceState, taskId: string, settlemen
  * make, stays.
  */
 export function withTurnTestimony(state: WorkspaceState, taskId: string, settlement: Settlement, run: ActiveRun | undefined): WorkspaceState {
-  if (settlement.restoresTestimony) return state;
-  let next = settlement.verdict ? withVerdict(state, taskId, settlement.verdict) : state;
-  if (run && (settlement.withdraws || settlement.closesIssues)) {
-    next = updateThread(next, taskId, (thread) => {
-      const withdrawn = settlement.withdraws ? withdrawRun(thread, run.messagesBefore, run.before) : thread;
-      return settlement.closesIssues ? withClosedIssues(withdrawn, run.reportedIssues) : withdrawn;
-    });
-  }
-  return next;
+  return afterward(state, turnTestimony(state, taskId, settlement, run));
+}
+
+function turnTestimony(state: WorkspaceState, taskId: string, settlement: Settlement, run: ActiveRun | undefined): Step {
+  if (settlement.restoresTestimony) return {};
+  let threads = threadsOf(state);
+  /** Only a thread the user was not already looking at is marked unread by it; the one on screen they cannot have missed. */
+  if (settlement.verdict) threads = verdictIn(threads, taskId, settlement.verdict, !threadOnScreen(state, taskId));
+  if (run && (settlement.withdraws || settlement.closesIssues)) threads = withdrawnIn(threads, taskId, run, settlement);
+  return { edits: [threads] };
 }
 
 /** Takes up the thread's queue once its testimony is already left, as the turn's end says. */
 export function settledAfterTestimony(state: WorkspaceState, taskId: string, settlement: Settlement, run: ActiveRun | undefined, at: number): WorkspaceTransition {
-  return drainQueue(withTurnAftermath(state, taskId, settlement, run, at), taskId, settlement.queue);
+  return applied(state, andThen(state, turnAftermath(state, taskId, settlement, run, at), (next) => drained(next, taskId, settlement.queue)));
 }
 
 /** What follows from the turn's end beyond its testimony: its usage limit, a reopening, Stop all's answer, and its coordinator. */
-function withTurnAftermath(state: WorkspaceState, taskId: string, settlement: Settlement, run: ActiveRun | undefined, at: number): WorkspaceState {
-  let next = state;
-  if (settlement.limit) next = settlement.limit.waits ? pausedForLimit(next, taskId, settlement.limit.reached, settlement.runEndedAs === null, at) : limitReached(next, taskId, settlement.limit.reached);
-  if (settlement.reopens) next = updateThread(next, taskId, reopenedIfStuck);
-  if (settlement.answersStopAll && run) next = withRunAnswered(next, run.runId);
-  const thread = next.threads.find((item) => item.id === taskId);
-  if (settlement.heard && thread) next = withTurnHeard(next, thread, settlement.status, at, settlement.heard.quiet);
-  if (settlement.hushesNews && isCoordinator(thread)) next = withNewsQuieted(next, taskId);
-  return next;
+function turnAftermath(state: WorkspaceState, taskId: string, settlement: Settlement, run: ActiveRun | undefined, at: number): Step {
+  let threads = threadsOf(state);
+  let runs = runsOf(state);
+  if (settlement.limit) threads = settlement.limit.waits ? pausedForLimit(state, threads, taskId, settlement.limit.reached, settlement.runEndedAs === null, at) : engineLimitIn(threads, taskId, settlement.limit.reached);
+  if (settlement.reopens) threads = reopenedIn(threads, taskId);
+  if (settlement.answersStopAll && run) runs = runAnsweredIn(runs, run.runId);
+  const thread = threads.view.threads.find((item) => item.id === taskId);
+  if (settlement.heard && thread) threads = turnHeard(afterward(state, { edits: [threads, runs] }), threads, thread, settlement.status, at, settlement.heard.quiet);
+  if (settlement.hushesNews && isCoordinator(thread)) threads = newsQuietedIn(threads, taskId);
+  return { edits: [threads, runs] };
 }
 
 /** Applies a settlement and takes up the thread's queue as the turn's end says. */
 export function settledTurn(state: WorkspaceState, taskId: string, settlement: Settlement, run: ActiveRun | undefined, at: number): WorkspaceTransition {
-  return drainQueue(withSettledTurn(state, taskId, settlement, run, at), taskId, settlement.queue);
+  return applied(state, turnSettled(state, taskId, settlement, run, at));
 }
 
-/**
- * A limit one thread's run reached, which is its account's, so every thread of its engine already
- * waiting waits for it too, whether or not that thread itself waits in line.
- */
-function limitReached(state: WorkspaceState, taskId: string, limit: UsageLimit): WorkspaceState {
-  const thread = state.threads.find((item) => item.id === taskId);
-  const threads = thread ? withEngineLimit(state.threads, thread.engine, limit) : state.threads;
-  return threads === state.threads ? state : { ...state, threads };
+/** {@link settledTurn}, as the edits it makes. */
+export function turnSettled(state: WorkspaceState, taskId: string, settlement: Settlement, run: ActiveRun | undefined, at: number): Step {
+  return andThen(state, settledTurnStep(state, taskId, settlement, run, at), (next) => drained(next, taskId, settlement.queue));
+}
+
+/** A thread's turn ending with `status`: it reads as stopped or idle, and keeps how and when it ended. */
+export function turnEnded(state: WorkspaceState, taskId: string, status: TurnStatus): Step {
+  return { edits: [runStatusIn(runsOf(state), taskId, turnEndStatus(status)), turnEndedIn(threadsOf(state), taskId, status)] };
 }
 
 /** Puts a thread whose run hit the limit in line. One that carries on by itself has its verdict and its end taken off. */
-function pausedForLimit(state: WorkspaceState, taskId: string, limit: UsageLimit, carriesOn: boolean, at: number): WorkspaceState {
-  if (!state.threads.some((item) => item.id === taskId)) return state;
+function pausedForLimit(state: WorkspaceState, threads: ThreadsEdit, taskId: string, limit: UsageLimit, carriesOn: boolean, at: number): ThreadsEdit {
+  if (!threads.view.threads.some((item) => item.id === taskId)) return threads;
   const workflow = (state.workflows[taskId] ?? []).some((item) => item.status === "stopped");
   const pause: LimitPause = { ...limit, pausedAt: at, ...(workflow ? { workflow: true as const } : {}) };
-  return updateThread(limitReached(state, taskId, limit), taskId, (item) => {
-    if (!carriesOn) return { ...item, limitPause: pause };
-    const { outcome: _expected, outcomeUnread: _unread, runEndedAs: _carriedOn, ...rest } = item;
-    return { ...rest, limitPause: pause };
-  });
+  return limitPausedIn(engineLimitIn(threads, taskId, limit), taskId, pause, carriesOn);
 }
 
-/** Its coordinator here hearing that a thread's turn ended. */
-function withTurnHeard(state: WorkspaceState, thread: Thread, status: TurnStatus, at: number, quiet: boolean): WorkspaceState {
-  const lead = coordinatorOf(state.threads, thread);
-  return lead ? withFactsHeard(state, lead, thread, [{ kind: "ended", status, quiet }], at).state : state;
+/** Its coordinator here hearing that a thread's turn ended, as `state` reads with `threads` in. */
+function turnHeard(state: WorkspaceState, threads: ThreadsEdit, thread: Thread, status: TurnStatus, at: number, quiet: boolean): ThreadsEdit {
+  const lead = coordinatorOf(threads.view.threads, thread);
+  if (!lead) return threads;
+  const { notes } = heardFacts(state, lead, thread, [{ kind: "ended", status, quiet }], at);
+  return notes.length ? notedIn(threads, lead.id, ...notes) : threads;
 }
 
-/** Compaction updates the transcript, but it does not replace how the last thread run ended, its verdict, nor its report. */
-function withRestoredTestimony(state: WorkspaceState, taskId: string, before: ThreadMark): WorkspaceState {
-  return updateThread(state, taskId, ({ outcome: _outcome, outcomeUnread: _unread, runEndedAt: _ended, runEndedAs: _endedAs, ...thread }) => ({
-    ...thread,
-    ...(before.rankedAt === undefined ? {} : { rankedAt: before.rankedAt }),
-    ...(before.runEndedAs === undefined ? {} : { runEndedAs: before.runEndedAs }),
-    ...(before.outcome === undefined ? {} : { outcome: before.outcome }),
-    ...(before.outcomeUnread ? { outcomeUnread: true as const } : {}),
-    ...(before.runEndedAt === undefined ? {} : { runEndedAt: before.runEndedAt }),
-    ...(before.report ? { report: before.report } : {}),
-  }));
-}

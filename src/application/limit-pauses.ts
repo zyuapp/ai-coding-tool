@@ -1,18 +1,17 @@
 /** Threads waiting out their account's usage limit, and the line they resume in once it lifts. */
-import { drainQueue, drained, queuedFor, resolveWorkspaceEffect } from "./workspace-reducer/run-queue.js";
+import { drained, queuedFor, resolveWorkspaceEffect } from "./workspace-reducer/run-queue.js";
 import { pendingIn, queuedIn, runsOf } from "./workspace-reducer/run-edits.js";
 import { now, settled } from "./workspace-reducer/shared.js";
 import { andThen, applied, type Step } from "./workspace-reducer/slice.js";
 import { threadsOf, unpausedIn } from "./workspace-reducer/thread-edits.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
-import { settledTurn, settleTurn } from "./run-settlement.js";
-import { updateThread, withTurnEnded } from "./thread-run-state.js";
+import { settleTurn, turnEnded, turnSettled } from "./run-settlement.js";
 import { threadBusy } from "./run-record.js";
 import { leavingThreadIds, projectFor, worktreeFor } from "./thread-location.js";
 import type { PendingRun, QueuedMessage, WorkspaceState } from "./workspace-state.js";
 import type { AgentEngine } from "../domain/agent-engine.js";
 import type { Thread } from "../domain/thread.js";
-import { limitLines, resumePrompt, resumesOnItsOwn, withoutLimitPause, type HeldMessage } from "../domain/usage-limit.js";
+import { limitLines, resumePrompt, resumesOnItsOwn, type HeldMessage } from "../domain/usage-limit.js";
 
 /**
  * Whether a message to this thread waits with it. One that resumes on its own waits for its turn in
@@ -64,11 +63,16 @@ export function resumed(state: WorkspaceState, taskId: string): Step {
  * does: it reads as stopped, and its coordinator hears so in the same words.
  */
 export function cancelPause(state: WorkspaceState, taskId: string): WorkspaceTransition {
+  return applied(state, pauseCancelled(state, taskId));
+}
+
+/** {@link cancelPause}, as the edits it makes. */
+export function pauseCancelled(state: WorkspaceState, taskId: string): Step {
   const thread = state.threads.find((item) => item.id === taskId);
-  if (!thread?.limitPause) return settled(state);
-  const lifted = updateThread(state, taskId, withoutLimitPause);
-  if (!resumesOnItsOwn(thread.limitPause)) return drainQueue(lifted, taskId, "hand-back");
-  return settledTurn(withTurnEnded(lifted, taskId, "cancelled"), taskId, settleTurn({ status: "cancelled", stop: "user" }), undefined, now());
+  if (!thread?.limitPause) return {};
+  const lifted = { edits: [unpausedIn(threadsOf(state), taskId)] };
+  if (!resumesOnItsOwn(thread.limitPause)) return andThen(state, lifted, (next) => drained(next, taskId, "hand-back"));
+  return andThen(state, lifted, (next) => andThen(next, turnEnded(next, taskId, "cancelled"), (ended) => turnSettled(ended, taskId, settleTurn({ status: "cancelled", stop: "user" }), undefined, now())));
 }
 
 /** An engine's line moves one thread at a time: the next waits until the one before has answered once. */

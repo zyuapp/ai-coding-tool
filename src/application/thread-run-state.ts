@@ -192,7 +192,7 @@ export function withApprovalAnswered<T extends RunTransitionState>(state: T, thr
   return withRunPhase({ ...state, approvals }, threadId, { status: "running" });
 }
 
-export function withRunStatus<T extends RunTransitionState>(state: T, threadId: string, status: ThreadRunStatus): T {
+export function withRunStatus<T extends Pick<RunFeedsState, "runStatuses">>(state: T, threadId: string, status: ThreadRunStatus): T {
   if (status !== "idle") return { ...state, runStatuses: { ...state.runStatuses, [threadId]: status } } as T;
   const { [threadId]: _cleared, ...runStatuses } = state.runStatuses;
   return { ...state, runStatuses } as T;
@@ -407,13 +407,34 @@ function applyWorkflowEvent<T extends RunTransitionState>(state: T, event: Workf
  * Text the run ended on is its answer.
  */
 export function withTurnEnded<T extends RunTransitionState>(state: T, taskId: string, status: Extract<RunEvent, { type: "run.status" }>["status"]): T {
+  return updateThread(withRunStatus(state, taskId, turnEndStatus(status)), taskId, (thread) => endedTurn(thread, status));
+}
+
+/** How a thread reads once its turn ended with `status`. */
+export function turnEndStatus(status: Extract<RunEvent, { type: "run.status" }>["status"]): ThreadRunStatus {
+  return status === "cancelled" ? "stopped" : "idle";
+}
+
+/** The thread a turn ending with `status` leaves: no run open, and how and when it ended. */
+export function endedTurn({ runOpen: _closed, ...thread }: Thread, status: Extract<RunEvent, { type: "run.status" }>["status"]): Thread {
   const ended = runOutcome(status);
-  return updateThread(withRunStatus(state, taskId, status === "cancelled" ? "stopped" : "idle"), taskId, ({ runOpen: _closed, ...thread }) => {
-    const last = thread.messages.at(-1);
-    const answered = last?.kind === "assistant" && !last.artifact && !last.answer;
-    const at = now();
-    return { ...thread, ...(answered ? { messages: replaceLastMessage(thread.messages, { ...last, answer: true }) } : {}), runEndedAt: at, rankedAt: at, ...(ended ? { runEndedAs: ended } : {}) };
-  });
+  const last = thread.messages.at(-1);
+  const answered = last?.kind === "assistant" && !last.artifact && !last.answer;
+  const at = now();
+  return { ...thread, ...(answered ? { messages: replaceLastMessage(thread.messages, { ...last, answer: true }) } : {}), runEndedAt: at, rankedAt: at, ...(ended ? { runEndedAs: ended } : {}) };
+}
+
+/** Compaction updates the transcript, but it does not replace how the last thread run ended, its verdict, nor its report. */
+export function restoredTestimony({ outcome: _outcome, outcomeUnread: _unread, runEndedAt: _ended, runEndedAs: _endedAs, ...thread }: Thread, before: ThreadMark): Thread {
+  return {
+    ...thread,
+    ...(before.rankedAt === undefined ? {} : { rankedAt: before.rankedAt }),
+    ...(before.runEndedAs === undefined ? {} : { runEndedAs: before.runEndedAs }),
+    ...(before.outcome === undefined ? {} : { outcome: before.outcome }),
+    ...(before.outcomeUnread ? { outcomeUnread: true as const } : {}),
+    ...(before.runEndedAt === undefined ? {} : { runEndedAt: before.runEndedAt }),
+    ...(before.report ? { report: before.report } : {}),
+  };
 }
 
 /** A run reaching its end: the run record goes, and what it left behind is settled on its thread. */

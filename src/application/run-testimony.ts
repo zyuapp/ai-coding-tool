@@ -6,7 +6,10 @@ import type { FindingReport } from "../contracts/threads.js";
 import { isNews, withFinding } from "../domain/attention.js";
 import type { RunStatus } from "../domain/run.js";
 import type { ThreadOutcome } from "../domain/thread-run.js";
-import { threadOnScreen, type ScreenState } from "./thread-attention.js";
+import { threadOnScreen } from "./thread-attention.js";
+import { afterward } from "./workspace-reducer/slice.js";
+import { threadsOf, verdictIn } from "./workspace-reducer/thread-edits.js";
+import type { WorkspaceState } from "./workspace-state.js";
 import { updateThread, type ActiveRun, type RunTransitionState } from "./thread-run-state.js";
 
 /**
@@ -14,9 +17,8 @@ import { updateThread, type ActiveRun, type RunTransitionState } from "./thread-
  * not already looking at is marked unread by it; the one on screen they cannot have missed. A thread
  * already filed away is past ranking, so it is left none.
  */
-export function withVerdict<T extends RunTransitionState & ScreenState>(state: T, taskId: string, outcome: ThreadOutcome): T {
-  const unread = threadOnScreen(state, taskId) ? {} : { outcomeUnread: true as const };
-  return updateThread(state, taskId, (thread) => thread.archivedAt !== undefined ? thread : { ...thread, outcome, ...unread });
+export function withVerdict(state: WorkspaceState, taskId: string, outcome: ThreadOutcome): WorkspaceState {
+  return afterward(state, { edits: [verdictIn(threadsOf(state), taskId, outcome, !threadOnScreen(state, taskId))] });
 }
 
 /** The run a scheduled tick is executing, and nothing else. Silence is only ever a schedule's to earn. */
