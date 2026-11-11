@@ -59,6 +59,8 @@ struct ComposerView<Above: View>: View {
     @GestureState private var pressing = false
     @Environment(\.scenePhase) private var scenePhase
     @FocusState private var focused: Bool
+    /// False while a pushed screen covers this one; focus given then brings the keyboard back on Back.
+    @State private var shown = false
 
     private var blocked: Bool { question?.blocking == true }
     private var typed: Bool { !blocked && (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !images.isEmpty) }
@@ -179,14 +181,18 @@ struct ComposerView<Above: View>: View {
             }
             .ignoresSafeArea()
         }
-        .onAppear { draft = model.draft(for: draftKey) }
+        .onAppear {
+            shown = true
+            draft = model.draft(for: draftKey)
+        }
         .onChange(of: model.refilled?.id) { _, id in
             guard id != nil, let refilled = model.refilled, refilled.key == draftKey else { return }
             lastSent = nil
             draft = model.draft(for: draftKey)
-            if refilled.focus { focused = true }
+            if refilled.focus, shown { focused = true }
         }
         .onDisappear {
+            shown = false
             focused = false
             if talk == .starting || talk == .listening { cancelTalk() }
         }
