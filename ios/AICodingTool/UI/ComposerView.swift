@@ -187,6 +187,7 @@ struct ComposerView<Above: View>: View {
             if refilled.focus { focused = true }
         }
         .onDisappear {
+            focused = false
             if talk == .starting || talk == .listening { cancelTalk() }
         }
         .onChange(of: draft) { old, text in
