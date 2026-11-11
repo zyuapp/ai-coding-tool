@@ -240,12 +240,6 @@
     inset 0 0 0 0.5px light-dark(rgb(255 255 255 / 0.15), rgb(255 255 255 / 0.03)),
     inset 0 1.5px 1px -1px light-dark(rgb(255 255 255 / 0.25), rgb(255 255 255 / 0.1)),
     inset 0 -1.5px 1px -1px light-dark(rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.03));
-  /* A tinted pane's rim: brighter along the top, as coloured glass catches more of the light. */
-  --glass-tint-rim:
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.16),
-    inset 0 1.5px 1px -1px rgb(255 255 255 / 0.5),
-    inset 0 -1.5px 1px -1px rgb(0 0 0 / 0.18),
-    inset 0 0 10px rgb(255 255 255 / 0.06);
   /* A float's rim, with the glow of the glass's thickness inside it and a dark hairline outside. */
   --glass-float-rim:
     var(--glass-rim),

@@ -398,7 +398,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .thread-tab > .thread-tab-header { flex: 0 0 var(--chrome-head); }
 .thread-tab-resolution > svg { color: var(--muted); }
 .thread-tab-resolution[data-action="resolve"] > svg { color: var(--success); }
-.thread-tab-resolution[data-action="resolve"]:hover:not(:disabled) { background: var(--success-surface); color: var(--ink); }
+.thread-tab-resolution[data-action="resolve"]:hover:not(:disabled) > svg { color: var(--success-soft); }
 .thread-tab-header[data-standing="review"] .panel-header-text > p { color: var(--success-soft); }
 .thread-tab > .side-chat-transcript { flex: 1 1 0; }
 .thread-tab-mark {
