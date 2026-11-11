@@ -190,7 +190,7 @@ function archiveThread(state: WorkspaceState, taskId: string): ThreadStep {
 function dismissThread(state: WorkspaceState, taskId: string): ThreadStep {
   const filing = dismissedIn(threadsOf(state), dismissedWith(state.threads, new Set([taskId]), threadActivity(state).blocked));
   const elsewhere = dismissElsewhere(state, new Set([taskId]));
-  if (filing.view === threadsOf(state).view && !elsewhere.effects.length && !elsewhere.errors.length) return {};
+  if (filing.view.threads === state.threads && !elsewhere.effects.length && !elsewhere.errors.length) return {};
   /** Filing away the thread being read moves on to the row that takes its place, so Priority can be worked down without going back to the list. */
   const successor = state.currentId === taskId
     ? priorityNeighbour(state, taskId)

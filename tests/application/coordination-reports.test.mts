@@ -112,6 +112,14 @@ function heard(state: WorkspaceState): WorkspaceState {
   return { ...state, pendingRuns: {}, threads: state.threads.map((thread) => thread.id === "lead" ? { ...thread, outcome: "finished" as const } : thread) };
 }
 
+test("filing away a thread that has nothing to file leaves the window on it", () => {
+  const waiting = task("lead", { role: "coordinator", decisions: [{ id: "d1", question: "Which?", options: [{ label: "A" }], raisedAt: 1 }] });
+  const state = workspace({ threads: [waiting, task("other", { findings: [{ id: "f1", headline: "Found", at: 1 }] })], currentId: "lead" });
+  const filed = reduce(state, { type: "task.dismiss", taskId: "lead" });
+  assert.equal(filed.state.currentId, "lead");
+  assert.deepEqual(filed.effects, []);
+});
+
 test("filing a coordinator away takes its threads' verdicts off, but not how their turns ended", () => {
   for (const dismiss of [{ type: "task.dismiss", taskId: "lead" }, { type: "task.dismiss-all" }] as const) {
     const finished = heard(unreportedTurn("succeeded", "Migrated the database."));
