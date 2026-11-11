@@ -1,7 +1,7 @@
 import { CommandGate, CommandButton, useCommandControls } from "./CommandControl";
 import type { IconType } from "react-icons";
 import { LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
-import { useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from "react";
+import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { byEngine, capabilitiesFor, catalogHasModel, effortForModel, effortsFor, engineLabel, isFavorite, modelsFor, offeredPolicies, type AgentEngine, type AgentModel, type EngineModel, type ModelCatalog, type EffortSpec, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
 import { libraryOpening, modelLibrary, type LibraryFilter } from "../../domain/model-library";
 import { useModelCatalog } from "../model-catalog";
@@ -152,47 +152,25 @@ function effortSteps(catalog: ModelCatalog, engine: AgentEngine, model: AgentMod
   return { steps: [...effortsFor(catalog, engine, model, role)].reverse(), value: effortForModel(catalog, engine, model, effort.value, role) };
 }
 
-/** Puts a track's raised pane over the stop at `at`, wherever the stops' own widths put that. `glide` lets it travel there. */
-function placeThumb(track: HTMLElement, stops: string, at: number, glide: boolean) {
-  const stop = track.querySelectorAll<HTMLElement>(stops)[at];
-  track.toggleAttribute("data-glide", glide);
-  track.style.setProperty("--thumb-x", `${stop?.offsetLeft ?? 0}px`);
-  track.style.setProperty("--thumb-w", `${stop?.offsetWidth ?? 0}px`);
-}
-
-/** Keeps the pane on its stop: a new choice glides it there, and a stop that changes size under it carries it along at once. */
-function useThumb(track: RefObject<HTMLElement | null>, stops: string, at: number, count: number) {
-  const placed = useRef(at);
-  useLayoutEffect(() => {
-    if (track.current) placeThumb(track.current, stops, at, placed.current !== at);
-    placed.current = at;
-  }, [track, stops, at]);
-  useLayoutEffect(() => {
-    const element = track.current;
-    if (!element) return;
-    const observer = new ResizeObserver(() => placeThumb(element, stops, placed.current, false));
-    for (const target of [element, ...element.querySelectorAll(stops)]) observer.observe(target);
-    return () => observer.disconnect();
-  }, [track, stops, count]);
-}
-
-/** The efforts named along a track, shallowest first. The pane sits on the chosen one and the track is lit up to it; a drag carries the pane to the effort under the pointer and takes it when let go. */
+/** The efforts on a track the knob slides along freely while dragged, settling on the nearest effort when let go. Each effort is named under its stop. */
 function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]; value: AgentEffort; onChange: (effort: AgentEffort) => void }) {
-  const track = useRef<HTMLDivElement>(null);
+  const rail = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<number | null>(null);
   const last = steps.length - 1;
   const index = Math.max(0, steps.findIndex((spec) => spec.id === value));
-  const shown = drag ?? index;
-  useThumb(track, ".effort-stop", shown, steps.length);
+  const at = (step: number) => (last ? step / last : 0);
+  const nearest = (fraction: number) => Math.round(fraction * last);
+  const shown = drag === null ? index : nearest(drag);
   const pick = (step: number) => {
     const spec = steps[Math.min(last, Math.max(0, step))];
     if (spec && spec.id !== value) onChange(spec.id);
   };
-  /** The effort the pointer is over, or the end one once it is past either end of the track. */
-  const under = (event: PointerEvent<HTMLElement>) => {
-    const stops = [...(track.current?.querySelectorAll(".effort-stop") ?? [])];
-    const at = stops.findIndex((stop) => event.clientX < stop.getBoundingClientRect().right);
-    return at === -1 ? last : at;
+  /** Where the pointer sits along the knob's travel, from 0 to 1. */
+  const fraction = (event: PointerEvent<HTMLElement>) => {
+    const box = rail.current?.getBoundingClientRect();
+    if (!box?.width) return at(index);
+    const knob = rail.current?.querySelector<HTMLElement>(".effort-knob")?.offsetWidth ?? box.height;
+    return Math.min(1, Math.max(0, (event.clientX - box.left - knob / 2) / Math.max(1, box.width - knob)));
   };
   const keyDown = (event: KeyboardEvent<HTMLElement>) => {
     const step = ({ ArrowLeft: index - 1, ArrowDown: index - 1, ArrowRight: index + 1, ArrowUp: index + 1, Home: 0, End: last } as Record<string, number>)[event.key];
@@ -202,12 +180,11 @@ function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]
     pick(step);
   };
   const release = () => {
-    if (drag !== null) pick(drag);
+    if (drag !== null) pick(nearest(drag));
     setDrag(null);
   };
   return <div
-    ref={track}
-    className={`library-track effort-slider${drag === null ? "" : " dragging"}${steps[shown]?.delegates ? " delegates" : ""}`}
+    className={`effort-slider${drag === null ? "" : " dragging"}${steps[shown]?.delegates ? " delegates" : ""}`}
     role="slider"
     tabIndex={0}
     aria-label="Effort"
@@ -215,60 +192,56 @@ function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]
     aria-valuemax={last}
     aria-valuenow={index}
     aria-valuetext={steps[index]?.label}
+    style={{ "--effort-at": drag ?? at(index) } as CSSProperties}
     onKeyDown={keyDown}
     onPointerDown={(event) => {
       if (event.button !== 0 || !last) return;
       event.preventDefault();
       event.currentTarget.focus();
       event.currentTarget.setPointerCapture?.(event.pointerId);
-      setDrag(under(event));
+      setDrag(fraction(event));
     }}
-    onPointerMove={(event) => { if (drag !== null) setDrag(under(event)); }}
+    onPointerMove={(event) => { if (drag !== null) setDrag(fraction(event)); }}
     onPointerUp={release}
     onPointerCancel={() => setDrag(null)}
   >
-    <span className="track-fill" aria-hidden="true" />
-    <span className="track-thumb" aria-hidden="true" />
-    {steps.map((spec, step) => <span
-      key={spec.id}
-      className={`effort-stop${step === shown ? " current" : step < shown ? " lit" : ""}`}
-      data-tip={spec.description}
-    >{spec.label}</span>)}
+    <div className="effort-rail" ref={rail}>
+      <div className="effort-fill" />
+      <div className="effort-knob" />
+    </div>
+    <div className="effort-stops">
+      {steps.map((spec, step) => <span
+        key={spec.id}
+        className={`effort-stop${step === shown ? " current" : ""}`}
+        data-tip={spec.description}
+        style={{ "--effort-stop": at(step) } as CSSProperties}
+      >{spec.label}</span>)}
+    </div>
   </div>;
 }
 
-/** The permission modes along a track of their own, the pane on the one in effect. */
-function ModeTrack({ mode }: { mode: ModeControl }) {
-  const track = useRef<HTMLDivElement>(null);
-  useThumb(track, "[role=radio]", mode.choices.findIndex((choice) => choice.value === mode.value), mode.choices.length);
-  return <div ref={track} className="library-track">
-    <span className="track-thumb" aria-hidden="true" />
-    <Segmented
-      label="Permission mode"
-      className="library-modes"
-      options={mode.choices.map((choice) => {
-        const Icon = choice.icon;
-        return { value: choice.value, label: <><Icon size={14} aria-hidden="true" />{choice.label}</>, tip: choice.description, ...(choice.danger ? { tone: "danger" } : {}) };
-      })}
-      value={mode.value}
-      onChange={mode.onChange}
-    />
-  </div>;
-}
-
-/** The effort and mode for the model in the library, side by side on one strip pinned under the list, so they stay in reach however long the list grows. With no model chosen, the effort says nothing of one. */
+/** The effort and mode for the model in the library, pinned under the list so they stay in reach however long the list grows. With no model chosen, the effort says nothing of one. */
 function LibrarySettings({ engine, model, modelLabel, effort, mode }: { engine: AgentEngine; model: AgentModel | undefined; modelLabel: string; effort?: EffortControl; mode?: ModeControl }) {
   const { steps, value } = effort ? effortSteps(useModelCatalog(), engine, model, effort) : { steps: [], value: undefined };
   return <div className="library-settings">
     {effort && <div className="library-setting effort-strip">
-      <span className="library-setting-axis">Effort</span>
+      <span className="library-setting-axis">Effort<small>{modelLabel}</small></span>
       {steps.length && value
         ? <EffortSlider steps={steps} value={value} onChange={effort.onChange} />
         : model !== undefined && <span className="effort-strip-none">{modelLabel} has no effort setting</span>}
     </div>}
     {mode && <div className="library-setting">
       <span className="library-setting-axis">Mode</span>
-      <ModeTrack mode={mode} />
+      <Segmented
+        label="Permission mode"
+        className="library-modes"
+        options={mode.choices.map((choice) => {
+          const Icon = choice.icon;
+          return { value: choice.value, label: <><Icon size={14} aria-hidden="true" />{choice.label}</>, tip: choice.description, ...(choice.danger ? { tone: "danger" } : {}) };
+        })}
+        value={mode.value}
+        onChange={mode.onChange}
+      />
     </div>}
   </div>;
 }
@@ -328,7 +301,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
         <NavSeparator />
         {available.map((group) => <NavItem key={group.key} selected={!search && filter === group.key} icon={<ProviderMark engine={group.engine} groupKey={group.key} />} count={group.models.length} onClick={() => { setFilter(group.key); setQuery(""); }}>{group.label}</NavItem>)}
       </NavList>
-      <div className="model-results" ref={results} onKeyDown={navigate}>
+      <div className="model-results" data-checkable ref={results} onKeyDown={navigate}>
         <div className="model-results-heading"><span>{heading}</span><span aria-live="polite">{count} models</span></div>
         {shown.map((group) => <div key={group.key} role="group" aria-label={group.label}>
           {group.models.map((spec) => {
