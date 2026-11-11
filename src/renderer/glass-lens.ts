@@ -18,6 +18,8 @@ const BEND = 0.3;
 /** Maps are drawn at this share of the pane's size; the displacement is smooth, so scaling them up shows no steps. */
 const MAP_SCALE = 0.5;
 const SVG = "http://www.w3.org/2000/svg";
+/** A pane still changing size goes unbent until it has held one size this long. */
+const SETTLE_MS = 150;
 
 export type LensShape = { width: number; height: number; radius: number };
 
@@ -137,10 +139,28 @@ export function installGlassLens() {
     panes.set(pane, key);
     pane.style.setProperty("--glass-lens", `url(#${filter.node.id})`);
   };
+  const settling = new Map<HTMLElement, number>();
+  const stopSettling = (pane: HTMLElement) => {
+    clearTimeout(settling.get(pane));
+    settling.delete(pane);
+  };
+  /** A pane's first size is cut at once; while it keeps resizing, cutting a map per frame would stall a drag. */
   const sizes = new ResizeObserver((entries) => {
     for (const entry of entries) {
+      const pane = entry.target as HTMLElement;
       const box = entry.borderBoxSize[0];
-      if (box && panes.has(entry.target as HTMLElement)) fit(entry.target as HTMLElement, box.inlineSize, box.blockSize);
+      if (!box || !panes.has(pane)) continue;
+      const { inlineSize, blockSize } = box;
+      if (panes.get(pane) === null && !settling.has(pane)) {
+        fit(pane, inlineSize, blockSize);
+        continue;
+      }
+      if (panes.get(pane)) release(pane);
+      stopSettling(pane);
+      settling.set(pane, window.setTimeout(() => {
+        settling.delete(pane);
+        if (panes.has(pane)) fit(pane, inlineSize, blockSize);
+      }, SETTLE_MS));
     }
   });
   const track = (pane: HTMLElement) => {
@@ -149,6 +169,7 @@ export function installGlassLens() {
     sizes.observe(pane, { box: "border-box" });
   };
   const untrack = (pane: HTMLElement) => {
+    stopSettling(pane);
     release(pane);
     panes.delete(pane);
     sizes.unobserve(pane);
@@ -176,6 +197,7 @@ export function installGlassLens() {
   return () => {
     changes.disconnect();
     sizes.disconnect();
+    for (const pane of settling.keys()) stopSettling(pane);
     for (const pane of panes.keys()) pane.style.removeProperty("--glass-lens");
     panes.clear();
     filters.clear();

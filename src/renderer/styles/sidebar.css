@@ -1,3 +1,5 @@
+/** Not inherited, so dragging the width restyles the sidebar alone, not every row inside it. */
+@property --sidebar-width { syntax: "<length>"; inherits: false; initial-value: 280px; }
 .sidebar {
   position: relative;
   width: var(--sidebar-width, 280px);
@@ -201,7 +203,8 @@
 /** In a row's meta line the mark runs inline with the text, so the glyph sits on the same line as the words around it. */
 .task-row-text .host-mark { display: inline; font: inherit; color: inherit; vertical-align: baseline; }
 .task-row-text .host-mark > svg { margin-right: 4px; vertical-align: -2px; }
-.task-entry { position: relative; min-width: 0; border-radius: 10px; }
+/** Rows scrolled out of view skip layout, so a long list stays cheap to resize. */
+.task-entry { position: relative; min-width: 0; border-radius: 10px; content-visibility: auto; contain-intrinsic-block-size: auto 45px; }
 /**
  * A row's trailing rail: one set of slots with two layers over them, the marks a row carries and the
  * actions it offers. Both fill from the right edge, so the slots line up down the list. At rest a
