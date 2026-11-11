@@ -9,8 +9,11 @@ import type { Worktree } from "../domain/worktree.js";
 export type PersistedTask = Omit<Thread, "messages" | "historySummary">;
 export type PersistedSubagent = Omit<Subagent, "activity">;
 
-/** The stored workspace, plus the count of threads this build could not read and left on disk. */
-export type LoadedTaskStore = ThreadStoreData & { hiddenTasks: number; unloadedTaskIds?: string[] };
+/**
+ * The stored workspace, plus the count of threads this build could not read and left on disk, and the
+ * threads the update that started this launch cut off mid-turn.
+ */
+export type LoadedTaskStore = ThreadStoreData & { hiddenTasks: number; unloadedTaskIds?: string[]; resumeAfterUpdate?: string[] };
 
 export type TaskStoreDelta = {
   tasks: Array<{

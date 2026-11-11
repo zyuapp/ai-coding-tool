@@ -7,6 +7,9 @@ import { emptyTailscaleState, type MobilePairingOffer, type MobileServerState } 
 import { createRuntimePublisher } from "../host/runtime-publisher.js";
 import { createWorkspaceRuntime } from "../host/workspace-runtime.js";
 import { forkAgentProcessNode } from "./agent-process-node.js";
+import { recordUpdateRelaunch, takeUpdateRelaunch } from "./update-relaunch.js";
+import { resumableAfterUpdate } from "../application/update-relaunch.js";
+import type { WorkspaceState } from "../application/workspace-state.js";
 import { readAppLaunch } from "./app-launch.js";
 import { appPluginPath } from "./app-plugin-path.js";
 import { attachmentsDirectory, useAttachmentsDirectory } from "./attachment-store.js";
@@ -101,6 +104,14 @@ function appVersion(appPath: string): string | null {
   }
 }
 
+/** Writes down the threads the restart cuts off, to carry on once the new build is up. */
+function restartForUpdate(userData: string, state: () => WorkspaceState, restart: () => void) {
+  return (installed: string) => {
+    recordUpdateRelaunch(userData, installed, resumableAfterUpdate(state()));
+    restart();
+  };
+}
+
 export async function startServe(options: {
   userData: string;
   packaged: boolean;
@@ -139,7 +150,7 @@ export async function startServe(options: {
   const version = appVersion(appPath);
   const target = options.resources && options.restart ? updateTarget(process.platform, process.execPath, process.env) : null;
   const updates = target && version && options.restart
-    ? createServeUpdater({ version, target, onState: (update) => events.emit("update:changed", update), restart: options.restart, say })
+    ? createServeUpdater({ version, target, onState: (update) => events.emit("update:changed", update), restart: restartForUpdate(userData, () => runtime.getState(), options.restart), say })
     : null;
   const terminal = await import("./terminal-host.js");
   terminal.startTerminalHost({ onData: () => {}, onUpdate: (update) => { events.emit("terminal:event", update); } });
@@ -177,6 +188,7 @@ export async function startServe(options: {
     scheduler: () => scheduler!,
     engineAccess: () => engineAccess ??= import("./engines.mjs").then(({ EngineAccessHost, engineServices }) => new EngineAccessHost(engineServices)),
     worktreesRoots: () => [worktreesRoot, ...legacyRoots],
+    updateResumes: () => version ? takeUpdateRelaunch(userData, version) : [],
     mobile: () => mobile,
     say,
     build: version ? { version, selfUpdating: updates !== null } : null,

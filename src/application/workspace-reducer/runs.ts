@@ -180,7 +180,8 @@ export function reduceRuns(state: WorkspaceState, input: Exclude<RunInput, { typ
       const testified = ending ? withTurnTestimony(applied, event.taskId, ending, active) : applied;
       let next = event.type === "computer-use.setup-required" ? { ...testified, computerUseSetup: true } : testified;
       const noticed = next.threads.find((thread) => thread.id === event.taskId);
-      const notice = noticed ? runNotice(noticed, active, event, ending?.surfacing ?? null) : null;
+      /** A turn that files its thread away finishes without a word; one that failed still says so. */
+      const notice = noticed && !ending?.dismisses ? runNotice(noticed, active, event, ending?.surfacing ?? null) : null;
       const said = noticed && notice ? announced(next, noticed, notice.headline, notice.reason) : [];
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
       if (event.type === "queued.steer-failed") next = withSteeringFailure(next, event.taskId, event.messageId, event.message);
@@ -397,13 +398,14 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   );
 }
 
-/** A thread picked back up after its usage limit lifted: nobody wrote to it, so it is told to carry on. */
+/** A thread picked back up after its usage limit lifted or an update restarted the app: nobody wrote to it, so it is told to carry on. */
 function startResume(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {
   const thread = threadToBegin(state, pending.taskId);
   if (!thread) return settled(state);
+  const update = pending.operation?.type === "resume" && pending.operation.after === "update";
   const resumed = updateThread(state, thread.id, (item) => ({
     ...item,
-    messages: appendMessages(item.messages, [createConversationMessage("system", "Usage limit reset. Resuming.")]),
+    messages: appendMessages(item.messages, [createConversationMessage("system", update ? "App updated. Resuming." : "Usage limit reset. Resuming.")]),
     updatedAt: now(),
   }));
   const command = {
@@ -411,7 +413,7 @@ function startResume(state: WorkspaceState, pending: PendingRun, workspace: Work
     ...(thread.inheritedContinuation && thread.continuation ? { forkContinuation: true as const } : {}),
     ...sideChannelFor(state, thread),
   };
-  return settled(beginRun(resumed, thread.id, pending.runId, ATTENDED_RUN, undefined, "warming"), [{ type: "start-run", command }]);
+  return settled(beginRun(resumed, thread.id, pending.runId, ATTENDED_RUN, undefined, update ? "carrying-on" : "warming"), [{ type: "start-run", command }]);
 }
 
 function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord, worktree?: CreatedWorktree): WorkspaceTransition {

@@ -46,7 +46,7 @@ export function resumed(state: WorkspaceState, taskId: string): Step {
     id: crypto.randomUUID(),
     runId: crypto.randomUUID(),
     origin: "composer",
-    operation: { type: "resume" },
+    operation: { type: "resume", after: "limit" },
     taskId,
     ...(project ? { projectId: project.id } : {}),
     text: "",

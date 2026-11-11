@@ -40,7 +40,8 @@ export type WorkspaceEvent =
   | { type: "view.closed" }
   /** Another thread waited on this one and was handed its settled turn, so its verdict has been delivered. */
   | { type: "task.result-collected"; taskId: string }
-  | { type: "store.loaded"; data: ThreadStoreData; hiddenTasks?: number }
+  /** `resuming` names the threads whose turn an update's restart cut off, to carry on. */
+  | { type: "store.loaded"; data: ThreadStoreData; hiddenTasks?: number; resuming?: string[] }
   | { type: "store.thread-loaded"; taskId: string; messages: ConversationMessage[] }
   /** The store has nothing to hand over: a first run, with no threads to restore. */
   | { type: "store.absent" }

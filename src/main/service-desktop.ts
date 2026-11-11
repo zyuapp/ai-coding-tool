@@ -32,6 +32,8 @@ export type ServiceDesktopHost = {
   worktreesRoots: () => string[];
   /** Where an engine's sign-in page goes: the browser beside a window, the terminal behind a server. */
   openUrl: (url: string) => Promise<void>;
+  /** The threads the update this launch installed cut off mid-turn, given once. */
+  updateResumes: () => string[];
   computerUse: {
     permissions: () => Promise<ComputerUsePermissions>;
     enable: (permission: ComputerUsePermission) => Promise<ComputerUsePermissions>;
@@ -145,7 +147,11 @@ function storeDesktop(host: ServiceDesktopHost) {
     engineStatus: async (refresh) => (await host.engineAccess()).read(refresh === true),
     signInEngine: async (engine) => (await host.engineAccess()).signIn(engine, host.openUrl),
     updateEngine: async (engine) => (await host.engineAccess()).update(engine),
-    loadTaskStore: () => host.taskDatabase().loadSummaries(),
+    loadTaskStore: async () => {
+      const data = await host.taskDatabase().loadSummaries();
+      const resuming = host.updateResumes();
+      return data && resuming.length ? { ...data, resumeAfterUpdate: resuming } : data;
+    },
     loadThreadMessages: (taskId) => host.taskDatabase().loadThreadMessages(taskId),
     searchThreadMessages: (search, taskIds) => host.taskDatabase().searchThreadMessages(search, taskIds),
     persistTaskStore: (delta) => host.taskDatabase().persist(delta),

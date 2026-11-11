@@ -130,7 +130,7 @@ test("no run of any kind starts on a thread whose model its engine does not offe
   const base = { runId: "run-x", taskId: "task-a", text: "Check", prompt: "Check", attachments: [] };
   const pendings = {
     tick: { ...base, id: "tick", origin: "automation" as const, automationId: "a1" },
-    resume: { ...base, id: "resume", origin: "composer" as const, operation: { type: "resume" as const } },
+    resume: { ...base, id: "resume", origin: "composer" as const, operation: { type: "resume" as const, after: "limit" as const } },
     compact: { ...base, id: "compact", origin: "composer" as const, operation: { type: "compact" as const } },
     send: { ...base, id: "send", origin: "composer" as const },
   };

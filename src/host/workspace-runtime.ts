@@ -140,7 +140,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
       const data = await desktop.loadTaskStore();
       if (disposed || generation !== currentGeneration) return;
       persistence.persisted = data ? persistedStoreState(data) : null;
-      if (data) await dispatch({ type: "store.loaded", data, hiddenTasks: data.hiddenTasks });
+      if (data) await dispatch({ type: "store.loaded", data, hiddenTasks: data.hiddenTasks, ...(data.resumeAfterUpdate ? { resuming: data.resumeAfterUpdate } : {}) });
       else await dispatch({ type: "store.absent" });
       await drafts.restore();
       loaded.resolve();

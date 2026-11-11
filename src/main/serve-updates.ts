@@ -174,7 +174,8 @@ export function createServeUpdater(options: {
   fetch?: typeof fetch;
   verifyBundle?: (current: string, next: string, signal: AbortSignal) => Promise<void>;
   onState: (update: AppUpdate) => void;
-  restart: () => void;
+  /** Told the version just put in place. */
+  restart: (version: string) => void;
   say: (line: string) => void;
 }) {
   const { target, say } = options;
@@ -258,7 +259,7 @@ export function createServeUpdater(options: {
       await swap(target, update);
       staged = null;
       say(`Installed ${update.version}. Restarting…`);
-      options.restart();
+      options.restart(update.version);
     } catch (error) {
       say(`Could not install ${update.version}: ${message(error)}`);
       staged = null;

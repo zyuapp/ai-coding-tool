@@ -44,6 +44,8 @@ import { servingProcess } from "./instance-lock.js";
 import { startUpdateChecks, type UpdateHost } from "./updates.js";
 import { appProfile } from "./user-data.js";
 import { readAppLaunch } from "./app-launch.js";
+import { recordUpdateRelaunch, takeUpdateRelaunch } from "./update-relaunch.js";
+import { resumableAfterUpdate } from "../application/update-relaunch.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
 import { hidesWindowMenuBar, keepsLockedMachineAwake, quitsWithLastWindow, runningAppImage, windowFrameOptions } from "./platform-capabilities.js";
 import { glassRegionsInPoints, loadWindowGlass, systemGlassTint, windowMaterial, windowMaterialOptions, WINDOW_MATERIAL_ARGUMENT } from "./window-backdrop.js";
@@ -143,7 +145,10 @@ const noticeHost: NoticeHost = { window: () => window, reveal: revealWindow };
 
 const updateHost: UpdateHost = {
   window: () => window,
-  onInstall: () => { updateRestartScheduled = true; },
+  onInstall: (version) => {
+    updateRestartScheduled = true;
+    recordUpdateRelaunch(app.getPath("userData"), version, resumableAfterUpdate(workspaceRuntime.runtime.getState()));
+  },
   onChecking: setUpdateChecking,
   onState: (update) => { events.emit("update:changed", update); },
 };
@@ -195,6 +200,7 @@ const runtimeDesktop = createRuntimeDesktop({
   scheduler: getAutomationScheduler,
   engineAccess: engineAccessHost,
   worktreesRoots: () => [WORKTREES_ROOT, ...legacyWorktreesRoots(app.getPath("userData"))],
+  updateResumes: () => takeUpdateRelaunch(app.getPath("userData"), app.getVersion()),
   restart: () => requestRestart(),
   /** The window can ask before the links are made, so it waits for them rather than failing. */
   computers: async () => {

@@ -172,9 +172,10 @@ export function forkableContinuation(state: WorkspaceState, taskId: string) {
 
 /**
  * How a run picks a thread up when nobody has written to it: `warming` resumes it after its usage
- * limit lifted, and `agent` is a turn the agent opened itself.
+ * limit lifted, `carrying-on` resumes the turn an update's restart cut off, and `agent` is a turn the
+ * agent opened itself.
  */
-type RunPickup = "warming" | "agent";
+type RunPickup = "warming" | "carrying-on" | "agent";
 
 /**
  * Records the run against the thread and marks it the thread's latest, so stale replies can be dropped.
@@ -204,12 +205,12 @@ function pickedUp(thread: Thread, pickup: RunPickup | undefined): Thread {
 }
 
 /**
- * A run resuming after a usage limit carries on the turn the limit cut short, so what that turn
- * reported still stands. A turn the agent opened itself was answered by nobody, so a report that the
+ * A run resuming after a usage limit or an update carries on the turn that was cut short, so what that
+ * turn reported still stands. A turn the agent opened itself was answered by nobody, so a report that the
  * thread needs the user stands through it until the user writes or the agent reports again.
  */
 function reportStands(thread: Thread, pickup: RunPickup | undefined) {
-  return pickup === "warming" || pickup === "agent" && thread.report !== undefined && GROUP_OF[thread.report.state] === "needs";
+  return pickup === "warming" || pickup === "carrying-on" || pickup === "agent" && thread.report !== undefined && GROUP_OF[thread.report.state] === "needs";
 }
 
 /**

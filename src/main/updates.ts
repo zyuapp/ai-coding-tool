@@ -11,8 +11,8 @@ const CHECK_INTERVAL = 60 * 60 * 1000;
 export type UpdateHost = {
   /** Read when a dialog is shown rather than when the check starts, so a replaced window still gets it. */
   window: () => BrowserWindow | null;
-  /** Told before the app quits to install, so the shutdown is not read as a restart request. */
-  onInstall: () => void;
+  /** Told the version before the app quits to install it, so the shutdown is not read as a restart request. */
+  onInstall: (version: string) => void;
   onChecking?: (checking: boolean) => void;
   onState: (update: AppUpdate) => void;
 };
@@ -158,7 +158,7 @@ export async function downloadUpdate(host: UpdateHost, options: { unattended?: b
 export function installUpdate(host: UpdateHost, options: { unattended?: boolean } = {}) {
   if (state.status !== "ready") return;
   if (options.unattended) unattendedInstall = state.version;
-  host.onInstall();
+  host.onInstall(state.version);
   try {
     updater?.quitAndInstall(false, true);
   } catch (error) {
