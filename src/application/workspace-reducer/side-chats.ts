@@ -50,7 +50,3 @@ export function sideChatsClosed(state: WorkspaceState, closing: SideChat[]): Ste
   }, (left) => pruned(left, closed))]);
 }
 
-/** {@link sideChatsClosed}, on the whole state. */
-export function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTransition {
-  return applied(state, sideChatsClosed(state, closing));
-}

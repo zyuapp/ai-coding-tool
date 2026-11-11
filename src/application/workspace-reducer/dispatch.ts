@@ -73,7 +73,7 @@ function unowned<Type extends WorkspaceInput["type"]>(types: readonly Type[], re
 /** Each input type is claimed by exactly one reducer. */
 export const CLAIMS = [
   claim(WORKTREE_MENU_INPUTS, reduceWorktreeMenu),
-  unowned(THREAD_COMMAND_INPUTS, reduceThreadCommands),
+  claim(THREAD_COMMAND_INPUTS, reduceThreadCommands),
   claim(COORDINATION_INPUTS, reduceCoordination),
   claim(PROPOSAL_INPUTS, reduceProposals),
   claim(WORKTREE_INPUTS, reduceWorktrees),

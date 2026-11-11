@@ -21,7 +21,7 @@ import { stoppableCoordinators } from "./coordination.js";
 import type { WorkspaceInput } from "./workspace-reducer.js";
 import { editableQueued, QUEUED_SENT } from "./state/runs.js";
 import { isAgentEngine, unopenableEngine, type EngineId } from "../domain/agent-engine.js";
-import { selectedComputer, type ComputersSliceState, type ComputersState, type PairedComputer } from "./state/computers.js";
+import { MAX_DISCARDED_LEADS, selectedComputer, type ComputersSliceState, type ComputersState, type PairedComputer } from "./state/computers.js";
 
 /** The paired computers as one input leaves them. Only the functions here make one. */
 class ComputersChange {
@@ -36,6 +36,12 @@ export function computersOf(state: ComputersSliceState): ComputersEdit {
 }
 
 /** A paired computer put on screen, which lets go of one waiting for its line. */
+/** Threads gone from here that may still lead threads on paired computers, remembered as let go, the newest kept. */
+export function leadsDiscardedIn(edit: ComputersEdit, ids: Iterable<string>): ComputersEdit {
+  const { computers } = edit.view;
+  return new ComputersChange({ computers: { ...computers, discardedLeads: [...computers.discardedLeads, ...ids].slice(-MAX_DISCARDED_LEADS) } });
+}
+
 export function shownIn(edit: ComputersEdit, id: string): ComputersEdit {
   return new ComputersChange({ computers: { ...edit.view.computers, active: id, dropped: null } });
 }

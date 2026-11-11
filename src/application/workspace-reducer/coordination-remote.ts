@@ -1,6 +1,7 @@
 /** What a coordinator here hears of the threads it started on paired computers, and how they are let go once it is gone. */
 import { proposalLanded } from "./proposals.js";
 import { now, settled } from "./shared.js";
+import { applied, type Step } from "./slice.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import { coordinationMembers } from "../coordination.js";
 import { leadAwayThreads, remotelyLedThreads } from "../state/threads.js";
@@ -9,9 +10,8 @@ import { heardFacts, type MemberFact } from "../member-facts.js";
 import { endsQuietly } from "../run-settlement.js";
 import { catchesStart, remoteTurnStop, withStopsKept } from "../outstanding-stops.js";
 import { updateThread } from "../thread-run-state.js";
-import { lastWorkingIds } from "../computers.js";
-import { MAX_DISCARDED_LEADS, type PairedComputer } from "../state/computers.js";
-import { viewPreferences } from "../view-preferences.js";
+import { computersOf, lastWorkingIds, leadsDiscardedIn } from "../computers.js";
+import type { PairedComputer } from "../state/computers.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
@@ -272,10 +272,14 @@ function leadChange(state: WorkspaceState, thread: Thread, computer: PairedCompu
  * that may still lead threads on paired computers. Once gone they can no longer say those threads
  * are let go, so that is remembered for them, between launches too.
  */
-export function discardedLeads(state: WorkspaceState, threads: readonly Pick<Thread, "id" | "role" | "remoteHeard">[]): WorkspaceTransition {
+export function leadsDiscarded(state: WorkspaceState, threads: readonly Pick<Thread, "id" | "role" | "remoteHeard">[]): Step {
   const held = new Set(state.computers.discardedLeads);
   const leads = new Set(threads.flatMap((thread) => mayLeadElsewhere(thread) && !held.has(thread.id) ? [thread.id] : []));
-  if (!leads.size) return settled(state);
-  const remembered = { ...state, computers: { ...state.computers, discardedLeads: [...state.computers.discardedLeads, ...leads].slice(-MAX_DISCARDED_LEADS) } };
-  return { state: remembered, effects: [{ type: "persist-preferences", preferences: viewPreferences(remembered) }] };
+  if (!leads.size) return {};
+  return { edits: [leadsDiscardedIn(computersOf(state), leads)], persists: true };
+}
+
+/** {@link leadsDiscarded}, on the whole state. */
+export function discardedLeads(state: WorkspaceState, threads: readonly Pick<Thread, "id" | "role" | "remoteHeard">[]): WorkspaceTransition {
+  return applied(state, leadsDiscarded(state, threads));
 }

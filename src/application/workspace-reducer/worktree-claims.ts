@@ -65,11 +65,6 @@ export function managementShownIn(edit: WorktreesEdit, open: boolean, onPage: bo
  * A checkout takes minutes to make, and until it lands the thread is neither where it was nor where
  * it is going. Marking it here is what keeps a second ask from making a second, orphaned checkout.
  */
-export function withCreatingWorktree(state: WorkspaceState, taskId: string): WorkspaceState {
-  return afterward(state, creatingWorktree(state, taskId));
-}
-
-/** {@link withCreatingWorktree}, as the edits it makes. */
 export function creatingWorktree(state: WorkspaceState, taskId: string): Step {
   const { view } = worktreesOf(state);
   return { edits: [new WorktreesChange({ ...view, creatingWorktrees: [...view.creatingWorktrees, taskId] })], clearsError: true };

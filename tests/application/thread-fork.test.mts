@@ -158,11 +158,20 @@ test("forking into a worktree asks for a checkout of the copy's own", () => {
     threads: [task("first", { projectId: "project-1" })],
     projects: [{ id: "project-1", root: "/work/api", workspaceId: "workspace-1" }],
     currentId: "first",
+    openMenu: "workspace:open-in",
   });
   const transition = reduce(state, { type: "task.fork", worktree: true });
   const { fork } = forked(state, transition.state, "first");
 
   assert.deepEqual(effectOf(transition, "create-worktree"), { type: "create-worktree", taskId: fork.id, projectRoot: "/work/api" });
+  assert.equal(transition.state.openMenu, null);
+
+  /** A copy with no checkout to ask for is still made and opened; the window says why it stays in the project. */
+  const local = workspace({ threads: [task("first")], currentId: "first" });
+  const unplaced = reduce(local, { type: "task.fork", worktree: true });
+  assert.equal(unplaced.state.currentId, forked(local, unplaced.state, "first").fork.id);
+  assert.ok(unplaced.state.actionError);
+  assert.equal(unplaced.result, undefined, "the fork itself did not fail");
 });
 
 test("the fork dialog suggests the default name, and confirming forks under the typed one", () => {

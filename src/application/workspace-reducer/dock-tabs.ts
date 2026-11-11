@@ -1,5 +1,6 @@
 /** Which tab a dock shows, which of them has the keys, and what a dock leaves behind. */
 import { settled } from "./shared.js";
+import type { Step } from "./slice.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import { viewPreferences } from "../view-preferences.js";
 import { isCoordinator, type OverviewFold, type OverviewSection } from "../../domain/coordination.js";
@@ -170,7 +171,7 @@ export function handOverDraftDock(state: WorkspaceState, taskId: string): Worksp
 }
 
 /** A thread that is gone for good takes its dock with it: its pages close and its shells stop. */
-export function disposeDocks(state: WorkspaceState, owners: Iterable<string>): WorkspaceTransition {
+export function docksDisposed(state: WorkspaceState, owners: Iterable<string>): Step {
   const docks = { ...state.docks };
   const diffs = { ...state.diffs };
   const effects: WorkspaceEffect[] = [];
@@ -187,7 +188,7 @@ export function disposeDocks(state: WorkspaceState, owners: Iterable<string>): W
     delete docks[owner];
     emptied = true;
   }
-  return emptied ? { state: { ...state, docks, diffs }, effects } : settled(state);
+  return emptied ? { edits: [new DocksChange({ ...docksOf(state).view, docks, diffs })], effects } : {};
 }
 
 /** A dock follows a workflow only while its record is there, so a run that clears one closes its panel. */

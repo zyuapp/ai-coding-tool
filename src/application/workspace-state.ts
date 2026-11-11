@@ -131,8 +131,13 @@ export function currentFolder(state: WorkspaceState): string | null {
 }
 
 /** The draft with `change` made and held to its engine, which is how its agent choices are ever written. */
+export function changedDraft(state: WorkspaceState, change: Partial<AgentDraft>): AgentDraft {
+  return normalizeDraft(catalogOf(state), { ...draftOf(state), ...change }, effortRoleOf(undefined, state.draftRole));
+}
+
+/** {@link changedDraft}, on the whole state. */
 export function withDraft(state: WorkspaceState, change: Partial<AgentDraft>): WorkspaceState {
-  const draft = normalizeDraft(catalogOf(state), { ...draftOf(state), ...change }, effortRoleOf(undefined, state.draftRole));
+  const draft = changedDraft(state, change);
   return { ...state, draftEngine: draft.engine, draftModel: draft.model, draftEffort: draft.effort, draftPolicy: draft.policy, draftFastMode: draft.fastMode };
 }
 

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { settleTurn } from "../../src/application/run-settlement.ts";
-import { drainQueue } from "../../src/application/workspace-reducer/run-queue.ts";
+import { drained as draining } from "../../src/application/workspace-reducer/run-queue.ts";
+import { applied } from "../../src/application/workspace-reducer/slice.ts";
+
+const drainQueue = (state: Parameters<typeof draining>[0], taskId: string, intent: Parameters<typeof draining>[2]) => applied(state, draining(state, taskId, intent));
 import { editableQueued, QUEUED_NOT_YOURS, QUEUED_SENT } from "../../src/application/state/runs.ts";
 import type { QueuedMessage } from "../../src/application/workspace-state.ts";
 import { required, task, workspace } from "./workspace-reducer-fixtures.mts";

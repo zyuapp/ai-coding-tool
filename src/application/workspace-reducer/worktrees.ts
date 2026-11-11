@@ -7,7 +7,7 @@ import { SWITCH_PROJECT_ERROR, SWITCH_RUNNING_ERROR, WORKTREE_CREATING_ERROR, WO
 import { drained } from "./run-queue.js";
 import { afterward, andThen, applied, inTurn, type SliceTransition, type Step } from "./slice.js";
 import { followUps, now, targetId } from "./shared.js";
-import { createdIn, creatingWorktree, releaseWorktrees, releasingIn, withoutCreatingWorktree, withoutReleasingWorktree, worktreeDropped, worktreesOf } from "./worktree-claims.js";
+import { createdIn, creatingWorktree, moveDismissedIn, releaseWorktrees, releasingIn, withoutCreatingWorktree, withoutReleasingWorktree, worktreeDropped, worktreesOf } from "./worktree-claims.js";
 import { dismissedIn, enteredCheckoutIn, leftCheckoutIn, threadsOf } from "./thread-edits.js";
 import { draftBranchIn, draftCheckoutIn, navigationOf } from "./thread-select.js";
 import type { WorkspaceEffect, WorkspaceInput } from "./types.js";
@@ -61,13 +61,6 @@ export type WorktreeEffect =
 type WorktreeTransition = SliceTransition<Own>;
 
 export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): WorktreeTransition {
-  /** A move that goes ahead answers the confirmation, so the question never outlives its answer. */
-  if (input.type === "task.set-worktree" && state.worktreeMove) {
-    const patch = { worktreeMove: null };
-    const moving = reduceWorktrees(afterward(state, { patch }), input);
-    return { ...moving, patch: { ...patch, ...moving.patch } };
-  }
-
   switch (input.type) {
     case "task.move-worktree": return worktreeMoved(state, input);
 
@@ -92,35 +85,8 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       return { patch: { worktreeMove: { taskId: thread.id, worktree: input.worktree } } };
     }
 
-    /**
-     * Moves the thread there and then, so it is never left saying it will move later. Turning it off
-     * takes this thread's claim off the checkout; the last claim to go takes the directory with it,
-     * and what it still holds is committed first.
-     */
-    case "task.set-worktree": {
-      const taskId = targetId(state, input.taskId);
-      const thread = taskId ? state.threads.find((item) => item.id === taskId) : undefined;
-      /** With no thread yet the answer is a draft: the checkout is made when the first message goes. */
-      if (!thread) return input.taskId === undefined ? { edits: [draftCheckoutIn(navigationOf(state), input.worktree)] } : {};
-      if (state.creatingWorktrees.includes(thread.id)) return { refusal: WORKTREE_CREATING_ERROR };
-      if (leavingThreadIds(state).has(thread.id)) return { refusal: WORKTREE_RELEASING_ERROR };
-      if (isWorking(state, thread.id)) return { refusal: WORKTREE_RUNNING_ERROR };
-      if (input.worktree) {
-        if (thread.worktreeId) return {};
-        const project = projectFor(state, thread);
-        if (!project?.workspaceId) return { refusal: WORKTREE_PROJECT_ERROR };
-        return { ...creatingWorktree(state, thread.id), effects: [{ type: "create-worktree", taskId: thread.id, projectRoot: project.root }] };
-      }
-      const leaving = worktreeFor(state, thread);
-      if (!leaving) return {};
-      const releasing = releaseWorktrees(state, [thread]);
-      /** A checkout other threads are still in stays where it is; only this thread walks out of it. */
-      if (!releasing.length) {
-        const note = createConversationMessage("system", "Returned to the project checkout. The worktree is still there, and other threads are still working in it.", leaving.root);
-        return { clearsError: true, edits: [leftCheckoutIn(threadsOf(state), thread.id, note, now())] };
-      }
-      return { clearsError: true, edits: [releasingIn(worktreesOf(state), releasing.map((effect) => effect.taskId))], effects: releasing };
-    }
+    case "task.set-worktree":
+      return worktreeSet(state, input);
 
     /** Only a thread yet to be created can be told where to start; an existing one already is. */
     case "task.set-branch":
@@ -192,6 +158,38 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       return { patch, ...dropping, effects: followUps(refreshEnvironment(afterward(after, dropping))) };
     }
   }
+}
+
+/**
+ * Moves the thread there and then, so it is never left saying it will move later. Turning it off
+ * takes this thread's claim off the checkout; the last claim to go takes the directory with it,
+ * and what it still holds is committed first. A move that goes ahead answers the confirmation, so the
+ * question never outlives its answer.
+ */
+export function worktreeSet(state: WorkspaceState, input: Extract<WorktreeInput, { type: "task.set-worktree" }>): Step {
+  if (state.worktreeMove) return andThen(state, { edits: [moveDismissedIn(worktreesOf(state))] }, (next) => worktreeSet(next, input));
+  const taskId = targetId(state, input.taskId);
+  const thread = taskId ? state.threads.find((item) => item.id === taskId) : undefined;
+  /** With no thread yet the answer is a draft: the checkout is made when the first message goes. */
+  if (!thread) return input.taskId === undefined ? { edits: [draftCheckoutIn(navigationOf(state), input.worktree)] } : {};
+  if (state.creatingWorktrees.includes(thread.id)) return { refusal: WORKTREE_CREATING_ERROR };
+  if (leavingThreadIds(state).has(thread.id)) return { refusal: WORKTREE_RELEASING_ERROR };
+  if (isWorking(state, thread.id)) return { refusal: WORKTREE_RUNNING_ERROR };
+  if (input.worktree) {
+    if (thread.worktreeId) return {};
+    const project = projectFor(state, thread);
+    if (!project?.workspaceId) return { refusal: WORKTREE_PROJECT_ERROR };
+    return { ...creatingWorktree(state, thread.id), effects: [{ type: "create-worktree", taskId: thread.id, projectRoot: project.root }] };
+  }
+  const leaving = worktreeFor(state, thread);
+  if (!leaving) return {};
+  const releasing = releaseWorktrees(state, [thread]);
+  /** A checkout other threads are still in stays where it is; only this thread walks out of it. */
+  if (!releasing.length) {
+    const note = createConversationMessage("system", "Returned to the project checkout. The worktree is still there, and other threads are still working in it.", leaving.root);
+    return { clearsError: true, edits: [leftCheckoutIn(threadsOf(state), thread.id, note, now())] };
+  }
+  return { clearsError: true, edits: [releasingIn(worktreesOf(state), releasing.map((effect) => effect.taskId))], effects: releasing };
 }
 
 /** A patch of the checkouts' own state, or nothing when it names no field. */

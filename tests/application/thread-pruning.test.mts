@@ -2,7 +2,8 @@ import { task } from "./workspace-reducer-fixtures.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { pruneDeletedThreads } from "../../src/application/thread-pruning.ts";
+import { pruned as forgotten } from "../../src/application/thread-pruning.ts";
+import { afterward } from "../../src/application/workspace-reducer/slice.ts";
 import { DOCK_PICKER, diffFor, dockFor, emptyWorkspaceState, withDock } from "../../src/application/workspace-state.ts";
 import type { ActiveRun } from "../../src/application/thread-run-state.ts";
 
@@ -60,7 +61,7 @@ test("permanently deleted threads leave no session data behind", () => {
 
 test("pruning a missing task keeps unrelated keyed state intact", () => {
   const state = { ...emptyWorkspaceState(), prompts: { kept: "draft" }, readingPoints: { kept: null } };
-  const pruned = pruneDeletedThreads(state, new Set(["missing"]));
+  const pruned = afterward(state, forgotten(state, new Set(["missing"])));
 
   assert.equal(pruned.prompts, state.prompts);
   assert.equal(pruned.readingPoints, state.readingPoints);
@@ -84,7 +85,7 @@ test("a deleted thread holds no checkout, dock, review, focus, side chat or ask 
     browserApproval: { approvalId: "ask", url: "https://example.com", taskId: gone },
   };
 
-  const pruned = pruneDeletedThreads(state, new Set([gone]));
+  const pruned = afterward(state, forgotten(state, new Set([gone])));
 
   assert.deepEqual([pruned.creatingWorktrees, pruned.releasingWorktrees], [[], []]);
   for (const record of [pruned.movesAfterRun, pruned.docks, pruned.diffs, pruned.subagents]) assert.equal(gone in record, false);

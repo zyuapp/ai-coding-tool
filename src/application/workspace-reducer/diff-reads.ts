@@ -71,11 +71,6 @@ export function diffReread(state: WorkspaceState, taskId: string): Step {
   return { ...read, effects: followUps(read.effects ?? []) };
 }
 
-/** {@link diffReread}, on the whole state. */
-export function rereadDiff(state: WorkspaceState, taskId: string): WorkspaceTransition {
-  return applied(state, diffReread(state, taskId));
-}
-
 /** Every review of a thread's checkout, as follow-ups: its own dock's, and a coordinator's that has its tab as the subject. */
 export function reviewsReread(state: WorkspaceState, taskId: string, workspaceId: string): Step {
   const owners = Object.entries(state.diffs).filter(([owner]) => (dockSubject(state, owner, DIFF_PANEL) ?? owner) === taskId);

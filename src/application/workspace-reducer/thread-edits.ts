@@ -5,8 +5,13 @@
 import type { ThreadsState } from "../state/threads.js";
 import { endedTurn, openedTurn, restoredTestimony, withdrawRun, type ActiveRun, type FinishedVerdict, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
 import { readRow } from "../thread-attention.js";
-import { dismissed, readAttention, withClosedIssues, withFinding } from "../../domain/attention.js";
-import { reopenedIfStuck, withCoordinationNote, withoutAnswer, type CoordinationNote } from "../../domain/coordination.js";
+import { dismissed, readAttention, withAllRead, withClosedIssues, withFinding } from "../../domain/attention.js";
+import { asCoordinator, reopenedIfStuck, withCoordinationNote, withoutAnswer, type CoordinationNote } from "../../domain/coordination.js";
+import type { ModelCatalog } from "../../domain/agent-engine.js";
+import type { ThreadDropTarget } from "../../domain/project.js";
+import type { ThreadRole } from "../../domain/thread-role.js";
+import { forkedThreads } from "../thread-fork.js";
+import { moveThread } from "../thread-order.js";
 import type { ConversationMessage } from "../../domain/conversation.js";
 import type { Thread } from "../../domain/thread.js";
 import type { ThreadOutcome } from "../../domain/thread-run.js";
@@ -193,6 +198,39 @@ export function projectRemovedIn<Field extends keyof Thread>(edit: ThreadsChange
       return thread.archivedAt === undefined ? { ...projectless, archivedAt: at() } : projectless;
     }),
   });
+}
+
+/** Every thread's verdict, and what its runs found, read. A list with nothing unread is kept. */
+export function allReadIn<Field extends keyof Thread>(edit: ThreadsChange<Field>): ThreadsChange<Field> {
+  const threads = withAllRead(edit.view.threads);
+  return threads === edit.view.threads ? edit : new ThreadsChange({ threads });
+}
+
+/** A thread whose verdict reached the user through the thread that waited on it. */
+export function verdictCollectedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string): ThreadsChange<Field> {
+  return mapped(edit, id, ({ outcomeUnread: _read, ...thread }) => thread);
+}
+
+/**
+ * A thread playing `role`, or none, at `at`. A coordinator starts its threads on what it runs on itself;
+ * a thread that stops being one forgets that choice, the threads it suggested and its mute.
+ */
+export function roleSetIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, role: ThreadRole | null, catalog: ModelCatalog, at: () => number): ThreadsChange<Field> {
+  return mapped(edit, id, ({ role: _previous, threadModel: _choice, proposals: _suggested, muted: _muted, ...item }) => {
+    if (role === "coordinator") return { ...asCoordinator(catalog, item), updatedAt: at() };
+    return { ...item, ...(role ? { role } : {}), updatedAt: at() };
+  });
+}
+
+/** A copy of `source` with id `id`, straight under it in the list, as {@link forkedThreads} makes it. */
+export function forkedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, source: Thread, id: string, at: number, title?: string): ThreadsChange<Field> {
+  return new ThreadsChange({ threads: forkedThreads(edit.view.threads, source, id, at, title).threads });
+}
+
+/** A thread dropped where the sidebar's drag put it. A drop that changes nothing keeps the list. */
+export function movedInListIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, target: ThreadDropTarget): ThreadsChange<Field> {
+  const threads = moveThread(edit.view.threads, id, target);
+  return threads === edit.view.threads ? edit : new ThreadsChange({ threads });
 }
 
 /** A message said in a thread at `at`. */

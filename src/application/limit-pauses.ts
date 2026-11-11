@@ -62,11 +62,6 @@ export function resumed(state: WorkspaceState, taskId: string): Step {
  * One that would have carried on by itself has its turn end here instead, as a run the user stops
  * does: it reads as stopped, and its coordinator hears so in the same words.
  */
-export function cancelPause(state: WorkspaceState, taskId: string): WorkspaceTransition {
-  return applied(state, pauseCancelled(state, taskId));
-}
-
-/** {@link cancelPause}, as the edits it makes. */
 export function pauseCancelled(state: WorkspaceState, taskId: string): Step {
   const thread = state.threads.find((item) => item.id === taskId);
   if (!thread?.limitPause) return {};

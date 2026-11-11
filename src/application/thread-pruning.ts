@@ -5,7 +5,7 @@ import { approvalForgottenIn, browserOf } from "./workspace-reducer/browser-tabs
 import { docksForgottenIn, docksOf } from "./workspace-reducer/dock-tabs.js";
 import { runsForgottenIn, runsOf } from "./workspace-reducer/run-edits.js";
 import { sideChatsForgottenIn, sideChatsOf } from "./workspace-reducer/side-chat-edits.js";
-import { afterward, type Step } from "./workspace-reducer/slice.js";
+import type { Step } from "./workspace-reducer/slice.js";
 import { navigationOf, visitsForgottenIn } from "./workspace-reducer/thread-select.js";
 import { checkoutClaimsForgottenIn, worktreesOf } from "./workspace-reducer/worktree-claims.js";
 
@@ -28,9 +28,4 @@ export function pruned(state: WorkspaceState, removed: Set<string>): Step {
       approvalForgottenIn(browserOf(state), removed),
     ],
   };
-}
-
-/** {@link pruned}, on the whole state. */
-export function pruneDeletedThreads(state: WorkspaceState, removed: Set<string>): WorkspaceState {
-  return afterward(state, pruned(state, removed));
 }

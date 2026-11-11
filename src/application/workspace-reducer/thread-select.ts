@@ -17,6 +17,7 @@ import type { DraftBranch, NewThreadDraftState } from "../state/new-thread-draft
 import type { AgentDraft } from "../../domain/agent-draft.js";
 import { coordinatorOf } from "../../domain/coordination.js";
 import type { ThreadRole } from "../../domain/thread-role.js";
+import type { Thread } from "../../domain/thread.js";
 
 type NavigationView = NavigationState & NewThreadDraftState;
 
@@ -91,6 +92,17 @@ export function folderMovedIn(edit: NavigationEdit, root: string): NavigationEdi
 }
 
 /** The part the next new thread plays. */
+/** The window off a thread that is no longer listed in `threads`. */
+export function onListedThreadIn(edit: NavigationEdit, threads: readonly Thread[]): NavigationEdit {
+  const { currentId } = edit.view;
+  return currentId === null || threads.some((thread) => thread.id === currentId) ? edit : new NavigationChange({ ...edit.view, currentId: null });
+}
+
+/** The window off a thread that was just filed away. */
+export function offThreadIn(edit: NavigationEdit, taskId: string): NavigationEdit {
+  return edit.view.currentId === taskId ? new NavigationChange({ ...edit.view, currentId: null }) : edit;
+}
+
 /** Whether the next new thread gets a checkout of its own, which drops any the user had picked. */
 export function draftCheckoutIn(edit: NavigationEdit, worktree: boolean): NavigationEdit {
   return new NavigationChange({ ...edit.view, draftWorktree: worktree, draftWorktreeId: null });
@@ -127,11 +139,6 @@ export function visited(state: WorkspaceState, index: number): Step {
   return andThen(state, { edits: [historyAtIn(navigationOf(state), index)] }, (moved) => landed(moved, state.history[index]));
 }
 
-/** {@link landed}, on the whole state. */
-export function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
-  return afterward(state, landed(state, taskId));
-}
-
 /** A side chat, or a thread under a coordinator, opens as a tab in the dock of the thread it belongs to. */
 export function selected(state: WorkspaceState, chosen: string): Step {
   const chat = state.sideChats.find((item) => item.id === chosen);
@@ -150,7 +157,3 @@ export function selected(state: WorkspaceState, chosen: string): Step {
   });
 }
 
-/** {@link selected}, on the whole state. */
-export function selectThread(state: WorkspaceState, chosen: string): WorkspaceTransition {
-  return applied(state, selected(state, chosen));
-}

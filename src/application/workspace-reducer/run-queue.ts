@@ -263,11 +263,6 @@ export function withSteeringFailure(state: WorkspaceState, taskId: string, messa
  * The user stopping a thread's run. The run remembers it was asked, so however it ends first, it ends
  * as the stop asked.
  */
-export function cancellingRun(state: WorkspaceState, active: ActiveRun): WorkspaceTransition {
-  return applied(state, cancelling(state, active));
-}
-
-/** {@link cancellingRun}, as the edits it makes. */
 export function cancelling(state: WorkspaceState, active: ActiveRun): Step {
   return { edits: [cancellingIn(runsOf(state), active.taskId)], effects: [{ type: "send-run-command", command: { type: "cancel", taskId: active.taskId, runId: active.runId } }] };
 }
@@ -335,11 +330,6 @@ export type QueueIntent = "deliver" | "resume" | "hand-back";
  * archived, hands what they wrote back to the composer instead of speaking for them, and nothing
  * else queued is delivered.
  */
-export function drainQueue(state: WorkspaceState, taskId: string, intent: QueueIntent): WorkspaceTransition {
-  return applied(state, drained(state, taskId, intent));
-}
-
-/** {@link drainQueue}, as the edits it makes. */
 export function drained(state: WorkspaceState, taskId: string, intent: QueueIntent): Step {
   const queued = queuedFor(state, taskId);
   if (!queued.length) return {};
