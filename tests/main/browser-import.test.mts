@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, test } from "vitest";
-import { chromiumKeys, cookieDetails, discover, firefoxProfileEntries } from "../../src/main/browser-import.ts";
+import { BrowserDataBlocked, chromiumKeys, cookieDetails, discover, firefoxProfileEntries, readProfile } from "../../src/main/browser-import.ts";
 import { chromiumKey } from "../../src/main/browser-cookies.ts";
 
 const folders: string[] = [];
@@ -113,4 +113,11 @@ test("Linux asks the network wallet KWallet names, and notes when secret-tool is
   assert.deepEqual(await keys("v11"), [chromiumKey("kwallet-secret", 1), chromiumKey("", 1)]);
   assert.deepEqual(helpers.missing, ["secret-tool"]);
   assert.deepEqual(calls.find(([command]) => command === "kwallet-query")?.at(-1), "work-wallet");
+});
+
+test("a read macOS refuses asks for Full Disk Access, and any other failure stays as it was", async () => {
+  const refused = () => Promise.reject(Object.assign(new Error("EPERM: operation not permitted"), { code: "EPERM" }));
+  await assert.rejects(readProfile({ browser: "Chrome" }, refused, "darwin"), (error) => error instanceof BrowserDataBlocked && /Chrome.*Full Disk Access/.test(error.message));
+  await assert.rejects(readProfile({ browser: "Chrome" }, refused, "linux"), /EPERM/);
+  await assert.rejects(readProfile({ browser: "Chrome" }, () => Promise.reject(new Error("file is not a database")), "darwin"), /not a database/);
 });

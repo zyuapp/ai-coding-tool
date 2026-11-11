@@ -5,7 +5,12 @@ import type { DesktopEvents } from "./desktop-events.js";
 import { needsDesktop, unsubscribed } from "./headless.js";
 
 /** The browser panel's pages, driven from this process. */
-export function browserDesktop(browser: typeof BrowserHost, imports: typeof BrowserImport, events: DesktopEvents): BrowserPort["runtime"] {
+export function browserDesktop(browser: typeof BrowserHost, imports: typeof BrowserImport, events: DesktopEvents, openFullDiskAccess: () => Promise<void>): BrowserPort["runtime"] {
+  /** A read macOS refused opens the setting that allows it. */
+  const reading = <T>(work: Promise<T>) => work.catch((error: unknown) => {
+    if (error instanceof imports.BrowserDataBlocked) void openFullDiskAccess().catch(() => undefined);
+    throw error;
+  });
   return {
     configureBrowserPermissions: async (permissions) => browser.configurePermissions(permissions),
     openBrowserTab: async (tabId, url, taskId) => browser.openTab(tabId, url, taskId),
@@ -20,8 +25,8 @@ export function browserDesktop(browser: typeof BrowserHost, imports: typeof Brow
     captureBrowserPage: (tabId, fullPage, timeoutMs, taskId) => browser.capturePage(tabId, fullPage, timeoutMs, taskId),
     clearBrowserData: () => browser.clearData(),
     listBrowserImportSources: () => imports.listImportSources(),
-    listBrowserImportSites: (sourceId) => imports.listImportSites(sourceId),
-    importBrowserSites: (sourceId, sites) => imports.importBrowserSites(sourceId, sites, browser.replaceCookies),
+    listBrowserImportSites: (sourceId) => reading(imports.listImportSites(sourceId)),
+    importBrowserSites: (sourceId, sites) => reading(imports.importBrowserSites(sourceId, sites, browser.replaceCookies)),
     onBrowserEvent: (listener) => events.on("browser:event", listener),
     findInPage: async (tabId, query, forward, findNext) => browser.findInPage(tabId, query, { forward, findNext }),
     stopFindInPage: async (tabId) => browser.stopFindInPage(tabId),

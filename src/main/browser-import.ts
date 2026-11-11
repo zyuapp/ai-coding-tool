@@ -151,9 +151,23 @@ async function resolve(sourceId: string): Promise<ResolvedSource> {
   return source;
 }
 
+/** macOS refused to let this app read another browser's data until it has Full Disk Access. */
+export class BrowserDataBlocked extends Error {}
+
+/** Reads a profile's cookie database, naming what to allow when the system refuses. */
+export async function readProfile<T>(source: { browser: string }, read: () => Promise<T>, platform = process.platform): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (platform !== "darwin" || (code !== "EPERM" && code !== "EACCES")) throw error;
+    throw new BrowserDataBlocked(`macOS blocked reading ${source.browser}. Turn on AI Coding Tool in Full Disk Access, then try again.`);
+  }
+}
+
 export async function listImportSites(sourceId: string): Promise<BrowserImportSite[]> {
   const source = await resolve(sourceId);
-  return importSites(await readCookieHosts(source.kind.family, source.file));
+  return importSites(await readProfile(source, () => readCookieHosts(source.kind.family, source.file)));
 }
 
 /** What a command printed, null when it failed, or "missing" when it is not installed. */
@@ -207,7 +221,7 @@ export function chromiumKeys(kind: BrowserKind, helpers: { missing: string[] }, 
 async function readImportCookies(sourceId: string, sites: string[]): Promise<{ cookies: StoredCookie[]; skipped: number }> {
   const source = await resolve(sourceId);
   const helpers = { missing: [] as string[] };
-  const read = await readCookies(source.kind.family, source.file, sites, chromiumKeys(source.kind, helpers));
+  const read = await readProfile(source, () => readCookies(source.kind.family, source.file, sites, chromiumKeys(source.kind, helpers)));
   if (!read.cookies.length && read.skipped && helpers.missing.includes("secret-tool")) {
     throw new Error(`${source.browser} keeps its key in the system keyring. Install secret-tool (libsecret-tools) and try again.`);
   }

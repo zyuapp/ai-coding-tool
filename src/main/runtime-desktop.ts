@@ -133,7 +133,7 @@ export function createRuntimeDesktop(host: RuntimeDesktopHost): RuntimeDesktop {
   });
   return {
     ...services,
-    ...browserDesktop(browser, browserImport, host.events),
+    ...browserDesktop(browser, browserImport, host.events, () => shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")),
     ...simulatorDesktop(simulator),
     ...dictationDesktop(desktopDictation),
     ...updateDesktop(updates, host),
