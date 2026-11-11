@@ -4,9 +4,10 @@
   .model-library { background: var(--glass-edge), var(--surface-menu); background-clip: border-area, border-box, border-box; backdrop-filter: none; }
 }
 .model-search { position: relative; flex-shrink: 0; }
-.model-search .search-field-box { padding-right: 48px; }
-.model-search .search-field input { height: 40px; }
-.model-search > .icon-btn { position: absolute; top: 6px; right: 8px; }
+.model-search .search-field-box { gap: 9px; padding: 0 44px 0 16px; }
+.model-search .search-field-box > svg { width: 14px; height: 14px; }
+.model-search .search-field input { height: 36px; font-size: var(--text-menu); }
+.model-search > .icon-btn { position: absolute; top: 4px; right: 8px; }
 /** The list gives up height first when the window is short, down to a few rows. */
 .model-library-body { flex: 0 1 auto; display: grid; grid-template-columns: var(--library-rail) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); max-height: 340px; min-height: 120px; }
 .model-search, .library-settings, .model-library-footer { flex-shrink: 0; }
