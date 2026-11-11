@@ -1,4 +1,5 @@
 import babelParser from "@babel/eslint-parser";
+import { layerImports } from "./lint/layers.mts";
 
 const FILE_MAX = 700;
 const FUNCTION_MAX = 150;
@@ -49,6 +50,8 @@ export default [
   { files: ["src/renderer/**/*.tsx"], ignores: ["src/renderer/ui/**", "src/renderer/components/**"], rules: { "no-restricted-syntax": ["error", ...PRIMITIVE_MARKUP] } },
   { files: ["src/renderer/components/**"], rules: { "no-restricted-syntax": ["error", ...PRIMITIVE_MARKUP, ...BRIDGE_ACCESS] } },
   { files: ["src/renderer/ui/**"], rules: { "no-restricted-syntax": ["error", ...BRIDGE_ACCESS] } },
+  /** Each layer under src imports only the layers below it, so the window and the main process never reach each other. */
+  { files: ["src/**"], plugins: { aic: { rules: { "layer-imports": layerImports } } }, rules: { "aic/layer-imports": "error" } },
   /** Tool definitions belong to no host: a second engine must be able to serve them untouched. */
   { files: ["src/main/tools/**"], rules: { "no-restricted-imports": ["error", { paths: [{ name: "@anthropic-ai/claude-agent-sdk", message: "Tool definitions are host-neutral; host them from the engine that serves them." }] }] } },
 ];
