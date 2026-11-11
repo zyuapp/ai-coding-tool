@@ -189,7 +189,7 @@ private struct SoftwareRow: View {
                         .padding(.vertical, 6)
                         .background(primary ? palette.accent.opacity(0.14) : palette.ink.opacity(0.08), in: Capsule())
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.target)
                 .accessibilityLabel("\(action.label) \(item.label)")
             } else if item.state.tone == "progress" {
                 Spinner(size: 16)
