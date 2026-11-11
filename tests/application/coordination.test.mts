@@ -437,6 +437,13 @@ test("an answer that cannot be sent leaves the decision open, and an overlong on
   assert.equal(long.result?.ok, false);
 });
 
+test("an answer to a filed-away thread is recorded, and nothing is sent to it", () => {
+  const decisions = [{ id: "d1", question: "Ship?", options: [], raisedAt: 1 }];
+  const answered = reduce(workspace({ threads: [lead(), task("worker", { parentId: "lead", decisions, archivedAt: 2 })] }), { type: "decision.answer", taskId: "worker", decisionId: "d1", answer: "Yes" });
+  assert.equal(answered.state.threads[1].decisions?.[0].answer, "Yes");
+  assert.deepEqual(answered.state.pendingRuns, {});
+});
+
 test("a thread that leaves its coordinator with a decision open is where it is answered", () => {
   const state = workspace({ threads: [lead(), task("worker", { decisions: [{ id: "d1", question: "Ship?", options: [], raisedAt: 1 }] })], currentId: "worker" });
   assert.equal(deriveView(state).coordination.decisions.length, 1);

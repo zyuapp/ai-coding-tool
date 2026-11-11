@@ -43,13 +43,13 @@ export type SliceTransition<Own, Facet = Record<never, never>> = {
  * What one owner's operation changes, which a slice that asks for it carries in its own answer as it
  * is: nothing it changes is a patch, so all of it rides as that owner's edits.
  */
-export type Step = Omit<SliceTransition<Record<never, never>>, "patch">;
+export type Step<Facet = Record<never, never>> = Omit<SliceTransition<Record<never, never>, Facet>, "patch">;
 
 /**
  * `first`, then what `next` makes of the state it leaves, as one answer: edits and effects in that
  * order, the later error and result standing. A refusal ends it there.
  */
-export function andThen(state: WorkspaceState, first: Step, next: (state: WorkspaceState) => Step): Step {
+export function andThen<Facet>(state: WorkspaceState, first: Step<Facet>, next: (state: WorkspaceState) => Step<Facet>): Step<Facet> {
   if (first.refusal !== undefined) return first;
   const second = next(afterward(state, first));
   const error = second.error ?? (second.clearsError && first.error ? { message: null, page: first.error.page } : second.clearsError ? undefined : first.error);
@@ -63,6 +63,11 @@ export function andThen(state: WorkspaceState, first: Step, next: (state: Worksp
     ...(first.closesMenu || second.closesMenu ? { closesMenu: true as const } : {}),
     ...(first.persists || second.persists ? { persists: true as const } : {}),
   };
+}
+
+/** Whether a step turned its input down, refusing it or answering that it failed. */
+export function failed(step: Step<unknown>): boolean {
+  return step.refusal !== undefined || step.result?.ok === false;
 }
 
 /** The state a slice's answer leaves, for reading what its own effects describe. */

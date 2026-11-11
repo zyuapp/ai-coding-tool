@@ -143,7 +143,7 @@ function sent(state: WorkspaceState, input: Extract<SendInput, { type: "task.sen
    */
   if (thread?.archivedAt !== undefined) {
     if (fromThread) return refuse(ARCHIVED_SEND_ERROR);
-    const restored = andThen(state, { edits: [restoredIn(threadsOf(state), thread.id)] }, (next) => reduceSending(next, input, coordination, said));
+    const restored = andThen<Record<never, never>>(state, { edits: [restoredIn(threadsOf(state), thread.id)] }, (next) => reduceSending(next, input, coordination, said));
     return { ...restored, effects: [...fileThread(state, thread, false), ...restored.effects ?? []] };
   }
   /** A thread halfway into a checkout of its own has nowhere settled to run, so the send waits for the user. */

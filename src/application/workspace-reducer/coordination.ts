@@ -3,8 +3,8 @@ import { drainQueue, queuedFor, resolveWorkspaceEffect, stoppingProcess, withPen
 import { reduceSending } from "./sending.js";
 import { released, remoteNews } from "./coordination-remote.js";
 import { withProposalFailure } from "./proposals.js";
-import { now, rejected, settled, targetId } from "./shared.js";
-import { afterward, applied, type SliceTransition } from "./slice.js";
+import { now, settled, targetId } from "./shared.js";
+import { afterward, andThen, failed, type SliceTransition } from "./slice.js";
 import { dismissedIn, editThread, threadsOf, type ThreadPatch, type ThreadsEdit } from "./thread-edits.js";
 import { DECISIONS_FULL, NO_COORDINATOR, NO_MEMORY, OUTSIDE_COORDINATION } from "./errors.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
@@ -17,7 +17,6 @@ import { cancelPause, heldByLimit } from "../limit-pauses.js";
 import { factsHeardIn } from "../member-facts.js";
 import { announced } from "../notices.js";
 import { withoutLapsedStops, withStopAll } from "../outstanding-stops.js";
-import { updateThread } from "../thread-run-state.js";
 import { threadBusy } from "../run-record.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
@@ -28,12 +27,13 @@ import type { Thread } from "../../domain/thread.js";
 
 export const COORDINATION_INPUTS = [
   "task.set-coordinator", "task.set-lead-away", "task.resolve", "task.reopen", "coordination.set-thread-model", "coordination.set-muted",
-  "coordination.reported", "coordination.decision-raised", "memory.set-purpose", "memory.add", "memory.edit", "memory.forget", "coordination.remembered"
+  "coordination.reported", "coordination.decision-raised", "memory.set-purpose", "memory.add", "memory.edit", "memory.forget", "coordination.remembered",
+  "decision.answer", "coordination.next-step"
 ] as const;
 type CoordinationInput = Extract<WorkspaceInput, { type: (typeof COORDINATION_INPUTS)[number] }>;
 
-/** What a coordinator's threads are sent or stopped by, which starts and ends runs. */
-export const COORDINATION_RUN_INPUTS = ["decision.answer", "coordination.stop-all", "coordination.next-step"] as const;
+/** What stops a coordinator's threads, which ends runs. */
+export const COORDINATION_RUN_INPUTS = ["coordination.stop-all"] as const;
 type CoordinationRunInput = Extract<WorkspaceInput, { type: (typeof COORDINATION_RUN_INPUTS)[number] }>;
 
 /** Coordination owns no state of its own: what it keeps lives on threads. */
@@ -131,6 +131,12 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
     case "memory.forget":
       return remembered(state, input.taskId, { kind: "forget", noteId: input.noteId }, false);
 
+    case "decision.answer":
+      return decisionAnswered(state, input);
+
+    case "coordination.next-step":
+      return nextStepTaken(state, input);
+
     /** The coordinator's own change. Its tool call answers a refusal, so the user's banner never shows one. */
     case "coordination.remembered":
       return remembered(state, input.taskId, input.change, true);
@@ -193,49 +199,46 @@ function declinedWith(reason: string): CoordinationTransition {
   return { result: { ok: true, answer: { recorded: false, reason } } };
 }
 
+/** The answer is recorded, then said to the thread that asked, steered into a run already going. */
+function decisionAnswered(state: WorkspaceState, input: Extract<CoordinationInput, { type: "decision.answer" }>): CoordinationTransition {
+  const thread = state.threads.find((item) => item.id === input.taskId);
+  const decision = thread && openDecisions(thread).find((item) => item.id === input.decisionId);
+  const answer = input.answer.trim();
+  if (!thread || !decision || !answer) return {};
+  if (answer.length > MAX_ANSWER) return { refusal: `An answer can be at most ${MAX_ANSWER.toLocaleString()} characters.` };
+  const answered = (next: WorkspaceState) => edited(next, thread.id, (item) => ({ decisions: withAnswer(item, decision.id, answer, now()).decisions }));
+  if (thread.archivedAt !== undefined) return { edits: [answered(state)] };
+  /**
+   * A decision only closes once its answer is on its way, so one that could not be sent can be
+   * answered again. The message says what it answers, queued behind a run or starting one, so
+   * the decision opens again if it never goes.
+   */
+  const sent = reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}`, steer: true }, {}, { answers: decision.id });
+  return failed(sent) ? sent : andThen(state, sent, (next) => ({ edits: [answered(next)] }));
+}
+
+/**
+ * A next step is the user's own word to the thread, sent as any message of theirs is, but one its
+ * coordinator offered, so the turn it starts is news for that coordinator. One the thread's card no
+ * longer offers, as once it has started working, is refused and nothing is sent.
+ */
+function nextStepTaken(state: WorkspaceState, input: Extract<CoordinationInput, { type: "coordination.next-step" }>): CoordinationTransition {
+  const thread = state.threads.find((item) => item.id === input.taskId);
+  const lead = coordinatorOf(state.threads, thread);
+  /**
+   * Only a thread its coordinator's views draw has a card to take a step from, so an archived one
+   * has none. One under a coordinator on another computer is drawn there and decided here.
+   */
+  const drawn = lead ? coordinationMembers(state, lead.id).some((member) => member.thread === thread) : Boolean(remoteLeadOf(thread) && thread!.archivedAt === undefined);
+  if (!thread || !drawn) return { refusal: STEP_GONE };
+  const { working, blocked } = threadActivity(state);
+  const { status } = coordinatedThreadStatus(thread, working, blocked);
+  if (!nextSteps(thread, status, checkoutAnswer(state, thread)).includes(input.step)) return { refusal: STEP_GONE };
+  return reduceSending(state, { type: "task.send", taskId: thread.id, text: nextStepOf(input.step).text }, {}, { step: true });
+}
+
 export function reduceCoordinationRuns(state: WorkspaceState, input: CoordinationRunInput): WorkspaceTransition {
-  switch (input.type) {
-    /** The answer is recorded, then said to the thread that asked, steered into a run already going. */
-    case "decision.answer": {
-      const thread = state.threads.find((item) => item.id === input.taskId);
-      const decision = thread && openDecisions(thread).find((item) => item.id === input.decisionId);
-      const answer = input.answer.trim();
-      if (!thread || !decision || !answer) return settled(state);
-      if (answer.length > MAX_ANSWER) return rejected(state, `An answer can be at most ${MAX_ANSWER.toLocaleString()} characters.`);
-      const answered = (next: WorkspaceState) => updateThread(next, thread.id, (item) => withAnswer(item, decision.id, answer, now()));
-      if (thread.archivedAt !== undefined) return settled(answered(state));
-      /**
-       * A decision only closes once its answer is on its way, so one that could not be sent can be
-       * answered again. The message says what it answers, queued behind a run or starting one, so
-       * the decision opens again if it never goes.
-       */
-      const sent = applied(state, reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}`, steer: true }, {}, { answers: decision.id }));
-      return sent.result?.ok === false ? sent : { ...sent, state: answered(sent.state) };
-    }
-
-    /**
-     * A next step is the user's own word to the thread, sent as any message of theirs is, but one its
-     * coordinator offered, so the turn it starts is news for that coordinator. One the thread's card no
-     * longer offers, as once it has started working, is refused and nothing is sent.
-     */
-    case "coordination.next-step": {
-      const thread = state.threads.find((item) => item.id === input.taskId);
-      const lead = coordinatorOf(state.threads, thread);
-      /**
-       * Only a thread its coordinator's views draw has a card to take a step from, so an archived one
-       * has none. One under a coordinator on another computer is drawn there and decided here.
-       */
-      const drawn = lead ? coordinationMembers(state, lead.id).some((member) => member.thread === thread) : Boolean(remoteLeadOf(thread) && thread!.archivedAt === undefined);
-      if (!thread || !drawn) return rejected(state, STEP_GONE);
-      const { working, blocked } = threadActivity(state);
-      const { status } = coordinatedThreadStatus(thread, working, blocked);
-      if (!nextSteps(thread, status, checkoutAnswer(state, thread)).includes(input.step)) return rejected(state, STEP_GONE);
-      return applied(state, reduceSending(state, { type: "task.send", taskId: thread.id, text: nextStepOf(input.step).text }, {}, { step: true }));
-    }
-
-    case "coordination.stop-all":
-      return stopAll(state, input.taskId);
-  }
+  return stopAll(state, input.taskId);
 }
 
 /**
