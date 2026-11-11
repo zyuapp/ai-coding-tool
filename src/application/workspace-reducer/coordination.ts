@@ -3,55 +3,69 @@ import { drainQueue, queuedFor, resolveWorkspaceEffect, stoppingProcess, withPen
 import { reduceSending } from "./sending.js";
 import { released, remoteNews } from "./coordination-remote.js";
 import { withProposalFailure } from "./proposals.js";
-import { declined, now, recorded, rejected, settled, targetId } from "./shared.js";
+import { now, rejected, settled, targetId } from "./shared.js";
+import { afterward, type SliceTransition } from "./slice.js";
+import { dismissedIn, editThread, threadsOf, type ThreadPatch, type ThreadsEdit } from "./thread-edits.js";
 import { DECISIONS_FULL, NO_COORDINATOR, NO_MEMORY, OUTSIDE_COORDINATION } from "./errors.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
+import type { WorkspaceCommandResult } from "../../contracts/workspace-result.js";
 import { coordinationMembers, coordinationRole, coordinatorRoster, coordinatorWork, unheardWork, waitingLine, type CoordinatorRoster } from "../coordination.js";
 import { coordinationUpdate, decisionHeadline, withNewsQuieted } from "../coordination-messages.js";
 import { canResolve, checkoutAnswer, coordinatedThreadStatus, nextSteps } from "../coordinated-thread-status.js";
 import { activityChanges, threadActivity, threadChanges, type ThreadChange } from "../thread-activity.js";
 import { cancelPause, heldByLimit } from "../limit-pauses.js";
-import { withFactsHeard } from "../member-facts.js";
+import { factsHeardIn } from "../member-facts.js";
 import { announced } from "../notices.js";
 import { withoutLapsedStops, withStopAll } from "../outstanding-stops.js";
 import { updateThread } from "../thread-run-state.js";
 import { threadBusy } from "../run-record.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
-import { canJoinCoordinator, coordinatorOf, decisionsFull, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
+import { canJoinCoordinator, coordinatorOf, decisionsFull, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type CoordinationThread, type MemoryChange } from "../../domain/coordination.js";
 import { defaultEffortFor, effortForModel, engineHasModel, modelDelegable, modelEngine, modelHasEffort, modelTakesEffort, unknownModel } from "../../domain/agent-engine.js";
 import { catalogOf } from "../state/engines.js";
 import type { Thread } from "../../domain/thread.js";
-import { dismissed } from "../../domain/attention.js";
 
 export const COORDINATION_INPUTS = [
-  "task.set-coordinator", "task.set-lead-away", "task.resolve", "task.reopen", "decision.answer", "coordination.set-thread-model",
-  "coordination.set-muted", "coordination.stop-all", "coordination.reported", "coordination.decision-raised", "memory.set-purpose", "memory.add",
-  "memory.edit", "memory.forget", "coordination.remembered", "coordination.next-step"
+  "task.set-coordinator", "task.set-lead-away", "task.resolve", "task.reopen", "coordination.set-thread-model", "coordination.set-muted",
+  "coordination.reported", "coordination.decision-raised", "memory.set-purpose", "memory.add", "memory.edit", "memory.forget", "coordination.remembered"
 ] as const;
 type CoordinationInput = Extract<WorkspaceInput, { type: (typeof COORDINATION_INPUTS)[number] }>;
+
+/** What a coordinator's threads are sent or stopped by, which starts and ends runs. */
+export const COORDINATION_RUN_INPUTS = ["decision.answer", "coordination.stop-all", "coordination.next-step"] as const;
+type CoordinationRunInput = Extract<WorkspaceInput, { type: (typeof COORDINATION_RUN_INPUTS)[number] }>;
+
+/** Coordination owns no state of its own: what it keeps lives on threads. */
+type Own = Record<never, never>;
+
+type CoordinationTransition = SliceTransition<Own, CoordinationThread>;
 
 const STEP_GONE = "That step is no longer offered.";
 
 const JOIN_REFUSED = "Only a coordinator can take threads under it, and a coordinator cannot work under another.";
 
-export function reduceCoordination(state: WorkspaceState, input: CoordinationInput): WorkspaceTransition {
+function edited(state: WorkspaceState, id: string, patch: (thread: Thread) => ThreadPatch<keyof CoordinationThread>): ThreadsEdit<CoordinationThread> {
+  return editThread(threadsOf<CoordinationThread>(state), id, patch);
+}
+
+export function reduceCoordination(state: WorkspaceState, input: CoordinationInput): CoordinationTransition {
   switch (input.type) {
     case "task.set-coordinator": {
       const thread = state.threads.find((item) => item.id === input.taskId);
-      if (!thread) return settled(state);
+      if (!thread) return {};
       /**
        * Resolved only means anything under the coordinator that saw the work settle, so a move leaves
        * it behind, and a thread moved out leaves a coordinator on another computer as well as one here.
        */
       if (input.coordinatorId === null) {
-        if (thread.parentId === undefined && thread.remoteLead === undefined) return settled(state);
-        return settled({ ...updateThread(state, thread.id, ({ parentId: _left, remoteLead: _released, resolvedAt: _settled, ...item }) => ({ ...item, updatedAt: now() })), openMenu: null });
+        if (thread.parentId === undefined && thread.remoteLead === undefined) return {};
+        return { edits: [edited(state, thread.id, () => ({ parentId: undefined, remoteLead: undefined, resolvedAt: undefined, updatedAt: now() }))], closesMenu: true };
       }
       const lead = state.threads.find((item) => item.id === input.coordinatorId);
-      if (!canJoinCoordinator(thread, lead)) return rejected(state, JOIN_REFUSED);
-      if (thread.parentId === lead.id && thread.remoteLead === undefined) return settled(state);
-      return settled({ ...updateThread(state, thread.id, ({ resolvedAt: _settled, remoteLead: _left, ...item }) => ({ ...item, parentId: lead.id, updatedAt: now() })), openMenu: null });
+      if (!canJoinCoordinator(thread, lead)) return { refusal: JOIN_REFUSED };
+      if (thread.parentId === lead.id && thread.remoteLead === undefined) return {};
+      return { edits: [edited(state, thread.id, () => ({ resolvedAt: undefined, remoteLead: undefined, parentId: lead.id, updatedAt: now() }))], closesMenu: true };
     }
 
     /**
@@ -61,9 +75,9 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
     case "task.set-lead-away": {
       const thread = state.threads.find((item) => item.id === input.taskId);
       const held = thread?.parentId === undefined ? thread?.remoteLead : undefined;
-      if (!held || (held.away === true) === input.away) return settled(state);
+      if (!held || (held.away === true) === input.away) return {};
       const { away: _was, ...lead } = held;
-      return settled(updateThread(state, input.taskId, (item) => ({ ...item, remoteLead: input.away ? { ...lead, away: true } : { ...lead, backAt: now() }, updatedAt: now() })));
+      return { edits: [edited(state, input.taskId, () => ({ remoteLead: input.away ? { ...lead, away: true } : { ...lead, backAt: now() }, updatedAt: now() }))] };
     }
 
     /**
@@ -72,19 +86,115 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
      */
     case "task.resolve": {
       const thread = state.threads.find((item) => item.id === input.taskId);
-      if (!thread || !worksUnderCoordinator(state.threads, thread) || thread.resolvedAt !== undefined) return settled(state);
+      if (!thread || !worksUnderCoordinator(state.threads, thread) || thread.resolvedAt !== undefined) return {};
       const { working, blocked } = threadActivity(state);
-      if (!canResolve(coordinatedThreadStatus(thread, working, blocked).status)) return rejected(state, "Finish or answer what this thread is waiting on first.");
-      const resolved = updateThread(state, thread.id, (item) => ({ ...item, resolvedAt: now(), updatedAt: now() }));
-      return settled({ ...resolved, threads: dismissed(resolved.threads, new Set([thread.id])) });
+      if (!canResolve(coordinatedThreadStatus(thread, working, blocked).status)) return { refusal: "Finish or answer what this thread is waiting on first." };
+      return { edits: [dismissedIn(edited(state, thread.id, () => ({ resolvedAt: now(), updatedAt: now() })), new Set([thread.id]))] };
     }
 
     case "task.reopen": {
       const thread = state.threads.find((item) => item.id === input.taskId);
-      if (!thread || !worksUnderCoordinator(state.threads, thread) || thread.resolvedAt === undefined) return settled(state);
-      return settled(updateThread(state, thread.id, ({ resolvedAt: _reopened, ...item }) => ({ ...item, updatedAt: now() })));
+      if (!thread || !worksUnderCoordinator(state.threads, thread) || thread.resolvedAt === undefined) return {};
+      return { edits: [edited(state, thread.id, () => ({ resolvedAt: undefined, updatedAt: now() }))] };
     }
 
+    case "coordination.set-thread-model": {
+      const lead = state.threads.find((item) => item.id === input.taskId);
+      if (!lead || !isCoordinator(lead)) return { refusal: "Only a coordinator chooses what its threads run on." };
+      const catalog = catalogOf(state);
+      const engine = input.engine ?? modelEngine(catalog, input.model, lead.engine);
+      if (!engine || !engineHasModel(catalog, engine, input.model)) return { refusal: unknownModel(input.model, input.engine) };
+      if (!modelDelegable(catalog, engine, input.model)) return { refusal: undelegable(input.model) };
+      /** An effort the model lacks, or none, keeps the depth the threads run at as near as that model allows. */
+      const effort = input.effort && modelHasEffort(catalog, engine, input.model, input.effort)
+        ? input.effort
+        : effortForModel(catalog, engine, input.model, threadModelOf(catalog, lead)?.effort ?? defaultEffortFor(engine));
+      const threadModel = modelTakesEffort(catalog, engine, input.model) ? { engine, model: input.model, effort } : { engine, model: input.model };
+      if (lead.threadModel?.engine === engine && lead.threadModel.model === threadModel.model && lead.threadModel.effort === threadModel.effort) return {};
+      return { edits: [edited(state, lead.id, () => ({ threadModel, updatedAt: now() }))] };
+    }
+
+    /** Muting is the user's word on a coordinator's notices; it marks nothing in the sidebar. */
+    case "coordination.set-muted": {
+      const lead = state.threads.find((item) => item.id === input.taskId);
+      if (!lead || !isCoordinator(lead) || (lead.muted === true) === input.muted) return {};
+      return { edits: [edited(state, lead.id, () => ({ muted: input.muted ? true : undefined, updatedAt: now() }))] };
+    }
+
+    /** The user's own edits, which the coordinator's session has yet to read. */
+    case "memory.set-purpose":
+      return remembered(state, input.taskId, { kind: "purpose", purpose: input.purpose }, false);
+    case "memory.add":
+      return remembered(state, input.taskId, { kind: "remember", text: input.text }, false);
+    case "memory.edit":
+      return remembered(state, input.taskId, { kind: "edit", noteId: input.noteId, text: input.text }, false);
+    case "memory.forget":
+      return remembered(state, input.taskId, { kind: "forget", noteId: input.noteId }, false);
+
+    /** The coordinator's own change. Its tool call answers a refusal, so the user's banner never shows one. */
+    case "coordination.remembered":
+      return remembered(state, input.taskId, input.change, true);
+
+    /**
+     * Progress is not news: only a thread that is blocked, done or failed leaves its coordinator a
+     * note, which it hears with the rest when the thread's turn ends. One that cannot go on is the
+     * user's to hear about at once. A thread under a coordinator on another computer only records
+     * where it stands: that computer reads it here, and hears and announces it there.
+     */
+    case "coordination.reported": {
+      const thread = state.threads.find((item) => item.id === input.taskId);
+      const lead = coordinatorOf(state.threads, thread);
+      if (!thread || !lead && !remoteLeadOf(thread)) return declinedWith(NO_COORDINATOR);
+      const at = now();
+      const reported = edited(state, thread.id, (item) => {
+        const open = reopenedIfStuck({ ...item, report: { state: input.state, summary: input.summary, at } });
+        return { report: open.report, resolvedAt: open.resolvedAt };
+      });
+      if (!lead) return { edits: [reported], result: recordedAnswer() };
+      const report = { state: input.state, summary: input.summary, at };
+      const heard = factsHeardIn(state, reported, lead, thread, [{ kind: "reported", report, runId: state.activeRuns[thread.id]?.runId }], at);
+      return { edits: [heard.threads], effects: heard.effects, result: recordedAnswer() };
+    }
+
+    /**
+     * The user is told at once; the coordinator hears it with the rest when the thread's turn ends. A
+     * thread under a coordinator on another computer only records it, for that computer to raise. A
+     * thread with as many waiting as it may raises no more, and its tool call is told why.
+     */
+    case "coordination.decision-raised": {
+      const thread = state.threads.find((item) => item.id === input.taskId);
+      const lead = thread && (isCoordinator(thread) ? thread : coordinatorOf(state.threads, thread));
+      if (!thread || !lead && !remoteLeadOf(thread)) return declinedWith(OUTSIDE_COORDINATION);
+      if (decisionsFull(thread)) return declinedWith(DECISIONS_FULL);
+      const at = now();
+      const decision = {
+        id: input.decisionId ?? crypto.randomUUID(),
+        question: input.request.question,
+        ...(input.request.context ? { context: input.request.context } : {}),
+        options: input.request.options,
+        raisedAt: at,
+      };
+      const raised = edited(state, thread.id, (item) => ({ decisions: withDecision(item, decision).decisions }));
+      if (!lead) return { edits: [raised], result: recordedAnswer() };
+      if (lead === thread) return { edits: [raised], effects: announced(afterward(state, { edits: [raised] }), lead, decisionHeadline(decision), "decision"), result: recordedAnswer() };
+      const heard = factsHeardIn(state, raised, lead, thread, [{ kind: "raised", decision, runId: state.activeRuns[thread.id]?.runId }], at);
+      return { edits: [heard.threads], effects: heard.effects, result: recordedAnswer() };
+    }
+  }
+}
+
+/** A thread's own request carried out. */
+function recordedAnswer(): WorkspaceCommandResult {
+  return { ok: true, answer: { recorded: true } };
+}
+
+/** A thread's own request turned down: nothing changes, the user is shown nothing, and the reason answers the thread. */
+function declinedWith(reason: string): CoordinationTransition {
+  return { result: { ok: true, answer: { recorded: false, reason } } };
+}
+
+export function reduceCoordinationRuns(state: WorkspaceState, input: CoordinationRunInput): WorkspaceTransition {
+  switch (input.type) {
     /** The answer is recorded, then said to the thread that asked, steered into a run already going. */
     case "decision.answer": {
       const thread = state.threads.find((item) => item.id === input.taskId);
@@ -123,86 +233,8 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       return reduceSending(state, { type: "task.send", taskId: thread.id, text: nextStepOf(input.step).text }, {}, { step: true });
     }
 
-    case "coordination.set-thread-model": {
-      const lead = state.threads.find((item) => item.id === input.taskId);
-      if (!lead || !isCoordinator(lead)) return rejected(state, "Only a coordinator chooses what its threads run on.");
-      const catalog = catalogOf(state);
-      const engine = input.engine ?? modelEngine(catalog, input.model, lead.engine);
-      if (!engine || !engineHasModel(catalog, engine, input.model)) return rejected(state, unknownModel(input.model, input.engine));
-      if (!modelDelegable(catalog, engine, input.model)) return rejected(state, undelegable(input.model));
-      /** An effort the model lacks, or none, keeps the depth the threads run at as near as that model allows. */
-      const effort = input.effort && modelHasEffort(catalog, engine, input.model, input.effort)
-        ? input.effort
-        : effortForModel(catalog, engine, input.model, threadModelOf(catalog, lead)?.effort ?? defaultEffortFor(engine));
-      const threadModel = modelTakesEffort(catalog, engine, input.model) ? { engine, model: input.model, effort } : { engine, model: input.model };
-      if (lead.threadModel?.engine === engine && lead.threadModel.model === threadModel.model && lead.threadModel.effort === threadModel.effort) return settled(state);
-      return settled(updateThread(state, lead.id, (item) => ({ ...item, threadModel, updatedAt: now() })));
-    }
-
-    /** Muting is the user's word on a coordinator's notices; it marks nothing in the sidebar. */
-    case "coordination.set-muted": {
-      const lead = state.threads.find((item) => item.id === input.taskId);
-      if (!lead || !isCoordinator(lead) || (lead.muted === true) === input.muted) return settled(state);
-      return settled(updateThread(state, lead.id, ({ muted: _was, ...item }) => ({ ...item, ...(input.muted ? { muted: true as const } : {}), updatedAt: now() })));
-    }
-
     case "coordination.stop-all":
       return stopAll(state, input.taskId);
-
-    /** The user's own edits, which the coordinator's session has yet to read. */
-    case "memory.set-purpose":
-      return remembered(state, input.taskId, { kind: "purpose", purpose: input.purpose }, false);
-    case "memory.add":
-      return remembered(state, input.taskId, { kind: "remember", text: input.text }, false);
-    case "memory.edit":
-      return remembered(state, input.taskId, { kind: "edit", noteId: input.noteId, text: input.text }, false);
-    case "memory.forget":
-      return remembered(state, input.taskId, { kind: "forget", noteId: input.noteId }, false);
-
-    /** The coordinator's own change. Its tool call answers a refusal, so the user's banner never shows one. */
-    case "coordination.remembered":
-      return remembered(state, input.taskId, input.change, true);
-
-    /**
-     * Progress is not news: only a thread that is blocked, done or failed leaves its coordinator a
-     * note, which it hears with the rest when the thread's turn ends. One that cannot go on is the
-     * user's to hear about at once. A thread under a coordinator on another computer only records
-     * where it stands: that computer reads it here, and hears and announces it there.
-     */
-    case "coordination.reported": {
-      const thread = state.threads.find((item) => item.id === input.taskId);
-      const lead = coordinatorOf(state.threads, thread);
-      if (!thread || !lead && !remoteLeadOf(thread)) return declined(state, NO_COORDINATOR);
-      const at = now();
-      const reported = updateThread(state, thread.id, (item) => reopenedIfStuck({ ...item, report: { state: input.state, summary: input.summary, at } }));
-      if (!lead) return recorded(settled(reported));
-      const report = { state: input.state, summary: input.summary, at };
-      return recorded(withFactsHeard(reported, lead, thread, [{ kind: "reported", report, runId: state.activeRuns[thread.id]?.runId }], at));
-    }
-
-    /**
-     * The user is told at once; the coordinator hears it with the rest when the thread's turn ends. A
-     * thread under a coordinator on another computer only records it, for that computer to raise. A
-     * thread with as many waiting as it may raises no more, and its tool call is told why.
-     */
-    case "coordination.decision-raised": {
-      const thread = state.threads.find((item) => item.id === input.taskId);
-      const lead = thread && (isCoordinator(thread) ? thread : coordinatorOf(state.threads, thread));
-      if (!thread || !lead && !remoteLeadOf(thread)) return declined(state, OUTSIDE_COORDINATION);
-      if (decisionsFull(thread)) return declined(state, DECISIONS_FULL);
-      const at = now();
-      const decision = {
-        id: input.decisionId ?? crypto.randomUUID(),
-        question: input.request.question,
-        ...(input.request.context ? { context: input.request.context } : {}),
-        options: input.request.options,
-        raisedAt: at,
-      };
-      const raised = updateThread(state, thread.id, (item) => withDecision(item, decision));
-      if (!lead) return recorded(settled(raised));
-      if (lead === thread) return recorded(settled(raised, announced(raised, lead, decisionHeadline(decision), "decision")));
-      return recorded(withFactsHeard(raised, lead, thread, [{ kind: "raised", decision, runId: state.activeRuns[thread.id]?.runId }], at));
-    }
   }
 }
 
@@ -254,14 +286,14 @@ function followedBy(first: WorkspaceTransition, then: WorkspaceTransition): Work
  * Only a coordinator keeps a memory; a change that alters nothing writes nothing. The coordinator's
  * own change, which its session hears as it makes it, is answered rather than refused to the user.
  */
-function remembered(state: WorkspaceState, taskId: string, change: MemoryChange, heard: boolean): WorkspaceTransition {
+function remembered(state: WorkspaceState, taskId: string, change: MemoryChange, heard: boolean): CoordinationTransition {
   const lead = state.threads.find((item) => item.id === taskId);
-  if (!lead || !isCoordinator(lead)) return heard ? declined(state, NO_MEMORY) : settled(state);
+  if (!lead || !isCoordinator(lead)) return heard ? declinedWith(NO_MEMORY) : {};
   const at = now();
   const changed = withMemoryChange(lead, change, at, { heard });
-  if ("error" in changed) return heard ? declined(state, changed.error) : rejected(state, changed.error);
-  const made = changed.thread === lead ? settled(state) : settled(updateThread(state, lead.id, () => ({ ...changed.thread, updatedAt: at })));
-  return heard ? recorded(made, changed.noteId) : made;
+  if ("error" in changed) return heard ? declinedWith(changed.error) : { refusal: changed.error };
+  const made: CoordinationTransition = changed.thread === lead ? {} : { edits: [edited(state, lead.id, () => ({ memory: changed.thread.memory, updatedAt: at }))] };
+  return heard ? { ...made, result: { ok: true, answer: { recorded: true, ...(changed.noteId ? { noteId: changed.noteId } : {}) } } } : made;
 }
 
 /**

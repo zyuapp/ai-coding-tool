@@ -9,8 +9,10 @@ import { announced, waitingHeadline } from "./notices.js";
 import { settledHeadline, type RunSurfacing } from "./run-testimony.js";
 import type { TurnStatus } from "./run-settlement.js";
 import { updateThread } from "./thread-run-state.js";
+import { afterward } from "./workspace-reducer/slice.js";
+import { editThread, type ThreadsEdit } from "./workspace-reducer/thread-edits.js";
 import type { WorkspaceState } from "./workspace-state.js";
-import { withCoordinationNote, type CoordinationNote, type CoordinationReport, type Decision } from "../domain/coordination.js";
+import { withCoordinationNote, type CoordinationNote, type CoordinationThread, type CoordinationReport, type Decision } from "../domain/coordination.js";
 import type { Thread } from "../domain/thread.js";
 
 /**
@@ -73,4 +75,11 @@ export function withFactsHeard(state: WorkspaceState, lead: Thread, member: Thre
   const { notes, effects } = heardFacts(state, lead, member, facts, at);
   const next = notes.length ? updateThread(state, lead.id, (item) => notes.reduce(withCoordinationNote, item)) : state;
   return { state: next, effects };
+}
+
+/** {@link withFactsHeard}, on the threads an input is changing, as `state` reads with them in. */
+export function factsHeardIn(state: WorkspaceState, threads: ThreadsEdit<CoordinationThread>, lead: Thread, member: Thread, facts: readonly MemberFact[], at: number): { threads: ThreadsEdit<CoordinationThread>; effects: WorkspaceEffect[] } {
+  const { notes, effects } = heardFacts(afterward(state, { edits: [threads] }), lead, member, facts, at);
+  if (!notes.length) return { threads, effects };
+  return { threads: editThread(threads, lead.id, (item) => ({ coordinationNotes: notes.reduce(withCoordinationNote, item).coordinationNotes })), effects };
 }
