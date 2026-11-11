@@ -5,7 +5,7 @@ import { coordinatedStart, withSuggestionStarted } from "./coordinated-start.js"
 import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { attendedRun, beginRun, cancelling, pendingStep, processStopped, queuedFor, resolveWorkspaceEffect, runModelOf, sideChannelFor, startRunCommand, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withUnsent, withoutPending, withoutStartedDraft } from "./run-queue.js";
+import { attendedRun, beginRun, cancelling, pendingStep, processStopped, queuedFor, resolveWorkspaceEffect, runModelOf, sideChannelFor, startRunCommand, withDeliveredMessage, withQueued, withSideChat, withSteeringFailure, withUnsent, withoutPending, withoutStartedDraft } from "./run-queue.js";
 import { approvalAnsweredIn, runsOf, threadEventIn } from "./run-edits.js";
 import { andThen, type Step } from "./slice.js";
 import { followUps, now, settled, targetId, rejected } from "./shared.js";
@@ -25,6 +25,7 @@ import { answerPartId, applyRunEvent, ATTENDED_RUN, threadMark, updateThread, ty
 import { threadBusy, threadToBegin } from "../run-record.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
+import { dialogsOf, reviewPickerIn } from "../workspace-dialogs.js";
 import { draftOf } from "../state/new-thread-draft.js";
 import type { CreatedWorktree, RunEvent } from "../../contracts/ipc.js";
 import { capabilitiesFor, noModel, threadModel, unknownModel } from "../../domain/agent-engine.js";
@@ -38,15 +39,21 @@ import { isCoordinator, worksUnderCoordinator } from "../../domain/coordination.
 import { clampTitle, type Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 
-export const RUN_INPUTS = ["run.resolved", "run.unresolved", "run.event", "review.open", "review.close", "review.set-step", "review.start"] as const;
+export const RUN_INPUTS = ["run.resolved", "run.unresolved", "run.event"] as const;
 type RunInput = Extract<WorkspaceInput, { type: (typeof RUN_INPUTS)[number] }>;
 
 /** What the user asks of a live run, and what a session reports from beside it, which change only the runs' own state. */
-export const RUN_CONTROL_INPUTS = ["run.compact", "run.cancel", "run.stop-process", "run.decide", "thread.event"] as const;
+export const RUN_CONTROL_INPUTS = ["run.compact", "run.cancel", "run.stop-process", "run.decide", "thread.event", "review.open", "review.close", "review.set-step", "review.start"] as const;
 type RunControlInput = Extract<WorkspaceInput, { type: (typeof RUN_CONTROL_INPUTS)[number] }>;
 
 export function reduceRunControl(state: WorkspaceState, input: RunControlInput): Step {
   switch (input.type) {
+    case "review.open":
+    case "review.close":
+    case "review.set-step":
+    case "review.start":
+      return reduceReview(state, input);
+
     case "run.compact": {
       const taskId = targetId(state, input.taskId);
       const thread = state.threads.find((item) => item.id === taskId);
@@ -98,12 +105,9 @@ export function reduceRunControl(state: WorkspaceState, input: RunControlInput):
     }
   }
 }
-type ReviewInput = Extract<RunInput, { type: "review.open" | "review.close" | "review.set-step" | "review.start" }>;
+type ReviewInput = Extract<RunControlInput, { type: "review.open" | "review.close" | "review.set-step" | "review.start" }>;
 
 export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTransition {
-  if (input.type === "review.open" || input.type === "review.close" || input.type === "review.set-step" || input.type === "review.start") {
-    return reduceReview(state, input);
-  }
   switch (input.type) {
     case "run.resolved": {
       const pending = state.pendingRuns[input.pendingId];
@@ -224,20 +228,19 @@ function runNotice(thread: Thread, active: ActiveRun, event: RunEvent, surfacing
   return { headline: (isCoordinator(thread) && postedHeadline(thread, active.messagesBefore)) || headline, reason: "finished" };
 }
 
-function reduceReview(state: WorkspaceState, input: ReviewInput): WorkspaceTransition {
-  if (input.type === "review.close") return state.reviewPicker ? settled({ ...state, reviewPicker: null }) : settled(state);
+/** The native review picker, and the review run it starts. */
+function reduceReview(state: WorkspaceState, input: ReviewInput): Step {
+  if (input.type === "review.close") return state.reviewPicker ? { edits: [reviewPickerIn(dialogsOf(state), null)] } : {};
   if (input.type === "review.set-step") {
     const picker = state.reviewPicker;
-    if (!picker || picker.taskId !== state.currentId || !reviewableThread(state, picker.taskId)) return settled(state);
-    return settled({ ...state, reviewPicker: { ...picker, step: input.step } });
+    if (!picker || picker.taskId !== state.currentId || !reviewableThread(state, picker.taskId)) return {};
+    return { edits: [reviewPickerIn(dialogsOf(state), { ...picker, step: input.step })] };
   }
   const taskId = targetId(state, input.taskId);
   const thread = reviewableThread(state, taskId);
-  if (!thread) return settled(state);
-  if (input.type === "review.open") {
-    return settled({ ...state, actionError: null, reviewPicker: { taskId: thread.id, step: "targets" } });
-  }
-  if (!isReviewTarget(input.target)) return settled(state);
+  if (!thread) return {};
+  if (input.type === "review.open") return { edits: [reviewPickerIn(dialogsOf(state), { taskId: thread.id, step: "targets" })], clearsError: true };
+  if (!isReviewTarget(input.target)) return {};
   const project = projectFor(state, thread);
   const pending: PendingRun = {
     id: crypto.randomUUID(),
@@ -251,7 +254,8 @@ function reduceReview(state: WorkspaceState, input: ReviewInput): WorkspaceTrans
     attachments: [],
   };
   const resolving = resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false);
-  return settled(withPending({ ...state, reviewPicker: null }, pending), [resolving]);
+  const started = pendingStep(state, pending);
+  return { ...started, edits: [reviewPickerIn(dialogsOf(state), null), ...started.edits ?? []], effects: [resolving] };
 }
 
 /**

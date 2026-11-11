@@ -92,8 +92,10 @@ test("a Codex review picker starts a native review without adding a user message
     })],
     currentId: "task-a",
   });
-  const opened = reduce(state, { type: "review.open" });
+  const opened = reduce({ ...state, actionError: "Earlier." }, { type: "review.open" });
   assert.deepEqual(deriveView(opened.state).reviewPicker, { taskId: "task-a", step: "targets" });
+  assert.equal(opened.state.actionError, null, "opening the picker takes down the error that was up");
+  assert.equal(reduce(opened.state, { type: "review.close" }).state.reviewPicker, null);
   assert.equal(deriveView({ ...opened.state, activeRuns: { "task-a": activeRun("task-a", "other-run") } }).reviewPicker, null, "concurrent work hides a stale picker");
 
   const detailed = reduce(opened.state, { type: "review.set-step", step: "base" });
