@@ -107,6 +107,24 @@ test("Start all starts every suggestion here, and one that cannot start stays wi
   assert.equal(unresolved.state.actionError, null);
 });
 
+test("Start all where none can start keeps each one's reason on its row and answers with the last", () => {
+  const unknown = proposal("p1", { engine: "nope" as never });
+  const gone = proposal("p2", { place: { project: "project-gone", worktree: false } });
+  const all = reduce(workspace({ threads: [lead({ proposals: [unknown, gone] })], currentId: "lead" }), { type: "proposal.start", taskId: "lead" });
+  assert.match(required(coordinator(all.state).proposals?.[0]?.error), /can't start threads on nope/);
+  assert.match(required(coordinator(all.state).proposals?.[1]?.error), /No project matches "project-gone"/);
+  assert.match(all.result?.ok === false ? all.result.message : "", /No project matches "project-gone"/);
+  assert.deepEqual(all.state.startingProposals, []);
+});
+
+test("a suggestion whose engine is missing says so on its row, leaving the banner and its page alone", () => {
+  const state = workspace({ threads: [lead({ proposals: [proposal("p1")] })], currentId: "lead", engineStatus: { claude: { access: "missing", fix: "curl -fsSL https://claude.ai/install.sh | bash" } } });
+  const refused = reduce(state, { type: "proposal.start", taskId: "lead", proposalId: "p1" });
+  assert.ok(coordinator(refused.state).proposals?.[0]?.error);
+  assert.equal(refused.state.actionError, null);
+  assert.equal(refused.state.actionErrorPage, null);
+});
+
 test("starting a suggestion leaves where the user's own draft is pointed alone", () => {
   const drafted = workspace({
     projects: [PROJECT],
