@@ -1,6 +1,6 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { TaskDatabase } from "./task-database.mjs";
-import { PRIVATE_CODEX_HOME_ENV } from "./codex/codex-home.mjs";
+import { PRIVATE_CODEX_HOME_ENV } from "./agent/engine-homes.mjs";
 import type { TaskDatabaseRequest, TaskDatabaseResponse } from "./task-database-protocol.mjs";
 
 if (!parentPort) throw new Error("Task database must run inside its worker.");

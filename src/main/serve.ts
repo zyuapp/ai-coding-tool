@@ -117,7 +117,7 @@ export async function startServe(options: {
   const release = claimServeLock(userData);
   useAttachmentsDirectory(userData);
   useMessageImageStore({ directory: path.join(userData, "message-images"), thumbnail: () => null });
-  const { PRIVATE_CODEX_HOME_ENV } = await import("./codex/codex-home.mjs");
+  const { PRIVATE_CODEX_HOME_ENV } = await import("./agent/engine-homes.mjs");
   process.env[PRIVATE_CODEX_HOME_ENV] = path.join(userData, "codex-private");
   const { setAppPluginRoot } = await import("./app-plugin.mjs");
   const appPath = options.resources ? path.join(options.resources, "app.asar") : path.resolve(__dirname, "..", "..", "..");

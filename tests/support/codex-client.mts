@@ -1,7 +1,7 @@
 import type { SessionPool } from "../../src/main/agent/session-pool.mts";
 import type { ImageOutput } from "../../src/main/codex/codex-images.mts";
 import { afterEach, beforeEach, vi } from "vitest";
-import { PRIVATE_CODEX_HOME_ENV } from "../../src/main/codex/codex-home.mts";
+import { PRIVATE_CODEX_HOME_ENV } from "../../src/main/agent/engine-homes.mts";
 import type { AppServerCommand, ClientMethod, ClientParams, ClientResult, ExitStatus, IncomingRequest, JsonRpcError, NotificationMethod, NotificationParams, ServerRequestMethod, ServerRequestParams, ServerRequestResult } from "../../src/main/codex/app-server-client.mts";
 import type { ClientInfo } from "../../src/main/codex/protocol/ClientInfo.ts";
 import type { InitializeResponse } from "../../src/main/codex/protocol/InitializeResponse.ts";

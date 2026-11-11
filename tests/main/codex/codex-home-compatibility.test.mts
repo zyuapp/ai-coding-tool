@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "vitest";
 import { AppServerClient, CLIENT_INFO, codexAppServer, type NotificationParams } from "../../../src/main/codex/app-server-client.mts";
-import { PRIVATE_CODEX_HOME_ENV } from "../../../src/main/codex/codex-home.mts";
+import { PRIVATE_CODEX_HOME_ENV } from "../../../src/main/agent/engine-homes.mts";
 import type { ConfigReadResponse } from "../../../src/main/codex/protocol/v2/ConfigReadResponse.ts";
 import type { ThreadListResponse } from "../../../src/main/codex/protocol/v2/ThreadListResponse.ts";
 import type { HooksListResponse } from "../../../src/main/codex/protocol/v2/HooksListResponse.ts";

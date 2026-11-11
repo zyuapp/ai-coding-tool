@@ -2,9 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { link, lstat, mkdir, readFile, readdir, readlink, realpath, rename, rm, stat, symlink, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
-
-/** Only Codex children adopt this home; the app, Claude, and user terminals keep their environment. */
-export const PRIVATE_CODEX_HOME_ENV = "AICODINGTOOL_CODEX_HOME";
+import { PRIVATE_CODEX_HOME_ENV } from "../agent/engine-homes.mjs";
 
 /** Inputs shared with the user's Codex install. Never link runtime directories or databases. */
 const SHARED_INPUTS = [

@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test, vi } from "vitest";
 import { codexAppServer } from "../../../src/main/codex/app-server-client.mts";
-import { codexChildEnvironment, preparePrivateCodexHome, PRIVATE_CODEX_HOME_ENV } from "../../../src/main/codex/codex-home.mts";
+import { PRIVATE_CODEX_HOME_ENV } from "../../../src/main/agent/engine-homes.mts";
+import { codexChildEnvironment, preparePrivateCodexHome } from "../../../src/main/codex/codex-home.mts";
 import { privateHomeConfig } from "../../../src/main/codex/codex-home-config.mts";
 import { suggestCodexTitle } from "../../../src/main/codex/codex-title-writer.mts";
 

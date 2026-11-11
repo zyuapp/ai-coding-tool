@@ -471,7 +471,7 @@ const startup = app.whenReady().then(async () => {
   /** Started before the app spawns anything, and awaited before the first thing that needs it. */
   const searchPath = adoptLoginShellPath();
   const userData = app.getPath("userData");
-  const { PRIVATE_CODEX_HOME_ENV } = await import("./codex/codex-home.mjs");
+  const { PRIVATE_CODEX_HOME_ENV } = await import("./agent/engine-homes.mjs");
   process.env[PRIVATE_CODEX_HOME_ENV] = path.join(userData, "codex-private");
   const { setAppPluginRoot } = await import("./app-plugin.mjs");
   setAppPluginRoot(appPluginPath(app.isPackaged, process.resourcesPath, app.getAppPath()));
