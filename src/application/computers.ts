@@ -21,7 +21,24 @@ import { stoppableCoordinators } from "./coordination.js";
 import type { WorkspaceInput } from "./workspace-reducer.js";
 import { editableQueued, QUEUED_SENT } from "./state/runs.js";
 import { isAgentEngine, unopenableEngine, type EngineId } from "../domain/agent-engine.js";
-import { selectedComputer, type ComputersState, type PairedComputer } from "./state/computers.js";
+import { selectedComputer, type ComputersSliceState, type ComputersState, type PairedComputer } from "./state/computers.js";
+
+/** The paired computers as one input leaves them. Only the functions here make one. */
+class ComputersChange {
+  private declare readonly owned: never;
+  constructor(readonly view: ComputersSliceState) {}
+}
+
+export type ComputersEdit = ComputersChange;
+
+export function computersOf(state: ComputersSliceState): ComputersEdit {
+  return new ComputersChange({ computers: state.computers });
+}
+
+/** A paired computer put on screen, which lets go of one waiting for its line. */
+export function shownIn(edit: ComputersEdit, id: string): ComputersEdit {
+  return new ComputersChange({ computers: { ...edit.view.computers, active: id, dropped: null } });
+}
 
 const terminalIds = new WeakMap<WorkspaceState["docks"], Set<string>>();
 

@@ -4,6 +4,9 @@ import type { WorkspaceRecord } from "../domain/workspace.js";
 import { nameProject, nextProjectSortIndex } from "./project-order.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import type { WorkspaceCommandResult } from "../contracts/workspace-result.js";
+import type { ProjectsState } from "./state/projects.js";
+import { ownFields, type SliceTransition, type Step } from "./workspace-reducer/slice.js";
+import { folderMovedIn, navigationOf, projectOpenedIn } from "./workspace-reducer/thread-select.js";
 
 /** What opening a folder answered with, which is the only thing that ever moves a project into one. */
 export type ProjectEvent =
@@ -21,76 +24,92 @@ export type ProjectInput =
   | Extract<ViewCommand, { type: "view.edit-project" }>
   | ProjectEvent;
 
-type ProjectTransition = { state: WorkspaceState; effects: RegisterProjectEffect[]; result?: WorkspaceCommandResult };
-
-function settled(state: WorkspaceState, effects: RegisterProjectEffect[] = []): ProjectTransition {
-  return { state, effects };
+/** The sidebar's folders as one input leaves them. Only the functions here make one. */
+class ProjectsChange {
+  private declare readonly owned: never;
+  constructor(readonly view: ProjectsState) {}
 }
 
-export function reduceProjects(state: WorkspaceState, input: ProjectInput): ProjectTransition {
+export type ProjectsEdit = ProjectsChange;
+
+export function projectsOf(state: ProjectsState): ProjectsEdit {
+  return new ProjectsChange(ownFields<ProjectsState>(state, { projects: true, projectEdit: true }));
+}
+
+/**
+ * A folder just opened, listed under the project it already is or a new one. A project that was moved
+ * no longer goes by the id its folder makes, so its folder finds it. Opening a folder outright lists it;
+ * opening it only to start a thread leaves a listed one listed.
+ */
+export function openedIn(edit: ProjectsEdit, workspace: WorkspaceRecord, unlisted?: true): { projects: ProjectsEdit; id: string } {
+  const listed = edit.view.projects;
+  const existing = listed.find((project) => project.id === legacyProjectId(workspace.root) || sameRoot(project.root, workspace.root));
+  const id = existing?.id ?? legacyProjectId(workspace.root);
+  const projects = existing
+    ? listed.map((project) => {
+      if (project.id !== id) return project;
+      const { unlisted: _unlisted, ...opened } = { ...project, root: workspace.root, workspaceId: workspace.id };
+      return unlisted && project.unlisted ? { ...opened, unlisted: true as const } : opened;
+    })
+    : [{ id, root: workspace.root, workspaceId: workspace.id, sortIndex: nextProjectSortIndex(listed), ...(unlisted ? { unlisted: true as const } : {}) }, ...listed];
+  return { projects: new ProjectsChange({ ...edit.view, projects }), id };
+}
+
+/** A project with no workspace of its own, adopting the one just opened for its folder. */
+export function adoptedIn(edit: ProjectsEdit, projectId: string, workspaceId: string): ProjectsEdit {
+  return new ProjectsChange({ ...edit.view, projects: edit.view.projects.map((item) => item.id === projectId ? { ...item, workspaceId } : item) });
+}
+
+/** A folder opened, with the window on a fresh draft there. */
+export function projectOpened(state: WorkspaceState, workspace: WorkspaceRecord, unlisted?: true): Step {
+  const opened = openedIn(projectsOf(state), workspace, unlisted);
+  return { edits: [opened.projects, projectOpenedIn(navigationOf(state), opened.id, workspace.root)], clearsError: true };
+}
+
+export function reduceProjects(state: WorkspaceState, input: ProjectInput): SliceTransition<ProjectsState> {
   switch (input.type) {
-    case "project.opened": {
-      /** A project that was moved no longer goes by the id its folder makes, so its folder finds it. */
-      const existing = state.projects.find((project) => project.id === legacyProjectId(input.workspace.root) || sameRoot(project.root, input.workspace.root));
-      const id = existing?.id ?? legacyProjectId(input.workspace.root);
-      /** Opening a folder outright lists it; opening it only to start a thread leaves a listed one listed. */
-      const projects = existing
-        ? state.projects.map((project) => {
-          if (project.id !== id) return project;
-          const { unlisted: _unlisted, ...opened } = { ...project, root: input.workspace.root, workspaceId: input.workspace.id };
-          return input.unlisted && project.unlisted ? { ...opened, unlisted: true as const } : opened;
-        })
-        : [{ id, root: input.workspace.root, workspaceId: input.workspace.id, sortIndex: nextProjectSortIndex(state.projects), ...(input.unlisted ? { unlisted: true as const } : {}) }, ...state.projects];
-      return settled({
-        ...state,
-        projects,
-        currentId: null,
-        draftProjectId: id,
-        lastFolder: input.workspace.root,
-        actionError: null,
-      });
-    }
+    case "project.opened":
+      return projectOpened(state, input.workspace, input.unlisted);
 
     case "project.edit": {
       const project = state.projects.find((item) => item.id === input.projectId);
-      if (!project) return settled(state);
+      if (!project) return {};
       const root = input.root?.trim();
       /** Only a folder that differs from the one the project already has is worth opening again. */
       if (!root || sameRoot(root, project.root)) {
-        return settled({ ...state, projects: nameProject(state.projects, project.id, input.name), projectEdit: null, openMenu: null, actionError: null });
+        return { patch: { projects: nameProject(state.projects, project.id, input.name), projectEdit: null }, closesMenu: true, clearsError: true };
       }
-      return settled(
-        { ...state, projectEdit: { projectId: project.id, ...(input.name === undefined ? {} : { name: input.name }), saving: true, error: null } },
-        [{ type: "register-project", projectId: project.id, root }],
-      );
+      return {
+        patch: { projectEdit: { projectId: project.id, ...(input.name === undefined ? {} : { name: input.name }), saving: true, error: null } },
+        effects: [{ type: "register-project", projectId: project.id, root }],
+      };
     }
 
     case "project.registered": {
       const project = state.projects.find((item) => item.id === input.projectId);
-      if (!project) return settled({ ...state, projectEdit: null });
+      if (!project) return { patch: { projectEdit: null } };
       const moved = state.projects.map((item) => item.id === project.id ? { ...item, root: input.workspace.root, workspaceId: input.workspace.id } : item);
       /** A name typed beside the folder lands with it, so a directory that cannot be opened keeps both. */
       const pendingName = state.projectEdit?.projectId === project.id ? state.projectEdit.name : undefined;
-      return settled({
-        ...state,
-        projects: nameProject(moved, project.id, pendingName),
-        projectEdit: null,
-        lastFolder: state.lastFolder && sameRoot(state.lastFolder, project.root) ? input.workspace.root : state.lastFolder,
-        openMenu: null,
-        actionError: null,
-      });
+      const followed = state.lastFolder && sameRoot(state.lastFolder, project.root);
+      return {
+        patch: { projects: nameProject(moved, project.id, pendingName), projectEdit: null },
+        ...(followed ? { edits: [folderMovedIn(navigationOf(state), input.workspace.root)] } : {}),
+        closesMenu: true,
+        clearsError: true,
+      };
     }
 
     case "project.register-failed": {
       const result: WorkspaceCommandResult = { ok: false, message: input.message };
-      if (state.projectEdit?.projectId !== input.projectId) return { state: { ...state, actionError: input.message }, effects: [], result };
-      return { state: { ...state, projectEdit: { ...state.projectEdit, saving: false, error: input.message } }, effects: [], result };
+      if (state.projectEdit?.projectId !== input.projectId) return { refusal: input.message };
+      return { patch: { projectEdit: { ...state.projectEdit, saving: false, error: input.message } }, result };
     }
 
     case "view.edit-project": {
-      if (!input.projectId) return settled({ ...state, projectEdit: null });
-      if (!state.projects.some((project) => project.id === input.projectId)) return settled(state);
-      return settled({ ...state, projectEdit: { projectId: input.projectId, saving: false, error: null }, openMenu: null });
+      if (!input.projectId) return { patch: { projectEdit: null } };
+      if (!state.projects.some((project) => project.id === input.projectId)) return {};
+      return { patch: { projectEdit: { projectId: input.projectId, saving: false, error: null } }, closesMenu: true };
     }
   }
 }

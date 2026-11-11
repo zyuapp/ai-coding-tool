@@ -56,8 +56,8 @@ export const CLAIMS = [
   claim(WORKTREE_MANAGEMENT_INPUTS, owned(reduceWorktreeManagement)),
   claim(ATTACHMENT_INPUTS, owned(reduceComposerAttachments)),
   claim(SEND_INPUTS, owned(reduceSending)),
-  claim(PROJECT_ADD_INPUTS, reduceProjectAdd),
-  claim(PROJECT_INPUTS, reduceProjectCommands),
+  claim(PROJECT_ADD_INPUTS, owned(reduceProjectAdd)),
+  claim(PROJECT_INPUTS, owned(reduceProjectCommands)),
   /** The line itself moves in {@link reconcileLimitPauses}, which every input passes through. */
   claim(["limits.elapsed"], owned(() => ({}))),
   claim(["limit.resume"], owned((state, input) => resumed(state, input.taskId))),

@@ -1,16 +1,17 @@
 /** Threads themselves: making one, choosing it, and what the list can do to it. */
 import { reduceWorktrees } from "./worktrees.js";
 import { retireAutomations } from "./automations.js";
-import { TAKE_KEYS, disposeDocks } from "./dock-tabs.js";
+import { TAKE_KEYS, disposeDocks, docksOf, draftReviewDroppedIn } from "./dock-tabs.js";
+import { applied, type Step } from "./slice.js";
 import { closeSideChats } from "./side-chats.js";
 import { discardedLeads } from "./coordination-remote.js";
 import { cancellingRun, fileThread } from "./run-queue.js";
 import { now, rejected, settled, targetId } from "./shared.js";
 import { coordinatorAskRefusal } from "./errors.js";
-import { landOnThread, selectThread } from "./thread-select.js";
+import { freshDraftIn, landOnThread, navigationOf, selectThread } from "./thread-select.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { focusComposer } from "../composer-drafts.js";
+import { composerOf, focusComposerIn } from "../composer-drafts.js";
 import { computerOfThread, shownComputers } from "../computers.js";
 import type { PairedComputer } from "../state/computers.js";
 import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../../contracts/computer-capabilities.js";
@@ -22,7 +23,7 @@ import { offlineMessage } from "../../domain/computers.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
 import { updateThread } from "../thread-run-state.js";
 import { worktreeById } from "../thread-location.js";
-import { DRAFT_DOCK, dockFor, frontDock, withDock, withDraft, type WorkspaceState } from "../workspace-state.js";
+import { dockFor, frontDock, withDock, withDraft, type WorkspaceState } from "../workspace-state.js";
 import { sideChatIds } from "../state/side-chats.js";
 import { threadActivity, threadLists } from "../thread-activity.js";
 import { dismissed, hasUnreadAttention, wantsAttention, withAllRead } from "../../domain/attention.js";
@@ -207,6 +208,23 @@ function dismissThread(state: WorkspaceState, taskId: string): WorkspaceTransiti
   return elsewhere.errors.length ? rejected(landed, elsewhere.errors.join("\n"), elsewhere.effects) : settled(landed, elsewhere.effects);
 }
 
+/**
+ * The window on a fresh draft, in the checkout or project named. A checkout names the project it was
+ * cut from, so starting in one settles both answers. A new thread is asked for in order to type in it,
+ * so the caret goes to the empty composer.
+ */
+export function newThread(state: WorkspaceState, projectIdNamed?: string, worktreeId?: string): Step {
+  const worktree = worktreeById(state, worktreeId);
+  const projectId = worktree?.projectId ?? projectIdNamed ?? null;
+  const project = projectId ? state.projects.find((item) => item.id === projectId) : undefined;
+  return {
+    edits: [draftReviewDroppedIn(docksOf(state)), freshDraftIn(navigationOf(state), projectId, worktree?.id ?? null, project?.root), focusComposerIn(composerOf(state))],
+    effects: TAKE_KEYS,
+    clearsError: true,
+    closesMenu: true,
+  };
+}
+
 export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommandInput): WorkspaceTransition {
   switch (input.type) {
     case "snoozes.elapsed":
@@ -222,28 +240,8 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       if (!state.threads.some((thread) => thread.id === input.taskId && thread.snoozedUntil !== undefined)) return settled(state);
       return settled({ ...updateThread(state, input.taskId, withoutSnooze), openMenu: null });
 
-    case "task.new": {
-      /** A checkout names the project it was cut from, so starting in one settles both answers. */
-      const worktree = worktreeById(state, input.worktreeId);
-      const projectId = worktree?.projectId ?? input.projectId ?? null;
-      const project = projectId ? state.projects.find((item) => item.id === projectId) : undefined;
-      /** A fresh draft compares its own project, not whatever the last draft was left looking at. */
-      const { [DRAFT_DOCK]: _lastDraft, ...diffs } = state.diffs;
-      /** A new thread is asked for in order to type in it, so the caret goes to the empty composer. */
-      return settled(focusComposer({
-        ...state,
-        diffs,
-        currentId: null,
-        draftProjectId: projectId,
-        draftBranch: null,
-        draftWorktree: false,
-        draftWorktreeId: worktree?.id ?? null,
-        draftRole: null,
-        actionError: null,
-        openMenu: null,
-        lastFolder: project?.root ?? state.lastFolder,
-      }), TAKE_KEYS);
-    }
+    case "task.new":
+      return applied(state, newThread(state, input.projectId, input.worktreeId));
 
     /**
      * A side chat is a tab within its source thread, and a thread under a coordinator a tab within the

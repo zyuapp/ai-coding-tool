@@ -76,6 +76,25 @@ test("opening a folder a project was moved to finds it rather than listing it tw
   assert.equal(reopened.state.projects[0].workspaceId, "workspace-3");
 });
 
+test("the folder editor takes down the menu it was opened from, and saving it the error that was up", () => {
+  const over = workspace({ openMenu: "project:menu", actionError: "Earlier." });
+
+  assert.equal(reduce(over, { type: "view.edit-project", projectId: "project-1" }).state.openMenu, null);
+  const named = reduce(over, { type: "project.edit", projectId: "project-1", name: "App" });
+  assert.equal(named.state.openMenu, null);
+  assert.equal(named.state.actionError, null);
+  const moved = reduce(over, { type: "project.registered", projectId: "project-1", workspace: { id: "workspace-2", kind: "project", root: "/work/moved" } });
+  assert.equal(moved.state.openMenu, null);
+  assert.equal(moved.state.actionError, null);
+});
+
+test("a folder that cannot be opened with no editor waiting on it says so in the window", () => {
+  const failed = reduce(workspace(), { type: "project.register-failed", projectId: "project-1", message: "There is no folder at /work/gone." });
+
+  assert.equal(failed.state.actionError, "There is no folder at /work/gone.");
+  assert.deepEqual(failed.result, { ok: false, message: "There is no folder at /work/gone." });
+});
+
 test("the editor closes with the folder it was open on", () => {
   const editing = reduce(workspace(), { type: "view.edit-project", projectId: "project-1" });
   assert.deepEqual(editing.state.projectEdit, { projectId: "project-1", saving: false, error: null });

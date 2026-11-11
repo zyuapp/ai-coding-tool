@@ -245,6 +245,9 @@ test("a folder just opened lands above the ones the user already ordered", () =>
   const opened = reduce(state, { type: "project.opened", workspace: { id: "workspace-2", kind: "project", root: "/two" } });
 
   assert.deepEqual(deriveView(opened.state).projects.map((project) => project.root), ["/two", "/one"]);
+
+  const cleared = reduce({ ...state, actionError: "Earlier." }, { type: "project.opened", workspace: { id: "workspace-2", kind: "project", root: "/two" } });
+  assert.equal(cleared.state.actionError, null, "the folder that opened answers the error that was up");
 });
 
 test("a refused removal is shown on the Projects page, and a removal that goes through clears it", () => {
@@ -259,10 +262,11 @@ test("a refused removal is shown on the Projects page, and a removal that goes t
   assert.equal(checkedOut.state.actionError, WORKSPACE_ERRORS.projectWorktrees);
   assert.equal(checkedOut.state.actionErrorPage, "projects");
 
-  const removed = reduce({ ...projected(), actionError: RUNNING_PROJECT_ERROR, actionErrorPage: "projects" }, { type: "project.remove", projectId: PROJECT.id });
+  const removed = reduce({ ...projected(), actionError: RUNNING_PROJECT_ERROR, actionErrorPage: "projects", openMenu: "project:menu" }, { type: "project.remove", projectId: PROJECT.id });
   assert.deepEqual(removed.state.projects, []);
   assert.equal(removed.state.actionError, null);
   assert.equal(removed.state.actionErrorPage, null);
+  assert.equal(removed.state.openMenu, null, "the menu it was removed from closes with it");
 });
 
 test("a project removal that computer refused is shown on the Projects page, and a later failure takes the page back", async () => {

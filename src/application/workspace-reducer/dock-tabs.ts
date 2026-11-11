@@ -29,6 +29,12 @@ export function docksOf(state: DocksState): DocksEdit {
   return new DocksChange({ overviewFolds, dockFocus, docks, diffs, keyboardTab });
 }
 
+/** The review the next new thread's draft was left looking at, gone, so a fresh draft compares its own project. */
+export function draftReviewDroppedIn(edit: DocksEdit): DocksEdit {
+  const { [DRAFT_DOCK]: _lastDraft, ...diffs } = edit.view.diffs;
+  return new DocksChange({ ...edit.view, diffs });
+}
+
 export function editDock(edit: DocksEdit, owner: string, patch: Partial<ThreadDock>): DocksEdit {
   return new DocksChange(withDock(edit.view, owner, patch));
 }
