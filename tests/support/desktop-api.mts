@@ -254,6 +254,7 @@ const browserStub = ({ browserCalls, heard }: Recorded): Stub<BrowserPort> => ({
 const simulatorStub: Stub<SimulatorPort> = {
   listSimulators: async () => ({ availability: { status: "available" as const }, devices: [] }),
   bootSimulator: async () => {},
+  shutdownSimulator: async () => {},
   simulatorInput: async () => {},
   describeSimulator: async (udid, device) => ({ udid, device, width: 402, height: 874, elements: [] }),
   captureSimulator: async () => ({ path: "/tmp/simulator.png", width: 1206, height: 2622 }),

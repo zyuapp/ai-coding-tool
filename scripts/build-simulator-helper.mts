@@ -6,7 +6,7 @@ import path from "node:path";
 const root = path.resolve(import.meta.dirname, "..");
 const source = path.join(root, "native", "simulator", "aic-simulator.m");
 const output = path.join(root, "dist", "native", "aic-simulator");
-const frameworks = ["Foundation", "AppKit", "CoreImage", "CoreMedia", "CoreVideo", "ImageIO", "IOSurface", "VideoToolbox"];
+const frameworks = ["Foundation", "AppKit", "CoreAudio", "CoreImage", "CoreMedia", "CoreVideo", "ImageIO", "IOSurface", "VideoToolbox"];
 
 function xcrun(...args: string[]) {
   return execFileSync("xcrun", ["--sdk", "macosx", ...args], { encoding: "utf8" }).trim();

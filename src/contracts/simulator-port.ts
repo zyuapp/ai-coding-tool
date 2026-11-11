@@ -6,6 +6,8 @@ export type SimulatorPort = {
     listSimulators(): Promise<{ availability: SimulatorAvailability; devices: SimulatorDevice[] }>;
     /** Boots a simulator without a window, resolving once it can take input. */
     bootSimulator(udid: string): Promise<void>;
+    /** Shuts a simulator down if this app started it; one started elsewhere keeps running. */
+    shutdownSimulator(udid: string): Promise<void>;
     simulatorInput(udid: string, input: SimulatorInput): Promise<void>;
     /** The app on screen as its accessibility tree, each element given a ref only this read's taps accept. */
     describeSimulator(udid: string, device: string): Promise<SimulatorSnapshot>;

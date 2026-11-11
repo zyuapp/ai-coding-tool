@@ -24,6 +24,11 @@ export const simulatorEffects = {
     }
   },
 
+  "simulator.release": async (effect, { dispatch, desktop }) => {
+    await desktop.shutdownSimulator(effect.udid).catch(() => undefined);
+    await dispatch({ type: "simulator.refresh" });
+  },
+
   "simulator.input": async (effect, { dispatch, desktop }) => {
     try {
       await desktop.simulatorInput(effect.udid, effect.input);

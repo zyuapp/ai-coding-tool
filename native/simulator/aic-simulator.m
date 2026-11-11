@@ -10,6 +10,7 @@
 //   kind 2: codec config, [u16 header length][header JSON {udid, width, height}][avcC record].
 
 #import <AppKit/AppKit.h>
+#import <CoreAudio/CoreAudio.h>
 #import <CoreImage/CoreImage.h>
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
@@ -70,6 +71,23 @@
 - (void)setSupportsDelegateTokens:(BOOL)supports;
 - (id)frontmostApplicationWithDisplayId:(unsigned)display bridgeDelegateToken:(NSString *)token;
 - (id)macPlatformElementFromTranslation:(id)translation;
+@end
+
+@protocol AICAudioClient
+- (instancetype)initWithDevice:(id)device eventHandlerQueue:(dispatch_queue_t)queue error:(NSError **)error changedEventHandler:(void (^)(id))handler;
+- (id)currentState;
+- (void)routeGuestWithScope:(NSUInteger)scope to:(NSString *)uid completionQueue:(dispatch_queue_t)queue completionHandler:(void (^)(NSError *))handler;
+@end
+
+@protocol AICAudioState
+- (NSArray *)inputDevices;
+- (id)selectedInputDevice;
+- (BOOL)useDefaultInputDevice;
+@end
+
+@protocol AICAudioHostDevice
+- (NSString *)uniqueIdentifier;
+- (NSUInteger)scope;
 @end
 
 typedef void *(*AICMouseMessage)(CGPoint *, CGPoint *, uint32_t, uint64_t, CGSize, uint32_t);
@@ -140,6 +158,7 @@ static void fail(NSNumber *requestId, NSString *message) {
 @interface AICDevice : NSObject
 @property (nonatomic, strong) id device;
 @property (nonatomic, strong) id hid;
+@property (nonatomic, strong) id audio;
 @property (nonatomic, strong) dispatch_queue_t inputQueue;
 @end
 
@@ -357,6 +376,83 @@ static BOOL rotate(AICDevice *entry, uint32_t orientation, NSString **error) {
     return NO;
   }
   return YES;
+}
+
+#pragma mark - Audio
+
+static UInt32 transportOf(NSString *uid) {
+  CFStringRef name = (__bridge CFStringRef)uid;
+  AudioDeviceID device = kAudioObjectUnknown;
+  AudioValueTranslation translation = { &name, sizeof(name), &device, sizeof(device) };
+  UInt32 size = sizeof(translation);
+  AudioObjectPropertyAddress byUID = { kAudioHardwarePropertyDeviceForUID, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+  if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &byUID, 0, NULL, &size, &translation) != noErr || device == kAudioObjectUnknown) return 0;
+  UInt32 transport = 0;
+  size = sizeof(transport);
+  AudioObjectPropertyAddress address = { kAudioDevicePropertyTransportType, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+  if (AudioObjectGetPropertyData(device, &address, 0, NULL, &size, &transport) != noErr) return 0;
+  return transport;
+}
+
+/**
+ * The Mac's own microphone, else another wired one. Bluetooth headsets drop to call quality while any
+ * input on them is open, and a Continuity microphone would wake the phone, so neither is ever picked.
+ */
+static id<AICAudioHostDevice> quietInput(NSArray *inputs) {
+  id<AICAudioHostDevice> wired = nil;
+  for (id<AICAudioHostDevice> input in inputs) {
+    if ([[input uniqueIdentifier] isEqualToString:@"BuiltInMicrophoneDevice"]) return input;
+    UInt32 transport = transportOf([input uniqueIdentifier]);
+    if (transport == kAudioDeviceTransportTypeBuiltIn && !wired) wired = input;
+    if (transport == kAudioDeviceTransportTypeUSB && !wired) wired = input;
+  }
+  return wired;
+}
+
+/**
+ * A device takes the Mac's default input unless told otherwise. It is pinned to a quiet input instead,
+ * so a headset in use for something else keeps its sound while the simulator runs.
+ */
+static NSDictionary *quietAudio(AICDevice *entry, NSString **error) {
+  dispatch_queue_t queue = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
+  __block id latest = nil;
+  dispatch_semaphore_t changed = dispatch_semaphore_create(0);
+  if (!entry.audio) {
+    Class client = NSClassFromString(@"SimulatorKit.SimDeviceAudioClient");
+    NSError *created = nil;
+    entry.audio = [(id<AICAudioClient>)[client alloc] initWithDevice:entry.device eventHandlerQueue:queue error:&created changedEventHandler:^(id state) {
+      latest = state;
+      dispatch_semaphore_signal(changed);
+    }];
+    if (!entry.audio) {
+      *error = created.localizedDescription ?: @"The simulator's audio could not be reached.";
+      return nil;
+    }
+  }
+  id<AICAudioState> state = latest ?: [(id<AICAudioClient>)entry.audio currentState];
+  for (int attempt = 0; [[state inputDevices] count] == 0 && attempt < 20; attempt += 1) {
+    dispatch_semaphore_wait(changed, dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC));
+    state = latest ?: [(id<AICAudioClient>)entry.audio currentState];
+  }
+  id<AICAudioHostDevice> target = quietInput([state inputDevices]);
+  if (!target) return @{};
+  NSString *uid = [target uniqueIdentifier];
+  if (![state useDefaultInputDevice] && [[[state selectedInputDevice] uniqueIdentifier] isEqualToString:uid]) return @{ @"input": uid };
+  __block NSError *routeError = nil;
+  dispatch_semaphore_t routed = dispatch_semaphore_create(0);
+  [(id<AICAudioClient>)entry.audio routeGuestWithScope:[target scope] to:uid completionQueue:queue completionHandler:^(NSError *failure) {
+    routeError = failure;
+    dispatch_semaphore_signal(routed);
+  }];
+  if (dispatch_semaphore_wait(routed, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)) != 0) {
+    *error = @"The simulator did not take the audio route in time.";
+    return nil;
+  }
+  if (routeError) {
+    *error = routeError.localizedDescription;
+    return nil;
+  }
+  return @{ @"input": uid };
 }
 
 #pragma mark - Screenshot
@@ -689,6 +785,15 @@ static void handle(NSDictionary *request) {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
       NSString *failure = nil;
       NSDictionary *result = describe(device, &failure);
+      if (result) respond(requestId, result);
+      else fail(requestId, failure);
+    });
+    return;
+  }
+  if ([op isEqualToString:@"quiet-audio"]) {
+    dispatch_async(entry.inputQueue, ^{
+      NSString *failure = nil;
+      NSDictionary *result = quietAudio(entry, &failure);
       if (result) respond(requestId, result);
       else fail(requestId, failure);
     });

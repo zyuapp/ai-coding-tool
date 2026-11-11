@@ -102,3 +102,17 @@ test("the device picked is remembered for docks that have none, and a turn is ke
   const wentDown = reduce(turnedState.state, { ...listed, devices: [{ ...phone, state: "shutdown" }, pad] });
   assert.equal(wentDown.state.simulator.orientations.PHONE, undefined);
 });
+
+test("a device is let go once no dock shows it, however its panel closed or moved on", () => {
+  const state = run(workspace({ threads: [task("mine"), task("agent")], currentId: "mine" }), [listed, { type: "simulator.open", device: "PAD" }, { type: "simulator.open", taskId: "agent", device: "PAD" }]);
+  const released = (transition: ReturnType<typeof reduce>) => transition.effects.filter((effect) => effect.type === "simulator.release");
+
+  const closedOne = reduce(state, { type: "view.close-dock-panel", panel: SIMULATOR_PANEL });
+  assert.deepEqual(released(closedOne), [], "the run's dock still shows it");
+
+  const closedBoth = reduce(run(closedOne.state, [{ type: "task.select", taskId: "agent" }]), { type: "view.close-dock-panel", panel: SIMULATOR_PANEL });
+  assert.deepEqual(released(closedBoth), [{ type: "simulator.release", udid: "PAD" }]);
+
+  const switched = reduce(run(workspace(), [listed, { type: "simulator.open", device: "PAD" }]), { type: "simulator.select", udid: "PHONE" });
+  assert.deepEqual(released(switched), [{ type: "simulator.release", udid: "PAD" }]);
+});

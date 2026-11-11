@@ -6,7 +6,7 @@ import type { SimulatorSliceState } from "../state/simulator.js";
 import type { WorkspaceCommandResult } from "../../contracts/workspace-result.js";
 import { docksOf, editDock, focusDockTabIn, persistView, showDockTabIn, type DocksEdit } from "./dock-tabs.js";
 import { afterward, type SliceTransition } from "./slice.js";
-import type { WorkspaceEffect, WorkspaceInput } from "./types.js";
+import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import type { SimulatorAvailability, SimulatorInput as SimulatorGesture } from "../../domain/simulator.js";
 
 export const SIMULATOR_INPUTS = [
@@ -30,8 +30,26 @@ export type SimulatorEvent =
 export type SimulatorEffect =
   | { type: "simulator.list" }
   | { type: "simulator.boot"; udid: string }
+  /** Shuts the device down if this app started it. */
+  | { type: "simulator.release"; udid: string }
   /** `seq` is set for a run's gesture, whose driving ends a moment after the last one. */
   | { type: "simulator.input"; udid: string; input: SimulatorGesture; taskId?: string; seq?: number };
+
+/** The devices some dock's Simulator panel shows. */
+function shownDevices(docks: WorkspaceState["docks"]): Set<string> {
+  const shown = new Set<string>();
+  for (const dock of Object.values(docks)) if (dock.simulatorId && dock.panels.includes(SIMULATOR_PANEL)) shown.add(dock.simulatorId);
+  return shown;
+}
+
+/** A device no dock shows any more is let go, however its panel closed or moved on. */
+export function reconcileSimulators(previous: WorkspaceState, transition: WorkspaceTransition): WorkspaceTransition {
+  if (previous.docks === transition.state.docks) return transition;
+  const after = shownDevices(transition.state.docks);
+  const released = [...shownDevices(previous.docks)].filter((udid) => !after.has(udid));
+  if (!released.length) return transition;
+  return { ...transition, effects: [...transition.effects, ...released.map((udid): WorkspaceEffect => ({ type: "simulator.release", udid }))] };
+}
 
 export const SIMULATOR_UNSUPPORTED = "The simulator needs Xcode on a Mac.";
 export const SIMULATOR_NOT_OPEN = "Open the simulator first.";

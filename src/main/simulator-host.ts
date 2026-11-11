@@ -38,6 +38,10 @@ const moves = new Map<string, Moves>();
 const screens = new Map<string, { width: number; height: number }>();
 /** How each device is held, as the last rotation sent to it left it. */
 const orientations = new Map<string, SimulatorOrientation>();
+/** Devices this app started, which it also shuts down once nothing shows them. */
+const startedHere = new Set<string>();
+/** Devices whose input is already kept off the Mac's default microphone. */
+const quieted = new Map<string, Promise<void>>();
 let frameListener: ((frame: SimulatorFrame) => void) | null = null;
 
 function helperPath() {
@@ -103,13 +107,40 @@ export async function listSimulators(): Promise<{ availability: SimulatorAvailab
   const { stdout } = await run("xcrun", ["simctl", "list", "devices", "available", "-j"], { maxBuffer: 16 * 1024 * 1024 });
   const devices = parseDeviceList(stdout);
   /** A device that went down boots again held upright. */
-  for (const device of devices) if (device.state !== "booted") orientations.delete(device.udid);
+  for (const device of devices) {
+    if (device.state === "booted") continue;
+    orientations.delete(device.udid);
+    quieted.delete(device.udid);
+  }
   return { availability, devices };
 }
 
 /** `bootstatus -b` boots a device that is down and waits until it is up, so one call covers both. */
 export async function bootSimulator(udid: string) {
+  startedHere.add(udid);
   await run("xcrun", ["simctl", "bootstatus", udid, "-b"], { timeout: BOOT_TIMEOUT_MS });
+  await quiet(udid);
+}
+
+/** A device this app started goes down; one started elsewhere is left running. */
+export async function shutdownSimulator(udid: string) {
+  if (!startedHere.delete(udid)) return;
+  quieted.delete(udid);
+  orientations.delete(udid);
+  await run("xcrun", ["simctl", "shutdown", udid]).catch(() => undefined);
+}
+
+/** Keeps a running device off the headset in use, once per boot. Sound still works if this fails. */
+function quiet(udid: string) {
+  let pending = quieted.get(udid);
+  if (!pending) {
+    pending = request({ op: "quiet-audio", udid }).then(() => undefined, (error: unknown) => {
+      quieted.delete(udid);
+      console.error(`[simulator] audio input left on the default device: ${error instanceof Error ? error.message : String(error)}`);
+    });
+    quieted.set(udid, pending);
+  }
+  return pending;
 }
 
 function fail(current: Helper, error: Error) {
@@ -157,6 +188,7 @@ async function started(): Promise<Helper> {
   child.on("error", (error) => markFailed(error));
   child.on("exit", () => {
     if (helper === current) helper = null;
+    quieted.clear();
     const error = new Error("The simulator helper stopped.");
     markFailed(error);
     fail(current, error);
@@ -347,6 +379,7 @@ export async function watchSimulator(udid: string) {
   watchers.set(udid, (watchers.get(udid) ?? 0) + 1);
   try {
     await upright(udid);
+    void quiet(udid);
     await request({ op: "watch", udid });
   } catch (error) {
     await unwatchSimulator(udid);
@@ -370,6 +403,7 @@ export function stopSimulatorHost() {
   watchers.clear();
   /** A new window starts with every device upright in its record, so the devices are turned to match when next used. */
   orientations.clear();
+  quieted.clear();
   screens.clear();
   snapshots.clear();
   helper?.child.kill();
@@ -380,8 +414,20 @@ export function stopSimulatorHost() {
   if (home) void home.then((folder) => rm(folder, { recursive: true, force: true })).catch(() => undefined);
 }
 
+/** Devices this app started go down with it, finishing after the app has gone. */
+function shutdownStarted() {
+  for (const udid of startedHere) spawn("xcrun", ["simctl", "shutdown", udid], { detached: true, stdio: "ignore" }).unref();
+  startedHere.clear();
+}
+
 export const simulatorCapability: WindowCapability = {
   start: ({ send }) => startSimulatorHost((frame) => send("simulator:frame", frame)),
-  stopWithWindow: stopSimulatorHost,
-  stopAtQuit: stopSimulatorHost,
+  stopWithWindow: () => {
+    stopSimulatorHost();
+    shutdownStarted();
+  },
+  stopAtQuit: () => {
+    stopSimulatorHost();
+    shutdownStarted();
+  },
 };

@@ -7,6 +7,7 @@ export function simulatorDesktop(simulator: typeof SimulatorHost): SimulatorPort
   return {
     listSimulators: () => simulator.listSimulators(),
     bootSimulator: (udid) => simulator.bootSimulator(udid),
+    shutdownSimulator: (udid) => simulator.shutdownSimulator(udid),
     simulatorInput: (udid, input) => simulator.simulatorInput(udid, input),
     describeSimulator: (udid, device) => simulator.describeSimulator(udid, device),
     captureSimulator: (udid) => simulator.captureSimulator(udid),
@@ -16,6 +17,7 @@ export function simulatorDesktop(simulator: typeof SimulatorHost): SimulatorPort
 export const headlessSimulatorDesktop: SimulatorPort["runtime"] = {
   listSimulators: async () => ({ availability: { status: "unsupported" as const, reason: "The simulator needs the desktop app." }, devices: [] }),
   bootSimulator: needsDesktop("The simulator"),
+  shutdownSimulator: async () => {},
   simulatorInput: needsDesktop("The simulator"),
   describeSimulator: needsDesktop("The simulator"),
   captureSimulator: needsDesktop("The simulator"),
