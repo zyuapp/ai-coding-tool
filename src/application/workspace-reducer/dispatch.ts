@@ -15,7 +15,7 @@ import { reduceRunControl, reduceRuns, RUN_CONTROL_INPUTS, RUN_INPUTS } from "./
 import { AUTOMATION_INPUTS, reduceAutomations } from "./automations.js";
 import { reduceSideChatClose, reduceSideChats, SIDE_CHAT_CLOSE_INPUTS, SIDE_CHAT_INPUTS } from "./side-chats.js";
 import { DIFF_INPUTS, reduceDiffs } from "./diffs.js";
-import { reduceHiddenThreadsDismissed, reduceStore, STORE_INPUTS } from "./store.js";
+import { reduceHiddenThreadsDismissed, reduceStore, reduceStoreLoad, STORE_INPUTS, STORE_LOAD_INPUTS } from "./store.js";
 import { COMPOSER_INPUTS, reduceComposer } from "./composer.js";
 import { reduceSettings, reduceModelFavorite, reduceRememberProject, SETTINGS_INPUTS } from "./settings.js";
 import { DOCK_INPUTS, reduceDock } from "./dock.js";
@@ -72,7 +72,8 @@ export const CLAIMS = [
   claim(PLAN_USAGE_INPUTS, owned(reducePlanUsage)),
   claim(CLI_INPUTS, owned(reduceCli)),
   claim(DIFF_INPUTS, reduceDiffs),
-  claim(STORE_INPUTS, reduceStore),
+  claim(STORE_INPUTS, owned(reduceStore)),
+  claim(STORE_LOAD_INPUTS, reduceStoreLoad),
   claim(COMPOSER_INPUTS, owned(reduceComposer)),
   claim(["view.dismiss-action-error"], owned(reduceErrorDismissed)),
   claim(["view.dismiss-hidden-tasks"], owned(reduceHiddenThreadsDismissed)),

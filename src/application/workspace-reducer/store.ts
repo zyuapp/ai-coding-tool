@@ -1,6 +1,7 @@
 /** What the store and the preferences hand back on the way in, and what failed on the way out. */
 import { discardedLeads } from "./coordination-remote.js";
-import { settled, rejected } from "./shared.js";
+import { settled } from "./shared.js";
+import { historyLoadedIn, threadsOf } from "./thread-edits.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import type { SliceTransition } from "./slice.js";
 import type { StoreState } from "../state/store.js";
@@ -9,12 +10,14 @@ import { dockFor, type WorkspaceState } from "../workspace-state.js";
 import { withStoreData } from "../workspace-load.js";
 import { browserUrl, type BrowserTab } from "../../domain/browser.js";
 
-export const STORE_INPUTS = [
-  "store.loaded", "store.thread-loaded", "store.absent", "store.persisted", "preferences.loaded", "store.failed", "action.failed"
-] as const;
+/** The store and the preferences arriving, which fill in every owner's state at once. */
+export const STORE_LOAD_INPUTS = ["store.loaded", "preferences.loaded"] as const;
+type StoreLoadInput = Extract<WorkspaceInput, { type: (typeof STORE_LOAD_INPUTS)[number] }>;
+
+export const STORE_INPUTS = ["store.thread-loaded", "store.absent", "store.persisted", "store.failed", "action.failed"] as const;
 type StoreInput = Extract<WorkspaceInput, { type: (typeof STORE_INPUTS)[number] }>;
 
-export function reduceStore(state: WorkspaceState, input: StoreInput): WorkspaceTransition {
+export function reduceStoreLoad(state: WorkspaceState, input: StoreLoadInput): WorkspaceTransition {
   switch (input.type) {
     case "store.loaded": {
       const arrived = withStoreData(state, input.data);
@@ -22,19 +25,6 @@ export function reduceStore(state: WorkspaceState, input: StoreInput): Workspace
       const kept = new Set(arrived.threads.map((thread) => thread.id));
       return discardedLeads({ ...arrived, hiddenThreads: input.hiddenTasks ?? 0, restored: true }, input.data.tasks.filter((thread) => !kept.has(thread.id)));
     }
-
-    case "store.thread-loaded": {
-      const thread = state.threads.find((item) => item.id === input.taskId);
-      if (!thread?.historySummary) return settled(state);
-      const { historySummary: _loaded, ...loaded } = thread;
-      return settled({
-        ...state,
-        threads: state.threads.map((item) => item.id === input.taskId ? { ...loaded, messages: input.messages } : item),
-      });
-    }
-
-    case "store.absent":
-      return settled({ ...state, restored: true });
 
     case "preferences.loaded": {
       /** A restored page keeps its record and gets its view back when the panel first shows it. */
@@ -49,17 +39,28 @@ export function reduceStore(state: WorkspaceState, input: StoreInput): Workspace
       const computers = { ...state.computers, discardedLeads: input.preferences.discardedLeads ?? [] };
       return settled({ ...state, ...viewPreferenceState(input.preferences), browserImport: { ...state.browserImport, last: input.preferences.browserImport ?? null }, docks, computers });
     }
+  }
+}
+
+export function reduceStore(state: WorkspaceState, input: StoreInput): SliceTransition<StoreState> {
+  switch (input.type) {
+    case "store.thread-loaded": {
+      const thread = state.threads.find((item) => item.id === input.taskId);
+      if (!thread?.historySummary) return {};
+      return { edits: [historyLoadedIn(threadsOf(state), input.taskId, input.messages)] };
+    }
+
+    case "store.absent":
+      return { patch: { restored: true } };
 
     case "store.persisted":
-      return settled({ ...state, writable: true, storageError: null });
+      return { patch: { writable: true, storageError: null } };
 
     case "store.failed":
-      return settled({ ...state, writable: false, storageError: input.message, restored: true });
+      return { patch: { writable: false, storageError: input.message, restored: true } };
 
-    case "action.failed": {
-      const transition = rejected(state, input.message);
-      return { ...transition, state: { ...transition.state, actionErrorPage: input.page ?? null } };
-    }
+    case "action.failed":
+      return { error: { message: input.message, page: input.page ?? null }, refusal: input.message };
   }
 }
 
