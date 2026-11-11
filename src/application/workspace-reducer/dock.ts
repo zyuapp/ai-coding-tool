@@ -3,7 +3,7 @@ import { reduceBrowser } from "./browser.js";
 import { reduceTerminal } from "./terminal.js";
 import { owned } from "./slice.js";
 import { reduceSettings } from "./settings.js";
-import { reduceSideChats } from "./side-chats.js";
+import { reduceSideChatClose } from "./side-chats.js";
 import { browserEffectsForTab } from "./browser-tabs.js";
 import { defaultBranchRange, initialRange, readDiff } from "./diff-reads.js";
 import { subjectWorkspaceId } from "./environment.js";
@@ -45,7 +45,7 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
       const closed = kind === "picker" || dock.tab === OVERVIEW_PANEL ? settled(withDock(state, owner, { open: false }))
         : kind === "browser" ? owned(reduceBrowser)(state, { type: "browser.close-tab", tabId: dock.tab })
         : kind === "terminal" ? owned(reduceTerminal)(state, { type: "terminal.close", terminalId: dock.tab })
-        : kind === "side-chat" ? reduceSideChats(state, { type: "side-chat.close", chatId: dock.tab })
+        : kind === "side-chat" ? reduceSideChatClose(state, { type: "side-chat.close", chatId: dock.tab })
         : kind === "thread" ? reduceDock(state, { type: "view.close-thread-tab", taskId: dock.tab })
         : reduceDock(state, { type: "view.close-dock-panel", panel: dock.tab });
       /** Whatever the closed view was holding is gone with it, so the window takes the keys back. */

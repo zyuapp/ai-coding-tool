@@ -42,6 +42,11 @@ export function editThreads<Field extends keyof Thread>(edit: ThreadsChange<Fiel
   return changed ? new ThreadsChange({ threads }) : edit;
 }
 
+/** A new thread, at the end of the list. */
+export function addedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, thread: Thread): ThreadsChange<Field> {
+  return new ThreadsChange({ threads: [...edit.view.threads, thread] });
+}
+
 /** Threads filed away: their verdicts, and what their runs found, set down as {@link dismissed} sets them. */
 export function dismissedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, ids: Set<string>): ThreadsChange<Field> {
   const threads = dismissed(edit.view.threads, ids);

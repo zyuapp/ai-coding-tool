@@ -13,7 +13,7 @@ import { PLAN_USAGE_INPUTS, reducePlanUsage } from "./plan-usage.js";
 import { PULL_REQUEST_INPUTS, reducePullRequests } from "./pull-requests.js";
 import { reduceRuns, RUN_INPUTS } from "./runs.js";
 import { AUTOMATION_INPUTS, AUTOMATION_RUN_INPUTS, reduceAutomationRuns, reduceAutomations } from "./automations.js";
-import { reduceSideChats, SIDE_CHAT_INPUTS } from "./side-chats.js";
+import { reduceSideChatClose, reduceSideChats, SIDE_CHAT_CLOSE_INPUTS, SIDE_CHAT_INPUTS } from "./side-chats.js";
 import { DIFF_INPUTS, reduceDiffs } from "./diffs.js";
 import { reduceHiddenThreadsDismissed, reduceStore, STORE_INPUTS } from "./store.js";
 import { COMPOSER_INPUTS, reduceComposer } from "./composer.js";
@@ -66,7 +66,8 @@ export const CLAIMS = [
   claim(RUN_INPUTS, reduceRuns),
   claim(AUTOMATION_INPUTS, owned(reduceAutomations)),
   claim(AUTOMATION_RUN_INPUTS, reduceAutomationRuns),
-  claim(SIDE_CHAT_INPUTS, reduceSideChats),
+  claim(SIDE_CHAT_INPUTS, owned(reduceSideChats)),
+  claim(SIDE_CHAT_CLOSE_INPUTS, reduceSideChatClose),
   claim(PULL_REQUEST_INPUTS, owned(reducePullRequests)),
   claim(COMPUTER_USE_INPUTS, owned(reduceComputerUse)),
   claim(PLAN_USAGE_INPUTS, owned(reducePlanUsage)),

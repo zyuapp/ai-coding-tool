@@ -1,38 +1,38 @@
 /** Side chats, which fork a thread to ask something beside it. */
 import { retireAutomations } from "./automations.js";
-import { focusDockTab, showDockTab } from "./dock-tabs.js";
+import { docksOf, focusDockTabIn, showDockTabIn } from "./dock-tabs.js";
 import { clearedDraft, withQueued } from "./run-queue.js";
 import { now, settled } from "./shared.js";
+import type { SliceTransition } from "./slice.js";
+import { addedIn, threadsOf } from "./thread-edits.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { sideChatThread } from "../thread-fork.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
 import { withActiveRun, withBackgroundProcesses, withRunStatus } from "../thread-run-state.js";
 import { dockTabAfterClosing, type SideChat, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
+import type { SideChatsState } from "../state/side-chats.js";
 
-export const SIDE_CHAT_INPUTS = ["side-chat.open", "side-chat.close"] as const;
-type SideChatInput = Extract<WorkspaceInput, { type: (typeof SIDE_CHAT_INPUTS)[number] }>;
+export const SIDE_CHAT_INPUTS = ["side-chat.open"] as const;
 
-export function reduceSideChats(state: WorkspaceState, input: SideChatInput): WorkspaceTransition {
-  switch (input.type) {
-    case "side-chat.open": {
-      const source = state.threads.find((thread) => thread.id === state.currentId);
-      if (!source) return settled(state);
-      const sequence = state.sideChatSequence + 1;
-      const thread = sideChatThread(source, input.chatId, `Chat ${sequence}`, now());
-      const opened: WorkspaceState = {
-        ...state,
-        threads: [...state.threads, thread],
-        sideChats: [...state.sideChats, { id: input.chatId, sourceThreadId: source.id, error: null }],
-        sideChatSequence: sequence,
-      };
-      return focusDockTab(showDockTab(opened, source.id, input.chatId), source.id, input.chatId);
-    }
+/** Closing one ends its run and drops what waits on it. */
+export const SIDE_CHAT_CLOSE_INPUTS = ["side-chat.close"] as const;
 
-    case "side-chat.close": {
-      const chat = state.sideChats.find((item) => item.id === input.chatId);
-      return chat ? closeSideChats(state, [chat]) : settled(state);
-    }
-  }
+export function reduceSideChats(state: WorkspaceState, input: Extract<WorkspaceInput, { type: "side-chat.open" }>): SliceTransition<SideChatsState> {
+  const source = state.threads.find((thread) => thread.id === state.currentId);
+  if (!source) return {};
+  const sequence = state.sideChatSequence + 1;
+  const thread = sideChatThread(source, input.chatId, `Chat ${sequence}`, now());
+  const shown = focusDockTabIn(showDockTabIn(docksOf(state), source.id, input.chatId), source.id, input.chatId);
+  return {
+    patch: { sideChats: [...state.sideChats, { id: input.chatId, sourceThreadId: source.id, error: null }], sideChatSequence: sequence },
+    edits: [addedIn(threadsOf(state), thread), shown.docks],
+    effects: shown.effects,
+  };
+}
+
+export function reduceSideChatClose(state: WorkspaceState, input: Extract<WorkspaceInput, { type: "side-chat.close" }>): WorkspaceTransition {
+  const chat = state.sideChats.find((item) => item.id === input.chatId);
+  return chat ? closeSideChats(state, [chat]) : settled(state);
 }
 
 /** Closing a side chat discards the thread itself, so its run, queue, and draft go with it. */
