@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { BUILT_IN_MODELS, engineCatalog, engineStatusLine, engineStatusWord, offeredPolicies, type EngineStatus, type ModelSpec } from "../../src/domain/agent-engine.js";
-import { EVERY_ENGINE_READY, modelLibrary } from "../../src/domain/model-library.js";
+import { EVERY_ENGINE_READY, libraryOpening, modelLibrary } from "../../src/domain/model-library.js";
 
 const spec = (id: string, label: string, provider: string): ModelSpec => ({ id, label, description: `${label} by ${provider}`, provider, contextWindow: 1, efforts: [] });
 const status: EngineStatus = { opencode: { access: "ready", catalog: [spec("openrouter/qwen-4", "Qwen 4", "OpenRouter"), spec("anthropic/opus", "Opus", "Anthropic"), spec("openrouter/glm-5", "GLM 5", "OpenRouter")] } };
@@ -13,6 +13,8 @@ test("the library heads an engine's models by provider, keeping the first headin
     ["claude", "Claude", true], ["codex", "Codex", true], ["opencode:OpenRouter", "OpenRouter", true], ["opencode:Anthropic", "Anthropic", false],
   ]);
   assert.deepEqual(library.available[2]!.models.map((model) => model.id), ["openrouter/qwen-4", "openrouter/glm-5"]);
+  assert.equal(library.total, 11);
+  assert.equal(library.count, 11);
   assert.ok(library.available.every((group) => group.selectable && !group.locked && !group.hint));
 });
 
@@ -41,51 +43,34 @@ test("the library holds only the models the installed command runs and the choic
   assert.deepEqual(library.available[0]!.models.map((model) => model.id), ["opus"]);
 });
 
-const rows = (entries: ReturnType<typeof modelLibrary>["top"]) => entries.map(({ group, spec }) => `${group.key}/${spec.id}`);
-const headed = (groups: ReturnType<typeof modelLibrary>["rest"]) => groups.map((group) => [group.key, group.models.map((model) => model.id)]);
+test("favorites, a heading and a search narrow what is shown, and pins are told apart by engine", () => {
+  const favorites = [{ engine: "opencode" as const, model: "anthropic/opus" }, { engine: "claude" as const, model: "sonnet" }];
+  const pinned = modelLibrary(catalog, EVERY_ENGINE_READY, { engine: "claude", locked: false, favorites, filter: "favorites" });
+  assert.equal(pinned.heading, "Favorites");
+  assert.equal(pinned.favoriteCount, 2);
+  assert.deepEqual(pinned.shown.map((group) => [group.key, group.models.map((model) => model.id)]), [["claude", ["sonnet"]], ["opencode:Anthropic", ["anthropic/opus"]]], "Claude's Opus is not pinned by OpenCode's");
 
-test("the pins are kept in reach in the order they were made, after the model in use where it is not one, and every other model stays under its heading", () => {
-  const favorites = [{ engine: "opencode" as const, model: "anthropic/opus" }, { engine: "claude" as const, model: "sonnet" }, { engine: "claude" as const, model: "gone" }];
-  const pinned = modelLibrary(catalog, EVERY_ENGINE_READY, { engine: "claude", locked: false, model: "opus", favorites });
-  assert.deepEqual(rows(pinned.top), ["claude/opus", "opencode:Anthropic/anthropic/opus", "claude/sonnet"], "Claude's Opus is not pinned by OpenCode's, and a pin nothing offers has no row");
-  assert.deepEqual(pinned.top.map((entry) => entry.pinned), [false, true, true]);
-  assert.equal(pinned.home, "claude");
-  assert.deepEqual(headed(pinned.rest).slice(0, 1), [["claude", ["fable", "haiku"]]]);
-  assert.ok(!pinned.rest.some((group) => group.key === "opencode:Anthropic"), "a heading whose models are all in reach is not listed again");
+  const heading = modelLibrary(catalog, EVERY_ENGINE_READY, { engine: "claude", locked: false, filter: "opencode:OpenRouter" });
+  assert.equal(heading.heading, "OpenRouter");
+  assert.deepEqual(heading.shown.map((group) => group.key), ["opencode:OpenRouter"]);
 
-  const used = modelLibrary(catalog, EVERY_ENGINE_READY, { engine: "claude", locked: false, model: "sonnet", favorites });
-  assert.deepEqual(rows(used.top), ["opencode:Anthropic/anthropic/opus", "claude/sonnet"], "a pinned model in use keeps its place among the pins");
-});
-
-test("with nothing pinned, the models under the heading in use are the ones in reach", () => {
-  const settled = modelLibrary(catalog, EVERY_ENGINE_READY, { engine: "opencode", locked: true, model: "anthropic/opus" });
-  assert.deepEqual([settled.home, rows(settled.top)], ["opencode:Anthropic", ["opencode:Anthropic/anthropic/opus"]]);
-  assert.deepEqual(headed(settled.rest).at(-1), ["opencode:OpenRouter", ["openrouter/qwen-4", "openrouter/glm-5"]]);
-  const gone = modelLibrary(catalog, EVERY_ENGINE_READY, { engine: "opencode", locked: true, model: "gone/model" });
-  assert.equal(gone.home, "opencode:OpenRouter", "a model its provider no longer lists falls to the engine's first heading");
-  assert.deepEqual(rows(modelLibrary(catalog, EVERY_ENGINE_READY, { engine: "claude", locked: false }).top), ["claude/fable", "claude/opus", "claude/sonnet", "claude/haiku"]);
-});
-
-test("a search reaches every model by its name or its provider's, in reach or not, and leaves out the headings it empties", () => {
-  const favorites = [{ engine: "claude" as const, model: "opus" }];
-  const found = modelLibrary(catalog, EVERY_ENGINE_READY, { engine: "claude", locked: false, model: "opus", favorites, query: " opus " });
-  assert.deepEqual(rows(found.top), ["claude/opus"]);
-  assert.deepEqual(headed(found.rest), [["opencode:Anthropic", ["anthropic/opus"]]]);
-  const provider = modelLibrary(catalog, EVERY_ENGINE_READY, { engine: "claude", locked: false, model: "opus", favorites, query: "openrouter" });
-  assert.deepEqual([rows(provider.top), headed(provider.rest)], [[], [["opencode:OpenRouter", ["openrouter/qwen-4", "openrouter/glm-5"]]]]);
-});
-
-test("what stands in the way of the thread's own engine is said beside the rows in reach, and not again under its heading", () => {
-  const access = { ...EVERY_ENGINE_READY, codex: { access: "missing" as const }, opencode: { access: "ready" as const, version: "2.2.5", required: "2.3.0" } };
-  const library = modelLibrary(catalog, access, { engine: "opencode", locked: false, model: "anthropic/opus" });
-  assert.deepEqual([library.notice?.key, library.notice?.hint?.kind], ["opencode:OpenRouter", "notice"]);
-  assert.deepEqual(library.rest.map((group) => [group.key, group.hint?.kind]), [["claude", undefined], ["codex", "notice"], ["opencode:OpenRouter", undefined]]);
+  const found = modelLibrary(catalog, EVERY_ENGINE_READY, { engine: "claude", locked: false, filter: "opencode:OpenRouter", query: " opus " });
+  assert.equal(found.heading, "Search results");
+  assert.deepEqual(found.shown.map((group) => [group.key, group.models.map((model) => model.id)]), [["claude", ["opus"]], ["opencode:Anthropic", ["anthropic/opus"]]], "a search reaches past the heading, and leaves out headings it empties");
+  assert.equal(found.count, 2);
 });
 
 test("an engine yet to name its models keeps one empty heading, so it can still say what stands in its way", () => {
   const library = modelLibrary(BUILT_IN_MODELS, { ...EVERY_ENGINE_READY, opencode: { access: "missing" } }, { engine: "claude", locked: false });
   const opencode = library.available.find((group) => group.engine === "opencode")!;
   assert.deepEqual([opencode.key, opencode.label, opencode.models.length, opencode.hint?.kind], ["opencode", "OpenCode", 0, "notice"]);
+});
+
+test("the library opens on a settled thread's heading, else on Favorites while any are pinned", () => {
+  assert.equal(libraryOpening(catalog, { engine: "opencode", locked: true, model: "anthropic/opus" }), "opencode:Anthropic");
+  assert.equal(libraryOpening(catalog, { engine: "opencode", locked: true, model: "gone/model" }), "opencode:OpenRouter");
+  assert.equal(libraryOpening(catalog, { engine: "claude", locked: false, model: "opus", favorites: [{ engine: "claude", model: "opus" }] }), "favorites");
+  assert.equal(libraryOpening(catalog, { engine: "claude", locked: false, model: "opus" }), "all");
 });
 
 test("every picker offers an engine's modes in one order", () => {

@@ -8,7 +8,7 @@ const { ModelCatalogProvider } = await import("../../src/renderer/model-catalog.
 const { ComposerSettings, ModelMenu } = await import("../../src/renderer/components/ComposerSettings.tsx");
 const { EVERY_ENGINE_READY } = await import("../../src/domain/model-library.ts");
 
-test("the library keeps the pins in reach, lists the rest when asked, searches every model, pins without choosing, and selects by keyboard", async () => {
+test("the library filters providers, searches globally, pins without choosing, and selects by keyboard", async () => {
   const selected: AgentModel[] = [];
   const pinned: Array<[AgentEngine, AgentModel, boolean]> = [];
   const props = {
@@ -31,8 +31,10 @@ test("the library keeps the pins in reach, lists the rest when asked, searches e
   assert.deepEqual(pinned, [["codex", "gpt-6-astra", false]]);
   assert.deepEqual(selected, []);
   await view.render(React.createElement(ComposerSettings, { ...props, favoriteModels: [] }));
-  assert.deepEqual([...menu.querySelectorAll(".model-choice .menu-label")].map((node) => node.textContent), ["Astra", "Sol", "Terra", "Luna"], "with nothing pinned, the models of the provider in use are the ones in reach");
-  await act(async () => { query<HTMLButtonElement>(menu, ".model-all").click(); });
+  assert.match(query(menu, ".model-empty").textContent!, /Pin models/);
+  await act(async () => {
+    [...menu.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("Claude"))!.click();
+  });
   assert.deepEqual([...menu.querySelectorAll("[role=group]")].map((group) => group.getAttribute("aria-label")), ["Claude"]);
   assert.ok(menu.querySelectorAll(".model-choice").length > 0);
   await act(async () => {
@@ -91,7 +93,7 @@ test("the Codex speed toggle follows effort and dispatches both speed changes", 
   await view.unmount();
 });
 
-test("a library narrowed to some models offers only those", async () => {
+test("a library narrowed to some models offers only those, in its counts as well", async () => {
   const props = {
     engine: "claude" as const, engineLocked: false, engineAccess: EVERY_ENGINE_READY, model: "opus" as const,
     onChange() {}, onOpen() {}, onSignIn() {},
@@ -101,6 +103,8 @@ test("a library narrowed to some models offers only those", async () => {
   const names = () => [...view.container.querySelectorAll(".model-choice .menu-label")].map((node) => node.textContent);
   assert.ok(names().includes("Sonnet"));
   assert.ok(!names().includes("Haiku"), "Haiku cannot run a coordinator's threads, so it is not offered");
+  const claude = [...view.container.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("Claude"))!;
+  assert.match(claude.textContent!, /Claude3$/);
 
   await view.render(React.createElement(ModelMenu, props));
   assert.ok(names().includes("Haiku"), "the composer's own library still offers every model");
@@ -121,7 +125,6 @@ test("the library lists what the catalogue on screen holds, and a model it does 
   const view = await mount(menu("openai/gpt-9"));
   assert.equal(query(view.container, "summary").getAttribute("aria-label"), "Model and effort: GPT-9, High", "an effort the model does not take shows as the nearest one it does");
   await act(async () => { query<HTMLElement>(view.container, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  await act(async () => { query<HTMLButtonElement>(view.container, ".model-all").click(); });
   const names = [...view.container.querySelectorAll(".model-choice .menu-label")].map((node) => node.textContent);
   assert.ok(names.includes("GPT-9"));
   assert.ok(names.includes("Opus"), "an engine that names no models keeps the built-in ones");
@@ -153,22 +156,27 @@ test("an engine that runs many providers' models lists them under each provider,
   const modes = [...view.container.querySelectorAll('.library-modes [role="radio"]')].map((node) => node.textContent);
   assert.ok(!modes.includes("Auto"), "Auto is not offered on an engine with no reviewer to stand on");
   assert.ok(modes.includes("Edits"));
-  assert.deepEqual([...view.container.querySelectorAll(".model-choice .menu-label")].map((node) => node.textContent), ["GLM-5.3-Flash", "Qwen 4"], "a settled thread keeps its model's provider in reach");
-  await act(async () => { query<HTMLButtonElement>(view.container, ".model-all").click(); });
-  assert.equal(view.container.querySelectorAll(".model-list .setting-readiness").length, 1, "an engine behind the app says so once, not under every provider");
-  const go = query(view.container, '[role=group][aria-label="OpenCode Go"]');
-  assert.deepEqual([...go.querySelectorAll(".model-choice .menu-label")].map((node) => node.textContent), ["GLM-5.3"]);
-  await act(async () => { query<HTMLButtonElement>(go, ".model-choice").click(); });
+  await act(async () => { [...view.container.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((node) => node.textContent?.includes("All models"))!.click(); });
+  assert.equal(view.container.querySelectorAll(".model-results .setting-readiness").length, 1, "an engine behind the app says so once, not under every provider");
+  await act(async () => { [...view.container.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((node) => node.textContent?.includes("OpenRouter"))!.click(); });
+  const rail = [...view.container.querySelectorAll(".model-provider-rail button")].map((node) => node.textContent);
+  assert.ok(rail.some((text) => text?.startsWith("O") && text.includes("OpenRouter2")), `the rail lists OpenRouter: ${rail.join("|")}`);
+  assert.ok(rail.some((text) => text?.includes("OpenCode Go1")));
+  assert.equal(query(view.container, ".model-results-heading span").textContent, "OpenRouter", "a locked thread opens on the provider of its model");
+  await act(async () => { [...view.container.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((node) => node.textContent?.includes("OpenCode Go"))!.click(); });
+  assert.deepEqual([...view.container.querySelectorAll(".model-choice .menu-label")].map((node) => node.textContent), ["GLM-5.3"]);
+  await act(async () => { query<HTMLButtonElement>(view.container, ".model-choice").click(); });
   assert.deepEqual(chosen, ["opencode-go/glm-5.3"]);
   await view.unmount();
 });
 
-test("a thread on a model its provider no longer lists keeps its engine's first provider in reach", async () => {
+test("a thread on a model its provider no longer lists opens the library on its engine's first provider", async () => {
   const spec = (id: string, provider: string) => ({ id, label: id, description: id, provider, contextWindow: 1, efforts: [] });
   const catalog = engineCatalog({ opencode: { access: "ready", catalog: [spec("openrouter/a", "OpenRouter"), spec("opencode-go/b", "OpenCode Go")] } });
   const props = { engine: "opencode" as const, engineLocked: true, engineAccess: EVERY_ENGINE_READY, model: "gone/model" as AgentModel, onChange() {}, onOpen() {}, onSignIn() {} };
   const view = await mount(React.createElement(ModelCatalogProvider, { value: catalog }, React.createElement(ModelMenu, props)));
   await act(async () => { query<HTMLElement>(view.container, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  assert.deepEqual([...view.container.querySelectorAll(".model-choice .menu-label")].map((node) => node.textContent), ["openrouter/a"]);
+  assert.equal(query(view.container, ".model-results-heading span").textContent, "OpenRouter");
+  assert.equal(view.container.querySelectorAll(".model-choice").length, 1);
   await view.unmount();
 });

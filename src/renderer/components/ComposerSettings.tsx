@@ -1,16 +1,18 @@
 import { CommandGate, CommandButton, useCommandControls } from "./CommandControl";
 import type { IconType } from "react-icons";
-import { LuStar as Star, LuGrid2X2 as Grid, LuChevronDown as ChevronDown, LuBrain as Brain, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
-import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { byEngine, capabilitiesFor, catalogHasModel, effortForModel, effortsFor, engineLabel, isFavorite, modelsFor, offeredPolicies, type AgentEngine, type AgentModel, type EngineModel, type ModelCatalog, type EffortSpec, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
-import { modelLibrary, type LibraryEntry, type LibraryGroup } from "../../domain/model-library";
+import { libraryOpening, modelLibrary, type LibraryFilter } from "../../domain/model-library";
 import { useModelCatalog } from "../model-catalog";
 import { POLICIES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 import { useDismissibleLayer } from "../focus";
-import { MenuGroup, MenuItem, MenuNote, MenuSeparator, MenuSurface, MenuTrigger, useListKeys, useMenuAnchor } from "../ui/Menu";
+import { MenuGroup, MenuItem, MenuNote, MenuSurface, MenuTrigger, useListKeys, useMenuAnchor } from "../ui/Menu";
 import { Button, IconButton, Segmented } from "../ui/Button";
 import { SearchField } from "../ui/Field";
+import { NavItem, NavList, NavSeparator } from "../ui/NavList";
 import { CopyButton } from "./CopyButton";
+import { engineIcon } from "./ThreadEngineIcon";
 
 type Choice<T extends string> = { value: T; label: string; description?: string; icon: IconType; danger?: true };
 
@@ -31,6 +33,12 @@ const MODEL_ICONS: Partial<Record<AgentEngine, Readonly<Record<string, IconType>
   codex: { "gpt-6-astra": Brain, "gpt-6.1-sol": Sparkles, "gpt-6.1-terra": Gauge, "gpt-6-luna": Moon },
 };
 
+/** An engine's own group wears its glyph; a provider served through an engine wears a generic one. */
+function ProviderMark({ engine, groupKey }: { engine: AgentEngine; groupKey: string }) {
+  const Icon = groupKey === engine ? engineIcon(engine) : Sparkles;
+  return <Icon className="model-provider-glyph" size={16} aria-hidden="true" />;
+}
+
 function modelIcon(engine: AgentEngine, model: AgentModel): IconType {
   const icons = MODEL_ICONS[engine];
   return (icons && Object.hasOwn(icons, model) ? icons[model] : undefined) ?? Brain;
@@ -47,8 +55,8 @@ function ReadinessHint({ notice, onOpenSettings }: { notice: EngineNotice; onOpe
   </div>;
 }
 
-/** How wide the library is drawn; a narrower window takes it to its own width. */
-const LIBRARY_WIDTH = 300;
+/** The widest the library is drawn; a narrower window takes it to its own width. */
+const LIBRARY_WIDTH = 760;
 
 /** The library is placed against the window, so a composer narrowed by a panel beside it does not narrow the library too. */
 function LibraryPopover({ anchor, heading, onKeyDown, children }: { anchor: HTMLElement | null; heading: string; onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void; children: ReactNode }) {
@@ -144,29 +152,45 @@ function effortSteps(catalog: ModelCatalog, engine: AgentEngine, model: AgentMod
   return { steps: [...effortsFor(catalog, engine, model, role)].reverse(), value: effortForModel(catalog, engine, model, effort.value, role) };
 }
 
-/** The efforts as a row of bars, shallowest first and lit up to the one in effect, beside its name. Pointing at a bar names it; a press or a drag takes the effort under the pointer when let go. */
-function EffortMeter({ steps, value, onChange }: { steps: readonly EffortSpec[]; value: AgentEffort; onChange: (effort: AgentEffort) => void }) {
-  const bars = useRef<HTMLSpanElement>(null);
-  /** The bar under the pointer, and whether the pointer is held down on the row. */
-  const [pointed, setPointed] = useState<number | null>(null);
-  const [held, setHeld] = useState(false);
-  /** A new effort, however it was set, is the one named until the pointer moves again. */
-  const [shown, setShown] = useState(value);
-  if (shown !== value) {
-    setShown(value);
-    setPointed(null);
-  }
+/** Puts a track's raised pane over the stop at `at`, wherever the stops' own widths put that. `glide` lets it travel there. */
+function placeThumb(track: HTMLElement, stops: string, at: number, glide: boolean) {
+  const stop = track.querySelectorAll<HTMLElement>(stops)[at];
+  track.toggleAttribute("data-glide", glide);
+  track.style.setProperty("--thumb-x", `${stop?.offsetLeft ?? 0}px`);
+  track.style.setProperty("--thumb-w", `${stop?.offsetWidth ?? 0}px`);
+}
+
+/** Keeps the pane on its stop: a new choice glides it there, and a stop that changes size under it carries it along at once. */
+function useThumb(track: RefObject<HTMLElement | null>, stops: string, at: number, count: number) {
+  const placed = useRef(at);
+  useLayoutEffect(() => {
+    if (track.current) placeThumb(track.current, stops, at, placed.current !== at);
+    placed.current = at;
+  }, [track, stops, at]);
+  useLayoutEffect(() => {
+    const element = track.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => placeThumb(element, stops, placed.current, false));
+    for (const target of [element, ...element.querySelectorAll(stops)]) observer.observe(target);
+    return () => observer.disconnect();
+  }, [track, stops, count]);
+}
+
+/** The efforts named along a track, shallowest first. The pane sits on the chosen one and the track is lit up to it; a drag carries the pane to the effort under the pointer and takes it when let go. */
+function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]; value: AgentEffort; onChange: (effort: AgentEffort) => void }) {
+  const track = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<number | null>(null);
   const last = steps.length - 1;
   const index = Math.max(0, steps.findIndex((spec) => spec.id === value));
-  const lit = held && pointed !== null ? pointed : index;
-  const named = steps[pointed ?? index];
+  const shown = drag ?? index;
+  useThumb(track, ".effort-stop", shown, steps.length);
   const pick = (step: number) => {
     const spec = steps[Math.min(last, Math.max(0, step))];
     if (spec && spec.id !== value) onChange(spec.id);
   };
-  /** The effort whose bar the pointer is over, or the end one once it is past either end of the row. */
+  /** The effort the pointer is over, or the end one once it is past either end of the track. */
   const under = (event: PointerEvent<HTMLElement>) => {
-    const stops = [...(bars.current?.children ?? [])];
+    const stops = [...(track.current?.querySelectorAll(".effort-stop") ?? [])];
     const at = stops.findIndex((stop) => event.clientX < stop.getBoundingClientRect().right);
     return at === -1 ? last : at;
   };
@@ -178,59 +202,73 @@ function EffortMeter({ steps, value, onChange }: { steps: readonly EffortSpec[];
     pick(step);
   };
   const release = () => {
-    if (held && pointed !== null) pick(pointed);
-    setHeld(false);
+    if (drag !== null) pick(drag);
+    setDrag(null);
   };
-  return <div className={`effort-slider${steps[lit]?.delegates ? " delegates" : ""}`}>
-    <span className="effort-value" aria-hidden="true">{named?.label}</span>
-    <span
-      ref={bars}
-      className="effort-bars"
-      role="slider"
-      tabIndex={0}
-      aria-label="Effort"
-      aria-valuemin={0}
-      aria-valuemax={last}
-      aria-valuenow={index}
-      aria-valuetext={steps[index]?.label}
-      onKeyDown={keyDown}
-      onPointerDown={(event) => {
-        if (event.button !== 0 || !last) return;
-        event.preventDefault();
-        event.currentTarget.focus();
-        event.currentTarget.setPointerCapture?.(event.pointerId);
-        setHeld(true);
-        setPointed(under(event));
-      }}
-      onPointerMove={(event) => setPointed(under(event))}
-      onPointerLeave={() => { if (!held) setPointed(null); }}
-      onPointerUp={release}
-      onPointerCancel={() => setHeld(false)}
-    >
-      {steps.map((spec, step) => <span key={spec.id} className={`effort-stop${step <= lit ? " lit" : ""}`} data-tip={spec.description}>{spec.label}</span>)}
-    </span>
+  return <div
+    ref={track}
+    className={`library-track effort-slider${drag === null ? "" : " dragging"}${steps[shown]?.delegates ? " delegates" : ""}`}
+    role="slider"
+    tabIndex={0}
+    aria-label="Effort"
+    aria-valuemin={0}
+    aria-valuemax={last}
+    aria-valuenow={index}
+    aria-valuetext={steps[index]?.label}
+    onKeyDown={keyDown}
+    onPointerDown={(event) => {
+      if (event.button !== 0 || !last) return;
+      event.preventDefault();
+      event.currentTarget.focus();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      setDrag(under(event));
+    }}
+    onPointerMove={(event) => { if (drag !== null) setDrag(under(event)); }}
+    onPointerUp={release}
+    onPointerCancel={() => setDrag(null)}
+  >
+    <span className="track-fill" aria-hidden="true" />
+    <span className="track-thumb" aria-hidden="true" />
+    {steps.map((spec, step) => <span
+      key={spec.id}
+      className={`effort-stop${step === shown ? " current" : step < shown ? " lit" : ""}`}
+      data-tip={spec.description}
+    >{spec.label}</span>)}
   </div>;
 }
 
-/** The effort and mode for the model in the library, a row each under the list, so they stay in reach however long the list grows. With no model chosen, the effort says nothing of one. */
+/** The permission modes along a track of their own, the pane on the one in effect. */
+function ModeTrack({ mode }: { mode: ModeControl }) {
+  const track = useRef<HTMLDivElement>(null);
+  useThumb(track, "[role=radio]", mode.choices.findIndex((choice) => choice.value === mode.value), mode.choices.length);
+  return <div ref={track} className="library-track">
+    <span className="track-thumb" aria-hidden="true" />
+    <Segmented
+      label="Permission mode"
+      className="library-modes"
+      options={mode.choices.map((choice) => {
+        const Icon = choice.icon;
+        return { value: choice.value, label: <><Icon size={14} aria-hidden="true" />{choice.label}</>, tip: choice.description, ...(choice.danger ? { tone: "danger" } : {}) };
+      })}
+      value={mode.value}
+      onChange={mode.onChange}
+    />
+  </div>;
+}
+
+/** The effort and mode for the model in the library, side by side on one strip pinned under the list, so they stay in reach however long the list grows. With no model chosen, the effort says nothing of one. */
 function LibrarySettings({ engine, model, modelLabel, effort, mode }: { engine: AgentEngine; model: AgentModel | undefined; modelLabel: string; effort?: EffortControl; mode?: ModeControl }) {
   const { steps, value } = effort ? effortSteps(useModelCatalog(), engine, model, effort) : { steps: [], value: undefined };
-  const stepped = steps.length > 0 && value !== undefined;
   return <div className="library-settings">
-    {effort && (stepped || model !== undefined) && <div className="library-setting effort-strip">
-      {stepped
-        ? <><span className="library-setting-axis">Effort</span><EffortMeter steps={steps} value={value} onChange={effort.onChange} /></>
-        : <span className="effort-strip-none">{modelLabel} has no effort setting</span>}
+    {effort && <div className="library-setting effort-strip">
+      <span className="library-setting-axis">Effort</span>
+      {steps.length && value
+        ? <EffortSlider steps={steps} value={value} onChange={effort.onChange} />
+        : model !== undefined && <span className="effort-strip-none">{modelLabel} has no effort setting</span>}
     </div>}
     {mode && <div className="library-setting">
       <span className="library-setting-axis">Mode</span>
-      <Segmented
-        label="Permission mode"
-        className="library-modes"
-        options={mode.choices.map((choice) => ({ value: choice.value, label: <span className="mode-word" data-label={choice.label}>{choice.label}</span>, tip: choice.description, ...(choice.danger ? { tone: "danger" } : {}) }))}
-        value={mode.value}
-        onChange={mode.onChange}
-      />
+      <ModeTrack mode={mode} />
     </div>}
   </div>;
 }
@@ -253,39 +291,16 @@ type ModelLibraryProps = {
   mode?: ModeControl;
 };
 
-/** Why a model's row cannot be picked, in the words its engine's heading says it. */
-function blocked(available: readonly LibraryGroup[], group: LibraryGroup): string | undefined {
-  const hint = available.find((other) => other.engine === group.engine && other.hint)?.hint;
-  if (hint?.kind === "new-thread") return `Start a new thread to use ${engineLabel(group.engine)}`;
-  if (hint?.kind === "sign-in") return `Sign in to use ${engineLabel(group.engine)}`;
-  return hint?.notice.message;
-}
-
-/** What a heading says stands in the way of its models, with the way past it where there is one. */
-function GroupHint({ group, onSignIn, onOpenSettings }: { group: LibraryGroup; onSignIn: () => void; onOpenSettings?: () => void }) {
-  if (group.hint?.kind === "new-thread") return <p className="setting-hint">Start a new thread to use {engineLabel(group.engine)}</p>;
-  if (group.hint?.kind === "sign-in") return <Button variant="link" className="setting-hint" onClick={onSignIn}>Sign in to use {group.label}</Button>;
-  if (group.hint?.kind === "notice") return <ReadinessHint notice={group.hint.notice} {...(onOpenSettings ? { onOpenSettings } : {})} />;
-  return null;
-}
-
-/**
- * One menu: the models kept in reach, every other model under its provider once asked for, and the
- * effort and mode under them. Typing searches every model in place.
- */
 function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, favoriteModels = [], onModelFavorite, onChange, onSignIn, onOpenEngineSettings, models, effort, mode, close }: ModelLibraryProps & { modelLabel: string; close: () => void }) {
   const catalog = useModelCatalog();
-  const [all, setAll] = useState(false);
+  const [filter, setFilter] = useState<LibraryFilter>(() => libraryOpening(catalog, { engine, locked: engineLocked, model, favorites: favoriteModels }));
   const [query, setQuery] = useState("");
-  const list = useRef<HTMLDivElement>(null);
+  const results = useRef<HTMLDivElement>(null);
   const search = query.trim();
-  const { available, home, top, rest, notice } = modelLibrary(catalog, engineAccess, { engine, locked: engineLocked, favorites: favoriteModels, query, ...(model === undefined ? {} : { model }), ...(models ? { allows: models } : {}) });
-  /** With nothing to keep in reach, the headings are all there is to show. */
-  const open = all || search !== "" || !top.length;
-  const lead = !search && top.length > 1 && !top[0]!.pinned && top[1]!.pinned;
+  const { available, shown, count, total, favoriteCount, heading } = modelLibrary(catalog, engineAccess, { engine, locked: engineLocked, favorites: favoriteModels, filter, query, ...(models ? { allows: models } : {}) });
 
   const navigate = (event: KeyboardEvent<HTMLElement>) => {
-    const buttons = [...(list.current?.querySelectorAll<HTMLButtonElement>('.model-choice:not([aria-disabled="true"])') ?? [])];
+    const buttons = [...(results.current?.querySelectorAll<HTMLButtonElement>('.model-choice:not([aria-disabled="true"])') ?? [])];
     if (!buttons.length) return;
     if (event.key === "Enter" && event.target instanceof HTMLElement && event.target.tagName === "INPUT") {
       event.preventDefault();
@@ -300,47 +315,51 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
     if (index === -1) next = event.key === "ArrowDown" ? 0 : buttons.length - 1;
     buttons[(next + buttons.length) % buttons.length].focus();
   };
-  const hintActions = (group: LibraryGroup) => ({ group, onSignIn: () => { onSignIn(group.engine); close(); }, ...(onOpenEngineSettings ? { onOpenSettings: () => { onOpenEngineSettings(); close(); } } : {}) });
-  const row = ({ group, spec, pinned }: LibraryEntry, provider?: string) => {
-    const Icon = modelIcon(group.engine, spec.id);
-    return <div key={`${group.key}/${spec.id}`} className="model-row">
-      <MenuItem
-        role="button"
-        className="model-choice"
-        checked={group.engine === engine && spec.id === model}
-        disabled={!group.selectable}
-        icon={<Icon size={16} />}
-        detail={provider}
-        data-tip={group.selectable ? spec.description : blocked(available, group)}
-        onClick={() => { onChange(group.engine, spec.id); if (!effort) close(); }}
-      >
-        {spec.label}
-      </MenuItem>
-      {onModelFavorite && <IconButton size="xs" className="model-favorite" label={`${pinned ? "Unpin" : "Pin"} ${spec.label}`} tip={pinned ? "Unpin from Favorites" : "Pin to Favorites"} pressed={pinned} onClick={() => onModelFavorite(group.engine, spec.id, !pinned)}><Star size={14} fill={pinned ? "currentColor" : "none"} /></IconButton>}
-    </div>;
-  };
 
   return <>
     <div className="model-search" onKeyDown={navigate}>
-      <SearchField variant="menu" type="text" autoFocus label="Search models" placeholder="Search models" value={query} onInput={(event) => setQuery(event.currentTarget.value)} />
+      <SearchField variant="palette" type="text" autoFocus label="Find a model or provider" placeholder="Find a model or provider…" value={query} onInput={(event) => setQuery(event.currentTarget.value)} />
+      <IconButton label="Close model picker" onClick={close}><X size={16} /></IconButton>
     </div>
-    <div className="model-list" ref={list} onKeyDown={navigate}>
-      {top.map((entry, at) => <div key={`${entry.group.key}/${entry.spec.id}`} className="model-kept">
-        {row(entry, entry.group.key === home ? undefined : entry.group.label)}
-        {lead && at === 0 && <MenuSeparator />}
-      </div>)}
-      {notice && !search && <GroupHint {...hintActions(notice)} />}
-      {open && rest.map((group) => <MenuGroup key={group.key} label={group.label} aria-label={group.label}>
-        {group.models.map((spec) => row({ group, spec, pinned: isFavorite(favoriteModels, group.engine, spec.id) }))}
-        <GroupHint {...hintActions(group)} />
-      </MenuGroup>)}
-      {search && !top.length && !rest.length && <MenuNote className="model-empty">No models found. Try another name or provider.</MenuNote>}
+    <div className="model-library-body">
+      <NavList className="model-provider-rail" label="Filter models">
+        <NavItem selected={!search && filter === "favorites"} icon={<Star size={16} />} count={favoriteCount} onClick={() => { setFilter("favorites"); setQuery(""); }}>Favorites</NavItem>
+        <NavItem selected={!search && filter === "all"} icon={<Grid size={16} />} count={total} onClick={() => { setFilter("all"); setQuery(""); }}>All models</NavItem>
+        <NavSeparator />
+        {available.map((group) => <NavItem key={group.key} selected={!search && filter === group.key} icon={<ProviderMark engine={group.engine} groupKey={group.key} />} count={group.models.length} onClick={() => { setFilter(group.key); setQuery(""); }}>{group.label}</NavItem>)}
+      </NavList>
+      <div className="model-results" ref={results} onKeyDown={navigate}>
+        <div className="model-results-heading"><span>{heading}</span><span aria-live="polite">{count} models</span></div>
+        {shown.map((group) => <div key={group.key} role="group" aria-label={group.label}>
+          {group.models.map((spec) => {
+            const selected = group.engine === engine && spec.id === model;
+            const favorite = isFavorite(favoriteModels, group.engine, spec.id);
+            const Icon = modelIcon(group.engine, spec.id);
+            return <div key={spec.id} className="model-row">
+              <MenuItem
+                role="button"
+                className="model-choice"
+                checked={selected}
+                disabled={!group.selectable}
+                icon={<Icon size={16} />}
+                description={<span data-tip={`${group.label} · ${spec.description}`} data-tip-overflow>{group.label} · {spec.description}</span>}
+                onClick={() => { onChange(group.engine, spec.id); if (!effort) close(); }}
+              >
+                {spec.label}
+              </MenuItem>
+              {onModelFavorite && <IconButton className="model-favorite" label={`${favorite ? "Unpin" : "Pin"} ${spec.label}`} tip={favorite ? "Unpin from Favorites" : "Pin to Favorites"} pressed={favorite} onClick={() => onModelFavorite(group.engine, spec.id, !favorite)}><Star size={16} fill={favorite ? "currentColor" : "none"} /></IconButton>}
+            </div>;
+          })}
+          {group.hint?.kind === "new-thread" && <p className="setting-hint">Start a new thread to use {engineLabel(group.engine)}</p>}
+          {group.hint?.kind === "sign-in" && <Button variant="link" className="setting-hint" onClick={() => { onSignIn(group.engine); close(); }}>Sign in to use {group.label}</Button>}
+          {group.hint?.kind === "notice" && <ReadinessHint notice={group.hint.notice} onOpenSettings={onOpenEngineSettings ? () => { onOpenEngineSettings(); close(); } : undefined} />}
+        </div>)}
+        {count === 0 && <MenuNote className="model-empty">{search ? "No models found. Try another name or provider." : filter === "favorites" ? "Pin models from All models to keep them here." : "No models available."}</MenuNote>}
+      </div>
     </div>
-    {!search && top.length > 0 && rest.length > 0 && <MenuItem role="button" className="model-all" aria-expanded={all} icon={<Grid size={16} />} detail={<ChevronDown size={14} aria-hidden="true" />} onClick={() => setAll(!all)}>All models</MenuItem>}
-    {(effort || mode) && <>
-      <MenuSeparator />
-      <LibrarySettings engine={engine} model={model} modelLabel={modelLabel} {...(effort ? { effort } : {})} {...(mode ? { mode } : {})} />
-    </>}
+    {effort || mode
+      ? <LibrarySettings engine={engine} model={model} modelLabel={modelLabel} {...(effort ? { effort } : {})} {...(mode ? { mode } : {})} />
+      : <div className="model-library-footer">{engineLocked ? `This thread uses ${engineLabel(engine)}.` : "↑ ↓ navigate · Enter select"}<span><Star size={12} /> Pin your go-to models</span></div>}
   </>;
 }
 
