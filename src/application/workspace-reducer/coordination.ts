@@ -1,10 +1,10 @@
 /** Coordinators and their threads: who works under whom, what they report, and what waits on the user. */
-import { drainQueue, queuedFor, resolveWorkspaceEffect, stoppingProcess, withPending, withUnsent } from "./run-queue.js";
+import { drained, processStopped, queuedFor, resolveWorkspaceEffect, unsent, withPending } from "./run-queue.js";
 import { reduceSending } from "./sending.js";
 import { released, remoteNews } from "./coordination-remote.js";
-import { withProposalFailure } from "./proposals.js";
+import { proposalFailure } from "./proposals.js";
 import { now, settled, targetId } from "./shared.js";
-import { afterward, andThen, failed, type SliceTransition } from "./slice.js";
+import { afterward, andThen, failed, inTurn, type SliceTransition } from "./slice.js";
 import { dismissedIn, editThread, threadsOf, type ThreadPatch, type ThreadsEdit } from "./thread-edits.js";
 import { DECISIONS_FULL, NO_COORDINATOR, NO_MEMORY, OUTSIDE_COORDINATION } from "./errors.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
@@ -13,10 +13,10 @@ import { coordinationMembers, coordinationRole, coordinatorRoster, coordinatorWo
 import { coordinationUpdate, decisionHeadline, withNewsQuieted } from "../coordination-messages.js";
 import { canResolve, checkoutAnswer, coordinatedThreadStatus, nextSteps } from "../coordinated-thread-status.js";
 import { activityChanges, threadActivity, threadChanges, type ThreadChange } from "../thread-activity.js";
-import { cancelPause, heldByLimit } from "../limit-pauses.js";
+import { heldByLimit, pauseCancelled } from "../limit-pauses.js";
 import { factsHeardIn } from "../member-facts.js";
 import { announced } from "../notices.js";
-import { withoutLapsedStops, withStopAll } from "../outstanding-stops.js";
+import { stoppedAll, withoutLapsedStops } from "../outstanding-stops.js";
 import { threadBusy } from "../run-record.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
@@ -28,13 +28,10 @@ import type { Thread } from "../../domain/thread.js";
 export const COORDINATION_INPUTS = [
   "task.set-coordinator", "task.set-lead-away", "task.resolve", "task.reopen", "coordination.set-thread-model", "coordination.set-muted",
   "coordination.reported", "coordination.decision-raised", "memory.set-purpose", "memory.add", "memory.edit", "memory.forget", "coordination.remembered",
-  "decision.answer", "coordination.next-step"
+  "decision.answer", "coordination.next-step", "coordination.stop-all"
 ] as const;
 type CoordinationInput = Extract<WorkspaceInput, { type: (typeof COORDINATION_INPUTS)[number] }>;
 
-/** What stops a coordinator's threads, which ends runs. */
-export const COORDINATION_RUN_INPUTS = ["coordination.stop-all"] as const;
-type CoordinationRunInput = Extract<WorkspaceInput, { type: (typeof COORDINATION_RUN_INPUTS)[number] }>;
 
 /** Coordination owns no state of its own: what it keeps lives on threads. */
 type Own = Record<never, never>;
@@ -137,6 +134,9 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
     case "coordination.next-step":
       return nextStepTaken(state, input);
 
+    case "coordination.stop-all":
+      return stopAll(state, input.taskId);
+
     /** The coordinator's own change. Its tool call answers a refusal, so the user's banner never shows one. */
     case "coordination.remembered":
       return remembered(state, input.taskId, input.change, true);
@@ -237,10 +237,6 @@ function nextStepTaken(state: WorkspaceState, input: Extract<CoordinationInput, 
   return reduceSending(state, { type: "task.send", taskId: thread.id, text: nextStepOf(input.step).text }, {}, { step: true });
 }
 
-export function reduceCoordinationRuns(state: WorkspaceState, input: CoordinationRunInput): WorkspaceTransition {
-  return stopAll(state, input.taskId);
-}
-
 /**
  * Stops a coordinator and every thread under it: each run is cancelled, each workflow and subagent
  * that would outlive it is stopped, each wait on a usage limit ends, and the coordinator's wake and
@@ -250,9 +246,9 @@ export function reduceCoordinationRuns(state: WorkspaceState, input: Coordinatio
  * the user's to stop one by one. A thread under it on another computer is stopped there, by a
  * computer whose build can.
  */
-function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
+function stopAll(state: WorkspaceState, leadId: string): CoordinationTransition {
   const lead = state.threads.find((item) => item.id === leadId);
-  if (!lead || !isCoordinator(lead)) return settled(state);
+  if (!lead || !isCoordinator(lead)) return {};
   const { threads, starts, sessionWork, elsewhere, landing } = coordinatorWork(state, lead);
   const cancelled = threads.flatMap(({ id }) => state.activeRuns[id] ?? []);
   /**
@@ -260,29 +256,27 @@ function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
    * keeps, so a start is stopped whenever it lands and both are heard quietly, after a restart here too.
    * Stopping a workflow or subagent can make the agent take a turn of its own to answer it, which ends quietly too.
    */
-  const outstanding = withStopAll(state, lead.id, {
+  const outstanding = stoppedAll(state, lead.id, {
     cancelled,
     hushed: sessionWork.map((work) => work.taskId),
     elsewhere,
     landing: landing.map((proposal) => ({ id: proposal.id, computer: proposal.place.computer!.id })),
   }, now());
-  let next = settled(outstanding.state, [...cancelled.map((run): WorkspaceEffect => ({ type: "send-run-command", command: { type: "cancel", taskId: run.taskId, runId: run.runId } })), ...outstanding.effects]);
+  const cancels = cancelled.map((run): WorkspaceEffect => ({ type: "send-run-command", command: { type: "cancel", taskId: run.taskId, runId: run.runId } }));
+  const then: ((next: WorkspaceState) => CoordinationTransition)[] = [];
   for (const { taskId, processIds } of sessionWork) {
-    for (const processId of processIds) next = followedBy(next, stoppingProcess(next.state, taskId, processId));
+    for (const processId of processIds) then.push((next) => processStopped(next, taskId, processId));
   }
-  for (const { id } of threads) next = followedBy(next, cancelPause(next.state, id));
+  for (const { id } of threads) then.push((next) => pauseCancelled(next, id));
   for (const start of starts) {
     const { taskId, coordination } = start;
-    const without = withUnsent(next.state, start);
-    next = { ...next, state: coordination?.proposalId ? withProposalFailure(without, lead.id, coordination.proposalId, undefined) : without };
+    const proposalId = coordination?.proposalId;
+    then.push((next) => unsent(next, start));
+    if (proposalId) then.push((next) => proposalFailure(next, lead.id, proposalId, undefined));
     /** What the user queued behind it goes back to its composer, as any stop hands it back. */
-    if (taskId && !next.state.activeRuns[taskId]) next = followedBy(next, drainQueue(next.state, taskId, "hand-back"));
+    if (taskId) then.push((next) => next.activeRuns[taskId] ? {} : drained(next, taskId, "hand-back"));
   }
-  return next;
-}
-
-function followedBy(first: WorkspaceTransition, then: WorkspaceTransition): WorkspaceTransition {
-  return { state: then.state, effects: [...first.effects, ...then.effects] };
+  return inTurn(state, { ...outstanding, effects: [...cancels, ...outstanding.effects ?? []] }, then);
 }
 
 /**

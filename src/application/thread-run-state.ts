@@ -205,14 +205,14 @@ export function withStreamingTail<T extends RunTransitionState>(state: T, thread
   return { ...state, streamingTails } as T;
 }
 
-export function withBackgroundProcesses<T extends RunTransitionState>(state: T, threadId: string, processes: BackgroundProcess[]): T {
+export function withBackgroundProcesses<T extends Pick<RunFeedsState, "backgroundProcesses">>(state: T, threadId: string, processes: BackgroundProcess[]): T {
   if (processes.length) return { ...state, backgroundProcesses: { ...state.backgroundProcesses, [threadId]: processes } } as T;
   if (!(threadId in state.backgroundProcesses)) return state;
   const { [threadId]: _ended, ...backgroundProcesses } = state.backgroundProcesses;
   return { ...state, backgroundProcesses } as T;
 }
 
-export function withWorkflows<T extends RunTransitionState>(state: T, threadId: string, workflows: Workflow[]): T {
+export function withWorkflows<T extends Pick<RunFeedsState, "workflows">>(state: T, threadId: string, workflows: Workflow[]): T {
   if (workflows.length) return { ...state, workflows: { ...state.workflows, [threadId]: workflows } } as T;
   if (!(threadId in state.workflows)) return state;
   const { [threadId]: _ended, ...rest } = state.workflows;
@@ -232,7 +232,7 @@ export function updateThread<T extends RunTransitionState>(state: T, threadId: s
   return { ...state, threads: state.threads.map((thread) => thread.id === threadId ? update(thread) : thread) } as T;
 }
 
-export function withSubagents<T extends RunTransitionState>(state: T, threadId: string, subagents: Subagent[]): T {
+export function withSubagents<T extends Pick<RunFeedsState, "subagents">>(state: T, threadId: string, subagents: Subagent[]): T {
   if (subagents.length) return { ...state, subagents: { ...state.subagents, [threadId]: subagents } } as T;
   if (!(threadId in state.subagents)) return state;
   const { [threadId]: _cleared, ...rest } = state.subagents;

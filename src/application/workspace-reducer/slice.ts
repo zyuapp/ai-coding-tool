@@ -50,8 +50,24 @@ export type Step<Facet = Record<never, never>> = Omit<SliceTransition<Record<nev
  * order, the later error and result standing. A refusal ends it there.
  */
 export function andThen<Facet>(state: WorkspaceState, first: Step<Facet>, next: (state: WorkspaceState) => Step<Facet>): Step<Facet> {
-  if (first.refusal !== undefined) return first;
-  const second = next(afterward(state, first));
+  return inTurn(state, first, [next]);
+}
+
+/** {@link andThen} for any number of steps, each made on the state the ones before it leave. */
+export function inTurn<Facet>(state: WorkspaceState, first: Step<Facet>, next: Iterable<(state: WorkspaceState) => Step<Facet>>): Step<Facet> {
+  let current = state;
+  let last = first;
+  let joined = first;
+  for (const step of next) {
+    if (joined.refusal !== undefined) return joined;
+    current = afterward(current, last);
+    last = step(current);
+    joined = followed(joined, last);
+  }
+  return joined;
+}
+
+function followed<Facet>(first: Step<Facet>, second: Step<Facet>): Step<Facet> {
   const error = second.error ?? (second.clearsError && first.error ? { message: null, page: first.error.page } : second.clearsError ? undefined : first.error);
   const result = second.result ?? first.result;
   return {

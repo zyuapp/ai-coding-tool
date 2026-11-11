@@ -6,8 +6,9 @@
  * coordinator keeps, so it is heard quietly after a restart here too.
  */
 import type { WorkspaceEffect } from "./workspace-reducer/types.js";
-import { runAnsweredIn, runsOf } from "./workspace-reducer/run-edits.js";
-import { afterward } from "./workspace-reducer/slice.js";
+import { answersInTime, runAnsweredIn, runsOf, stopAllIn } from "./workspace-reducer/run-edits.js";
+import { afterward, type Step } from "./workspace-reducer/slice.js";
+import { editThread, threadsOf } from "./workspace-reducer/thread-edits.js";
 import type { RemoteWork } from "./coordination.js";
 import { remotelyLedThreads } from "./state/threads.js";
 import type { StopIntent } from "./run-settlement.js";
@@ -17,20 +18,12 @@ import type { PairedComputer } from "./state/computers.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import { supportsComputerCommand } from "../contracts/computer-capabilities.js";
 import type { AppCommand } from "../contracts/commands.js";
-import { isCoordinator } from "../domain/coordination.js";
+import { isCoordinator, type CoordinationThread } from "../domain/coordination.js";
 import type { CaughtStart, RemoteStop, Thread } from "../domain/thread.js";
 import { resumesOnItsOwn } from "../domain/usage-limit.js";
 
 /** A thread whose session work Stop all stopped, and when, so only the agent's answer to that stop ends quietly. */
 export type QuietSession = { taskId: string; at: number };
-
-/** How long after Stop all stopped a thread's session work the agent's own turn is still its answer to that stop. */
-const STOP_ANSWER_MS = 2 * 60_000;
-
-/** Whether a turn the agent opens at `at` could still be its answer to the stop that hushed its session. */
-function answersInTime(session: Pick<QuietSession, "at">, at: number): boolean {
-  return at - session.at <= STOP_ANSWER_MS;
-}
 
 /** What one Stop all covers under a coordinator. */
 export type StopAllCover = {
@@ -50,21 +43,20 @@ export type StopAllCover = {
  * stop of a thread's session work the agent never answered in time is let go of.
  */
 export function withStopAll(state: WorkspaceState, leadId: string, cover: StopAllCover, at: number): { state: WorkspaceState; effects: WorkspaceEffect[] } {
+  const step = stoppedAll(state, leadId, cover, at);
+  return { state: afterward(state, step), effects: step.effects ?? [] };
+}
+
+/** {@link withStopAll}, as the edits it makes: what the coordinator keeps of it, and what the runs here do. */
+export function stoppedAll(state: WorkspaceState, leadId: string, cover: StopAllCover, at: number): Step<CoordinationThread> {
   const remote = remoteStops(cover.elsewhere, at);
-  const going = new Set(Object.values(state.activeRuns).map((run) => run.runId));
-  const quietStops = [...state.quietStops.filter((runId) => going.has(runId)), ...cover.cancelled.map((run) => run.runId)];
   const caught = Object.fromEntries(cover.landing.map((start): [string, CaughtStart] => [start.id, { computer: start.computer }]));
-  const stopping = Object.keys(remote.stops).length || cover.landing.length ? updateThread(state, leadId, (item) => ({
-    ...item,
+  const kept = Object.keys(remote.stops).length || cover.landing.length ? [editThread(threadsOf<CoordinationThread>(state), leadId, (item) => ({
     ...Object.keys(remote.stops).length ? { remoteStops: { ...item.remoteStops, ...remote.stops } } : {},
     ...cover.landing.length ? { caughtStarts: { ...item.caughtStarts, ...caught } } : {},
-  })) : state;
-  const hushed = new Set(cover.hushed);
-  const quietSessions = [
-    ...state.quietSessions.filter((session) => !hushed.has(session.taskId) && answersInTime(session, at) && state.threads.some((thread) => thread.id === session.taskId)),
-    ...[...hushed].map((taskId) => ({ taskId, at })),
-  ];
-  return { state: { ...stopping, quietStops, quietSessions }, effects: remote.effects };
+  }))] : [];
+  const runs = stopAllIn(runsOf(state), cover.cancelled.map((run) => run.runId), cover.hushed, state.threads, at);
+  return { edits: [...kept, runs], effects: remote.effects };
 }
 
 /**

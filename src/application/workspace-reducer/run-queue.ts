@@ -5,11 +5,11 @@ import { promptWithAnnotations } from "../annotations.js";
 import { promptWithAttachments } from "../attachments.js";
 import { annotationsFor, composerOf, filesFor, handedBackIn, imagesFor, pastesFor, textAfterSend, withAnnotations, withFiles, withImages, withPastes } from "../composer-drafts.js";
 import { afterward, applied, type Step } from "./slice.js";
-import { attendedIn, pendingIn, queuedIn, runsOf } from "./run-edits.js";
+import { attendedIn, pendingIn, queuedIn, runsOf, stopAskedIn, withoutPendingIn } from "./run-edits.js";
 import { answerReopenedIn, notedIn, threadsOf, turnOpenedIn, type ThreadsEdit } from "./thread-edits.js";
 import { promptWithFiles } from "../files.js";
 import { promptWithPastes } from "../pastes.js";
-import { ATTENDED_RUN, openedTurn, threadMark, updateThread, withActiveRun, withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type ActiveRun, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
+import { ATTENDED_RUN, openedTurn, threadMark, updateThread, withActiveRun, withRunStatus, type ActiveRun, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import { runOf, runStatus, threadBusy } from "../run-record.js";
 import type { DraftBranch, PendingRun, QueuedMessage, SideChat, WorkspaceState } from "../workspace-state.js";
@@ -20,7 +20,7 @@ import { coordinationRole } from "../coordination.js";
 import { undeliveredNote } from "../coordination-messages.js";
 import { GROUP_OF } from "../coordinated-thread-status.js";
 import { withTurnBegun } from "../outstanding-stops.js";
-import { isCoordinator, withoutAnswer, withoutReport } from "../../domain/coordination.js";
+import { isCoordinator, withoutReport } from "../../domain/coordination.js";
 import { capabilitiesFor, defaultEffortFor, effortForModel, policyFor, threadModel, type AgentModel } from "../../domain/agent-engine.js";
 import { catalogOf } from "../state/engines.js";
 import { createSentMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
@@ -49,9 +49,14 @@ export function withoutPending(state: WorkspaceState, pendingId: string): Worksp
  * again, to be answered anew, as one a queued message answers is when it never goes.
  */
 export function withUnsent(state: WorkspaceState, pending: PendingRun): WorkspaceState {
-  const without = withoutPending(state, pending.id);
+  return afterward(state, unsent(state, pending));
+}
+
+/** {@link withUnsent}, as the edits it makes. */
+export function unsent(state: WorkspaceState, pending: PendingRun): Step {
+  const runs = withoutPendingIn(runsOf(state), pending.id);
   const { answers, taskId } = pending;
-  return answers === undefined || taskId === undefined ? without : updateThread(without, taskId, (thread) => withoutAnswer(thread, answers));
+  return { edits: answers === undefined || taskId === undefined ? [runs] : [runs, answerReopenedIn(threadsOf(state), taskId, answers)] };
 }
 
 export function queuedFor(state: WorkspaceState, taskId: string): QueuedMessage[] {
@@ -265,31 +270,13 @@ export function cancellingRun(state: WorkspaceState, active: ActiveRun): Workspa
 
 /** The kill is the agent process's to make; the row only says a stop is on its way. */
 export function stoppingProcess(state: WorkspaceState, taskId: string, processId: string): WorkspaceTransition {
-  const stop: WorkspaceEffect[] = [{ type: "send-run-command", command: { type: "stop-process", taskId, processId } }];
-  const processes = state.backgroundProcesses[taskId] ?? [];
-  const target = processes.find((process) => process.id === processId);
-  if (target) {
-    const marked = processes.map((process) => process.id === target.id ? { ...process, stopping: true } : process);
-    return target.stopping ? settled(state) : settled(withBackgroundProcesses(state, taskId, marked), stop);
-  }
-  /** A workflow is a task of the agent process like any other, so the same stop reaches it. */
-  const workflows = state.workflows[taskId] ?? [];
-  const workflow = workflows.find((candidate) => candidate.id === processId);
-  if (workflow) {
-    if (workflow.stopping || workflow.status !== "running") return settled(state);
-    return settled(
-      withWorkflows(state, taskId, workflows.map((candidate) => candidate.id === workflow.id ? { ...candidate, stopping: true } : candidate)),
-      stop,
-    );
-  }
-  /** So is a subagent the session is still running. */
-  const subagents = state.subagents[taskId] ?? [];
-  const subagent = subagents.find((candidate) => candidate.id === processId);
-  if (!subagent || subagent.stopping || subagent.status !== "working") return settled(state);
-  return settled(
-    withSubagents(state, taskId, subagents.map((candidate) => candidate.id === subagent.id ? { ...candidate, stopping: true as const } : candidate)),
-    stop,
-  );
+  return applied(state, processStopped(state, taskId, processId));
+}
+
+/** {@link stoppingProcess}, as the edits it makes. A workflow or a subagent is a task of the agent process like any other, so the same stop reaches it. */
+export function processStopped(state: WorkspaceState, taskId: string, processId: string): Step {
+  const marked = stopAskedIn(runsOf(state), taskId, processId);
+  return marked ? { edits: [marked], effects: [{ type: "send-run-command", command: { type: "stop-process", taskId, processId } }] } : {};
 }
 
 /**

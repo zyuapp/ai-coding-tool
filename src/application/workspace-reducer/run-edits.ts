@@ -5,7 +5,8 @@
  */
 import type { PendingQuestion } from "../../domain/agent-question.js";
 import type { PendingRun, QueuedMessage, RunsState } from "../state/runs.js";
-import { withRunStatus, type ThreadRunStatus } from "../thread-run-state.js";
+import { withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type ThreadRunStatus } from "../thread-run-state.js";
+import type { Thread } from "../../domain/thread.js";
 
 /** The run state as one input leaves it. Only the functions here make one. */
 class RunsChange {
@@ -78,4 +79,52 @@ export function runStatusIn(edit: RunsEdit, taskId: string, status: ThreadRunSta
 /** The Stop all that cancelled this run answered by its end. */
 export function runAnsweredIn(edit: RunsEdit, runId: string): RunsEdit {
   return new RunsChange({ ...edit.view, quietStops: edit.view.quietStops.filter((id) => id !== runId) });
+}
+
+/** How long after Stop all stopped a thread's session work the agent's own turn is still its answer to that stop. */
+const STOP_ANSWER_MS = 2 * 60_000;
+
+/** Whether a turn the agent opens at `at` could still be its answer to the stop that hushed its session. */
+export function answersInTime(session: { at: number }, at: number): boolean {
+  return at - session.at <= STOP_ANSWER_MS;
+}
+
+/**
+ * What a Stop all at `at` answers for here: the runs it cancelled, and the threads whose session work
+ * it stopped. A run that never said it ended leaves its id behind, so only runs still going are kept,
+ * and a stop of a thread's session work the agent never answered in time is let go of.
+ */
+export function stopAllIn(edit: RunsEdit, cancelled: readonly string[], hushed: readonly string[], threads: readonly Thread[], at: number): RunsEdit {
+  const going = new Set(Object.values(edit.view.activeRuns).map((run) => run.runId));
+  const quietStops = [...edit.view.quietStops.filter((runId) => going.has(runId)), ...cancelled];
+  const stopped = new Set(hushed);
+  const quietSessions = [
+    ...edit.view.quietSessions.filter((session) => !stopped.has(session.taskId) && answersInTime(session, at) && threads.some((thread) => thread.id === session.taskId)),
+    ...[...stopped].map((taskId) => ({ taskId, at })),
+  ];
+  return new RunsChange({ ...edit.view, quietStops, quietSessions });
+}
+
+/**
+ * A stop asked of what a thread's session runs in the background, a workflow or a subagent included,
+ * marked on its row until it is gone. Null when there is nothing there still to stop.
+ */
+export function stopAskedIn(edit: RunsEdit, taskId: string, processId: string): RunsEdit | null {
+  const { view } = edit;
+  const processes = view.backgroundProcesses[taskId] ?? [];
+  const target = processes.find((process) => process.id === processId);
+  if (target) {
+    if (target.stopping) return null;
+    return new RunsChange({ ...view, ...withBackgroundProcesses(view, taskId, processes.map((process) => process.id === target.id ? { ...process, stopping: true } : process)) });
+  }
+  const workflows = view.workflows[taskId] ?? [];
+  const workflow = workflows.find((candidate) => candidate.id === processId);
+  if (workflow) {
+    if (workflow.stopping || workflow.status !== "running") return null;
+    return new RunsChange({ ...view, ...withWorkflows(view, taskId, workflows.map((candidate) => candidate.id === workflow.id ? { ...candidate, stopping: true } : candidate)) });
+  }
+  const subagents = view.subagents[taskId] ?? [];
+  const subagent = subagents.find((candidate) => candidate.id === processId);
+  if (!subagent || subagent.stopping || subagent.status !== "working") return null;
+  return new RunsChange({ ...view, ...withSubagents(view, taskId, subagents.map((candidate) => candidate.id === subagent.id ? { ...candidate, stopping: true as const } : candidate)) });
 }
