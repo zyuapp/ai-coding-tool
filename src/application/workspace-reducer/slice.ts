@@ -6,6 +6,7 @@ import type { ToastsEdit } from "../toasts.js";
 import type { ThreadsEdit } from "./thread-edits.js";
 import type { RunsEdit } from "./run-edits.js";
 import type { EnginesEdit } from "../engine-access.js";
+import type { WorktreesEdit } from "./worktree-claims.js";
 import type { WorkspaceCommandResult } from "../../contracts/workspace-result.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import type { SettingsSection } from "../../domain/settings-section.js";
@@ -18,7 +19,7 @@ export type OwnPatch<Own> = Partial<Own> & { [Field in Exclude<keyof WorkspaceSt
  * State another owner keeps, as that owner's own functions left it. Each is a value only its owner's
  * functions make, naming only that owner's fields, so a slice changes it through them or not at all.
  */
-export type OwnerEdit<Facet = Record<never, never>> = DocksEdit | ComposerEdit | ToastsEdit | ThreadsEdit<Facet> | RunsEdit | EnginesEdit;
+export type OwnerEdit<Facet = Record<never, never>> = DocksEdit | ComposerEdit | ToastsEdit | ThreadsEdit<Facet> | RunsEdit | EnginesEdit | WorktreesEdit;
 
 /** `Facet` is the fields the slice keeps on threads: the only ones its thread edits may patch directly. */
 export type SliceTransition<Own, Facet = Record<never, never>> = {

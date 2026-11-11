@@ -62,8 +62,9 @@ test("a thread already in a worktree is not given a second one", () => {
 test("a thread whose worktree is still being made will not ask for a second one", () => {
   const state = projected({ threads: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });
 
-  const asked = reduce(state, { type: "task.set-worktree", worktree: true });
+  const asked = reduce({ ...state, actionError: "Earlier failure" }, { type: "task.set-worktree", worktree: true });
   assert.deepEqual(asked.state.creatingWorktrees, ["task-a"]);
+  assert.equal(asked.state.actionError, null, "asking again takes down what the last ask failed with");
 
   const again = reduce(asked.state, { type: "task.set-worktree", worktree: true });
   assert.deepEqual(again.effects, [], "the second ask makes no second checkout for the first one to orphan");
