@@ -11,3 +11,7 @@ Add a test only when a plausible bug would make it fail. Fewer, stronger tests b
 - Do not read source or CSS files in tests. Style conventions belong in lint.
 - When a feature is removed, delete its tests. Do not add tests that it stays absent.
 - UI polish and audit passes change the UI only. They add no tests unless they fix a behavior bug.
+
+# Clean up after yourself
+
+Before ending your turn, tear down everything you started: quit any dev app, simulator, or server you launched, stop background processes, delete temporary files and debug logging, and restore any window or setting you changed.
