@@ -3,10 +3,11 @@ import type { ThreadNotice } from "../contracts/ipc.js";
 import { MAX_COMPUTER_NAME, type ComputerLink, type DiscoveredComputer } from "../domain/computers.js";
 import { isCoordinator, remoteLeadOf } from "../domain/coordination.js";
 import type { SentDraft } from "./computers.js";
-import type { PairedComputer } from "./state/computers.js";
-import { annotationsFor, imagesFor, pastesFor, textAfterSend, withAnnotations, withImages, withPastes } from "./composer-drafts.js";
+import type { ComputersSliceState, PairedComputer } from "./state/computers.js";
+import { composerOf, sentElsewhereIn } from "./composer-drafts.js";
+import type { SliceTransition } from "./workspace-reducer/slice.js";
 import { announcedNotice } from "./notices.js";
-import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer.js";
+import type { WorkspaceEffect, WorkspaceInput } from "./workspace-reducer.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import { frontDock } from "./workspace-dock.js";
 
@@ -48,30 +49,10 @@ export function isComputerInput(input: { type: string }): input is ComputerInput
   return input.type.startsWith("computers.") || input.type === "computer.state" || input.type === "computer.notice";
 }
 
-/** What a paired computer has taken is let go of here; what was typed after it went stays. */
-function withoutSent(state: WorkspaceState, draft: SentDraft): WorkspaceState {
-  const { key } = draft;
-  const typed = state.prompts[key] ?? "";
-  const kept = textAfterSend(typed, draft.prompt);
-  const { [key]: _sent, ...rest } = state.prompts;
-  const prompts = kept ? { ...rest, [key]: kept } : rest;
-  const annotations = annotationsFor(state, key).filter((annotation) => !draft.annotations.some((sent) => sent.id === annotation.id && sent.note === annotation.note));
-  const pastes = pastesFor(state, key).filter((paste) => !draft.pastes.some((sent) => sent.id === paste.id));
-  let next = withPastes(withAnnotations({ ...state, prompts }, key, annotations), key, pastes);
-  if (draft.attachments) {
-    const { key: composer, ids } = draft.attachments;
-    next = withImages(next, key, imagesFor(next, key).filter((image) => !ids.includes(image.id)));
-    next = { ...next, attachmentSends: { ...next.attachmentSends, [composer]: { busy: false, error: null, sent: ids } } };
-  }
-  return next;
-}
+type ComputersTransition = SliceTransition<ComputersSliceState>;
 
-function withComputers(state: WorkspaceState, computers: Partial<WorkspaceState["computers"]>): WorkspaceState {
-  return { ...state, computers: { ...state.computers, ...computers } };
-}
-
-function settled(state: WorkspaceState, effects: WorkspaceEffect[] = []): WorkspaceTransition {
-  return { state, effects };
+function withComputers(state: WorkspaceState, computers: Partial<WorkspaceState["computers"]>, effects: WorkspaceEffect[] = []): ComputersTransition {
+  return { patch: { computers: { ...state.computers, ...computers } }, effects };
 }
 
 /** The links as the host reports them, each keeping the state this window already holds for it. */
@@ -114,62 +95,62 @@ function lookingAgain(state: WorkspaceState, paired: PairedComputer[], active: s
   return [{ type: "computer.forward", id: shown.id, inputs: [{ type: "view.set-focused", focused: state.focused }] }];
 }
 
-export function reduceComputers(state: WorkspaceState, input: ComputerInput): WorkspaceTransition {
+export function reduceComputers(state: WorkspaceState, input: ComputerInput): ComputersTransition {
   const { computers } = state;
   switch (input.type) {
     case "computers.discover":
-      return settled(withComputers(state, { searching: true, searchError: null }), [{ type: "computer.discover" }]);
+      return withComputers(state, { searching: true, searchError: null }, [{ type: "computer.discover" }]);
     case "computers.found":
-      return settled(withComputers(state, { found: input.found, searching: false, searchError: null }));
+      return withComputers(state, { found: input.found, searching: false, searchError: null });
     case "computers.search-failed":
-      return settled(withComputers(state, { searching: false, searchError: input.message }));
+      return withComputers(state, { searching: false, searchError: input.message });
     /** A pair with no code yet opens the card the code is typed into; one with a code sends it. */
     case "computers.pair": {
       const pairing = { host: input.host, name: input.name, busy: input.code !== "", error: null };
       const effects: WorkspaceEffect[] = input.code ? [{ type: "computer.pair", host: input.host, name: input.name, code: input.code }] : [];
-      return settled(withComputers(state, { pairing }), effects);
+      return withComputers(state, { pairing }, effects);
     }
     case "computers.pair-failed":
-      return settled(withComputers(state, { pairing: computers.pairing ? { ...computers.pairing, busy: false, error: input.message } : null }));
+      return withComputers(state, { pairing: computers.pairing ? { ...computers.pairing, busy: false, error: input.message } : null });
     case "computers.cancel-pairing":
-      return settled(withComputers(state, { pairing: null }));
+      return withComputers(state, { pairing: null });
     case "computers.forget": {
       const active = computers.active === input.id ? null : computers.active;
       const dropped = computers.dropped === input.id ? null : computers.dropped;
       const filter = computers.filter === input.id ? "all" : computers.filter;
-      return settled(withComputers(state, { active, dropped, filter }), [{ type: "computer.forget", id: input.id }]);
+      return withComputers(state, { active, dropped, filter }, [{ type: "computer.forget", id: input.id }]);
     }
     case "computers.reconnect":
-      return settled(state, [input.id === undefined ? { type: "computer.reconnect" } : { type: "computer.reconnect", id: input.id }]);
+      return { effects: [input.id === undefined ? { type: "computer.reconnect" } : { type: "computer.reconnect", id: input.id }] };
     /** The name shows at once when there is one; an empty one is the host's to fill in and announce. */
     case "computers.rename": {
       const name = input.name.trim().slice(0, MAX_COMPUTER_NAME);
-      return settled(name ? withComputers(state, { name }) : state, [{ type: "computer.rename", name }]);
+      return name ? withComputers(state, { name }, [{ type: "computer.rename", name }]) : { effects: [{ type: "computer.rename", name }] };
     }
     case "computers.label": {
-      if (!computers.paired.some((computer) => computer.id === input.id)) return settled(state);
+      if (!computers.paired.some((computer) => computer.id === input.id)) return {};
       const name = input.name.trim().slice(0, MAX_COMPUTER_NAME);
       const paired = name ? computers.paired.map((computer) => computer.id === input.id ? { ...computer, name } : computer) : computers.paired;
-      return settled(withComputers(state, { paired }), [{ type: "computer.label", id: input.id, name }]);
+      return withComputers(state, { paired }, [{ type: "computer.label", id: input.id, name }]);
     }
     case "computers.filter":
-      return settled(withComputers(state, { filter: input.filter }));
+      return withComputers(state, { filter: input.filter });
     case "computers.forwarded":
-      return settled(withoutSent(state, input.draft));
+      return { edits: [sentElsewhereIn(composerOf(state), input.draft)] };
     case "computers.answered":
-      return { state, effects: [], result: { ok: true, taskId: input.taskId } };
+      return { result: { ok: true, taskId: input.taskId } };
     case "computers.changed": {
       const paired = linked(state, input.links);
       /** A pairing that now shows up as a link is done; one that went away, or whose line dropped, takes the screen with it. */
       const pairing = computers.pairing && paired.some((computer) => computer.host === computers.pairing?.host) ? null : computers.pairing;
       const { active, dropped } = onScreen(computers, paired);
       const filter = computers.filter === "all" || computers.filter === "this" || paired.some((computer) => computer.id === computers.filter) ? computers.filter : "all";
-      return settled(withComputers(state, { name: input.name, paired, pairing, active, dropped, filter }), lookingAgain(state, paired, active));
+      return withComputers(state, { name: input.name, paired, pairing, active, dropped, filter }, lookingAgain(state, paired, active));
     }
     case "computer.state": {
       const computer = computers.paired.find((item) => item.id === input.id);
-      if (!computer) return settled(state);
-      return settled(withComputers(state, { paired: computers.paired.map((item) => item === computer ? { ...item, state: input.state } : item) }));
+      if (!computer) return {};
+      return withComputers(state, { paired: computers.paired.map((item) => item === computer ? { ...item, state: input.state } : item) });
     }
     /**
      * A thread there working under a coordinator here is announced here, under that coordinator's
@@ -177,10 +158,10 @@ export function reduceComputers(state: WorkspaceState, input: ComputerInput): Wo
      */
     case "computer.notice": {
       const computer = computers.paired.find((item) => item.id === input.id);
-      if (!computer) return settled(state);
+      if (!computer) return {};
       const lead = remoteLeadOf(computer.state?.threads.find((thread) => thread.id === input.notice.taskId));
-      if (lead && isCoordinator(state.threads.find((thread) => thread.id === lead.threadId))) return settled(state);
-      return settled(state, announcedNotice(state, input.notice));
+      if (lead && isCoordinator(state.threads.find((thread) => thread.id === lead.threadId))) return {};
+      return { effects: announcedNotice(state, input.notice) };
     }
   }
 }

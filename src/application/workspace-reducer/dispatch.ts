@@ -121,8 +121,7 @@ type ClaimedReducer = (state: WorkspaceState, input: ClaimedInput) => WorkspaceT
 
 const remote = feature(reduceRemote);
 const engine = feature(reduceEngine);
-/** Paired computers' own inputs still change the whole state. */
-const computers: (state: WorkspaceState, input: ComputerInput) => WorkspaceTransition = reduceComputers;
+const computers = feature(reduceComputers);
 
 const REDUCERS = new Map<string, ClaimedReducer>(CLAIMS.flatMap(({ types, reducer }) => types.map((type) => [type, reducer as ClaimedReducer] as const)));
 

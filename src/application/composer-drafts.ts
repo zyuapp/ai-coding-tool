@@ -8,6 +8,7 @@ import type { WorkspaceState } from "./workspace-state.js";
 import { withPrompt, type ComposerState } from "./state/composer.js";
 import { withoutThreadKeys } from "./removals.js";
 import type { AttachmentSendState } from "./composer-attachments.js";
+import type { SentDraft } from "./computers.js";
 import type { AnnotationCommand, FileCommand, ImageCommand, PasteCommand } from "../contracts/commands.js";
 import { MAX_ATTACHED_FILES, MAX_ATTACHMENTS, type Annotation, type AttachedFile, type AttachedFileDraft, type PastedText, type StagedImage } from "../domain/conversation.js";
 
@@ -35,6 +36,25 @@ export function draftsForgottenIn(edit: ComposerEdit, removed: Set<string>): Com
     images: withoutThreadKeys(view.images, removed),
     readingPoints: withoutThreadKeys(view.readingPoints, removed),
   });
+}
+
+/** What a paired computer has taken is let go of here; what was typed after it went stays. */
+export function sentElsewhereIn(edit: ComposerEdit, draft: SentDraft): ComposerEdit {
+  const { key } = draft;
+  const state = edit.view;
+  const typed = state.prompts[key] ?? "";
+  const kept = textAfterSend(typed, draft.prompt);
+  const { [key]: _sent, ...rest } = state.prompts;
+  const prompts = kept ? { ...rest, [key]: kept } : rest;
+  const annotations = annotationsFor(state, key).filter((annotation) => !draft.annotations.some((sent) => sent.id === annotation.id && sent.note === annotation.note));
+  const pastes = pastesFor(state, key).filter((paste) => !draft.pastes.some((sent) => sent.id === paste.id));
+  let next = withPastes(withAnnotations({ ...state, prompts }, key, annotations), key, pastes);
+  if (draft.attachments) {
+    const { key: composer, ids } = draft.attachments;
+    next = withImages(next, key, imagesFor(next, key).filter((image) => !ids.includes(image.id)));
+    next = { ...next, attachmentSends: { ...next.attachmentSends, [composer]: { busy: false, error: null, sent: ids } } };
+  }
+  return new ComposerChange(next);
 }
 
 export function withPromptIn(edit: ComposerEdit, key: string, prompt: string): ComposerEdit {
