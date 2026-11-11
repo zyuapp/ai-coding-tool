@@ -19,7 +19,7 @@ export type WithheldTool = { server: string; tool: string };
  * A side chat is discarded when it closes and is listed nowhere while it is open, so it must not
  * leave anything scheduled behind: it can read automations but not write them. Everything else —
  * files, Bash, computer use, project MCP servers, and the whole thread surface — it shares with the
- * main channel. Grant a write here only if closing the chat also undoes it (see `closeSideChats`).
+ * main channel. Grant a write here only if closing the chat also undoes it (see `sideChatsClosed`).
  */
 export const WITHHELD_BY_CHANNEL: Record<RunChannel, readonly WithheldTool[]> = {
   main: [],
