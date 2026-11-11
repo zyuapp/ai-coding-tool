@@ -8,6 +8,7 @@ import type { PendingRun, QueuedMessage, RunsState } from "../state/runs.js";
 import { applyThreadEvent, withActiveRun, withApprovalAnswered, withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type FinishedVerdict, type ThreadRunStatus } from "../thread-run-state.js";
 import type { ThreadEvent } from "../../contracts/ipc.js";
 import type { Thread } from "../../domain/thread.js";
+import type { Subagent } from "../../domain/run.js";
 
 /** The run state as one input leaves it. Only the functions here make one. */
 class RunsChange {
@@ -155,6 +156,15 @@ export function watchEndedBeforeIn(edit: RunsEdit, taskId: string, verdict: Fini
 /** What a thread's session reports of work that outlives the run that started it, as {@link applyThreadEvent} keeps it. */
 export function threadEventIn(edit: RunsEdit, event: ThreadEvent): RunsEdit {
   return new RunsChange(applyThreadEvent(edit.view, event));
+}
+
+/** A subagent's log as its run kept it, ahead of whatever it has reported since. */
+export function subagentActivityIn(edit: RunsEdit, taskId: string, subagentId: string, activity: Subagent["activity"]): RunsEdit {
+  const stored = new Set(activity.map((item) => item.id));
+  const held = edit.view.subagents[taskId] ?? [];
+  return new RunsChange(withSubagents(edit.view, taskId, held.map((subagent) => subagent.id === subagentId
+    ? { ...subagent, activity: [...activity, ...subagent.activity.filter((item) => !stored.has(item.id))] }
+    : subagent)));
 }
 
 /** A thread's live run with its approval answered, running again. */

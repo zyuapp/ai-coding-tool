@@ -1,18 +1,19 @@
 /** Settings: appearance, keystrokes, and the switches that change what a run may do. */
-import { TAKE_KEYS, persistView } from "./dock-tabs.js";
-import type { SliceTransition } from "./slice.js";
+import { computerUseOf, setupShownIn } from "./computer-use.js";
+import { TAKE_KEYS, docksOf, editDock, persistView } from "./dock-tabs.js";
+import { runsOf, subagentActivityIn } from "./run-edits.js";
+import { afterward, ownFields, type OwnPatch, type SliceTransition, type Step } from "./slice.js";
 import type { SettingsState } from "../state/settings.js";
-import { settled, targetId, rejected } from "./shared.js";
-import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { focusComposer } from "../composer-drafts.js";
+import { targetId } from "./shared.js";
+import type { WorkspaceEffect, WorkspaceInput } from "./types.js";
+import { managementShownIn, worktreesOf } from "./worktree-claims.js";
+import { composerOf, focusComposerIn } from "../composer-drafts.js";
 import { pairedId } from "../state/computers.js";
-import { withSubagents } from "../thread-run-state.js";
-import { viewPreferences } from "../view-preferences.js";
-import { dockOwner, withDock, type WorkspaceState } from "../workspace-state.js";
+import { dockOwner, type WorkspaceState } from "../workspace-state.js";
 import { shortcutAction, shortcutProblem, withShortcut } from "../../domain/shortcuts.js";
 import { capabilitiesFor, isAgentEngine, isFavorite, isModelId } from "../../domain/agent-engine.js";
 import { isSubagentGroup } from "../../domain/run.js";
-import { isSettingsSection } from "../../domain/settings-section.js";
+import { isSettingsSection, type SettingsSection } from "../../domain/settings-section.js";
 import { isSidebarSection } from "../../domain/sidebar.js";
 import { rememberProject } from "../../domain/project.js";
 import { isThemeMode, themeById, themeFor, themeOrDefault, variantFor } from "../../domain/theme.js";
@@ -49,10 +50,69 @@ export function reduceRememberProject(state: SettingsState, input: Extract<Works
   return { patch: { recentProjects: rememberProject(state.recentProjects, input.projectId) }, persists: true };
 }
 
+/** Settings as one input leaves them. Only the functions here make one. */
+class SettingsChange {
+  private declare readonly owned: never;
+  constructor(readonly view: SettingsState) {}
+}
+
+export type SettingsEdit = SettingsChange;
+
+export function settingsOf(state: SettingsState): SettingsEdit {
+  return new SettingsChange(ownFields<SettingsState>(state, {
+    sections: true, subagentGroups: true, theme: true, themeMode: true, uiFont: true, monoFont: true, readingSize: true, terminalSize: true,
+    activityProject: true, sidebarOpen: true, sessionPanelOpen: true, captureSound: true, captureFocus: true, chromeBrowser: true, computerUse: true,
+    browserTools: true, notifications: true, settingsOpen: true, settingsSection: true, settingsFocus: true, usageComputer: true, favoriteModels: true,
+    recentProjects: true, shortcuts: true, capturingShortcut: true, desktopShortcutUnavailable: true,
+  }));
+}
+
+/** Settings no longer waiting for a keystroke, which they stop the moment they are not the thing in front. */
+export function captureStoppedIn(edit: SettingsEdit): SettingsEdit {
+  return new SettingsChange({ ...edit.view, capturingShortcut: null });
+}
+
+/**
+ * Settings shown on a page and the control on it something named, or put away, which stops a wait for
+ * a keystroke. Usage opens on the computer whose thread is on screen.
+ */
+function sheetIn(edit: SettingsEdit, open: boolean, section: SettingsSection | null, settingId: string | undefined, usageComputer: string | null | undefined): SettingsEdit {
+  const { view } = edit;
+  return new SettingsChange({
+    ...view,
+    settingsOpen: open,
+    settingsSection: open ? section : null,
+    settingsFocus: open && section && settingId ? { id: settingId, visit: (view.settingsFocus?.visit ?? 0) + 1 } : null,
+    ...(usageComputer === undefined ? {} : { usageComputer }),
+    ...(open ? {} : { capturingShortcut: null }),
+  });
+}
+
+/**
+ * Settings shown or put away. Naming a page takes over from the computer-use setup that held settings
+ * open on its own. Settings are drawn in the window, so a page that was in front cannot be left
+ * holding the keys, and the dock in front makes way.
+ */
+export function settingsShown(state: WorkspaceState, open: boolean, asked?: string, settingId?: string): Step {
+  const section = asked && isSettingsSection(asked) ? asked : null;
+  const usage = open && section === "usage" ? pairedId(state.computers, state.computers.active) : undefined;
+  const effects = open ? [...TAKE_KEYS] : stopCapture(state);
+  if (open && section === "worktrees" && !state.worktreeManagementLoading) effects.push({ type: "list-worktrees" });
+  return {
+    edits: [
+      sheetIn(settingsOf(state), open, section, settingId, usage),
+      managementShownIn(worktreesOf(state), open, section === "worktrees"),
+      ...(open && !section ? [] : [setupShownIn(computerUseOf(state), false)]),
+      ...(open ? [editDock(docksOf(state), dockOwner(state), { open: false, expanded: false })] : []),
+    ],
+    effects,
+  };
+}
+
 /** Opening a child loads its log and fills settings that older app versions did not capture. */
-function inspectSubagent(state: WorkspaceState, taskId: string | null, subagentId: string): WorkspaceTransition {
+function inspectSubagent(state: WorkspaceState, taskId: string | null, subagentId: string): WorkspaceEffect[] {
   const subagent = taskId ? state.subagents[taskId]?.find((candidate) => candidate.id === subagentId) : undefined;
-  if (!subagent || !taskId) return settled(state);
+  if (!subagent || !taskId) return [];
   const effects: WorkspaceEffect[] = [];
   if (!subagent.activity.length) effects.push({ type: "load-subagent-activity", taskId, subagentId });
   const thread = state.threads.find((thread) => thread.id === taskId);
@@ -60,74 +120,69 @@ function inspectSubagent(state: WorkspaceState, taskId: string | null, subagentI
   if (engine && capabilitiesFor(engine).subagentMetadata && (!subagent.model || !subagent.effort)) {
     effects.push({ type: "load-subagent-metadata", taskId, subagentId, engine, sessionId: thread?.continuation?.value });
   }
-  return settled(state, effects);
+  return effects;
 }
 
 /** Keeps one remembered choice, and writes nothing when it already holds. */
-function setPreference<Key extends "activityProject" | "sidebarOpen">(state: WorkspaceState, key: Key, value: WorkspaceState[Key]): WorkspaceTransition {
-  if (state[key] === value) return settled(state);
-  const next = { ...state, [key]: value };
-  return settled(next, persistView(next));
+function setPreference<Key extends "activityProject" | "sidebarOpen">(state: SettingsState, key: Key, value: SettingsState[Key]): SliceTransition<SettingsState> {
+  if (state[key] === value) return {};
+  return { patch: { [key]: value } as OwnPatch<SettingsState>, persists: true };
 }
 
-export function reduceSettings(state: WorkspaceState, input: SettingsInput): WorkspaceTransition {
+/** The preferences as `patch` leaves them, saved ahead of what else the change asks. */
+function savedWith(state: WorkspaceState, patch: OwnPatch<SettingsState>): WorkspaceEffect[] {
+  return persistView(afterward(state, { patch }));
+}
+
+export function reduceSettings(state: WorkspaceState, input: SettingsInput): SliceTransition<SettingsState> {
   switch (input.type) {
     case "view.set-theme": {
       const chosen = themeById(input.theme);
-      if (!chosen) return settled(state);
+      if (!chosen) return {};
       /** Naming a theme outright also names the ground it paints on, so the picker stays honest. */
-      if (state.theme === chosen.id && state.themeMode === chosen.variant) return settled(state);
-      const next = { ...state, theme: chosen.id, themeMode: chosen.variant };
-      return settled(next, persistView(next));
+      if (state.theme === chosen.id && state.themeMode === chosen.variant) return {};
+      return { patch: { theme: chosen.id, themeMode: chosen.variant }, persists: true };
     }
 
     case "view.set-theme-family": {
       const chosen = themeFor(input.family, variantFor(state.themeMode, input.systemDark));
-      if (chosen.family !== input.family || state.theme === chosen.id) return settled(state);
-      const next = { ...state, theme: chosen.id };
-      return settled(next, persistView(next));
+      if (chosen.family !== input.family || state.theme === chosen.id) return {};
+      return { patch: { theme: chosen.id }, persists: true };
     }
 
     case "view.set-theme-mode": {
-      if (!isThemeMode(input.mode)) return settled(state);
+      if (!isThemeMode(input.mode)) return {};
       const chosen = themeFor(themeOrDefault(state.theme).family, variantFor(input.mode, input.systemDark));
-      if (state.themeMode === input.mode && state.theme === chosen.id) return settled(state);
-      const next = { ...state, themeMode: input.mode, theme: chosen.id };
-      return settled(next, persistView(next));
+      if (state.themeMode === input.mode && state.theme === chosen.id) return {};
+      return { patch: { themeMode: input.mode, theme: chosen.id }, persists: true };
     }
 
     case "view.system-scheme": {
-      if (state.themeMode !== "auto") return settled(state);
+      if (state.themeMode !== "auto") return {};
       const chosen = themeFor(themeOrDefault(state.theme).family, variantFor("auto", input.dark));
-      if (state.theme === chosen.id) return settled(state);
+      if (state.theme === chosen.id) return {};
       /** The system's own choice is not the user's, so it repaints the window without being written down. */
-      return settled({ ...state, theme: chosen.id });
+      return { patch: { theme: chosen.id } };
     }
 
-    case "view.set-ui-font": {
-      if (!uiFontById(input.font) || state.uiFont === input.font) return settled(state);
-      const next = { ...state, uiFont: input.font };
-      return settled(next, persistView(next));
-    }
+    case "view.set-ui-font":
+      if (!uiFontById(input.font) || state.uiFont === input.font) return {};
+      return { patch: { uiFont: input.font }, persists: true };
 
-    case "view.set-mono-font": {
-      if (!monoFontById(input.font) || state.monoFont === input.font) return settled(state);
-      const next = { ...state, monoFont: input.font };
-      return settled(next, persistView(next));
-    }
+    case "view.set-mono-font":
+      if (!monoFontById(input.font) || state.monoFont === input.font) return {};
+      return { patch: { monoFont: input.font }, persists: true };
 
     case "view.set-reading-size": {
       const size = sizeById(READING_SIZE, input.size);
-      if (size === undefined || state.readingSize === size) return settled(state);
-      const next = { ...state, readingSize: size };
-      return settled(next, persistView(next));
+      if (size === undefined || state.readingSize === size) return {};
+      return { patch: { readingSize: size }, persists: true };
     }
 
     case "view.set-terminal-size": {
       const size = sizeById(TERMINAL_SIZE, input.size);
-      if (size === undefined || state.terminalSize === size) return settled(state);
-      const next = { ...state, terminalSize: size };
-      return settled(next, persistView(next));
+      if (size === undefined || state.terminalSize === size) return {};
+      return { patch: { terminalSize: size }, persists: true };
     }
 
     case "view.set-activity-project":
@@ -138,112 +193,82 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
 
     case "view.set-usage-computer": {
       const usageComputer = pairedId(state.computers, input.computerId);
-      if (usageComputer !== input.computerId || usageComputer === state.usageComputer) return settled(state);
-      return settled({ ...state, usageComputer });
+      if (usageComputer !== input.computerId || usageComputer === state.usageComputer) return {};
+      return { patch: { usageComputer } };
     }
 
-    case "view.set-section-open": {
-      if (!isSidebarSection(input.section) || state.sections[input.section] === input.open) return settled(state);
-      const next = { ...state, sections: { ...state.sections, [input.section]: input.open } };
-      return settled(next, persistView(next));
-    }
+    case "view.set-section-open":
+      if (!isSidebarSection(input.section) || state.sections[input.section] === input.open) return {};
+      return { patch: { sections: { ...state.sections, [input.section]: input.open } }, persists: true };
 
-    case "view.set-subagent-group": {
-      if (!isSubagentGroup(input.group) || state.subagentGroups[input.group] === input.open) return settled(state);
-      const next = { ...state, subagentGroups: { ...state.subagentGroups, [input.group]: input.open } };
-      return settled(next, persistView(next));
-    }
+    case "view.set-subagent-group":
+      if (!isSubagentGroup(input.group) || state.subagentGroups[input.group] === input.open) return {};
+      return { patch: { subagentGroups: { ...state.subagentGroups, [input.group]: input.open } }, persists: true };
 
     /** A caret recovered while the window is away waits there, rather than calling the window back. */
     case "view.focus-composer":
-      return settled(focusComposer(state), input.recover && !state.focused ? [] : TAKE_KEYS);
+      return { edits: [focusComposerIn(composerOf(state))], effects: input.recover && !state.focused ? [] : TAKE_KEYS };
 
     case "view.set-shortcut": {
-      if (!shortcutAction(input.action)) return settled(state);
+      if (!shortcutAction(input.action)) return {};
       const problem = input.binding === null ? null : shortcutProblem(input.binding);
-      if (problem) return rejected({ ...state, capturingShortcut: null }, problem, stopCapture(state));
+      if (problem) return { patch: { capturingShortcut: null }, refusal: problem, effects: stopCapture(state) };
       const shortcuts = withShortcut(state.shortcuts, input.action, input.binding);
-      const next = { ...state, shortcuts, capturingShortcut: null, actionError: null };
-      return settled(next, [...persistView(next), { type: "apply-shortcuts", overrides: shortcuts }, ...stopCapture(state)]);
+      const patch = { shortcuts, capturingShortcut: null };
+      return { patch, clearsError: true, effects: [...savedWith(state, patch), { type: "apply-shortcuts", overrides: shortcuts }, ...stopCapture(state)] };
     }
 
     case "view.reset-shortcuts": {
-      const next = { ...state, shortcuts: {}, capturingShortcut: null, actionError: null };
-      return settled(next, [...persistView(next), { type: "apply-shortcuts", overrides: next.shortcuts }, ...stopCapture(state)]);
+      const patch = { shortcuts: {}, capturingShortcut: null };
+      return { patch, clearsError: true, effects: [...savedWith(state, patch), { type: "apply-shortcuts", overrides: patch.shortcuts }, ...stopCapture(state)] };
     }
 
-    case "view.capture-shortcut": {
-      if (input.action !== null && !shortcutAction(input.action)) return settled(state);
-      if (state.capturingShortcut === input.action) return settled(state);
-      return settled({ ...state, capturingShortcut: input.action, actionError: null }, [{ type: "capture-shortcut", capturing: input.action !== null }]);
-    }
+    case "view.capture-shortcut":
+      if (input.action !== null && !shortcutAction(input.action)) return {};
+      if (state.capturingShortcut === input.action) return {};
+      return { patch: { capturingShortcut: input.action }, clearsError: true, effects: [{ type: "capture-shortcut", capturing: input.action !== null }] };
 
     case "shortcut.captured": {
       const action = state.capturingShortcut;
-      if (!action) return settled(state);
-      if (input.binding === null) return settled({ ...state, capturingShortcut: null }, stopCapture(state));
+      if (!action) return {};
+      if (input.binding === null) return { patch: { capturingShortcut: null }, effects: stopCapture(state) };
       return reduceSettings(state, { type: "view.set-shortcut", action, binding: input.binding });
     }
 
     case "shortcut.unavailable": {
       const current = state.desktopShortcutUnavailable;
-      if (current?.binding === input.refusal.binding && current.message === input.refusal.message) return settled(state);
-      return settled({ ...state, desktopShortcutUnavailable: input.refusal });
+      if (current?.binding === input.refusal.binding && current.message === input.refusal.message) return {};
+      return { patch: { desktopShortcutUnavailable: input.refusal } };
     }
 
-    case "view.inspect-subagent": {
-      return inspectSubagent(state, targetId(state, input.taskId), input.subagentId);
-    }
+    case "view.inspect-subagent":
+      return { effects: inspectSubagent(state, targetId(state, input.taskId), input.subagentId) };
 
     case "subagent.activity.loaded": {
       const held = state.subagents[input.taskId];
-      if (!held?.some((subagent) => subagent.id === input.subagentId)) return settled(state);
-      const stored = new Set(input.activity.map((item) => item.id));
-      return settled(withSubagents(state, input.taskId, held.map((subagent) => subagent.id === input.subagentId
-        ? { ...subagent, activity: [...input.activity, ...subagent.activity.filter((item) => !stored.has(item.id))] }
-        : subagent)));
+      if (!held?.some((subagent) => subagent.id === input.subagentId)) return {};
+      return { edits: [subagentActivityIn(runsOf(state), input.taskId, input.subagentId, input.activity)] };
     }
 
     case "view.set-capture-options": {
-      const next = { ...state, captureSound: input.options.sound, captureFocus: input.options.focus };
-      if (next.captureSound === state.captureSound && next.captureFocus === state.captureFocus) return settled(state);
-      return settled(next, [...persistView(next), { type: "apply-capture-options", options: input.options }]);
+      if (input.options.sound === state.captureSound && input.options.focus === state.captureFocus) return {};
+      const patch = { captureSound: input.options.sound, captureFocus: input.options.focus };
+      return { patch, effects: [...savedWith(state, patch), { type: "apply-capture-options", options: input.options }] };
     }
 
     case "view.set-chrome-browser":
     case "view.set-computer-use": case "view.set-browser-tools": case "view.set-notifications": {
       const field = { "view.set-chrome-browser": "chromeBrowser", "view.set-computer-use": "computerUse", "view.set-browser-tools": "browserTools", "view.set-notifications": "notifications" }[input.type] as "chromeBrowser" | "computerUse" | "browserTools" | "notifications";
-      if (state[field] === input.enabled) return settled(state);
-      const next = { ...state, [field]: input.enabled };
-      return settled(next, persistView(next));
+      if (state[field] === input.enabled) return {};
+      return { patch: { [field]: input.enabled } as OwnPatch<SettingsState>, persists: true };
     }
 
-    case "view.set-session-panel-open": {
-      if (state.sessionPanelOpen === input.open) return settled(state);
-      const next = { ...state, sessionPanelOpen: input.open };
-      return settled(next, [{ type: "persist-preferences", preferences: viewPreferences(next) }]);
-    }
+    case "view.set-session-panel-open":
+      if (state.sessionPanelOpen === input.open) return {};
+      return { patch: { sessionPanelOpen: input.open }, persists: true };
 
-    case "view.set-settings-open": {
-      const owner = dockOwner(state);
-      const section = input.section && isSettingsSection(input.section) ? input.section : null;
-      const settings = {
-        ...state,
-        settingsOpen: input.open,
-        worktreeManagementLoading: state.worktreeManagementLoading || (input.open && section === "worktrees"),
-        worktreeSettings: input.open ? state.worktreeSettings : { project: null, confirming: null, missingOpen: null, expandedThreads: [], confirmingSafe: false, bulk: state.worktreeSettings.bulk },
-        settingsSection: input.open ? section : null,
-        settingsFocus: input.open && section && input.settingId ? { id: input.settingId, visit: (state.settingsFocus?.visit ?? 0) + 1 } : null,
-        /** Usage opens on the computer whose thread is on screen. */
-        ...(input.open && section === "usage" ? { usageComputer: pairedId(state.computers, state.computers.active) } : {}),
-        /** Naming a page takes over from the computer-use setup that held settings open on its own. */
-        ...(input.open ? section ? { computerUseSetup: false } : {} : { computerUseSetup: false, capturingShortcut: null }),
-      };
-      /** Settings are drawn in the window, so a page that was in front cannot be left holding the keys. */
-      const effects = input.open ? [...TAKE_KEYS] : stopCapture(state);
-      if (input.open && section === "worktrees" && !state.worktreeManagementLoading) effects.push({ type: "list-worktrees" });
-      return settled(input.open ? withDock(settings, owner, { open: false, expanded: false }) : settings, effects);
-    }
+    case "view.set-settings-open":
+      return settingsShown(state, input.open, input.section, input.settingId);
   }
 }
 

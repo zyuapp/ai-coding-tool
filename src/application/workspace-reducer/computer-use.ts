@@ -1,5 +1,5 @@
 /** What the platform lets the app see and operate, and what the settings page is doing about it. */
-import type { SliceTransition } from "./slice.js";
+import { ownFields, type SliceTransition } from "./slice.js";
 import type { WorkspaceInput } from "./types.js";
 import { sameComputerUsePermissions } from "../../domain/computer-use.js";
 import type { ComputerUseSliceState } from "../state/machine-access.js";
@@ -19,6 +19,23 @@ export type ComputerUseEffect =
   | { type: "computer-use.read" }
   | { type: "computer-use.enable"; permission: ComputerUsePermission }
   | { type: "computer-use.restart" };
+
+/** What the app may see and operate as one input leaves it. Only the functions here make one. */
+class ComputerUseChange {
+  private declare readonly owned: never;
+  constructor(readonly view: ComputerUseSliceState) {}
+}
+
+export type ComputerUseEdit = ComputerUseChange;
+
+export function computerUseOf(state: ComputerUseSliceState): ComputerUseEdit {
+  return new ComputerUseChange(ownFields<ComputerUseSliceState>(state, { computerUsePermissions: true, computerUseSetup: true }));
+}
+
+/** The setup that holds settings open on its own, shown because a run needs it, or put away. */
+export function setupShownIn(edit: ComputerUseEdit, shown: boolean): ComputerUseEdit {
+  return new ComputerUseChange({ ...edit.view, computerUseSetup: shown });
+}
 
 export function reduceComputerUse(state: ComputerUseSliceState, input: ComputerUseInput): SliceTransition<ComputerUseSliceState> {
   const access = state.computerUsePermissions;

@@ -81,7 +81,7 @@ export const CLAIMS = [
   claim(["view.remember-project"], owned(reduceRememberProject)),
   claim(["view.dismiss-toast", "view.hold-toasts"], owned(reduceToasts)),
   claim(APP_UPDATE_INPUTS, owned(reduceAppUpdate)),
-  claim(SETTINGS_INPUTS, reduceSettings),
+  claim(SETTINGS_INPUTS, owned(reduceSettings)),
   claim(DOCK_INPUTS, reduceDock),
   claim(BROWSER_INPUTS, owned(reduceBrowser)),
   claim(BROWSER_IMPORT_INPUTS, owned(reduceBrowserImport)),

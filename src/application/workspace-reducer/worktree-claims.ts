@@ -31,6 +31,19 @@ export function worktreesOf(state: WorktreesState): WorktreesEdit {
 }
 
 /**
+ * Settings shown or put away. Opening them on the worktrees page reads the list; putting them away
+ * forgets what the page was in the middle of, keeping only a bulk delete that is still going.
+ */
+export function managementShownIn(edit: WorktreesEdit, open: boolean, onPage: boolean): WorktreesEdit {
+  const { view } = edit;
+  return new WorktreesChange({
+    ...view,
+    worktreeManagementLoading: view.worktreeManagementLoading || (open && onPage),
+    worktreeSettings: open ? view.worktreeSettings : { project: null, confirming: null, missingOpen: null, expandedThreads: [], confirmingSafe: false, bulk: view.worktreeSettings.bulk },
+  });
+}
+
+/**
  * A checkout takes minutes to make, and until it lands the thread is neither where it was nor where
  * it is going. Marking it here is what keeps a second ask from making a second, orphaned checkout.
  */

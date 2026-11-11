@@ -5,10 +5,10 @@ import { threadActivity } from "../thread-activity.js";
 import { worktreeSettingsViews } from "../worktree-settings.js";
 import { worktreeClaimants } from "../thread-location.js";
 import { settled } from "./shared.js";
-import { reduceSettings } from "./settings.js";
+import { settingsShown } from "./settings.js";
 import { selectThread } from "./thread-select.js";
 import type { WorkspaceTransition } from "./types.js";
-import type { SliceTransition } from "./slice.js";
+import { applied, type SliceTransition } from "./slice.js";
 import type { WorktreesState } from "../state/worktrees.js";
 
 type Input = Extract<WorktreeCommand, { type: "worktree.filter-project" | "worktree.confirm-delete" | "worktree.confirm-delete-safe" | "worktree.set-missing-open" | "worktree.set-threads-open" }>;
@@ -52,7 +52,7 @@ export function reduceWorktreeSettings(state: WorkspaceState, input: Input): Sli
 export function openWorktreeThread(state: WorkspaceState, input: Extract<WorktreeCommand, { type: "worktree.open-thread" }>): WorkspaceTransition {
   const thread = state.threads.find((item) => item.id === input.taskId);
   if (!thread?.worktreeId) return settled(state);
-  const closed = reduceSettings(state, { type: "view.set-settings-open", open: false });
+  const closed = applied(state, settingsShown(state, false));
   const selected = selectThread(closed.state, thread.id);
   return { state: selected.state, effects: [...closed.effects, ...selected.effects] };
 }

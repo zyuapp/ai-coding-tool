@@ -1,8 +1,8 @@
 /** The dock itself: its tabs, its panels, and how much of the window it takes. */
 import { reduceBrowser } from "./browser.js";
 import { reduceTerminal } from "./terminal.js";
-import { owned } from "./slice.js";
-import { reduceSettings } from "./settings.js";
+import { applied, owned } from "./slice.js";
+import { settingsShown } from "./settings.js";
 import { reduceSideChatClose } from "./side-chats.js";
 import { browserEffectsForTab } from "./browser-tabs.js";
 import { defaultBranchRange, initialRange, readDiff } from "./diff-reads.js";
@@ -36,7 +36,7 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
       if (state.forkName) return settled({ ...state, forkName: null });
       if (state.archivePrompt) return settled({ ...state, archivePrompt: null });
       if (state.projectEdit) return settled({ ...state, projectEdit: null });
-      if (state.settingsOpen || state.computerUseSetup) return reduceSettings(state, { type: "view.set-settings-open", open: false });
+      if (state.settingsOpen || state.computerUseSetup) return applied(state, settingsShown(state, false));
       if (!dock.open) return settled(state, [{ type: "close-window" }]);
       /** A dock across the whole workspace is the frontmost thing there is, so it gives that up first. */
       if (dock.expanded) return settled(withDock(state, owner, { expanded: false }));

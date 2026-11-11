@@ -263,3 +263,11 @@ test("a setting changes the thread it names, or with none named the draft and th
   assert.equal(reduce(state, { type: "task.set-fast-mode", taskId: "b", fastMode: true }).state.threads.find((thread) => thread.id === "b")?.fastMode, true);
   assert.equal(reduce(state, { type: "task.set-model", taskId: "b", engine: "claude", model: "opus" }).state, state, "a thread keeps the engine it started on");
 });
+
+test("a binding refused as unusable stays up only until the next keystroke is waited for, set, or reset", () => {
+  const refused = workspace({ actionError: "That keystroke is taken." });
+
+  assert.equal(reduce(refused, { type: "view.capture-shortcut", action: "thread.jump" }).state.actionError, null);
+  assert.equal(reduce(refused, { type: "view.set-shortcut", action: "thread.jump", binding: "Mod+P" }).state.actionError, null);
+  assert.equal(reduce(refused, { type: "view.reset-shortcuts" }).state.actionError, null);
+});
