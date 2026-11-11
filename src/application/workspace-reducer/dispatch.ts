@@ -56,7 +56,7 @@ export const CLAIMS = [
   claim(PROPOSAL_START_INPUTS, reduceProposalStarts),
   claim(WORKTREE_INPUTS, reduceWorktrees),
   claim(ATTACHMENT_INPUTS, reduceComposerAttachments),
-  claim(SEND_INPUTS, reduceSending),
+  claim(SEND_INPUTS, owned(reduceSending)),
   claim(PROJECT_ADD_INPUTS, reduceProjectAdd),
   claim(PROJECT_INPUTS, reduceProjectCommands),
   /** The line itself moves in {@link reconcileLimitPauses}, which every input passes through. */

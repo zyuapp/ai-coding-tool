@@ -40,8 +40,27 @@ export function engineAccessOf(state: Pick<WorkspaceState, "engineStatus">, engi
  * to the window costs nothing on a machine with both engines in place.
  */
 export function refreshEngines(state: WorkspaceState): EngineTransition {
-  if (state.engineChecking || !engineNeedsAttention(state.engineStatus)) return { state, effects: [] };
-  return { state: { ...state, engineChecking: true }, effects: [{ type: "engine.read", refresh: true }] };
+  const asked = refreshedEnginesIn(enginesOf(state));
+  return asked.effects.length ? { state: { ...state, ...asked.engines.view }, effects: asked.effects } : { state, effects: [] };
+}
+
+/** The engines as one input leaves them. Only the functions here make one, so a slice changes the engines through them. */
+class EnginesChange {
+  private declare readonly owned: never;
+  constructor(readonly view: EnginesState) {}
+}
+
+export type EnginesEdit = EnginesChange;
+
+export function enginesOf(state: EnginesState): EnginesEdit {
+  const { engineStatus, engineChecking, engineUpdating, engineUpdateQueue, engineUpdatesOffered, agentSettingsReload } = state;
+  return new EnginesChange({ engineStatus, engineChecking, engineUpdating, engineUpdateQueue, engineUpdatesOffered, agentSettingsReload });
+}
+
+/** {@link refreshEngines}, on the engines an input is changing. */
+export function refreshedEnginesIn(edit: EnginesEdit): { engines: EnginesEdit; effects: EngineEffect[] } {
+  if (edit.view.engineChecking || !engineNeedsAttention(edit.view.engineStatus)) return { engines: edit, effects: [] };
+  return { engines: new EnginesChange({ ...edit.view, engineChecking: true }), effects: [{ type: "engine.read", refresh: true }] };
 }
 
 /** True while no engine stands between the user and a run, which is when an engine error is stale. */

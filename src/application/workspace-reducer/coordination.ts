@@ -4,7 +4,7 @@ import { reduceSending } from "./sending.js";
 import { released, remoteNews } from "./coordination-remote.js";
 import { withProposalFailure } from "./proposals.js";
 import { now, rejected, settled, targetId } from "./shared.js";
-import { afterward, type SliceTransition } from "./slice.js";
+import { afterward, applied, type SliceTransition } from "./slice.js";
 import { dismissedIn, editThread, threadsOf, type ThreadPatch, type ThreadsEdit } from "./thread-edits.js";
 import { DECISIONS_FULL, NO_COORDINATOR, NO_MEMORY, OUTSIDE_COORDINATION } from "./errors.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
@@ -209,7 +209,7 @@ export function reduceCoordinationRuns(state: WorkspaceState, input: Coordinatio
        * answered again. The message says what it answers, queued behind a run or starting one, so
        * the decision opens again if it never goes.
        */
-      const sent = reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}`, steer: true }, {}, { answers: decision.id });
+      const sent = applied(state, reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}`, steer: true }, {}, { answers: decision.id }));
       return sent.result?.ok === false ? sent : { ...sent, state: answered(sent.state) };
     }
 
@@ -230,7 +230,7 @@ export function reduceCoordinationRuns(state: WorkspaceState, input: Coordinatio
       const { working, blocked } = threadActivity(state);
       const { status } = coordinatedThreadStatus(thread, working, blocked);
       if (!nextSteps(thread, status, checkoutAnswer(state, thread)).includes(input.step)) return rejected(state, STEP_GONE);
-      return reduceSending(state, { type: "task.send", taskId: thread.id, text: nextStepOf(input.step).text }, {}, { step: true });
+      return applied(state, reduceSending(state, { type: "task.send", taskId: thread.id, text: nextStepOf(input.step).text }, {}, { step: true }));
     }
 
     case "coordination.stop-all":

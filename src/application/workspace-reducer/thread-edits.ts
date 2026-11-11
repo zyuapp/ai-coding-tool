@@ -3,8 +3,12 @@
  * through the functions here, and changes that span features are the functions here that make them.
  */
 import type { ThreadsState } from "../state/threads.js";
+import { openedTurn, type RunProvenance } from "../thread-run-state.js";
 import { dismissed } from "../../domain/attention.js";
+import { withAnswer, withCoordinationNote, withoutAnswer, type CoordinationNote } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
+import { withoutSnooze } from "../../domain/thread-snooze.js";
+import { withoutLimitPause } from "../../domain/usage-limit.js";
 
 /** The threads as one input leaves them, where `Field` is every thread field patched directly. Only the functions here make one. */
 class ThreadsChange<Field extends keyof Thread> {
@@ -57,6 +61,51 @@ export function dismissedIn<Field extends keyof Thread>(edit: ThreadsChange<Fiel
 export function resolvedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, ids: Set<string>, at: number): ThreadsChange<Field> {
   const resolved = new ThreadsChange<Field>({ threads: edit.view.threads.map((thread) => ids.has(thread.id) ? { ...thread, resolvedAt: at } : thread) });
   return dismissedIn(resolved, ids);
+}
+
+/** A thread written to while filed away, back among the others. */
+export function restoredIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string): ThreadsChange<Field> {
+  return mapped(edit, id, ({ archivedAt: _restored, ...thread }) => thread);
+}
+
+/** A snoozed thread written to, which ends its snooze. */
+export function unsnoozedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string): ThreadsChange<Field> {
+  return mapped(edit, id, withoutSnooze);
+}
+
+/** A thread waiting out a usage limit written to at `at`, which moves it to the front of the line. */
+export function nudgedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, at: number): ThreadsChange<Field> {
+  return mapped(edit, id, (thread) => thread.limitPause ? { ...thread, limitPause: { ...thread.limitPause, nudgedAt: at } } : thread);
+}
+
+/** A thread out of its usage limit's line. */
+export function unpausedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string): ThreadsChange<Field> {
+  return mapped(edit, id, withoutLimitPause);
+}
+
+/** A thread whose turn a run of `provenance` opens, as {@link openedTurn} has it, unless it is open already. */
+export function turnOpenedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, provenance: Pick<RunProvenance, "origin" | "quiet" | "operation">): ThreadsChange<Field> {
+  return mapped(edit, id, (thread) => thread.runOpen ? thread : openedTurn(thread, provenance));
+}
+
+/** A decision whose answer never reached its thread, open to answer again. */
+export function answerReopenedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, decisionId: string): ThreadsChange<Field> {
+  return mapped(edit, id, (thread) => withoutAnswer(thread, decisionId));
+}
+
+/** A decision answered at `at`. */
+export function answeredIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, decisionId: string, answer: string, at: number): ThreadsChange<Field> {
+  return mapped(edit, id, (thread) => withAnswer(thread, decisionId, answer, at));
+}
+
+/** A note left for a coordinator to hear with its next wake. */
+export function notedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, leadId: string, note: CoordinationNote): ThreadsChange<Field> {
+  return mapped(edit, leadId, (lead) => withCoordinationNote(lead, note));
+}
+
+/** The list with `update` made to one thread. The list is new even when no thread has that id. */
+function mapped<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, update: (thread: Thread) => Thread): ThreadsChange<Field> {
+  return new ThreadsChange({ threads: edit.view.threads.map((thread) => thread.id === id ? update(thread) : thread) });
 }
 
 function patched(thread: Thread, patch: ThreadPatch<keyof Thread>): Thread {

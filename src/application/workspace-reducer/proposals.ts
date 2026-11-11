@@ -1,7 +1,7 @@
 /** A coordinator's suggestions, and the threads it asked for on other computers: filed, started or allowed, turned down, and settled. */
 import { reduceSending } from "./sending.js";
 import { now, settled } from "./shared.js";
-import { afterward, type SliceTransition } from "./slice.js";
+import { afterward, applied, type SliceTransition } from "./slice.js";
 import { editThread, threadsOf } from "./thread-edits.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { coordinationNote, memoryPrompt, requestHeadline } from "../coordination-messages.js";
@@ -154,7 +154,7 @@ function startProposal(state: WorkspaceState, leadId: string, proposalId: string
     const message = "error" in start ? start.error : "Its project is no longer on this computer.";
     return settled(withProposalFailure(retried, leadId, proposalId, message), [], { ok: false, message });
   }
-  const sent = reduceSending(retried, start.command, { proposalId });
+  const sent = applied(retried, reduceSending(retried, start.command, { proposalId }));
   if (sent.result?.ok === false) {
     const kept = { ...sent.state, actionError: state.actionError, actionErrorPage: state.actionErrorPage };
     return { ...sent, state: withProposalFailure(kept, leadId, proposalId, sent.result.message) };

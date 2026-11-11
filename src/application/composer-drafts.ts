@@ -32,6 +32,34 @@ export function focusComposerIn(edit: ComposerEdit): ComposerEdit {
 }
 
 /** Where one composer's send stands, which also carries what a recording into it has to say. */
+/** {@link clearedDraft}: a composer that has just sent, with nothing of what it carried left. */
+export function clearedDraftIn(edit: ComposerEdit, key: string): ComposerEdit {
+  return new ComposerChange(clearedDraft(edit.view, key));
+}
+
+/** A composer that has just sent: text, annotations, pastes, images, and attached files all go. */
+export function clearedDraft<S extends ComposerState>(state: S, key: string): S {
+  return withFiles(withImages(withPastes(withAnnotations(withPrompt(state, key, ""), key, []), key, []), key, []), key, []);
+}
+
+/** What a message held back from a run carries, which the composer it came from takes back. */
+type HeldDraft = { text: string; annotations?: Annotation[]; pastes?: PastedText[]; files?: AttachedFile[]; attachments: string[] };
+
+/**
+ * Messages put back in a thread's composer, ahead of whatever is drafted there, with everything
+ * they carry. Their images come back as images the app already holds.
+ */
+export function handedBackIn(edit: ComposerEdit, key: string, messages: readonly HeldDraft[]): ComposerEdit {
+  const state = edit.view;
+  const text = [...messages.map((message) => message.text), state.prompts[key] ?? ""].filter(Boolean).join("\n\n");
+  const annotations = [...messages.flatMap((message) => message.annotations ?? []), ...annotationsFor(state, key)];
+  const pastes = [...messages.flatMap((message) => message.pastes ?? []), ...pastesFor(state, key)];
+  const files = [...messages.flatMap((message) => message.files ?? []), ...filesFor(state, key)];
+  const images = messages.flatMap((message) => message.attachments);
+  const handed = withFiles(withPastes(withAnnotations(withPrompt(state, key, text), key, annotations), key, pastes), key, files);
+  return new ComposerChange(images.length ? withImages(handed, key, [...images, ...imagesFor(state, key).map((image) => image.path)].map((path) => stagedImage(path))) : handed);
+}
+
 export function withAttachmentSendIn(edit: ComposerEdit, key: string, send: AttachmentSendState): ComposerEdit {
   return new ComposerChange({ ...edit.view, attachmentSends: { ...edit.view.attachmentSends, [key]: send } });
 }
@@ -57,7 +85,7 @@ export function annotationsFor(state: Pick<WorkspaceState, "annotations">, key: 
   return draftsFor(state.annotations, key);
 }
 
-export function withAnnotations(state: WorkspaceState, key: string, annotations: Annotation[]): WorkspaceState {
+export function withAnnotations<S extends Pick<ComposerState, "annotations">>(state: S, key: string, annotations: Annotation[]): S {
   return { ...state, annotations: withDrafts(state.annotations, key, annotations) };
 }
 
@@ -80,7 +108,7 @@ export function pastesFor(state: Pick<WorkspaceState, "pastes">, key: string): P
   return draftsFor(state.pastes, key);
 }
 
-export function withPastes(state: WorkspaceState, key: string, pastes: PastedText[]): WorkspaceState {
+export function withPastes<S extends Pick<ComposerState, "pastes">>(state: S, key: string, pastes: PastedText[]): S {
   return { ...state, pastes: withDrafts(state.pastes, key, pastes) };
 }
 
@@ -88,7 +116,7 @@ export function imagesFor(state: Pick<WorkspaceState, "images">, key: string): S
   return draftsFor(state.images, key);
 }
 
-export function withImages(state: WorkspaceState, key: string, images: StagedImage[]): WorkspaceState {
+export function withImages<S extends Pick<ComposerState, "images">>(state: S, key: string, images: StagedImage[]): S {
   return { ...state, images: withDrafts(state.images, key, images) };
 }
 
@@ -96,7 +124,7 @@ export function filesFor(state: Pick<WorkspaceState, "files">, key: string): Att
   return draftsFor(state.files, key);
 }
 
-export function withFiles(state: WorkspaceState, key: string, files: AttachedFile[]): WorkspaceState {
+export function withFiles<S extends Pick<ComposerState, "files">>(state: S, key: string, files: AttachedFile[]): S {
   return { ...state, files: withDrafts(state.files, key, files) };
 }
 

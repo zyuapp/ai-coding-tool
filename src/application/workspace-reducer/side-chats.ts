@@ -1,7 +1,8 @@
 /** Side chats, which fork a thread to ask something beside it. */
 import { retireAutomations } from "./automations.js";
 import { docksOf, focusDockTabIn, showDockTabIn } from "./dock-tabs.js";
-import { clearedDraft, withQueued } from "./run-queue.js";
+import { withQueued } from "./run-queue.js";
+import { clearedDraft } from "../composer-drafts.js";
 import { now, settled } from "./shared.js";
 import type { SliceTransition } from "./slice.js";
 import { addedIn, threadsOf } from "./thread-edits.js";

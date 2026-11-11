@@ -147,6 +147,15 @@ function now() {
   return Date.now();
 }
 
+/**
+ * A run is open on its thread until it ends, so one the app quits under is known as cut off when the
+ * thread is restored, and its start ranks the thread. Compacting is not a turn, and a quiet scheduled
+ * run only speaks through what it finds, so neither is.
+ */
+export function openedTurn(thread: Thread, provenance: Pick<RunProvenance, "origin" | "quiet" | "operation">): Thread {
+  return provenance.operation === "compact" || provenance.origin === "automation" && provenance.quiet ? thread : { ...thread, runOpen: true, rankedAt: now() };
+}
+
 /** Scheduled runs carry their own framing: nobody is present to answer a question or end the loop. */
 export function automationRunPrompt(prompt: string, runNumber: number, surfaceWhen?: string, endsWhen?: string) {
   const stop = endsWhen

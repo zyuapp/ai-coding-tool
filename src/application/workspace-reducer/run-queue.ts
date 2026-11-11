@@ -3,12 +3,13 @@ import { now, settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import { promptWithAnnotations } from "../annotations.js";
 import { promptWithAttachments } from "../attachments.js";
-import { annotationsFor, filesFor, imagesFor, pastesFor, textAfterSend, withAnnotations, withFiles, withImages, withPastes } from "../composer-drafts.js";
-import { composerDraft } from "./composer.js";
-import { applied } from "./slice.js";
+import { annotationsFor, composerOf, filesFor, handedBackIn, imagesFor, pastesFor, textAfterSend, withAnnotations, withFiles, withImages, withPastes } from "../composer-drafts.js";
+import { afterward, applied, type Step } from "./slice.js";
+import { attendedIn, pendingIn, queuedIn, runsOf } from "./run-edits.js";
+import { answerReopenedIn, notedIn, threadsOf, turnOpenedIn, type ThreadsEdit } from "./thread-edits.js";
 import { promptWithFiles } from "../files.js";
 import { promptWithPastes } from "../pastes.js";
-import { ATTENDED_RUN, threadMark, updateThread, withActiveRun, withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type ActiveRun, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
+import { ATTENDED_RUN, openedTurn, threadMark, updateThread, withActiveRun, withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type ActiveRun, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import { runOf, runStatus, threadBusy } from "../run-record.js";
 import type { DraftBranch, PendingRun, QueuedMessage, SideChat, WorkspaceState } from "../workspace-state.js";
@@ -19,7 +20,7 @@ import { coordinationRole } from "../coordination.js";
 import { undeliveredNote } from "../coordination-messages.js";
 import { GROUP_OF } from "../coordinated-thread-status.js";
 import { withTurnBegun } from "../outstanding-stops.js";
-import { isCoordinator, withCoordinationNote, withoutAnswer, withoutReport } from "../../domain/coordination.js";
+import { isCoordinator, withoutAnswer, withoutReport } from "../../domain/coordination.js";
 import { capabilitiesFor, defaultEffortFor, effortForModel, policyFor, threadModel, type AgentModel } from "../../domain/agent-engine.js";
 import { catalogOf } from "../state/engines.js";
 import { createSentMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
@@ -30,7 +31,12 @@ import { withoutLimitPause } from "../../domain/usage-limit.js";
 import type { Worktree } from "../../domain/worktree.js";
 
 export function withPending(state: WorkspaceState, pending: PendingRun): WorkspaceState {
-  return { ...state, pendingRuns: { ...state.pendingRuns, [pending.id]: pending }, actionError: null };
+  return afterward(state, pendingStep(state, pending));
+}
+
+/** A run on its way, which takes down the error a run before it left. */
+export function pendingStep(state: WorkspaceState, pending: PendingRun): Step {
+  return { edits: [pendingIn(runsOf(state), pending)], clearsError: true };
 }
 
 export function withoutPending(state: WorkspaceState, pendingId: string): WorkspaceState {
@@ -53,9 +59,7 @@ export function queuedFor(state: WorkspaceState, taskId: string): QueuedMessage[
 }
 
 export function withQueued(state: WorkspaceState, taskId: string, messages: QueuedMessage[]): WorkspaceState {
-  if (messages.length) return { ...state, queuedMessages: { ...state.queuedMessages, [taskId]: messages } };
-  const { [taskId]: _drained, ...queuedMessages } = state.queuedMessages;
-  return { ...state, queuedMessages };
+  return afterward(state, { edits: [queuedIn(runsOf(state), taskId, messages)] });
 }
 
 /** Everything drafted alongside the text, flattened into the one prompt the agent reads. */
@@ -84,11 +88,6 @@ export function sideChatPrompt(state: WorkspaceState, taskId: string, prompt: st
     } : { status: "unknown" }),
   };
   return `Context for the side-chat question below (not an assignment):\n<parent-task-status>\n${JSON.stringify(status)}\n</parent-task-status>\nThis is the parent's state from the app when the question was sent. The helpers listed as working are running in the parent. The fork cannot resume those processes: any copied process-exited or lost-state notice describes that limitation of the fork, not a failure of the parent or its helpers. This status supplies no findings or failure cause; do not infer either from those notices.\n\n${prompt}`;
-}
-
-/** A composer that has just sent: text, annotations, pastes, images, and attached files all go. */
-export function clearedDraft(state: WorkspaceState, draftKey: string): WorkspaceState {
-  return withFiles(withImages(withPastes(withAnnotations(withPrompt(state, draftKey, ""), draftKey, []), draftKey, []), draftKey, []), draftKey, []);
 }
 
 /** A composer whose send has started: what it carried goes, and whatever was typed or added since stays. */
@@ -180,7 +179,7 @@ type RunPickup = "warming" | "agent";
  */
 export function beginRun(state: WorkspaceState, taskId: string, runId: string, provenance: RunProvenance = ATTENDED_RUN, before?: ThreadMark, pickup?: RunPickup): WorkspaceState {
   /** A run that starts is the thread picked back up, whatever its place in line. */
-  const threads = withoutOutcome(state.threads, new Set([taskId])).map((thread) => thread.id === taskId ? opened(pickedUp(thread, pickup), provenance) : thread);
+  const threads = withoutOutcome(state.threads, new Set([taskId])).map((thread) => thread.id === taskId ? openedTurn(pickedUp(thread, pickup), provenance) : thread);
   const messagesBefore = threads.find((thread) => thread.id === taskId)?.messages.length ?? 0;
   const mark = before ?? threadMark(state.threads.find((thread) => thread.id === taskId));
   /** The turn the agent opens itself to answer what Stop all stopped ends quietly too. */
@@ -192,15 +191,6 @@ export function beginRun(state: WorkspaceState, taskId: string, runId: string, p
     taskId,
     "running",
   );
-}
-
-/**
- * A run is open on its thread until it ends, so one the app quits under is known as cut off when the
- * thread is restored, and its start ranks the thread. Compacting is not a turn, and a quiet scheduled
- * run only speaks through what it finds, so neither is.
- */
-function opened(thread: Thread, provenance: Pick<RunProvenance, "origin" | "quiet" | "operation">): Thread {
-  return provenance.operation === "compact" || provenance.origin === "automation" && provenance.quiet ? thread : { ...thread, runOpen: true, rankedAt: now() };
 }
 
 function pickedUp(thread: Thread, pickup: RunPickup | undefined): Thread {
@@ -222,10 +212,14 @@ function reportStands(thread: Thread, pickup: RunPickup | undefined) {
  * app quitting under it cuts their turn off. A quiet run starts its turn there; one already open has.
  */
 export function withAttendedRun(state: WorkspaceState, taskId: string): WorkspaceState {
+  return afterward(state, attendedRun(state, taskId));
+}
+
+/** {@link withAttendedRun}, as the edits it makes. */
+export function attendedRun(state: WorkspaceState, taskId: string): Step {
   const active = state.activeRuns[taskId];
-  if (!active || active.origin === "composer") return state;
-  const attended = { ...active, origin: "composer" as const };
-  return updateThread(withActiveRun(state, taskId, attended), taskId, (thread) => thread.runOpen ? thread : opened(thread, attended));
+  if (!active || active.origin === "composer") return {};
+  return { edits: [attendedIn(runsOf(state), taskId), turnOpenedIn(threadsOf(state), taskId, { ...active, origin: "composer" })] };
 }
 
 /**
@@ -311,14 +305,8 @@ export function drainingQueued(state: Pick<WorkspaceState, "pendingRuns">, taskI
  * Queued messages put back in the thread's composer, ahead of whatever is drafted there, with
  * everything they carry. The caller has already taken them out of the queue.
  */
-export function handedBack(state: WorkspaceState, taskId: string, messages: QueuedMessage[]): WorkspaceTransition {
-  const text = [...messages.map((message) => message.text), state.prompts[taskId] ?? ""].filter(Boolean).join("\n\n");
-  const annotations = [...messages.flatMap((message) => message.annotations ?? []), ...annotationsFor(state, taskId)];
-  const pastes = [...messages.flatMap((message) => message.pastes ?? []), ...pastesFor(state, taskId)];
-  const files = [...messages.flatMap((message) => message.files ?? []), ...filesFor(state, taskId)];
-  const images = messages.flatMap((message) => message.attachments);
-  const handed = withFiles(withPastes(withAnnotations(withPrompt(state, taskId, text), taskId, annotations), taskId, pastes), taskId, files);
-  return images.length ? applied(handed, composerDraft(handed, { type: "image.recall", taskId, paths: [...images, ...imagesFor(state, taskId).map((image) => image.path)] }, taskId)) : settled(handed);
+export function handedBack(state: WorkspaceState, taskId: string, messages: QueuedMessage[]): WorkspaceState {
+  return afterward(state, { edits: [handedBackIn(composerOf(state), taskId, messages)] });
 }
 
 /**
@@ -327,13 +315,18 @@ export function handedBack(state: WorkspaceState, taskId: string, messages: Queu
  * already taken them out of the queue.
  */
 export function withUndelivered(state: WorkspaceState, taskId: string, messages: readonly QueuedMessage[]): WorkspaceState {
-  const recipient = state.threads.find((thread) => thread.id === taskId);
-  if (!recipient) return state;
-  let next = state;
+  return afterward(state, { edits: [undeliveredIn(threadsOf(state), taskId, messages)] });
+}
+
+/** {@link withUndelivered}, on the threads an input is changing. */
+export function undeliveredIn(edit: ThreadsEdit, taskId: string, messages: readonly QueuedMessage[]): ThreadsEdit {
+  const recipient = edit.view.threads.find((thread) => thread.id === taskId);
+  if (!recipient) return edit;
+  let next = edit;
   for (const { answers, origin, text } of messages) {
-    if (answers !== undefined) next = updateThread(next, taskId, (thread) => withoutAnswer(thread, answers));
-    const sender = origin?.kind === "thread" && origin.computer === undefined ? next.threads.find((thread) => thread.id === origin.threadId) : undefined;
-    if (sender && isCoordinator(sender)) next = updateThread(next, sender.id, (lead) => withCoordinationNote(lead, undeliveredNote(recipient, text, now())));
+    if (answers !== undefined) next = answerReopenedIn(next, taskId, answers);
+    const sender = origin?.kind === "thread" && origin.computer === undefined ? next.view.threads.find((thread) => thread.id === origin.threadId) : undefined;
+    if (sender && isCoordinator(sender)) next = notedIn(next, sender.id, undeliveredNote(recipient, text, now()));
   }
   return next;
 }
@@ -352,19 +345,24 @@ export type QueueIntent = "deliver" | "resume" | "hand-back";
  * else queued is delivered.
  */
 export function drainQueue(state: WorkspaceState, taskId: string, intent: QueueIntent): WorkspaceTransition {
+  return applied(state, drained(state, taskId, intent));
+}
+
+/** {@link drainQueue}, as the edits it makes. */
+export function drained(state: WorkspaceState, taskId: string, intent: QueueIntent): Step {
   const queued = queuedFor(state, taskId);
-  if (!queued.length) return settled(state);
+  if (!queued.length) return {};
   const thread = state.threads.find((item) => item.id === taskId);
   if (intent === "hand-back" || thread?.archivedAt !== undefined) {
     const own = queued.filter(isUsersOwn);
-    const left = withUndelivered(withQueued(state, taskId, []), taskId, queued.filter((message) => !isUsersOwn(message)));
-    return own.length ? handedBack(left, taskId, own) : settled(left);
+    const undelivered = undeliveredIn(threadsOf(state), taskId, queued.filter((message) => !isUsersOwn(message)));
+    return { edits: [queuedIn(runsOf(state), taskId, []), undelivered, ...own.length ? [handedBackIn(composerOf(state), taskId, own)] : []] };
   }
-  if (!thread) return settled(withQueued(state, taskId, []));
+  if (!thread) return { edits: [queuedIn(runsOf(state), taskId, [])] };
   /** A thread waiting out its usage limit keeps its queue until the limit lifts. */
-  if (thread.limitPause) return settled(state);
+  if (thread.limitPause) return {};
   /** A thread moving into a checkout still being made keeps its queue until it lands there. */
-  if (state.creatingWorktrees.includes(taskId)) return settled(state);
+  if (state.creatingWorktrees.includes(taskId)) return {};
   const [next] = queued;
   /** A message from a build that kept only a label says where it came from by that label. */
   const origin = next.origin ?? (next.detail ? legacyOrigin(next.detail) : undefined);
@@ -387,7 +385,7 @@ export function drainQueue(state: WorkspaceState, taskId: string, intent: QueueI
     queuedIds: [next.id],
     ...(intent === "resume" ? { warming: true as const } : {}),
   };
-  return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false)]);
+  return { ...pendingStep(state, pending), effects: [resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false)] };
 }
 
 /**

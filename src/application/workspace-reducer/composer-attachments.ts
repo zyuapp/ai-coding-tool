@@ -1,6 +1,7 @@
 /** The images a composer sends: what has to be on disk first, and what stopped them getting there. */
 import { reduceSending } from "./sending.js";
 import { settled } from "./shared.js";
+import { applied } from "./slice.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { attachmentSendFor, MAIN_COMPOSER, type AttachmentSendState } from "../composer-attachments.js";
 import { imagesFor, withImages } from "../composer-drafts.js";
@@ -36,13 +37,13 @@ function withWrittenImages(state: WorkspaceState, { taskId, ids, attachments }: 
 
 /** The images' send. Words that came with them, from a phone, go with them; otherwise the composer's own are sent. */
 function sent(state: WorkspaceState, input: AttachmentInput, attachments: RunAttachment[], steer?: boolean, text?: string): WorkspaceTransition {
-  return reduceSending(state, {
+  return applied(state, reduceSending(state, {
     type: "task.send",
     ...(input.taskId === undefined ? {} : { taskId: input.taskId }),
     attachments,
     ...(steer ? { steer } : {}),
     ...(text ? { text } : {}),
-  });
+  }));
 }
 
 export function reduceComposerAttachments(state: WorkspaceState, input: AttachmentInput): WorkspaceTransition {
