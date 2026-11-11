@@ -82,6 +82,13 @@ export type WorkspaceState =
   & StoreState
   & ErrorsState;
 
+/** The state one slice owns: every field of the workspace belongs to exactly one of these. */
+export type SliceState =
+  | ProjectAddWorkspaceState | ThreadsState | ProjectsState | WorktreesState | NavigationState | NewThreadDraftState | EnginesState
+  | ComposerState | DialogsState | SettingsState | DocksState | FindBarState | BrowserState | SimulatorSliceState | DictationSliceState
+  | GitState | DesktopState | CliSliceState | PlanUsageSliceState | ComputerUseSliceState | AutomationsState | RunsState | SideChatsState
+  | RemoteState | AppUpdatesState | ToastsState | ComputersSliceState | StoreState | ErrorsState;
+
 export function emptyWorkspaceState(storageError: string | null = null): WorkspaceState {
   return {
     ...initialThreadsState(),
