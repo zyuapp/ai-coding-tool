@@ -13,7 +13,7 @@ import { projectFor } from "../thread-location.js";
 import { withoutMatching } from "../removals.js";
 import { dockFor, type WorkspaceState } from "../workspace-state.js";
 import type { NavigationState } from "../state/navigation.js";
-import type { NewThreadDraftState } from "../state/new-thread-draft.js";
+import type { DraftBranch, NewThreadDraftState } from "../state/new-thread-draft.js";
 import type { AgentDraft } from "../../domain/agent-draft.js";
 import { coordinatorOf } from "../../domain/coordination.js";
 import type { ThreadRole } from "../../domain/thread-role.js";
@@ -91,6 +91,21 @@ export function folderMovedIn(edit: NavigationEdit, root: string): NavigationEdi
 }
 
 /** The part the next new thread plays. */
+/** Whether the next new thread gets a checkout of its own, which drops any the user had picked. */
+export function draftCheckoutIn(edit: NavigationEdit, worktree: boolean): NavigationEdit {
+  return new NavigationChange({ ...edit.view, draftWorktree: worktree, draftWorktreeId: null });
+}
+
+/** The branch the next new thread starts from, or none. */
+export function draftBranchIn(edit: NavigationEdit, branch: DraftBranch | null): NavigationEdit {
+  return new NavigationChange({ ...edit.view, draftBranch: branch });
+}
+
+/** A checkout that is gone, which a draft pointed at it no longer starts in. */
+export function draftCheckoutGoneIn(edit: NavigationEdit, worktreeId: string): NavigationEdit {
+  return edit.view.draftWorktreeId === worktreeId ? new NavigationChange({ ...edit.view, draftWorktreeId: null }) : edit;
+}
+
 export function draftRoleIn(edit: NavigationEdit, role: ThreadRole | null): NavigationEdit {
   return new NavigationChange({ ...edit.view, draftRole: role });
 }

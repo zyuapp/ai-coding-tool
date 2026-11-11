@@ -7,11 +7,11 @@ import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
 import { attendedRun, beginRun, cancelling, pendingStep, processStopped, queuedFor, resolveWorkspaceEffect, runModelOf, sideChannelFor, startRunCommand, withDeliveredMessage, withQueued, withSideChat, withSteeringFailure, withUnsent, withoutPending, withoutStartedDraft } from "./run-queue.js";
 import { approvalAnsweredIn, runsOf, threadEventIn } from "./run-edits.js";
-import { andThen, type Step } from "./slice.js";
+import { andThen, applied as joined, type Step } from "./slice.js";
 import { followUps, now, settled, targetId, rejected } from "./shared.js";
 import { memberPullRequestRead } from "./pull-requests.js";
 import { withUsedWorktree } from "./worktree-claims.js";
-import { settleMoveAfterRun } from "./worktree-moves.js";
+import { moveAfterRunSettled } from "./worktree-moves.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { threadTitleFor } from "../attachments.js";
 import { fileTitle } from "../files.js";
@@ -190,7 +190,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
         ? [{ type: "refresh-environment", workspaceId, taskId: event.taskId, runId: event.runId, followUp: true }, ...settledDiff.effects, ...reread ? [{ ...reread.effect, followUp: true as const }] : []]
         : [];
       if (!ending) return settled(next, [...environment, ...said]);
-      const moved = settleMoveAfterRun(next, event.taskId, ending.status);
+      const moved = joined(next, moveAfterRunSettled(next, event.taskId, ending.status));
       const drained = settledAfterTestimony(moved.state, event.taskId, ending, active, now());
       return settled(drained.state, [...environment, ...said, ...moved.effects, ...drained.effects]);
     }

@@ -76,7 +76,7 @@ export const CLAIMS = [
   unowned(THREAD_COMMAND_INPUTS, reduceThreadCommands),
   claim(COORDINATION_INPUTS, reduceCoordination),
   claim(PROPOSAL_INPUTS, reduceProposals),
-  unowned(WORKTREE_INPUTS, reduceWorktrees),
+  claim(WORKTREE_INPUTS, reduceWorktrees),
   claim(WORKTREE_MANAGEMENT_INPUTS, reduceWorktreeManagement),
   claim(ATTACHMENT_INPUTS, reduceComposerAttachments),
   claim(SEND_INPUTS, reduceSending),

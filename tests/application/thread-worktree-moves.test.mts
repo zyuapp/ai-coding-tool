@@ -135,6 +135,10 @@ test("a move waiting on the run is checked again when the run ends, and taken ba
   assert.equal(gone.threads[0].worktreeId, "wt1");
   assert.equal(gone.threads[0].messages.at(-1)?.tone, "error");
 
+  const moved = reduce({ ...waiting, currentId: "caller", openMenu: "session:location" }, end).state;
+  assert.equal(moved.threads[0].worktreeId, "wt2");
+  assert.equal(moved.openMenu, "session:location", "nothing on screen asked for the move, so the menu the user has open stays open");
+
   const stayed = reduce(waiting, { ...command, destination: { kind: "worktree", id: "wt1" } }).state;
   assert.deepEqual(stayed.movesAfterRun, {});
   assert.equal(reduce(stayed, end).state.threads[0].worktreeId, "wt1");

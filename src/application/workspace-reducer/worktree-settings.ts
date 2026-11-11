@@ -4,11 +4,9 @@ import type { WorkspaceState } from "../workspace-state.js";
 import { threadActivity } from "../thread-activity.js";
 import { worktreeSettingsViews } from "../worktree-settings.js";
 import { worktreeClaimants } from "../thread-location.js";
-import { settled } from "./shared.js";
 import { settingsShown } from "./settings.js";
-import { selectThread } from "./thread-select.js";
-import type { WorkspaceTransition } from "./types.js";
-import { applied, type SliceTransition } from "./slice.js";
+import { selected } from "./thread-select.js";
+import { andThen, type SliceTransition, type Step } from "./slice.js";
 import type { WorktreesState } from "../state/worktrees.js";
 
 type Input = Extract<WorktreeCommand, { type: "worktree.filter-project" | "worktree.confirm-delete" | "worktree.confirm-delete-safe" | "worktree.set-missing-open" | "worktree.set-threads-open" }>;
@@ -49,10 +47,8 @@ export function reduceWorktreeSettings(state: WorkspaceState, input: Input): Sli
 }
 
 /** A thread a checkout in Settings lists, opened: Settings closes and the thread is selected. */
-export function openWorktreeThread(state: WorkspaceState, input: Extract<WorktreeCommand, { type: "worktree.open-thread" }>): WorkspaceTransition {
+export function openWorktreeThread(state: WorkspaceState, input: Extract<WorktreeCommand, { type: "worktree.open-thread" }>): Step {
   const thread = state.threads.find((item) => item.id === input.taskId);
-  if (!thread?.worktreeId) return settled(state);
-  const closed = applied(state, settingsShown(state, false));
-  const selected = selectThread(closed.state, thread.id);
-  return { state: selected.state, effects: [...closed.effects, ...selected.effects] };
+  if (!thread?.worktreeId) return {};
+  return andThen(state, settingsShown(state, false), (next) => selected(next, thread.id));
 }

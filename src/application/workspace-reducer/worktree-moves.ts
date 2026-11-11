@@ -5,31 +5,30 @@ import type { RunStatus } from "../../domain/run.js";
 import type { Thread } from "../../domain/thread.js";
 import { worktreeName, type Worktree, type WorktreeDestination } from "../../domain/worktree.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById } from "../thread-location.js";
-import { updateThread } from "../thread-run-state.js";
 import { isWorking } from "../thread-activity.js";
 import type { QueuedMessage, WorkspaceState } from "../workspace-state.js";
-import { rereadDiff } from "./diff-reads.js";
-import { drainQueue, queuedFor, withQueued } from "./run-queue.js";
+import { diffReread } from "./diff-reads.js";
+import { drained, queuedFor } from "./run-queue.js";
+import { queuedIn, runsOf } from "./run-edits.js";
 import { coordinatorAskRefusal, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR } from "./errors.js";
-import { now, settled, targetId, rejected } from "./shared.js";
-import { withCreatingWorktree } from "./worktree-claims.js";
-import type { WorkspaceTransition } from "./types.js";
+import { now, targetId } from "./shared.js";
+import { afterward, andThen, inTurn, type Step } from "./slice.js";
+import { relocatedIn, saidIn, threadsOf } from "./thread-edits.js";
+import { creatingWorktree, moveAfterRunIn, worktreesOf } from "./worktree-claims.js";
 
-/** A location change preserves the transcript and forks its continuation on the next run. */
-export function relocateThread(state: WorkspaceState, thread: Thread, destination: Worktree | undefined): WorkspaceTransition {
+/**
+ * A location change preserves the transcript and forks its continuation on the next run. The menu
+ * closes when the thread moved is the one on screen and the user asked for the move.
+ */
+export function relocated(state: WorkspaceState, thread: Thread, destination: Worktree | undefined, asked: boolean): Step {
   const label = destination ? worktreeName(destination) : "Local";
   const note = createConversationMessage("system", `Moved to ${label}. Existing file changes stay in the previous checkout.`, destination?.root ?? projectFor(state, thread)?.root);
-  const next = updateThread(state, thread.id, ({ worktreeId: _previous, worktreeEnteredAt: _entered, ...item }) => {
-    const moved: Thread = { ...item, messages: [...item.messages, note], lastChangeSnapshot: { files: [], capturedAt: now() }, updatedAt: now() };
-    if (destination) moved.worktreeId = destination.id;
-    if (item.continuation) moved.inheritedContinuation = true;
-    return moved;
+  const moving: Step = { edits: [relocatedIn(threadsOf(state), thread.id, destination?.id, note, now)], ...(asked && state.currentId === thread.id ? { closesMenu: true as const } : {}) };
+  return andThen(state, moving, (next) => {
+    const reread = diffReread(next, thread.id);
+    const workspaceId = threadWorkspaceId(next, next.threads.find((item) => item.id === thread.id));
+    return workspaceId ? { ...reread, effects: [...reread.effects ?? [], { type: "refresh-environment", workspaceId, taskId: thread.id, followUp: true }] } : reread;
   });
-  if (next.currentId === thread.id) next.openMenu = null;
-  const result = rereadDiff(next, thread.id);
-  const workspaceId = threadWorkspaceId(result.state, result.state.threads.find((item) => item.id === thread.id));
-  if (workspaceId) result.effects.push({ type: "refresh-environment", workspaceId, taskId: thread.id, followUp: true });
-  return result;
 }
 
 /** The checkout a move lands in: undefined for the project's own, null when the thread is already there, or why it cannot go. */
@@ -50,14 +49,14 @@ function arrival(state: WorkspaceState, thread: Thread, projectId: string, desti
 }
 
 /** A checkout made from where the thread stands; the thread moves in once it lands, as `worktree.created` says. */
-function moveToNewWorktree(state: WorkspaceState, thread: Thread, projectId: string, then?: string): WorkspaceTransition {
-  return settled(withCreatingWorktree(state, thread.id), [{ type: "create-worktree", taskId: thread.id, projectRoot: threadWorkspaceRoot(state, thread)!, move: true, name: thread.title, projectId, ...(then ? { then } : {}) }]);
+function toNewWorktree(state: WorkspaceState, thread: Thread, projectId: string, then?: string): Step {
+  return { ...creatingWorktree(state, thread.id), effects: [{ type: "create-worktree", taskId: thread.id, projectRoot: threadWorkspaceRoot(state, thread)!, move: true, name: thread.title, projectId, ...(then ? { then } : {}) }] };
 }
 
 /** What a thread that moved itself said it goes on with, first in line in the checkout it moved to. */
-export function withFollowUp(state: WorkspaceState, taskId: string, then: string | undefined): WorkspaceState {
+export function followUpQueued(state: WorkspaceState, taskId: string, then: string | undefined): Step {
   const thread = state.threads.find((item) => item.id === taskId);
-  if (!then || !thread) return state;
+  if (!then || !thread) return {};
   const followUp: QueuedMessage = {
     id: crypto.randomUUID(),
     text: then,
@@ -65,71 +64,68 @@ export function withFollowUp(state: WorkspaceState, taskId: string, then: string
     attachments: [],
     ...originFields({ kind: "thread", threadId: thread.id, title: thread.title }),
   };
-  return withQueued(state, taskId, [followUp, ...queuedFor(state, taskId)]);
+  return { edits: [queuedIn(runsOf(state), taskId, [followUp, ...queuedFor(state, taskId)])] };
 }
 
-function withoutMoveAfterRun(state: WorkspaceState, taskId: string): WorkspaceState {
-  if (!state.movesAfterRun[taskId]) return state;
-  const { [taskId]: _settled, ...movesAfterRun } = state.movesAfterRun;
-  return { ...state, movesAfterRun };
+/** A move its thread asked to make once its run ends, taken back. */
+function moveAfterRunDropped(state: WorkspaceState, taskId: string): Step {
+  return state.movesAfterRun[taskId] ? { edits: [moveAfterRunIn(worktreesOf(state), taskId, null)] } : {};
 }
 
-export function reduceWorktreeMove(state: WorkspaceState, input: Extract<TaskCommand, { type: "task.move-worktree" }>): WorkspaceTransition {
+export function worktreeMoved(state: WorkspaceState, input: Extract<TaskCommand, { type: "task.move-worktree" }>): Step {
   const taskId = targetId(state, input.taskId);
   const thread = state.threads.find((item) => item.id === taskId);
   const project = projectFor(state, thread);
-  if (!thread || !project?.workspaceId) return rejected(state, WORKTREE_PROJECT_ERROR);
-  if (state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
-  if (leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
+  if (!thread || !project?.workspaceId) return { refusal: WORKTREE_PROJECT_ERROR };
+  if (state.creatingWorktrees.includes(thread.id)) return { refusal: WORKTREE_CREATING_ERROR };
+  if (leavingThreadIds(state).has(thread.id)) return { refusal: WORKTREE_RELEASING_ERROR };
   const destination = input.destination;
   /** A thread asked: this one moving itself, or one on another computer that the link names. */
   const refusal = (input.afterRun || input.sender) && coordinatorAskRefusal(thread, input, false);
-  if (refusal) return rejected(state, refusal);
+  if (refusal) return { refusal };
   const target = destination.kind === "new" ? undefined : arrival(state, thread, project.id, destination);
-  if (typeof target === "string") return rejected(state, target);
+  if (typeof target === "string") return { refusal: target };
   /** Asking for where the thread already is takes back a move it was waiting to make. */
-  if (target === null) return settled(withoutMoveAfterRun(state, thread.id));
+  if (target === null) return moveAfterRunDropped(state, thread.id);
   if (isWorking(state, thread.id)) {
     /** Only the run that asked can end before the move; anything else keeping the thread busy refuses it. */
-    if (!input.afterRun || !state.activeRuns[thread.id]) return rejected(state, WORKTREE_RUNNING_ERROR);
-    return settled({ ...state, actionError: null, movesAfterRun: { ...state.movesAfterRun, [thread.id]: { destination, ...(input.then ? { then: input.then } : {}) } } });
+    if (!input.afterRun || !state.activeRuns[thread.id]) return { refusal: WORKTREE_RUNNING_ERROR };
+    return { clearsError: true, edits: [moveAfterRunIn(worktreesOf(state), thread.id, { destination, ...(input.then ? { then: input.then } : {}) })] };
   }
-  const staying = withoutMoveAfterRun(state, thread.id);
-  if (destination.kind === "new") return moveToNewWorktree(staying, thread, project.id, input.then);
-  const moved = relocateThread({ ...staying, actionError: null }, thread, target);
-  if (!input.then) return moved;
-  const drained = drainQueue(withFollowUp(moved.state, thread.id, input.then), thread.id, "deliver");
-  return { state: drained.state, effects: [...moved.effects, ...drained.effects] };
+  const staying = moveAfterRunDropped(state, thread.id);
+  if (destination.kind === "new") return andThen(state, staying, (next) => toNewWorktree(next, thread, project.id, input.then));
+  const moving = andThen(state, { ...staying, clearsError: true }, (next) => relocated(next, thread, target, true));
+  if (!input.then) return moving;
+  return inTurn(state, moving, [(next) => followUpQueued(next, thread.id, input.then), (next) => drained(next, thread.id, "deliver")]);
 }
 
 /**
  * A thread that moved itself goes once the run that asked has ended, ahead of anything queued behind
  * that run. Whatever changed meanwhile is checked again, and a move that can no longer happen says so,
  * dropping what the thread said it would go on with there. A run the user stopped still moves, and
- * goes no further.
+ * goes no further. Nothing on screen asked for this move, so whatever the user has open stays open.
  */
-export function settleMoveAfterRun(state: WorkspaceState, taskId: string, status: RunStatus): WorkspaceTransition {
+export function moveAfterRunSettled(state: WorkspaceState, taskId: string, status: RunStatus): Step {
   const move = state.movesAfterRun[taskId];
-  if (!move) return settled(state);
+  if (!move) return {};
   const { destination } = move;
   const then = status === "cancelled" ? undefined : move.then;
-  const rest = withoutMoveAfterRun(state, taskId);
+  const dropping = moveAfterRunDropped(state, taskId);
+  const rest = afterward(state, dropping);
   const thread = rest.threads.find((item) => item.id === taskId);
   const project = projectFor(rest, thread);
-  if (!thread || thread.archivedAt !== undefined) return settled(rest);
+  if (!thread || thread.archivedAt !== undefined) return dropping;
   const refusal = coordinatorAskRefusal(thread, { type: "task.move-worktree", destination }, false);
   const target = !project?.workspaceId ? WORKTREE_PROJECT_ERROR
     : refusal ? refusal
     : leavingThreadIds(rest).has(taskId) ? WORKTREE_RELEASING_ERROR
     : destination.kind === "new" ? undefined
     : arrival(rest, thread, project.id, destination);
-  if (target === null) return settled(withFollowUp(rest, taskId, then));
+  if (target === null) return andThen(state, dropping, (next) => followUpQueued(next, taskId, then));
   if (typeof target === "string") {
     const note = createFailureMessage(`Did not move. ${target}`);
-    return settled(updateThread(rest, taskId, (item) => ({ ...item, messages: [...item.messages, note], updatedAt: now() })));
+    return andThen(state, dropping, (next) => ({ edits: [saidIn(threadsOf(next), taskId, note, now())] }));
   }
-  if (destination.kind === "new") return moveToNewWorktree(rest, thread, project!.id, then);
-  const moved = relocateThread(rest, thread, target);
-  /** Nothing on screen asked for this move, so whatever the user has open stays open. */
-  return { ...moved, state: { ...withFollowUp(moved.state, taskId, then), openMenu: rest.openMenu } };
+  if (destination.kind === "new") return andThen(state, dropping, (next) => toNewWorktree(next, thread, project!.id, then));
+  return inTurn(state, dropping, [(next) => relocated(next, thread, target, false), (next) => followUpQueued(next, taskId, then)]);
 }

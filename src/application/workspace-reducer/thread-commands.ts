@@ -2,7 +2,7 @@
 import { reduceWorktrees } from "./worktrees.js";
 import { retireAutomations } from "./automations.js";
 import { TAKE_KEYS, disposeDocks, docksOf, draftReviewDroppedIn } from "./dock-tabs.js";
-import { applied, type Step } from "./slice.js";
+import { applied, owned, type Step } from "./slice.js";
 import { closeSideChats } from "./side-chats.js";
 import { discardedLeads } from "./coordination-remote.js";
 import { cancellingRun, fileThread } from "./run-queue.js";
@@ -337,7 +337,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const { threads, fork } = forkedThreads(state.threads, source, crypto.randomUUID(), now(), input.title);
       const opened = reduceThreadCommands({ ...state, threads, openMenu: null, forkName: null }, { type: "task.select", taskId: fork.id });
       if (!input.worktree) return opened;
-      const located = reduceWorktrees(opened.state, { type: "task.set-worktree", taskId: fork.id, worktree: true });
+      const located = owned(reduceWorktrees)(opened.state, { type: "task.set-worktree", taskId: fork.id, worktree: true });
       return { state: located.state, effects: [...opened.effects, ...located.effects] };
     }
 

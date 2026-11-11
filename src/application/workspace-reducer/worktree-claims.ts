@@ -1,14 +1,15 @@
 /** A thread's claim on a checkout: while one is being made, while it is let go, and once it is gone. */
-import { withoutEnvironment } from "./environment.js";
+import { environmentForgottenIn, gitOf } from "./environment.js";
 import { now } from "./shared.js";
 import type { WorkspaceEffect } from "./types.js";
 import { afterward, type Step } from "./slice.js";
+import { checkoutGoneIn, type ThreadsEdit } from "./thread-edits.js";
+import { draftCheckoutGoneIn, navigationOf } from "./thread-select.js";
 import type { WorktreesState } from "../state/worktrees.js";
 import { withoutMatching, withoutThreadKeys } from "../removals.js";
-import { updateThread } from "../thread-run-state.js";
 import { worktreeClaimants, worktreeFor } from "../thread-location.js";
 import type { WorkspaceState } from "../workspace-state.js";
-import type { createConversationMessage } from "../../domain/conversation.js";
+import type { ConversationMessage } from "../../domain/conversation.js";
 import type { Thread } from "../../domain/thread.js";
 import type { Worktree } from "../../domain/worktree.js";
 
@@ -88,10 +89,18 @@ export function createdIn(edit: WorktreesEdit, taskId: string): WorktreesEdit {
  * Snapshotting a checkout and taking the directory away is as slow as making one, and the thread is
  * still standing in it meanwhile. Marking it here is what says so and what refuses a second ask.
  */
-export function withReleasingWorktree(state: WorkspaceState, taskIds: string[]): WorkspaceState {
-  const added = taskIds.filter((taskId) => !state.releasingWorktrees.includes(taskId));
-  if (!added.length) return state;
-  return { ...state, releasingWorktrees: [...state.releasingWorktrees, ...added] };
+export function releasingIn(edit: WorktreesEdit, taskIds: string[]): WorktreesEdit {
+  const added = taskIds.filter((taskId) => !edit.view.releasingWorktrees.includes(taskId));
+  if (!added.length) return edit;
+  return new WorktreesChange({ ...edit.view, releasingWorktrees: [...edit.view.releasingWorktrees, ...added] });
+}
+
+/** A move a thread asked to make once its run ends, or none. */
+export function moveAfterRunIn(edit: WorktreesEdit, taskId: string, move: WorktreesState["movesAfterRun"][string] | null): WorktreesEdit {
+  if (move) return new WorktreesChange({ ...edit.view, movesAfterRun: { ...edit.view.movesAfterRun, [taskId]: move } });
+  if (!edit.view.movesAfterRun[taskId]) return edit;
+  const { [taskId]: _settled, ...movesAfterRun } = edit.view.movesAfterRun;
+  return new WorktreesChange({ ...edit.view, movesAfterRun });
 }
 
 export function withoutReleasingWorktree(state: WorkspaceState, taskIds: string[]): WorkspaceState {
@@ -101,37 +110,21 @@ export function withoutReleasingWorktree(state: WorkspaceState, taskIds: string[
 }
 
 /**
- * One thread walks out of a checkout the others keep. It is local again and says so in its own
- * timeline; the directory and every other claim on it are untouched.
- */
-export function leaveWorktree(state: WorkspaceState, taskId: string, note: ReturnType<typeof createConversationMessage>): WorkspaceState {
-  return updateThread(state, taskId, ({ worktreeId: _left, worktreeEnteredAt: _forked, ...thread }) => ({
-    ...thread,
-    messages: [...thread.messages, note],
-    updatedAt: now(),
-  }));
-}
-
-/**
  * The checkout itself is gone, so every thread that claimed it is local again and hears why, and a
  * draft pointed at it goes back to the project. The record goes with the directory: nothing is left
- * pointing at a folder that is not there.
+ * pointing at a folder that is not there. `threads` is the list as the input has it so far.
  */
-export function dropWorktree(state: WorkspaceState, worktreeId: string, note: () => ReturnType<typeof createConversationMessage>): WorkspaceState {
+export function worktreeDropped(state: WorkspaceState, threads: ThreadsEdit, worktreeId: string, note: () => ConversationMessage): Step {
   const gone = state.worktrees.find((worktree) => worktree.id === worktreeId);
   const claimants = new Set(worktreeClaimants(state, worktreeId).map((thread) => thread.id));
+  const { view } = worktreesOf(state);
   return {
-    ...state,
-    releasingWorktrees: state.releasingWorktrees.filter((taskId) => !claimants.has(taskId)),
-    worktrees: state.worktrees.filter((worktree) => worktree.id !== worktreeId),
-    ...(gone ? { environments: withoutEnvironment(state.environments, gone.workspaceId) } : {}),
-    ...(state.draftWorktreeId === worktreeId ? { draftWorktreeId: null } : {}),
-    threads: state.threads.map((thread) => {
-      if (thread.worktreeId !== worktreeId) return thread;
-      const { worktreeId: _gone, worktreeEnteredAt: _forked, ...local } = thread;
-      if (thread.continuation) local.inheritedContinuation = true;
-      return { ...local, messages: [...thread.messages, note()], updatedAt: now() };
-    }),
+    edits: [
+      new WorktreesChange({ ...view, releasingWorktrees: view.releasingWorktrees.filter((taskId) => !claimants.has(taskId)), worktrees: view.worktrees.filter((worktree) => worktree.id !== worktreeId) }),
+      ...(gone ? [environmentForgottenIn(gitOf(state), gone.workspaceId)] : []),
+      draftCheckoutGoneIn(navigationOf(state), worktreeId),
+      checkoutGoneIn(threads, worktreeId, note, now),
+    ],
   };
 }
 

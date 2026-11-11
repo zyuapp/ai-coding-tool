@@ -7,6 +7,7 @@ import { endedTurn, openedTurn, restoredTestimony, withdrawRun, type ActiveRun, 
 import { readRow } from "../thread-attention.js";
 import { dismissed, readAttention, withClosedIssues, withFinding } from "../../domain/attention.js";
 import { reopenedIfStuck, withCoordinationNote, withoutAnswer, type CoordinationNote } from "../../domain/coordination.js";
+import type { ConversationMessage } from "../../domain/conversation.js";
 import type { Thread } from "../../domain/thread.js";
 import type { ThreadOutcome } from "../../domain/thread-run.js";
 import { withoutSnooze } from "../../domain/thread-snooze.js";
@@ -190,6 +191,46 @@ export function projectRemovedIn<Field extends keyof Thread>(edit: ThreadsChange
       if (thread.projectId !== projectId) return thread;
       const { projectId: _removed, ...projectless } = thread;
       return thread.archivedAt === undefined ? { ...projectless, archivedAt: at() } : projectless;
+    }),
+  });
+}
+
+/** A message said in a thread at `at`. */
+export function saidIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, message: ConversationMessage, at: number): ThreadsChange<Field> {
+  return mapped(edit, id, (thread) => ({ ...thread, messages: [...thread.messages, message], updatedAt: at }));
+}
+
+/**
+ * A thread moved to another checkout, or to the project's own with none: it says so, its changes are
+ * counted afresh, and a session it had is forked on its next run.
+ */
+export function relocatedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, worktreeId: string | undefined, note: ConversationMessage, at: () => number): ThreadsChange<Field> {
+  return mapped(edit, id, ({ worktreeId: _previous, worktreeEnteredAt: _entered, ...item }) => {
+    const moved: Thread = { ...item, messages: [...item.messages, note], lastChangeSnapshot: { files: [], capturedAt: at() }, updatedAt: at() };
+    if (worktreeId) moved.worktreeId = worktreeId;
+    if (item.continuation) moved.inheritedContinuation = true;
+    return moved;
+  });
+}
+
+/** A thread in the checkout made for it, saying so. */
+export function enteredCheckoutIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, worktreeId: string, note: ConversationMessage, at: number): ThreadsChange<Field> {
+  return mapped(edit, id, (thread) => ({ ...thread, worktreeId, messages: [...thread.messages, note], updatedAt: at }));
+}
+
+/** A thread walked out of its checkout, local again and saying so. */
+export function leftCheckoutIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, note: ConversationMessage, at: number): ThreadsChange<Field> {
+  return mapped(edit, id, ({ worktreeId: _left, worktreeEnteredAt: _forked, ...thread }) => ({ ...thread, messages: [...thread.messages, note], updatedAt: at }));
+}
+
+/** A checkout that is gone: every thread in it is local again, hears `note`, and forks a session it had on its next run. */
+export function checkoutGoneIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, worktreeId: string, note: () => ConversationMessage, at: () => number): ThreadsChange<Field> {
+  return new ThreadsChange({
+    threads: edit.view.threads.map((thread) => {
+      if (thread.worktreeId !== worktreeId) return thread;
+      const { worktreeId: _gone, worktreeEnteredAt: _forked, ...local } = thread;
+      if (thread.continuation) local.inheritedContinuation = true;
+      return { ...local, messages: [...thread.messages, note()], updatedAt: at() };
     }),
   });
 }
