@@ -56,7 +56,7 @@ function ReadinessHint({ notice, onOpenSettings }: { notice: EngineNotice; onOpe
 }
 
 /** The widest the library is drawn; a narrower window takes it to its own width. */
-const LIBRARY_WIDTH = 760;
+const LIBRARY_WIDTH = 620;
 
 /** The library is placed against the window, so a composer narrowed by a panel beside it does not narrow the library too. */
 function LibraryPopover({ anchor, heading, onKeyDown, children }: { anchor: HTMLElement | null; heading: string; onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void; children: ReactNode }) {

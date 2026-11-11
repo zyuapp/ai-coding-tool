@@ -1,26 +1,28 @@
 /** A picker read closely, so its glass is thick: what passes behind tints it but never shows as words. */
-.model-library { --library-rail: 188px; position: fixed; z-index: 1000; max-height: min(720px, var(--menu-room, 100vh)); padding: 0; overflow: hidden; display: flex; flex-direction: column; --glass-radius: 14px; background: var(--glass-edge), var(--glass-sheen), rgb(from var(--p-bg-4) r g b / calc(0.9 + 0.06 * var(--glass-tint))); background-clip: border-area, border-box, border-box; }
+.model-library { --library-rail: 164px; position: fixed; z-index: 1000; max-height: min(720px, var(--menu-room, 100vh)); padding: 0; overflow: hidden; display: flex; flex-direction: column; --glass-radius: 13px; background: var(--glass-edge), var(--glass-sheen), rgb(from var(--p-bg-4) r g b / calc(0.9 + 0.06 * var(--glass-tint))); background-clip: border-area, border-box, border-box; }
 @media (prefers-reduced-transparency: reduce) {
   .model-library { background: var(--glass-edge), var(--surface-menu); background-clip: border-area, border-box, border-box; backdrop-filter: none; }
 }
 .model-search { position: relative; flex-shrink: 0; }
-.model-search .search-field-box { padding: 0 48px 0 17px; }
-.model-search > .icon-btn { position: absolute; top: 10px; right: 12px; }
+.model-search .search-field-box { padding-right: 48px; }
+.model-search .search-field input { height: 40px; }
+.model-search > .icon-btn { position: absolute; top: 6px; right: 8px; }
 /** The list gives up height first when the window is short, down to a few rows. */
-.model-library-body { flex: 0 1 auto; display: grid; grid-template-columns: var(--library-rail) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); max-height: 460px; min-height: 150px; }
+.model-library-body { flex: 0 1 auto; display: grid; grid-template-columns: var(--library-rail) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); max-height: 340px; min-height: 120px; }
 .model-search, .library-settings, .model-library-footer { flex-shrink: 0; }
-.model-provider-rail { padding: 10px 8px; border-right: 1px solid var(--line-soft); overflow-y: auto; }
-.model-provider-rail .nav-item { padding-block: 10px; font-size: var(--text-control); }
+.model-provider-rail { gap: 1px; padding: 6px; border-right: 1px solid var(--line-soft); overflow-y: auto; }
+.model-provider-rail .nav-item { padding-block: 6px; font-size: var(--text-menu); }
+.model-provider-rail .nav-separator { margin: 5px 9px; }
 .model-provider-glyph { flex-shrink: 0; width: 16px; }
-.model-results { padding: 14px 12px; overflow-y: auto; overscroll-behavior: contain; }
-.model-results-heading { display: flex; justify-content: space-between; gap: 10px; padding: 0 12px 10px; color: var(--quiet-strong); font-size: var(--text-menu); }
+.model-results { padding: 6px 8px; overflow-y: auto; overscroll-behavior: contain; }
+.model-results-heading { display: flex; justify-content: space-between; gap: 10px; padding: 5px 10px 6px; color: var(--quiet-strong); font-size: var(--text-meta); }
 .model-results-heading > span:last-child { color: var(--quiet-soft); }
 .model-row { display: flex; align-items: center; gap: 2px; }
-.model-row > .model-choice { flex: 1; min-width: 0; gap: 12px; min-height: 60px; padding: 9px 12px; border-radius: 10px; font-size: var(--text-content); }
-.model-choice .menu-label { font-weight: 500; }
-.model-choice .menu-copy { gap: 3px; }
-.model-choice .menu-description { font-size: var(--text-control); }
-.model-choice .menu-icon > svg { width: 20px; height: 20px; }
+/** A model is one line: its name, then what it is for in the room beside it. */
+.model-row > .model-choice { flex: 1; min-width: 0; gap: 10px; min-height: 34px; padding: 4px 10px; border-radius: 8px; font-size: var(--text-control); }
+.model-choice .menu-label { flex: none; font-weight: 500; }
+.model-choice .menu-copy { flex-direction: row; align-items: baseline; gap: 10px; }
+.model-choice .menu-description { min-width: 0; font-size: var(--text-meta); }
 /** A pin is a bare star, lit once the model is pinned. */
 .model-favorite { color: var(--quiet); }
 .model-favorite[aria-pressed="true"] { background: none; box-shadow: none; color: var(--accent-text); }
@@ -30,9 +32,9 @@
 .model-library-footer span { display: flex; align-items: center; gap: 6px; }
 /** Effort and mode, each a row whose name lines up with the provider rail above. */
 .library-settings { display: grid; flex-shrink: 0; border-top: 1px solid var(--line-soft); }
-.library-setting { display: grid; grid-template-columns: var(--library-rail) minmax(0, 1fr); align-items: center; padding: 12px 12px 12px 0; }
+.library-setting { display: grid; grid-template-columns: var(--library-rail) minmax(0, 1fr); align-items: center; padding: 8px 8px 8px 0; }
 .library-setting + .library-setting { border-top: 1px solid var(--line-soft); }
-.library-setting-axis { display: flex; align-items: baseline; gap: 5px; min-width: 0; padding-left: 17px; color: var(--ink-soft); font-size: var(--text-menu); font-weight: 500; }
+.library-setting-axis { display: flex; align-items: baseline; gap: 5px; min-width: 0; padding-left: 15px; color: var(--ink-soft); font-size: var(--text-menu); font-weight: 500; }
 .library-setting-axis small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-size: var(--text-meta); font-weight: 400; }
 .library-setting-axis small::before { content: "· "; }
 .effort-strip { align-items: start; }
@@ -40,7 +42,7 @@
 .effort-strip > .library-setting-axis { line-height: 22px; }
 .effort-strip-none { padding: 6px 0; color: var(--quiet); font-size: var(--text-meta); }
 .library-setting > :last-child { margin-left: 8px; }
-.library-modes > button { flex: 1; justify-content: center; font-size: var(--text-menu); }
+.library-modes > button { flex: 1; justify-content: center; padding-block: 4px; }
 .library-modes > button[aria-checked="true"][data-tone="danger"], .library-modes > button[aria-checked="true"][data-tone="danger"] svg { color: var(--danger); }
 /** A slim track marked at each effort, whose fill runs to the knob's middle; the knob tracks the pointer while dragged and glides to an effort otherwise. */
 .effort-slider { --effort-at: 0; --effort-knob: 18px; --effort-travel: calc(100% - var(--effort-knob)); padding: 9px 0 0; border-radius: 14px; outline: none; cursor: grab; touch-action: none; user-select: none; }
@@ -51,7 +53,7 @@
 .effort-fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--effort-travel) * var(--effort-at) + var(--effort-knob) / 2); border-radius: 999px; background: var(--glass-sheen), var(--ink-faint); transition: width 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background 200ms; }
 .effort-tick { position: absolute; top: 1px; left: calc(var(--effort-travel) * var(--effort-stop) + var(--effort-knob) / 2 - 1px); width: 2px; height: 2px; border-radius: 50%; background: var(--quiet); }
 /** Each effort's name sits under its stop; the ends hug the rail's ends so the names stay inside it. */
-.effort-stops { position: relative; height: 16px; margin-top: 11px; }
+.effort-stops { position: relative; height: 16px; margin-top: 9px; }
 .effort-stop { position: absolute; left: calc(var(--effort-travel) * var(--effort-stop) + var(--effort-knob) / 2); color: var(--quiet); font-size: var(--text-meta); line-height: 16px; white-space: nowrap; transform: translateX(-50%); transition: color 140ms ease; }
 .effort-stop:first-child { left: 0; transform: none; }
 .effort-stop:last-child:not(:first-child) { left: auto; right: 0; transform: none; }
@@ -82,7 +84,7 @@
 /** The layout follows the pane's own width, so it holds wherever the pane is drawn. */
 .model-library { container: model-library / inline-size; }
 /** Too narrow for a column beside the list: the providers run along the top, and each setting's name sits over it. */
-@container model-library (max-width: 600px) {
+@container model-library (max-width: 520px) {
   .model-library-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .model-provider-rail { flex-direction: row; gap: 2px; padding: 8px; border-right: 0; border-bottom: 1px solid var(--line-soft); overflow: auto hidden; scrollbar-width: none; }
   .model-provider-rail .nav-item { flex: none; width: auto; padding: 7px 10px; }
@@ -93,7 +95,7 @@
   .library-setting > :last-child { margin-left: 0; }
   .model-library-footer span { display: none; }
 }
-@container model-library (max-width: 460px) {
+@container model-library (max-width: 400px) {
   .model-choice .menu-icon, .library-modes > button svg { display: none; }
   .library-modes > button { padding-inline: 4px; }
   .effort-stop:not(.current) { visibility: hidden; }
