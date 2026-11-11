@@ -246,6 +246,8 @@ export function useReadingView({ scrollContainerRef, timelineRef, drawn, virtual
     });
     scroller.addEventListener("scroll", onScroll, { passive: true });
     observer.observe(timeline);
+    /** The view itself grows and shrinks without scrolling, as when the composer settles after a switch. */
+    observer.observe(scroller);
     measure();
 
     /** A thread reopens exactly where its reader left it wherever that row still exists; one with no place opens at its foot. */

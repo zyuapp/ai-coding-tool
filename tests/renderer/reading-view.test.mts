@@ -301,6 +301,27 @@ test("a place left at the foot follows new output when the window grew while awa
   await done(view);
 });
 
+test("a thread reopened at its foot while its view was short drops the scroll-to-end button once the view grows", async () => {
+  const { scroller, thread, settle, done } = threadHarness();
+
+  const view = await mount(thread("foot", 12));
+  await settle();
+  await view.render(thread("other", 12, "o"));
+  await settle();
+  /** The composer is still settling into place, so the view opens short. */
+  Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 500 });
+  await view.render(thread("foot", 12));
+  await settle();
+  assert.ok(view.container.querySelector(".scroll-to-end"));
+
+  Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 900 });
+  await act(async () => { fireResizeObservers(scroller); });
+  await settle();
+  assert.equal(view.container.querySelector(".scroll-to-end"), null);
+
+  await done(view);
+});
+
 test("a view hidden behind another tab reopens where its reader left it", async () => {
   const { scroller, scrolls, thread, scrollTo, settle, resize, done } = threadHarness();
   const hide = async (hidden: boolean) => {

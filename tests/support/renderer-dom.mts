@@ -42,9 +42,10 @@ for (const name of Object.keys(animationFunctions) as Array<keyof typeof animati
 /** jsdom has no ResizeObserver, and the transcript's scrolling is driven by one. */
 class ResizeObserverStub implements ResizeObserver {
   static live: ResizeObserverStub[] = [];
+  readonly targets = new Set<Element>();
   constructor(readonly callback: ResizeObserverCallback) { ResizeObserverStub.live.push(this); }
-  observe(_target: Element, _options?: ResizeObserverOptions) {}
-  unobserve(_target: Element) {}
+  observe(target: Element, _options?: ResizeObserverOptions) { this.targets.add(target); }
+  unobserve(target: Element) { this.targets.delete(target); }
   disconnect() { ResizeObserverStub.live = ResizeObserverStub.live.filter((observer) => observer !== this); }
 }
 for (const target of [globalThis, dom.window]) {
@@ -172,9 +173,11 @@ export function sizeOf(node: Element, width: number, height: number) {
   Object.defineProperty(node, "clientHeight", { configurable: true, value: height });
 }
 
-/** Every live observer, told its element changed size. jsdom raises none of these on its own. */
-export function fireResizeObservers() {
-  for (const observer of [...ResizeObserverStub.live]) observer.callback([], observer);
+/** Every live observer, or only those watching `target`, told its element changed size. jsdom raises none of these on its own. */
+export function fireResizeObservers(target?: Element) {
+  for (const observer of [...ResizeObserverStub.live]) {
+    if (!target || observer.targets.has(target)) observer.callback([], observer);
+  }
 }
 
 export async function pumpResizeObservers() {
