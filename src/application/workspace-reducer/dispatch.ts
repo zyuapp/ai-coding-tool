@@ -18,7 +18,7 @@ import { DIFF_INPUTS, reduceDiffs } from "./diffs.js";
 import { reduceHiddenThreadsDismissed, reduceStore, reduceStoreLoad, STORE_INPUTS, STORE_LOAD_INPUTS } from "./store.js";
 import { COMPOSER_INPUTS, reduceComposer } from "./composer.js";
 import { reduceSettings, reduceModelFavorite, reduceRememberProject, SETTINGS_INPUTS } from "./settings.js";
-import { DOCK_INPUTS, reduceDock } from "./dock.js";
+import { DOCK_CLOSE_INPUTS, DOCK_INPUTS, reduceDock, reduceDockClose } from "./dock.js";
 import { BROWSER_INPUTS, reduceBrowser } from "./browser.js";
 import { BROWSER_IMPORT_INPUTS, reduceBrowserImport } from "./browser-import.js";
 import { reduceSimulator, SIMULATOR_INPUTS } from "./simulator.js";
@@ -71,7 +71,7 @@ export const CLAIMS = [
   claim(COMPUTER_USE_INPUTS, owned(reduceComputerUse)),
   claim(PLAN_USAGE_INPUTS, owned(reducePlanUsage)),
   claim(CLI_INPUTS, owned(reduceCli)),
-  claim(DIFF_INPUTS, reduceDiffs),
+  claim(DIFF_INPUTS, owned(reduceDiffs)),
   claim(STORE_INPUTS, owned(reduceStore)),
   claim(STORE_LOAD_INPUTS, reduceStoreLoad),
   claim(COMPOSER_INPUTS, owned(reduceComposer)),
@@ -82,7 +82,8 @@ export const CLAIMS = [
   claim(["view.dismiss-toast", "view.hold-toasts"], owned(reduceToasts)),
   claim(APP_UPDATE_INPUTS, owned(reduceAppUpdate)),
   claim(SETTINGS_INPUTS, owned(reduceSettings)),
-  claim(DOCK_INPUTS, reduceDock),
+  claim(DOCK_INPUTS, owned(reduceDock)),
+  claim(DOCK_CLOSE_INPUTS, reduceDockClose),
   claim(BROWSER_INPUTS, owned(reduceBrowser)),
   claim(BROWSER_IMPORT_INPUTS, owned(reduceBrowserImport)),
   claim(SIMULATOR_INPUTS, owned(reduceSimulator)),

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { dockFor, dockOwner } from "../../src/application/workspace-state.ts";
+import { dockFor, dockOwner, withDock } from "../../src/application/workspace-state.ts";
 import { deriveView } from "../../src/application/workspace-view.ts";
 import type { Workflow } from "../../src/domain/workflow.ts";
 import { dock, task, workspace, preferences, required, run } from "./workspace-reducer-fixtures.mts";
@@ -137,6 +137,32 @@ test("only a page holds the keys itself; everything else in the dock needs the w
 
   const shown = reduce(hidden.state, { type: "view.set-dock-open", open: true });
   assert.equal(required(shown.state.dockFocus).tab, "agents", "showing the panel again hands the tab in front the keyboard");
+});
+
+test("a new tab opens a shell unless a page is in front, and choosing a shell's tab makes it the dock's shell", () => {
+  const state = { ...workspace(), lastFolder: "/repo", threads: [task("task-1")], currentId: "task-1" };
+  const first = reduce(state, { type: "view.new-tab" });
+  const second = reduce(first.state, { type: "view.new-tab" });
+  const [one, two] = dock(second.state).terminals;
+  assert.ok(one && two, "each new tab is another shell");
+  assert.equal(dock(second.state).terminalId, two.id);
+
+  const chosen = reduce(second.state, { type: "view.select-dock-tab", tab: one.id });
+  assert.equal(dock(chosen.state).terminalId, one.id);
+});
+
+test("closing a dock's last thread tab with nothing to fall back to hides the dock and takes the keys back", () => {
+  const state = withDock({ ...workspace(), threads: [task("task-1"), task("worker")], currentId: "task-1" }, "task-1", { open: true, expanded: true, threadTabs: ["worker"], tab: "worker" });
+  const closed = reduce(state, { type: "view.close-thread-tab", taskId: "worker" });
+  assert.equal(dock(closed.state).open, false);
+  assert.equal(dock(closed.state).expanded, false, "a hidden dock does not come back across the whole workspace");
+  assert.ok(closed.effects.some((effect) => effect.type === "focus-window"));
+});
+
+test("bringing a thread's tab to the front reads what it had to say", () => {
+  const state = withDock({ ...workspace(), threads: [task("task-1"), task("worker", { outcome: "finished", outcomeUnread: true })], currentId: "task-1" }, "task-1", { open: true, threadTabs: ["worker"], tab: "picker" });
+  const shown = reduce(state, { type: "view.select-dock-tab", tab: "worker" });
+  assert.equal(required(shown.state.threads.find((item) => item.id === "worker")).outcomeUnread, undefined);
 });
 
 test("expanding the dock shows it, and the dock gives up the whole workspace before it gives up a tab", () => {

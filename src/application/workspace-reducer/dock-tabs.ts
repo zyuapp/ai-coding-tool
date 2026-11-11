@@ -2,8 +2,8 @@
 import { settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import { viewPreferences } from "../view-preferences.js";
-import { isCoordinator } from "../../domain/coordination.js";
-import { DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, dockFor, dockTabAfterClosing, withDock, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
+import { isCoordinator, type OverviewFold, type OverviewSection } from "../../domain/coordination.js";
+import { DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, diffFor, dockFor, dockTabAfterClosing, withDock, type DiffState, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
 import { workflowById } from "../state/runs.js";
 import type { DocksState } from "../state/dock.js";
 
@@ -29,6 +29,12 @@ export function docksOf(state: DocksState): DocksEdit {
   return new DocksChange({ overviewFolds, dockFocus, docks, diffs, keyboardTab });
 }
 
+/** How a coordinator's Overview folds one of its groups. */
+export function overviewFoldIn(edit: DocksEdit, taskId: string, group: OverviewSection, fold: OverviewFold): DocksEdit {
+  const folds = edit.view.overviewFolds[taskId] ?? {};
+  return new DocksChange({ ...edit.view, overviewFolds: { ...edit.view.overviewFolds, [taskId]: { ...folds, [group]: fold } } });
+}
+
 /** The dock tab holding the keyboard, or none. */
 export function keyboardTabIn(edit: DocksEdit, tab: string | null): DocksEdit {
   return new DocksChange({ ...edit.view, keyboardTab: tab });
@@ -38,6 +44,11 @@ export function keyboardTabIn(edit: DocksEdit, tab: string | null): DocksEdit {
 export function draftReviewDroppedIn(edit: DocksEdit): DocksEdit {
   const { [DRAFT_DOCK]: _lastDraft, ...diffs } = edit.view.diffs;
   return new DocksChange({ ...edit.view, diffs });
+}
+
+/** One dock's review with what the patch says, the rest of it as it was. */
+export function editDiff(edit: DocksEdit, owner: string, patch: Partial<DiffState>): DocksEdit {
+  return new DocksChange({ ...edit.view, diffs: { ...edit.view.diffs, [owner]: { ...diffFor(edit.view, owner), ...patch } } });
 }
 
 export function editDock(edit: DocksEdit, owner: string, patch: Partial<ThreadDock>): DocksEdit {

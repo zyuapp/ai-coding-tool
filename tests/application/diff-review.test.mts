@@ -104,6 +104,12 @@ test("a commit link opens its repository in the Changes panel and keeps that rep
   assert.equal(readDiffEffect(refreshed.effects).workspaceId, "workspace-b");
 });
 
+test("a commit link that names no commit is refused", () => {
+  const refused = reduce(workspace({ currentId: "current", threads: [thread("current", "Current")] }), { type: "diff.open-commit", commit: "not a hash" });
+  assert.equal(refused.state.actionError, "Invalid commit hash.");
+  assert.deepEqual(refused.effects, []);
+});
+
 test("committed image links are preserved even when another thread is on screen", () => {
   const linked = thread("linked", "Linked");
   const state = workspace({ currentId: "current", threads: [thread("current", "Current"), linked], activeRuns: { linked: activeRun("linked", "run-image") } });

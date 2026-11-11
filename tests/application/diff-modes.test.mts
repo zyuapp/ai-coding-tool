@@ -27,6 +27,13 @@ test("Branch is the default and returns to the chosen comparison after reviewing
   assert.deepEqual(effect(branch, "read-diff").range, { kind: "branches", base: "release", compare: "topic" });
 });
 
+test("choosing a mode closes the menu it was chosen from, even the one already shown", () => {
+  const opened = reduce(workspace(), { type: "diff.toggle" });
+  const same = reduce({ ...opened.state, openMenu: "diff:mode" }, { type: "diff.set-mode", mode: "branch" });
+  assert.equal(same.state.openMenu, null);
+  assert.deepEqual(same.effects, [], "the comparison already shown is not read again");
+});
+
 test("Branch remains the default without an origin, and an explicit mode survives reopening", () => {
   const state = { ...workspace(), environments: {} };
   const opened = reduce(state, { type: "diff.toggle" });

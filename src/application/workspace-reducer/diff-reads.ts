@@ -1,9 +1,11 @@
 /** The comparison a dock holds, and the reads that keep it pointed at the right checkout. */
 import { environmentFor, subjectWorkspaceId } from "./environment.js";
-import { followUps, settled } from "./shared.js";
+import { docksOf, editDiff } from "./dock-tabs.js";
+import { followUps } from "./shared.js";
+import { applied, inTurn, type Step } from "./slice.js";
 import type { WorkspaceTransition } from "./types.js";
 import { threadWorkspaceId } from "../thread-location.js";
-import { DIFF_PANEL, diffFor, dockSubject, withDiff, type DiffState, type WorkspaceState } from "../workspace-state.js";
+import { DIFF_PANEL, diffFor, dockSubject, type DiffState, type WorkspaceState } from "../workspace-state.js";
 import { DEFAULT_BRANCH_RANGE, modeForRange, type DiffRange } from "../../domain/diff.js";
 
 /**
@@ -27,7 +29,7 @@ export function defaultBranchRange(state: WorkspaceState, owner: string): Extrac
  * together: a reply is only accepted when it names the checkout and comparison the dock is holding, so
  * an effect issued without writing that down is an answer the reducer would throw away.
  */
-export function readDiffFrom(state: WorkspaceState, owner: string, workspaceId: string | undefined, range: DiffRange, patch: Partial<DiffState> = {}): WorkspaceTransition {
+export function diffReadFrom(state: WorkspaceState, owner: string, workspaceId: string | undefined, range: DiffRange, patch: Partial<DiffState> = {}): Step {
   const previous = diffFor(state, owner);
   const sameWorkspace = previous.workspaceId === workspaceId;
   patch = {
@@ -35,44 +37,53 @@ export function readDiffFrom(state: WorkspaceState, owner: string, workspaceId: 
     mode: modeForRange(range),
     branchRange: range.kind === "branches" ? range : sameWorkspace ? previous.branchRange : undefined,
   };
-  if (!workspaceId) return settled(withDiff(state, owner, { ...patch, range, workspaceId: null, result: null, loading: false }));
+  if (!workspaceId) return { edits: [editDiff(docksOf(state), owner, { ...patch, range, workspaceId: null, result: null, loading: false })] };
   /** The read takes the whitespace setting the review lands with, which is the one it already had. */
   const ignoreWhitespace = patch.ignoreWhitespace ?? diffFor(state, owner).ignoreWhitespace;
-  return settled(
-    withDiff(state, owner, { ...patch, range, workspaceId, loading: true }),
-    [{ type: "read-diff", owner, workspaceId, range, ignoreWhitespace }],
-  );
+  return {
+    edits: [editDiff(docksOf(state), owner, { ...patch, range, workspaceId, loading: true })],
+    effects: [{ type: "read-diff", owner, workspaceId, range, ignoreWhitespace }],
+  };
+}
+
+/** {@link diffReadFrom}, on the whole state. */
+export function readDiffFrom(state: WorkspaceState, owner: string, workspaceId: string | undefined, range: DiffRange, patch: Partial<DiffState> = {}): WorkspaceTransition {
+  return applied(state, diffReadFrom(state, owner, workspaceId, range, patch));
 }
 
 /** The same, for the checkout the dock's review is about. */
-export function readDiff(state: WorkspaceState, owner: string, range: DiffRange, patch: Partial<DiffState> = {}): WorkspaceTransition {
+export function diffRead(state: WorkspaceState, owner: string, range: DiffRange, patch: Partial<DiffState> = {}): Step {
   const workspaceId = range.kind === "commit" ? diffFor(state, owner).workspaceId ?? subjectWorkspaceId(state, owner) : subjectWorkspaceId(state, owner);
-  return readDiffFrom(state, owner, workspaceId, range, patch);
+  return diffReadFrom(state, owner, workspaceId, range, patch);
 }
 
 /**
  * A thread whose checkout changed is reviewing the wrong one until it reads again. Nothing to do for a
  * thread with no review open, which is most of them. The read is a follow-up of whatever moved it.
  */
-export function rereadDiff(state: WorkspaceState, taskId: string): WorkspaceTransition {
+export function diffReread(state: WorkspaceState, taskId: string): Step {
   const diff = state.diffs[taskId];
-  if (!diff) return settled(state);
+  if (!diff) return {};
   const subject = dockSubject(state, taskId, DIFF_PANEL) ?? taskId;
   const workspaceId = threadWorkspaceId(state, state.threads.find((thread) => thread.id === subject));
-  if (diff.workspaceId === workspaceId) return settled(state);
-  const read = readDiffFrom(state, taskId, workspaceId, diff.range, { result: null, collapsed: [], viewed: {} });
-  return { ...read, effects: followUps(read.effects) };
+  if (diff.workspaceId === workspaceId) return {};
+  const read = diffReadFrom(state, taskId, workspaceId, diff.range, { result: null, collapsed: [], viewed: {} });
+  return { ...read, effects: followUps(read.effects ?? []) };
+}
+
+/** {@link diffReread}, on the whole state. */
+export function rereadDiff(state: WorkspaceState, taskId: string): WorkspaceTransition {
+  return applied(state, diffReread(state, taskId));
 }
 
 /** Every review of a thread's checkout, as follow-ups: its own dock's, and a coordinator's that has its tab as the subject. */
+export function reviewsReread(state: WorkspaceState, taskId: string, workspaceId: string): Step {
+  const owners = Object.entries(state.diffs).filter(([owner]) => (dockSubject(state, owner, DIFF_PANEL) ?? owner) === taskId);
+  const read = inTurn(state, {}, owners.map(([owner, diff]) => (next: WorkspaceState) => diffReadFrom(next, owner, workspaceId, diff.range)));
+  return { ...read, effects: followUps(read.effects ?? []) };
+}
+
+/** {@link reviewsReread}, on the whole state. */
 export function rereadReviewsOf(state: WorkspaceState, taskId: string, workspaceId: string): WorkspaceTransition {
-  let next = state;
-  const effects: WorkspaceTransition["effects"] = [];
-  for (const [owner, diff] of Object.entries(state.diffs)) {
-    if ((dockSubject(state, owner, DIFF_PANEL) ?? owner) !== taskId) continue;
-    const read = readDiffFrom(next, owner, workspaceId, diff.range);
-    next = read.state;
-    effects.push(...read.effects);
-  }
-  return settled(next, followUps(effects));
+  return applied(state, reviewsReread(state, taskId, workspaceId));
 }

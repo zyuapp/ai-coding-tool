@@ -1,9 +1,34 @@
 /** What Git last said about a checkout, and which checkout the app is asking about. */
 import { sameStrings } from "./shared.js";
+import { ownFields } from "./slice.js";
+import type { GitState } from "../state/pull-requests.js";
 import type { WorkspaceEffect } from "./types.js";
 import { threadWorkspaceId } from "../thread-location.js";
 import { DIFF_PANEL, dockFor, dockOwner, dockSubject, type WorkspaceState } from "../workspace-state.js";
 import type { ChangedFilesResult } from "../../contracts/ipc.js";
+
+/** What Git and the forge last said, as one input leaves it. Only the functions here make one. */
+class GitChange {
+  private declare readonly owned: never;
+  constructor(readonly view: GitState) {}
+}
+
+export type GitEdit = GitChange;
+
+export function gitOf(state: GitState): GitEdit {
+  return new GitChange(ownFields<GitState>(state, { environments: true, pullRequest: true, memberPullRequests: true }));
+}
+
+/** What Git just said about a checkout, kept with the answers about the checkouts the app still has, as {@link retainedEnvironments} keeps them. */
+export function environmentReadIn(edit: GitEdit, live: Pick<WorkspaceState, "projects" | "worktrees">, workspaceId: string, result: ChangedFilesResult): GitEdit {
+  return new GitChange({ ...edit.view, environments: retainedEnvironments({ ...live, environments: edit.view.environments }, workspaceId, result) });
+}
+
+/** A checkout that is gone, its answer forgotten with it. */
+export function environmentForgottenIn(edit: GitEdit, workspaceId: string): GitEdit {
+  const environments = withoutEnvironment(edit.view.environments, workspaceId);
+  return environments === edit.view.environments ? edit : new GitChange({ ...edit.view, environments });
+}
 
 export function sameChangedFiles(left: ChangedFilesResult | null, right: ChangedFilesResult) {
   if (!left || left.status !== right.status) return false;
@@ -69,7 +94,7 @@ export function withoutEnvironment(environments: WorkspaceState["environments"],
  * The answers worth keeping: one per checkout the app still has, plus the one just read. A checkout
  * the user deleted outside the app is forgotten here rather than kept for the rest of the session.
  */
-export function retainedEnvironments(state: WorkspaceState, workspaceId: string, result: ChangedFilesResult) {
+export function retainedEnvironments(state: Pick<WorkspaceState, "projects" | "worktrees" | "environments">, workspaceId: string, result: ChangedFilesResult) {
   const live = new Set([
     workspaceId,
     ...state.projects.map((project) => project.workspaceId),

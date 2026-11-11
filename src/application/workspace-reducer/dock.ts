@@ -1,87 +1,89 @@
 /** The dock itself: its tabs, its panels, and how much of the window it takes. */
-import { reduceBrowser } from "./browser.js";
+import { newBrowserTab, reduceBrowser } from "./browser.js";
 import { reduceTerminal } from "./terminal.js";
-import { applied, owned } from "./slice.js";
+import { andThen, applied, owned, type Step } from "./slice.js";
 import { settingsShown } from "./settings.js";
 import { reduceSideChatClose } from "./side-chats.js";
 import { browserEffectsForTab } from "./browser-tabs.js";
-import { defaultBranchRange, initialRange, readDiff } from "./diff-reads.js";
+import { defaultBranchRange, diffRead, initialRange } from "./diff-reads.js";
 import { subjectWorkspaceId } from "./environment.js";
-import { TAKE_KEYS, focusDockTab } from "./dock-tabs.js";
+import { TAKE_KEYS, docksOf, editDock, focusDockTabIn, overviewFoldIn, type DocksEdit } from "./dock-tabs.js";
 import { followUps, settled } from "./shared.js";
+import { readIn, threadsOf } from "./thread-edits.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { readAttention } from "../../domain/attention.js";
 import { isOverviewSection } from "../../domain/coordination.js";
 import { DIFF_PANEL, DOCK_PICKER, OVERVIEW_PANEL, WORKFLOW_PANEL, diffFor, dockOwner, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock, withDock, type WorkspaceState } from "../workspace-state.js";
 
 export const DOCK_INPUTS = [
-  "view.close-tab", "view.new-tab", "view.select-dock-index", "view.set-dock-open", "view.set-dock-expanded", "view.open-dock-panel",
+  "view.new-tab", "view.select-dock-index", "view.set-dock-open", "view.set-dock-expanded", "view.open-dock-panel",
   "view.open-workflow", "view.close-dock-panel", "view.select-dock-tab", "view.close-thread-tab", "view.set-overview-group"
 ] as const;
 type DockInput = Extract<WorkspaceInput, { type: (typeof DOCK_INPUTS)[number] }>;
 
+/** ⌘W, which closes whatever is in front, a side chat's run with it. */
+export const DOCK_CLOSE_INPUTS = ["view.close-tab"] as const;
+
 /** Reads the review for the checkout it is about now, starting over when that is another checkout. */
-function reviewSubject(state: WorkspaceState, owner: string): WorkspaceTransition {
+function reviewSubject(state: WorkspaceState, owner: string): Step {
   const diff = diffFor(state, owner);
-  if (diff.workspaceId === null || diff.workspaceId === subjectWorkspaceId(state, owner)) return readDiff(state, owner, initialRange(state, owner, diff));
+  if (diff.workspaceId === null || diff.workspaceId === subjectWorkspaceId(state, owner)) return diffRead(state, owner, initialRange(state, owner, diff));
   const range = diff.mode === "uncommitted" ? diff.range : defaultBranchRange(state, owner);
-  return readDiff(state, owner, range, { result: null, collapsed: [], viewed: {} });
+  return diffRead(state, owner, range, { result: null, collapsed: [], viewed: {} });
 }
 
-export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTransition {
-  switch (input.type) {
-    case "view.close-tab": {
-      const { owner, dock } = frontDock(state);
-      if (state.worktreeMove) return settled({ ...state, worktreeMove: null });
-      if (state.forkName) return settled({ ...state, forkName: null });
-      if (state.archivePrompt) return settled({ ...state, archivePrompt: null });
-      if (state.projectEdit) return settled({ ...state, projectEdit: null });
-      if (state.settingsOpen || state.computerUseSetup) return applied(state, settingsShown(state, false));
-      if (!dock.open) return settled(state, [{ type: "close-window" }]);
-      /** A dock across the whole workspace is the frontmost thing there is, so it gives that up first. */
-      if (dock.expanded) return settled(withDock(state, owner, { expanded: false }));
-      const kind = dockTabKind(state, owner, dock.tab);
-      /** Overview does not close, so ⌘W on it hides the dock the way it does on the picker. */
-      const closed = kind === "picker" || dock.tab === OVERVIEW_PANEL ? settled(withDock(state, owner, { open: false }))
-        : kind === "browser" ? owned(reduceBrowser)(state, { type: "browser.close-tab", tabId: dock.tab })
-        : kind === "terminal" ? owned(reduceTerminal)(state, { type: "terminal.close", terminalId: dock.tab })
-        : kind === "side-chat" ? reduceSideChatClose(state, { type: "side-chat.close", chatId: dock.tab })
-        : kind === "thread" ? reduceDock(state, { type: "view.close-thread-tab", taskId: dock.tab })
-        : reduceDock(state, { type: "view.close-dock-panel", panel: dock.tab });
-      /** Whatever the closed view was holding is gone with it, so the window takes the keys back. */
-      return { state: closed.state, effects: [...closed.effects, ...TAKE_KEYS] };
-    }
+export function reduceDockClose(state: WorkspaceState, _input: Extract<WorkspaceInput, { type: "view.close-tab" }>): WorkspaceTransition {
+  const { owner, dock } = frontDock(state);
+  if (state.worktreeMove) return settled({ ...state, worktreeMove: null });
+  if (state.forkName) return settled({ ...state, forkName: null });
+  if (state.archivePrompt) return settled({ ...state, archivePrompt: null });
+  if (state.projectEdit) return settled({ ...state, projectEdit: null });
+  if (state.settingsOpen || state.computerUseSetup) return applied(state, settingsShown(state, false));
+  if (!dock.open) return settled(state, [{ type: "close-window" }]);
+  /** A dock across the whole workspace is the frontmost thing there is, so it gives that up first. */
+  if (dock.expanded) return settled(withDock(state, owner, { expanded: false }));
+  const kind = dockTabKind(state, owner, dock.tab);
+  /** Overview does not close, so ⌘W on it hides the dock the way it does on the picker. */
+  const closed = kind === "picker" || dock.tab === OVERVIEW_PANEL ? settled(withDock(state, owner, { open: false }))
+    : kind === "browser" ? owned(reduceBrowser)(state, { type: "browser.close-tab", tabId: dock.tab })
+    : kind === "terminal" ? owned(reduceTerminal)(state, { type: "terminal.close", terminalId: dock.tab })
+    : kind === "side-chat" ? reduceSideChatClose(state, { type: "side-chat.close", chatId: dock.tab })
+    : kind === "thread" ? applied(state, reduceDock(state, { type: "view.close-thread-tab", taskId: dock.tab }))
+    : applied(state, reduceDock(state, { type: "view.close-dock-panel", panel: dock.tab }));
+  /** Whatever the closed view was holding is gone with it, so the window takes the keys back. */
+  return { state: closed.state, effects: [...closed.effects, ...TAKE_KEYS] };
+}
 
+export function reduceDock(state: WorkspaceState, input: DockInput): Step {
+  switch (input.type) {
     /** ⌘W's inverse, answering with whatever the panel is showing rather than one fixed thing. */
     case "view.new-tab": {
-      if (state.settingsOpen) return settled(state);
+      if (state.settingsOpen) return {};
       const { owner, dock } = frontDock(state);
       const kind = dock.open ? dockTabKind(state, owner, dock.tab) : "picker";
-      return kind === "browser" ? owned(reduceBrowser)(state, { type: "browser.new-tab" }) : owned(reduceTerminal)(state, { type: "terminal.open" });
+      return kind === "browser" ? newBrowserTab(state) : reduceTerminal(state, { type: "terminal.open" });
     }
 
     case "view.select-dock-index": {
       const owner = dockOwner(state);
       const tabs = dockTabIds(state, owner);
       const tab = input.index === -1 ? tabs[tabs.length - 1] : tabs[input.index];
-      return tab ? reduceDock(state, { type: "view.select-dock-tab", tab }) : settled(state);
+      return tab ? reduceDock(state, { type: "view.select-dock-tab", tab }) : {};
     }
 
     case "view.set-dock-open": {
       const { owner, dock } = frontDock(state);
-      if (dock.open === input.open) return settled(state);
-      const toggled = withDock(state, owner, { open: input.open });
+      if (dock.open === input.open) return {};
+      const toggled = editDock(docksOf(state), owner, { open: input.open });
       /** A panel shown is one to work in; a panel hidden must not leave a page it was drawing with the keys. */
-      if (!input.open) return settled(withDock(toggled, owner, { expanded: false }), TAKE_KEYS);
-      return dockTabKind(toggled, owner, dock.tab) === "picker" ? settled(toggled) : focusDockTab(toggled, owner, dock.tab);
+      if (!input.open) return { edits: [editDock(toggled, owner, { expanded: false })], effects: TAKE_KEYS };
+      return focusedUnlessPicker(state, toggled, owner, dock.tab);
     }
 
     case "view.set-dock-expanded": {
       const { owner, dock } = frontDock(state);
-      if (dock.expanded === input.expanded) return settled(state);
+      if (dock.expanded === input.expanded) return {};
       /** Taking the whole workspace is also a way of asking for the dock, so expanding shows it. */
-      const toggled = withDock(state, owner, { expanded: input.expanded, open: input.expanded || dock.open });
-      return dockTabKind(toggled, owner, dock.tab) === "picker" ? settled(toggled) : focusDockTab(toggled, owner, dock.tab);
+      return focusedUnlessPicker(state, editDock(docksOf(state), owner, { expanded: input.expanded, open: input.expanded || dock.open }), owner, dock.tab);
     }
 
     case "view.open-dock-panel": {
@@ -90,71 +92,79 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
       const subject = input.taskId && dock.threadTabs.includes(input.taskId) ? input.taskId : undefined;
       const { [input.panel]: _previous, ...others } = dock.subjects;
       const subjects = subject ? { ...others, [input.panel]: subject } : others;
-      const shown = focusDockTab(withDock(state, owner, { open: true, panels, tab: input.panel, subjects }), owner, input.panel);
-      const opened = shown.state;
-      const effects = [...browserEffectsForTab(opened, owner, input.panel), ...shown.effects];
+      const shown = focusDockTabIn(editDock(docksOf(state), owner, { open: true, panels, tab: input.panel, subjects }), owner, input.panel);
+      const opened: Step = { edits: [shown.docks], effects: [...browserEffectsForTab(shown.docks.view, owner, input.panel), ...shown.effects] };
       /** However the review is reached, it opens on a list read now rather than one read last time. */
-      if (input.panel !== DIFF_PANEL) return settled(opened, effects);
-      const read = reviewSubject(opened, owner);
-      return { state: read.state, effects: [...effects, ...read.effects] };
+      if (input.panel !== DIFF_PANEL) return opened;
+      return andThen(state, opened, (next) => reviewSubject(next, owner));
     }
 
     case "view.open-workflow": {
       const listed = state.currentId ? state.workflows[state.currentId] ?? [] : [];
-      if (!listed.some((workflow) => workflow.id === input.workflowId)) return settled(state);
-      const opened = withDock(state, dockOwner(state), { workflowId: input.workflowId });
-      return reduceDock(opened, { type: "view.open-dock-panel", panel: WORKFLOW_PANEL });
+      if (!listed.some((workflow) => workflow.id === input.workflowId)) return {};
+      const following: Step = { edits: [editDock(docksOf(state), dockOwner(state), { workflowId: input.workflowId })] };
+      return andThen(state, following, (opened) => reduceDock(opened, { type: "view.open-dock-panel", panel: WORKFLOW_PANEL }));
     }
 
     case "view.close-dock-panel": {
       const { owner, dock } = frontDock(state);
-      if (!dock.panels.includes(input.panel) || input.panel === OVERVIEW_PANEL) return settled(state);
+      if (!dock.panels.includes(input.panel) || input.panel === OVERVIEW_PANEL) return {};
       const tab = dock.tab === input.panel ? dockTabAfterClosing(state, owner, input.panel) : dock.tab;
-      const closed = withDock(state, owner, {
+      const closed = editDock(docksOf(state), owner, {
         panels: dock.panels.filter((panel) => panel !== input.panel),
         tab,
         ...(input.panel === WORKFLOW_PANEL ? { workflowId: null } : {}),
       });
-      return settled(closed, browserEffectsForTab(closed, owner, tab));
+      return { edits: [closed], effects: browserEffectsForTab(closed.view, owner, tab) };
     }
 
     case "view.close-thread-tab": {
       const { owner, dock } = frontDock(state);
-      if (!dock.threadTabs.includes(input.taskId)) return settled(state);
+      if (!dock.threadTabs.includes(input.taskId)) return {};
       const last = dock.threadTabs.length === 1 && dock.panels.includes(OVERVIEW_PANEL);
       const tab = dock.tab !== input.taskId ? dock.tab : last ? OVERVIEW_PANEL : dockTabAfterClosing(state, owner, input.taskId);
       /** Closing a coordinator's last thread tab falls back to its Overview; with nothing to fall back to, the dock hides. */
       const open = dock.open && tab !== DOCK_PICKER;
       const subjects = Object.fromEntries(Object.entries(dock.subjects).filter(([, id]) => id !== input.taskId));
-      const closed = withDock(state, owner, { threadTabs: dock.threadTabs.filter((id) => id !== input.taskId), tab, open, subjects, ...(open ? {} : { expanded: false }) });
+      const closed = editDock(docksOf(state), owner, { threadTabs: dock.threadTabs.filter((id) => id !== input.taskId), tab, open, subjects, ...(open ? {} : { expanded: false }) });
+      const closing: Step = { edits: [closed], effects: open ? browserEffectsForTab(closed.view, owner, tab) : TAKE_KEYS };
       /** A review of the closed tab's checkout goes back to the dock's own. */
-      const reread = dock.subjects[DIFF_PANEL] === input.taskId && dock.panels.includes(DIFF_PANEL) ? reviewSubject(closed, owner) : settled(closed);
-      return { state: reread.state, effects: [...(open ? browserEffectsForTab(closed, owner, tab) : TAKE_KEYS), ...followUps(reread.effects)] };
+      if (dock.subjects[DIFF_PANEL] !== input.taskId || !dock.panels.includes(DIFF_PANEL)) return closing;
+      return andThen(state, closing, (next) => {
+        const reread = reviewSubject(next, owner);
+        return { ...reread, effects: followUps(reread.effects ?? []) };
+      });
     }
 
     case "view.set-overview-group": {
       /** The coordinator may run on a paired computer, so its id is not looked up here. */
-      if (!isOverviewSection(input.group)) return settled(state);
-      const folds = state.overviewFolds[input.taskId] ?? {};
-      const fold = folds[input.group] ?? {};
+      if (!isOverviewSection(input.group)) return {};
+      const fold = state.overviewFolds[input.taskId]?.[input.group] ?? {};
       const next = { ...fold, ...(input.open === undefined ? {} : { open: input.open }), ...(input.all ? { all: true as const } : {}) };
-      if (next.open === fold.open && next.all === fold.all) return settled(state);
-      return settled({ ...state, overviewFolds: { ...state.overviewFolds, [input.taskId]: { ...folds, [input.group]: next } } });
+      if (next.open === fold.open && next.all === fold.all) return {};
+      return { edits: [overviewFoldIn(docksOf(state), input.taskId, input.group, next)] };
     }
 
     case "view.select-dock-tab": {
       const owner = dockOwner(state);
       const kind = dockTabKind(state, owner, input.tab);
-      /** A side chat or a thread's tab is a thread, so bringing it to the front is landing on it. */
-      const read = kind === "side-chat" || kind === "thread" ? readAttention(state, input.tab) : state;
-      const shown = withDock(read, owner, {
+      const shown = editDock(docksOf(state), owner, {
         tab: input.tab,
         open: true,
         ...(kind === "browser" ? { browserTabId: input.tab } : {}),
         ...(kind === "terminal" ? { terminalId: input.tab } : {}),
       });
-      const selected = focusDockTab(shown, owner, input.tab);
-      return settled(selected.state, [...browserEffectsForTab(selected.state, owner, input.tab), ...selected.effects]);
+      const selected = focusDockTabIn(shown, owner, input.tab);
+      /** A side chat or a thread's tab is a thread, so bringing it to the front is landing on it. */
+      const read = kind === "side-chat" || kind === "thread" ? [readIn(threadsOf(state), input.tab)] : [];
+      return { edits: [...read, selected.docks], effects: [...browserEffectsForTab(selected.docks.view, owner, input.tab), ...selected.effects] };
     }
   }
+}
+
+/** A dock just shown or widened hands its tab the keys, unless that tab is the picker. */
+function focusedUnlessPicker(state: WorkspaceState, docks: DocksEdit, owner: string, tab: string): Step {
+  if (dockTabKind(state, owner, tab) === "picker") return { edits: [docks] };
+  const focused = focusDockTabIn(docks, owner, tab);
+  return { edits: [focused.docks], effects: focused.effects };
 }

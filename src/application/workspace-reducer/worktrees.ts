@@ -1,7 +1,6 @@
 /** Where a thread works: the branch it starts from, and the checkouts the app keeps. */
 import { reduceWorktreeMove, relocateThread, withFollowUp } from "./worktree-moves.js";
 import { openWorktreeThread, reduceWorktreeSettings } from "./worktree-settings.js";
-import { reduceDiffs } from "./diffs.js";
 import { rereadDiff } from "./diff-reads.js";
 import { refreshEnvironment } from "./environment.js";
 import { SWITCH_PROJECT_ERROR, SWITCH_RUNNING_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR } from "./errors.js";
@@ -192,8 +191,8 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       const recover = recovery ? `Recover ${input.root.split("/").filter(Boolean).at(-1)} with ${recovery}.` : null;
       const worktreeSettings = settleBulk(dropped, input.root, { recover });
       if (bulk && inBulk) notice = bulkNotice(bulk, recover);
-      const refreshed = reduceDiffs({ ...dropped, worktreeSettings, managedWorktrees: dropped.managedWorktrees?.filter((item) => item.root !== input.root) ?? null, deletingWorktrees: withoutWorktreeRoot(dropped, input.root), worktreeManagementError: inBulk ? dropped.worktreeManagementError : null, worktreeManagementNotice: notice }, { type: "view.refresh-environment" });
-      return { ...refreshed, effects: followUps(refreshed.effects) };
+      const next = { ...dropped, worktreeSettings, managedWorktrees: dropped.managedWorktrees?.filter((item) => item.root !== input.root) ?? null, deletingWorktrees: withoutWorktreeRoot(dropped, input.root), worktreeManagementError: inBulk ? dropped.worktreeManagementError : null, worktreeManagementNotice: notice };
+      return settled(next, followUps(refreshEnvironment(next)));
     }
   }
 }

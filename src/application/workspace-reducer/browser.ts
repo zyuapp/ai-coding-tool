@@ -2,7 +2,7 @@
 import { askToBrowse, browserAllowed, browserEffectsForTab, closeBrowserTab, loadBrowserPage, patchBrowserTab, withBlankTab, type BrowserOwn } from "./browser-tabs.js";
 import { docksOf, editDock, focusDockTabIn, persistView, showDockTabIn } from "./dock-tabs.js";
 import { BROWSER_TAB_ERROR, BROWSER_URL_ERROR } from "./errors.js";
-import { afterward, type SliceTransition } from "./slice.js";
+import { afterward, type SliceTransition, type Step } from "./slice.js";
 import type { WorkspaceEffect, WorkspaceInput } from "./types.js";
 import { browserTarget, dockFor, dockOwner, ownerOfBrowserTab, type WorkspaceState } from "../workspace-state.js";
 import { browserOrigin, browserUrl } from "../../domain/browser.js";
@@ -32,6 +32,14 @@ export type BrowserEffect =
   | { type: "browser.clear-data" }
   | { type: "focus-browser"; tabId: string };
 
+/** A blank page in the dock in front, shown and holding the keys. */
+export function newBrowserTab(state: WorkspaceState): Step {
+  const owner = dockOwner(state);
+  const { docks: opened, tab } = withBlankTab(docksOf(state), owner);
+  const focused = focusDockTabIn(opened, owner, tab.id);
+  return { edits: [focused.docks], effects: [{ type: "browser.open", tabId: tab.id }, { type: "browser.show", tabId: tab.id }, ...focused.effects] };
+}
+
 export function reduceBrowser(state: WorkspaceState, input: BrowserInput): SliceTransition<BrowserOwn> {
   switch (input.type) {
     case "browser.open": {
@@ -43,12 +51,8 @@ export function reduceBrowser(state: WorkspaceState, input: BrowserInput): Slice
       return loadBrowserPage(state, undefined, owner, url, input.tabId, input.newTab === true, byUser, input.taskId);
     }
 
-    case "browser.new-tab": {
-      const owner = dockOwner(state);
-      const { docks: opened, tab } = withBlankTab(docksOf(state), owner);
-      const focused = focusDockTabIn(opened, owner, tab.id);
-      return { edits: [focused.docks], effects: [{ type: "browser.open", tabId: tab.id }, { type: "browser.show", tabId: tab.id }, ...focused.effects] };
-    }
+    case "browser.new-tab":
+      return newBrowserTab(state);
 
     case "browser.decide": {
       const approval = state.browserApproval;
