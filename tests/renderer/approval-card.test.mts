@@ -47,11 +47,15 @@ test("the approval card shows the command it would run and decides it either way
   await edit.unmount();
 });
 
-test("a failure notice carries an alert mark and a copy button, a neutral notice only its own mark", async () => {
-  const failed = await mount(React.createElement(SystemNotice, { message: createFailureMessage("The run failed.") }));
+test("a failure notice carries an alert mark, a copy button only with detail, and a neutral notice only its own mark", async () => {
+  const failed = await mount(React.createElement(SystemNotice, { message: { ...createFailureMessage("The run failed."), detail: "exit 1" } }));
   assert.ok(query(failed.container, ".message.system.error .notice-icon"));
   assert.equal(query(failed.container, ".copy-affordance").getAttribute("aria-label"), "Copy the error");
   await failed.unmount();
+
+  const short = await mount(React.createElement(SystemNotice, { message: createFailureMessage("Workspace is unavailable (missing).") }));
+  assert.equal(short.container.querySelector(".copy-affordance"), null);
+  await short.unmount();
 
   const info = await mount(React.createElement(SystemNotice, { message: createConversationMessage("system", "Moved to a worktree.") }));
   assert.equal(info.container.querySelector(".error"), null);

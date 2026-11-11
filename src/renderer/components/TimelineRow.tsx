@@ -1,4 +1,4 @@
-import { LuArrowUpRight as ArrowUpRight } from "react-icons/lu";
+import { LuArrowUpRight as ArrowUpRight, LuMessagesSquare as MessagesSquare } from "react-icons/lu";
 import { memo, useContext, useMemo } from "react";
 import { attachmentUrl } from "../../application/attachments";
 import type { StreamingTail } from "../../application/thread-run-state";
@@ -131,6 +131,7 @@ function ThreadMessage({ from, message }: { from: string; message: ConversationM
   const sender = senderThread(message.origin);
   const summary = (
     <>
+      <MessagesSquare className="thread-message-icon" size={14} aria-hidden="true" />
       <span className="work-lead">{from}</span>
       <span className="thread-message-preview">{message.text}</span>
     </>
@@ -139,7 +140,7 @@ function ThreadMessage({ from, message }: { from: string; message: ConversationM
     <Fold className="work-group thread-message" holds={[message.id]} summary={summary}>
       {() => (
         <div className="thread-message-body">
-          <div className="thread-message-text">{message.text}</div>
+          <div className="thread-message-text">{message.text.split("\n").filter((line) => line.trim()).map((line, index) => <p key={index}>{line}</p>)}</div>
           {sender && selectThread && (
             <Chip as="button" type="button" variant="link" className="message-origin-link thread-message-open" onClick={() => selectThread(sender)}>
               Open thread<ArrowUpRight className="decision-from-arrow" size={12} aria-hidden="true" />

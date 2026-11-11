@@ -31,24 +31,25 @@
 .btn:where([data-icon-only][data-size="lg"]) { min-width: 32px; }
 .btn:where([data-pill]) { border-radius: 999px; }
 
-.btn:where([data-variant="primary"]) { background: var(--accent); box-shadow: var(--glint); color: var(--accent-ink); font-weight: 600; }
-.btn:where([data-variant="primary"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--accent-hover); }
-.btn:where([data-variant="primary"][data-tone="info"]) { background: var(--info-badge); color: var(--badge-ink); }
-.btn:where([data-variant="primary"][data-tone="info"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: color-mix(in srgb, var(--info-badge) 82%, var(--p-fg-0)); }
+.btn:where([data-variant="primary"]) { background: var(--glass-edge), var(--glass-sheen), var(--accent); background-clip: border-area, border-box, border-box; box-shadow: var(--glass-tint-rim), 0 1px 3px rgb(from var(--accent) r g b / 0.25); color: var(--accent-ink); font-weight: 600; }
+.btn:where([data-variant="primary"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--glass-edge), var(--glass-sheen), var(--accent-hover); background-clip: border-area, border-box, border-box; }
+.btn:where([data-variant="primary"][data-tone="info"]) { background: var(--glass-edge), var(--glass-sheen), var(--info-badge); background-clip: border-area, border-box, border-box; color: var(--badge-ink); }
+.btn:where([data-variant="primary"][data-tone="info"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--glass-edge), var(--glass-sheen), color-mix(in srgb, var(--info-badge) 82%, var(--p-fg-0)); background-clip: border-area, border-box, border-box; }
 
 .btn:where([data-variant="inverse"]) { background: var(--surface-inverse); box-shadow: var(--glint); color: var(--ink-inverse); font-weight: 600; }
 .btn:where([data-variant="inverse"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--surface-inverse-soft); }
 
-.btn:where([data-variant="secondary"], [data-variant="danger"]) { border-color: var(--line-strong); background: var(--glass-sheen), var(--control); box-shadow: var(--glass-rim); }
-.btn:where([data-variant="secondary"]):where(:hover:not(:disabled, [aria-disabled="true"])) { border-color: var(--line-bright); background: var(--glass-sheen), var(--control-hover); }
+/** Secondary and danger are glass: a lit edge, the sheen, and a fill, under the rim. */
+.btn:where([data-variant="secondary"], [data-variant="danger"]) { background: var(--glass-edge), var(--glass-sheen), var(--control); background-clip: border-area, border-box, border-box; box-shadow: var(--glass-rim); }
+.btn:where([data-variant="secondary"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--glass-edge), var(--glass-sheen), var(--control-hover); background-clip: border-area, border-box, border-box; color: var(--ink); }
 
 .btn:where([data-variant="soft"]) { background: var(--control); box-shadow: var(--glass-rim); color: var(--ink-soft); font-weight: 520; }
 .btn:where([data-variant="soft"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--control-hover); color: var(--ink); }
 
-.btn:where([data-variant="danger"]) { border-color: var(--danger-line); color: var(--danger-soft); }
-.btn:where([data-variant="danger"]):where(:hover:not(:disabled, [aria-disabled="true"])) { border-color: var(--danger-line-hover); background: var(--danger-surface); }
-.btn:where([data-variant="danger"][data-armed]) { border-color: color-mix(in srgb, var(--danger) 75%, var(--canvas)); background: var(--danger-surface); color: var(--danger); }
-.btn:where([data-variant="danger"][data-armed]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: color-mix(in srgb, var(--danger) 18%, var(--surface)); }
+.btn:where([data-variant="danger"]) { background: var(--glass-edge), var(--glass-sheen), var(--danger-surface); background-clip: border-area, border-box, border-box; color: var(--danger-soft); }
+.btn:where([data-variant="danger"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--glass-edge), var(--glass-pick-danger); background-clip: border-area, border-box, border-box; color: var(--danger); }
+.btn:where([data-variant="danger"][data-armed]) { background: var(--glass-edge), var(--glass-sheen), rgb(from var(--danger) r g b / 0.34); background-clip: border-area, border-box, border-box; box-shadow: var(--glass-tint-rim); color: var(--ink); }
+.btn:where([data-variant="danger"][data-armed]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--glass-edge), var(--glass-sheen), rgb(from var(--danger) r g b / 0.44); background-clip: border-area, border-box, border-box; }
 
 .btn:where([data-variant="ghost"]) { color: var(--muted); }
 .btn:where([data-variant="ghost"]):where(:hover:not(:disabled, [aria-disabled="true"])) { background: var(--surface-hover); color: var(--ink-dim); }
@@ -57,8 +58,8 @@
 .btn:where([data-variant="link"]):where(:hover:not(:disabled, [aria-disabled="true"])) { text-decoration: underline; text-underline-offset: 3px; }
 
 /** A toggle at rest is a ghost; held down it is a raised pane, neutral or tinted with the accent. */
-.btn:where([aria-pressed="true"]) { border-color: var(--line-control); background: var(--glass-sheen), var(--surface-active); box-shadow: var(--glass-rim); color: var(--ink); }
-.btn:where([aria-pressed="true"][data-toggle="accent"]) { border-color: var(--accent-line); background: var(--glass-sheen), var(--accent-surface); color: var(--accent-soft); }
+.btn:where([aria-pressed="true"]) { background: var(--glass-edge), var(--glass-sheen), var(--surface-active); background-clip: border-area, border-box, border-box; box-shadow: var(--glass-rim); color: var(--ink); }
+.btn:where([aria-pressed="true"][data-toggle="accent"]) { background: var(--glass-edge), var(--glass-pick); background-clip: border-area, border-box, border-box; color: var(--accent-soft); }
 
 .btn:where([aria-busy="true"]) { cursor: progress; }
 .btn-busy-label { display: contents; visibility: hidden; }

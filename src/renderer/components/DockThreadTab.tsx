@@ -48,8 +48,8 @@ function TabResolution({ taskId, title, status }: { taskId: string; title: strin
   }
   if (!canResolve(status)) return null;
   return (
-    <CommandButton command={{ type: "task.resolve", taskId }} className="thread-tab-resolution" data-action="resolve" aria-label={`Resolve ${title}`}>
-      <Check size={14} aria-hidden="true" />Resolve
+    <CommandButton command={{ type: "task.resolve", taskId }} className="thread-tab-resolution" variant="soft" icon={<Check size={14} aria-hidden="true" />} data-action="resolve" aria-label={`Resolve ${title}`}>
+      Resolve
     </CommandButton>
   );
 }

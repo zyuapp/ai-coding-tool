@@ -33,14 +33,27 @@
 .settled-fold > .work-steps .work-run > summary { min-height: 33px; padding: 0 8px; }
 .updates-fold-entries { display: flex; flex-direction: column; gap: 26px; padding: 16px 0 4px; }
 .timeline-row.user:has(> .thread-message) { padding-bottom: 26px; }
-/* Two lines of what a thread sent, so most messages read whole without opening. */
-.thread-message > summary { min-width: 0; align-items: baseline; padding-block: 7px; background: var(--glass-control); box-shadow: var(--glass-rim); }
-.thread-message > summary > .work-lead { flex: none; color: var(--ink-dim); }
+/* What a thread sent is one card of glass: two lines of it closed, all of it under a divider open. */
+.thread-message {
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--glass-edge), var(--glass-control);
+  background-clip: border-area, border-box, border-box;
+  box-shadow: var(--glass-rim);
+}
+.thread-message > summary { min-width: 0; align-items: baseline; gap: 8px; border-radius: 0; padding: 8px 11px; }
+.thread-message > summary:hover { background: var(--wash); }
+.thread-message-icon { flex: none; align-self: center; color: var(--accent-text); }
+.thread-message > summary > .work-lead { flex: none; color: var(--ink-dim); font-weight: 560; }
 .thread-message-preview { flex: 1; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
 .thread-message[open] .thread-message-preview { display: none; }
-.thread-message[open] > summary::after { margin-left: auto; }
-.thread-message-body { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 8px 4px; }
-.thread-message-text { color: var(--muted); font-size: var(--text-content); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.thread-message[open] > summary { border-bottom: 1px solid var(--line-soft); }
+.thread-message[open] > summary::after { align-self: center; margin-left: auto; }
+.thread-message-body { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px 14px 12px 33px; animation: fold-open 180ms var(--panel-slide-ease); }
+@media (prefers-reduced-motion: reduce) { .thread-message-body { animation: none; } }
+.thread-message-text { display: flex; flex-direction: column; gap: 8px; color: var(--ink-dim); font-size: var(--text-meta); line-height: 1.55; overflow-wrap: anywhere; }
+.thread-message-text > p { margin: 0; }
 /* Durations and counts sit in one right-aligned cluster, so a run's times read as a column. */
 .work-meta { flex: none; display: flex; align-items: center; gap: 9px; margin-left: auto; }
 .work-time { flex: none; color: var(--quiet-strong); font-variant-numeric: tabular-nums; }

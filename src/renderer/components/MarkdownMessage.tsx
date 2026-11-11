@@ -1,5 +1,5 @@
 import { Children, createContext, isValidElement, memo, useContext, useMemo, useRef, useState, type ComponentProps, type ReactElement, type ReactNode } from "react";
-import { LuArrowUpRight as ArrowUpRight, LuFileText as FileText } from "react-icons/lu";
+import { LuFileText as FileText, LuMessageSquareText as ThreadGlyph } from "react-icons/lu";
 import Markdown, { defaultUrlTransform, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { parseFileHref, parseThreadHref } from "../../domain/markdown-links";
@@ -175,7 +175,7 @@ function MarkdownLink({ children, ...props }: ComponentProps<"a">) {
   const threadId = parseThreadHref(href);
   if (threadId && actions.selectThread) return (
     <Chip as="a" variant="link" {...props} className="message-link-thread" onClick={(event) => { event.preventDefault(); actions.selectThread!(threadId); }}>
-      {children}<ArrowUpRight className="message-link-glyph" aria-hidden="true" />
+      <ThreadGlyph className="message-link-glyph" aria-hidden="true" />{children}
     </Chip>
   );
   /** Anything else under the scheme is text, never a live link. */

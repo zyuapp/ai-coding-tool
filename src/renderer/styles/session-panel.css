@@ -12,7 +12,7 @@
   max-height: calc(100% - 110px);
   overflow: auto;
   border-radius: 12px;
-  box-shadow: 0 0 0 1px var(--line-glass), var(--glint), 0 4px 14px rgb(var(--p-shadow) / calc(0.12 * var(--p-shadow-scale)));
+  box-shadow: var(--shadow-composer);
   animation: panel-in 150ms ease-out;
 }
 .session-card { overflow: hidden; border-radius: 12px; }
@@ -36,7 +36,6 @@
   display: grid;
   grid-template-rows: var(--chrome-head) minmax(0, 1fr) auto auto;
   overflow: hidden;
-  border-left: 1px solid var(--line);
   background: var(--sunken);
   height: 100%;
 }

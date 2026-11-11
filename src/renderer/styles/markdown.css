@@ -44,8 +44,23 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 /* A link into the app or the checkout carries a glyph, so it reads apart from a web address. */
 .message-link-glyph { width: 0.85em; height: 0.85em; vertical-align: -0.08em; }
 .message-link-file > .message-link-glyph { margin-right: 0.2em; }
-.message-link-thread > .message-link-glyph { margin-left: 0.25em; opacity: 0.8; }
-.message-link-thread:hover > .message-link-glyph { opacity: 1; }
+/* A thread reads as the words around it, marked by its bubble and an accent underline. */
+.markdown-body a.message-link-thread {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--ink);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent-text) 45%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color 120ms ease, text-decoration-color 120ms ease;
+}
+.markdown-body a.message-link-thread:hover { background: none; color: var(--accent-soft); text-decoration-color: currentColor; }
+.message-link-thread > .message-link-glyph { margin-right: 0.28em; color: var(--accent-text); }
 .markdown-body ul, .markdown-body ol { margin: 0 0 16px; padding-left: 25px; }
 .markdown-body li { margin: 5px 0; padding-left: 2px; }
 .markdown-body li > ul, .markdown-body li > ol { margin: 5px 0 0; }

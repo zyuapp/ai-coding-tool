@@ -90,10 +90,9 @@ function readColours<K extends string>(tokens: Record<K, string>): Record<K, str
   return colours;
 }
 
-/** The colours are the stylesheet's, read from the tokens so a theme reaches the terminal too. */
+/** The colours are the stylesheet's, read from the tokens so a theme reaches the terminal too. The cells stay clear so the viewport's own fill shows behind them. */
 function terminalTheme(): Record<string, string> {
-  return readColours({
-    background: "--code-surface",
+  return { ...readColours({
     foreground: "--code-ink",
     cursor: "--ink",
     cursorAccent: "--code-surface",
@@ -114,7 +113,7 @@ function terminalTheme(): Record<string, string> {
     brightMagenta: "--ansi-bright-magenta",
     brightCyan: "--ansi-bright-cyan",
     brightWhite: "--ansi-bright-white",
-  });
+  }), background: "rgba(0, 0, 0, 0)" };
 }
 
 /** The face and size the terminal draws in, read from the stylesheet the way its colours are. */
@@ -199,6 +198,7 @@ async function terminalView(terminalId: string, computerId?: string): Promise<Te
     scrollback: SCROLLBACK_LINES,
     fontFamily: font.family,
     fontSize: font.size,
+    allowTransparency: true,
     theme: terminalTheme(),
   });
   const fit = new FitAddon();

@@ -16,16 +16,16 @@
 ::-webkit-scrollbar-track:vertical { margin-block: 8px; }
 ::-webkit-scrollbar-track:horizontal { margin-inline: 8px; }
 ::-webkit-scrollbar-thumb {
-  min-height: 32px;
-  min-width: 32px;
-  border: 3.5px solid transparent;
+  min-height: 36px;
+  min-width: 36px;
+  border: 4px solid transparent;
   border-radius: 999px;
-  background: linear-gradient(to right, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0)) padding-box, var(--scroll-thumb) padding-box;
-  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.1);
+  background: linear-gradient(to right, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.04) 70%) padding-box, rgb(from var(--p-fg-0) r g b / 0.14) padding-box;
+  box-shadow: inset 0 0 0 0.5px light-dark(rgb(0 0 0 / 0.14), rgb(255 255 255 / 0.12)), inset 0 1px 0.5px -0.5px rgb(255 255 255 / 0.28);
 }
-::-webkit-scrollbar-thumb:horizontal { background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0)); }
-/* Under the pointer it swells, as the system's own does. */
-::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { border-width: 2px; background-color: var(--line-bright); }
+::-webkit-scrollbar-thumb:horizontal { background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.04) 70%); }
+/* Under the pointer it swells and clears, as the system's own does. */
+::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { border-width: 3px; background-color: rgb(from var(--p-fg-0) r g b / 0.26); }
 html, body, #root { height: 100%; margin: 0; }
 body { overflow: hidden; font-size: var(--text-content); }
 button, textarea, select { font: inherit; }
