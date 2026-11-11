@@ -1,6 +1,7 @@
 /** Scheduled ticks: what a thread arms, and what a tick makes of the run it starts. */
 import { resolveWorkspaceEffect, withPending } from "./run-queue.js";
 import { now, settled, targetId } from "./shared.js";
+import type { SliceTransition } from "./slice.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { coordinationNote } from "../coordination-messages.js";
 import { declinedTick, raisedFinding, whyTickCannotRun } from "../findings.js";
@@ -12,14 +13,16 @@ import type { Thread } from "../../domain/thread.js";
 import { automationRunPrompt, updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
+import type { AutomationsState } from "../state/automations.js";
 import type { AutomationAck, AutomationFire } from "../../contracts/ipc.js";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation.js";
 
-export const AUTOMATION_INPUTS = [
-  "automation.fired", "automation.notify", "automation.nothing-to-report", "automation.save", "automation.update", "automation.delete",
-  "automation.run-now", "automations.changed", "view.edit-automation"
-] as const;
+export const AUTOMATION_INPUTS = ["automation.save", "automation.update", "automation.delete", "automation.run-now", "view.edit-automation"] as const;
 type AutomationInput = Extract<WorkspaceInput, { type: (typeof AUTOMATION_INPUTS)[number] }>;
+
+/** What a tick does once it fires, and what the scheduler's list ending a watch does, which runs keep track of. */
+export const AUTOMATION_RUN_INPUTS = ["automation.fired", "automation.notify", "automation.nothing-to-report", "automations.changed"] as const;
+type AutomationRunInput = Extract<WorkspaceInput, { type: (typeof AUTOMATION_RUN_INPUTS)[number] }>;
 
 export type AutomationEvent =
   | { type: "automation.fired"; fire: AutomationFire }
@@ -32,7 +35,36 @@ export type AutomationEffect =
   | { type: "automation.run-now"; taskId: string }
   | { type: "automation.ack"; ack: AutomationAck };
 
-export function reduceAutomations(state: WorkspaceState, input: AutomationInput): WorkspaceTransition {
+export function reduceAutomations(state: WorkspaceState, input: AutomationInput): SliceTransition<AutomationsState> {
+  switch (input.type) {
+    case "automation.save": {
+      const taskId = targetId(state, input.taskId);
+      return taskId ? { effects: [{ type: "automation.save", draft: { ...input.draft, taskId } }] } : {};
+    }
+
+    case "automation.update": {
+      const taskId = targetId(state, input.taskId);
+      return taskId ? { effects: [{ type: "automation.update", taskId, patch: input.patch }] } : {};
+    }
+
+    case "automation.delete": {
+      const taskId = targetId(state, input.taskId);
+      return taskId ? { ...withoutAutomationEdit(state, taskId), effects: [{ type: "automation.delete", taskId }] } : {};
+    }
+
+    case "view.edit-automation": {
+      if (sameAutomationFields(input.fields, input.base)) return withoutAutomationEdit(state, input.taskId);
+      return { patch: { automationEdits: { ...state.automationEdits, [input.taskId]: { base: input.base, fields: input.fields } } } };
+    }
+
+    case "automation.run-now": {
+      const taskId = targetId(state, input.taskId);
+      return taskId ? { effects: [{ type: "automation.run-now", taskId }] } : {};
+    }
+  }
+}
+
+export function reduceAutomationRuns(state: WorkspaceState, input: AutomationRunInput): WorkspaceTransition {
   switch (input.type) {
     /** The scheduler owns the cadence; the workspace decides whether this tick can actually run. */
     case "automation.fired": {
@@ -64,31 +96,6 @@ export function reduceAutomations(state: WorkspaceState, input: AutomationInput)
 
     case "automation.nothing-to-report":
       return settled(withNothingToReport(state, input.taskId, input.checked, Date.now()));
-
-    case "automation.save": {
-      const taskId = targetId(state, input.taskId);
-      return taskId ? settled(state, [{ type: "automation.save", draft: { ...input.draft, taskId } }]) : settled(state);
-    }
-
-    case "automation.update": {
-      const taskId = targetId(state, input.taskId);
-      return taskId ? settled(state, [{ type: "automation.update", taskId, patch: input.patch }]) : settled(state);
-    }
-
-    case "automation.delete": {
-      const taskId = targetId(state, input.taskId);
-      return taskId ? settled(withoutAutomationEdit(state, taskId), [{ type: "automation.delete", taskId }]) : settled(state);
-    }
-
-    case "view.edit-automation": {
-      if (sameAutomationFields(input.fields, input.base)) return settled(withoutAutomationEdit(state, input.taskId));
-      return settled({ ...state, automationEdits: { ...state.automationEdits, [input.taskId]: { base: input.base, fields: input.fields } } });
-    }
-
-    case "automation.run-now": {
-      const taskId = targetId(state, input.taskId);
-      return taskId ? settled(state, [{ type: "automation.run-now", taskId }]) : settled(state);
-    }
 
     case "automations.changed":
       return settled(withEndedWatches({ ...state, automations: input.automations }, state.automations));
@@ -134,8 +141,8 @@ export function ack(pending: PendingRun, started: boolean): WorkspaceEffect[] {
   return pending.automationId ? [{ type: "automation.ack", ack: { automationId: pending.automationId, runId: pending.runId, started } }] : [];
 }
 
-function withoutAutomationEdit(state: WorkspaceState, taskId: string): WorkspaceState {
-  if (!(taskId in state.automationEdits)) return state;
+function withoutAutomationEdit(state: WorkspaceState, taskId: string): SliceTransition<AutomationsState> {
+  if (!(taskId in state.automationEdits)) return {};
   const { [taskId]: _dropped, ...automationEdits } = state.automationEdits;
-  return { ...state, automationEdits };
+  return { patch: { automationEdits } };
 }
