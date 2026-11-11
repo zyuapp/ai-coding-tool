@@ -7,6 +7,8 @@ import type { ThreadsEdit } from "./thread-edits.js";
 import type { RunsEdit } from "./run-edits.js";
 import type { EnginesEdit } from "../engine-access.js";
 import type { WorktreesEdit } from "./worktree-claims.js";
+import type { NavigationEdit } from "./thread-select.js";
+import type { DialogsEdit } from "../workspace-dialogs.js";
 import type { WorkspaceCommandResult } from "../../contracts/workspace-result.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import type { SettingsSection } from "../../domain/settings-section.js";
@@ -19,7 +21,18 @@ export type OwnPatch<Own> = Partial<Own> & { [Field in Exclude<keyof WorkspaceSt
  * State another owner keeps, as that owner's own functions left it. Each is a value only its owner's
  * functions make, naming only that owner's fields, so a slice changes it through them or not at all.
  */
-export type OwnerEdit<Facet = Record<never, never>> = DocksEdit | ComposerEdit | ToastsEdit | ThreadsEdit<Facet> | RunsEdit | EnginesEdit | WorktreesEdit;
+export type OwnerEdit<Facet = Record<never, never>> =
+  | DocksEdit | ComposerEdit | ToastsEdit | ThreadsEdit<Facet> | RunsEdit | EnginesEdit | WorktreesEdit | NavigationEdit | DialogsEdit;
+
+/**
+ * Every field of an owner's state, taken from `state`: what that owner's edit starts from. Naming one
+ * field too few or too many does not compile.
+ */
+export function ownFields<View>(state: View, fields: { readonly [Field in keyof View]-?: true }): View {
+  const view: Partial<View> = {};
+  for (const field of Object.keys(fields) as (keyof View)[]) view[field] = state[field];
+  return view as View;
+}
 
 /** `Facet` is the fields the slice keeps on threads: the only ones its thread edits may patch directly. */
 export type SliceTransition<Own, Facet = Record<never, never>> = {
@@ -38,6 +51,8 @@ export type SliceTransition<Own, Facet = Record<never, never>> = {
   closesMenu?: true;
   /** Saves the window's preferences as they stand once the patch is in, after the slice's own effects. */
   persists?: true;
+  /** A slice never hands back a whole state. */
+  state?: never;
 };
 
 /**

@@ -2,6 +2,40 @@ import type { Project } from "../domain/project.js";
 import { threadWorkspaceId, worktreeClaimants, worktreeFor } from "./thread-location.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import { computerOfThread } from "./computers.js";
+import { ownFields } from "./workspace-reducer/slice.js";
+import type { DialogsState, ForkName, ReviewPicker } from "./state/dialogs.js";
+
+/** The menus and confirmations as one input leaves them. Only the functions here make one. */
+class DialogsChange {
+  private declare readonly owned: never;
+  constructor(readonly view: DialogsState) {}
+}
+
+export type DialogsEdit = DialogsChange;
+
+export function dialogsOf(state: DialogsState): DialogsEdit {
+  return new DialogsChange(ownFields<DialogsState>(state, { forkName: true, archivePrompt: true, openMenu: true, reviewPicker: true }));
+}
+
+/** The menu open over the window, or none. */
+export function menuIn(edit: DialogsEdit, menu: string | null): DialogsEdit {
+  return new DialogsChange({ ...edit.view, openMenu: menu });
+}
+
+/** The fork naming dialog, open on a fork or closed. */
+export function forkNameIn(edit: DialogsEdit, forkName: ForkName | null): DialogsEdit {
+  return new DialogsChange({ ...edit.view, forkName });
+}
+
+/** The archive confirmation, open on a thread or closed. */
+export function archivePromptIn(edit: DialogsEdit, taskId: string | null): DialogsEdit {
+  return new DialogsChange({ ...edit.view, archivePrompt: taskId });
+}
+
+/** The review picker, open on a thread at a step or closed. */
+export function reviewPickerIn(edit: DialogsEdit, picker: ReviewPicker | null): DialogsEdit {
+  return new DialogsChange({ ...edit.view, reviewPicker: picker });
+}
 
 /** The folder editor as the dialog draws it: the folder being edited, and how the last save went. */
 export type ProjectEditorView = { project: Project; checkouts: number; saving: boolean; error: string | null };

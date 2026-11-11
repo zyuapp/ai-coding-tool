@@ -4,7 +4,8 @@
  */
 import type { ThreadsState } from "../state/threads.js";
 import { endedTurn, openedTurn, restoredTestimony, withdrawRun, type ActiveRun, type FinishedVerdict, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
-import { dismissed, withClosedIssues, withFinding } from "../../domain/attention.js";
+import { readRow } from "../thread-attention.js";
+import { dismissed, readAttention, withClosedIssues, withFinding } from "../../domain/attention.js";
 import { reopenedIfStuck, withCoordinationNote, withoutAnswer, type CoordinationNote } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
 import type { ThreadOutcome } from "../../domain/thread-run.js";
@@ -158,6 +159,34 @@ export function finishedIn<Field extends keyof Thread>(edit: ThreadsChange<Field
 /** A resolved thread its failed turn left stuck, open again. */
 export function reopenedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string): ThreadsChange<Field> {
   return mapped(edit, id, reopenedIfStuck);
+}
+
+/** A thread the user has seen: its verdict and what its runs found are read. A list with nothing unread is kept. */
+export function readIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string): ThreadsChange<Field> {
+  const read = readAttention(edit.view, id);
+  return read === edit.view ? edit : new ThreadsChange(read);
+}
+
+/** {@link readIn} for a row, which a coordinator speaks for with every thread under it, as {@link readRow} has it. */
+export function rowReadIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string | null): ThreadsChange<Field> {
+  const read = readRow(edit.view, id);
+  return read === edit.view ? edit : new ThreadsChange(read);
+}
+
+/** A thread's conversation, loaded from the store where only its summary was held. */
+export function historyLoadedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, messages: Thread["messages"]): ThreadsChange<Field> {
+  return mapped(edit, id, ({ historySummary: _loaded, ...thread }) => ({ ...thread, messages }));
+}
+
+/** A project's threads once the project is gone: none of them is in it, and each is filed away at `at` unless it was already. */
+export function projectRemovedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, projectId: string, at: () => number): ThreadsChange<Field> {
+  return new ThreadsChange({
+    threads: edit.view.threads.map((thread) => {
+      if (thread.projectId !== projectId) return thread;
+      const { projectId: _removed, ...projectless } = thread;
+      return thread.archivedAt === undefined ? { ...projectless, archivedAt: at() } : projectless;
+    }),
+  });
 }
 
 /** The list with `update` made to one thread. The list is new even when no thread has that id. */
