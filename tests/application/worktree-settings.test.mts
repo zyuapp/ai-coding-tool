@@ -153,6 +153,13 @@ test("bulk delete of two counts both, and a lone delete afterwards reports its p
   assert.equal(nothing.state.worktreeSettings.bulk, null);
 });
 
+test("starting a delete takes down the banner's error, and a bulk that deletes nothing leaves it", () => {
+  const shown = { ...bulkFixture(), actionError: "Earlier failure" };
+  assert.equal(reduce(shown, { type: "worktree.delete", root: heldWorktree("clean").root }).state.actionError, null);
+  assert.equal(reduce(shown, { type: "worktree.delete-safe", roots: [heldWorktree("clean").root] }).state.actionError, null);
+  assert.equal(reduce(shown, { type: "worktree.delete-safe", roots: [heldWorktree("dirty").root] }).state.actionError, "Earlier failure");
+});
+
 test("bulk delete keeps recovery pointers, a failure's error, and its count across closing Settings", () => {
   const roots = ["clean", "loose"].map((id) => heldWorktree(id).root);
   const started = reduce(bulkFixture(), { type: "worktree.delete-safe", roots }).state;

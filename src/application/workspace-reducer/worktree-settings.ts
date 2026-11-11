@@ -8,45 +8,51 @@ import { settled } from "./shared.js";
 import { reduceSettings } from "./settings.js";
 import { selectThread } from "./thread-select.js";
 import type { WorkspaceTransition } from "./types.js";
+import type { SliceTransition } from "./slice.js";
+import type { WorktreesState } from "../state/worktrees.js";
 
-type Input = Extract<WorktreeCommand, { type: "worktree.filter-project" | "worktree.confirm-delete" | "worktree.confirm-delete-safe" | "worktree.set-missing-open" | "worktree.set-threads-open" | "worktree.open-thread" }>;
+type Input = Extract<WorktreeCommand, { type: "worktree.filter-project" | "worktree.confirm-delete" | "worktree.confirm-delete-safe" | "worktree.set-missing-open" | "worktree.set-threads-open" }>;
 
-export function reduceWorktreeSettings(state: WorkspaceState, input: Input): WorkspaceTransition {
+export function reduceWorktreeSettings(state: WorkspaceState, input: Input): SliceTransition<WorktreesState> {
   const settings = state.worktreeSettings;
   switch (input.type) {
     case "worktree.filter-project":
-      return settled({ ...state, worktreeSettings: { ...settings, project: input.project, confirming: null, confirmingSafe: false } });
+      return { patch: { worktreeSettings: { ...settings, project: input.project, confirming: null, confirmingSafe: false } } };
     case "worktree.confirm-delete-safe":
-      return settled({ ...state, worktreeSettings: { ...settings, confirming: null, confirmingSafe: input.open } });
+      return { patch: { worktreeSettings: { ...settings, confirming: null, confirmingSafe: input.open } } };
     case "worktree.confirm-delete": {
-      if (input.root === null) return settled({ ...state, worktreeSettings: { ...settings, confirming: null } });
+      if (input.root === null) return { patch: { worktreeSettings: { ...settings, confirming: null } } };
       const worktree = worktreeSettingsViews(state, threadActivity(state).working)?.find((item) => item.root === input.root);
       if (worktree) {
-        if (worktree.busy || worktree.deleting) return settled(state);
-        return settled({ ...state, worktreeSettings: { ...settings, confirming: input.root } });
+        if (worktree.busy || worktree.deleting) return {};
+        return { patch: { worktreeSettings: { ...settings, confirming: input.root } } };
       }
       /** A paired computer's checkout is judged by its list, which the confirmation is drawn from. */
-      if (activeComputer(state)) return settled({ ...state, worktreeSettings: { ...settings, confirming: input.root } });
+      if (activeComputer(state)) return { patch: { worktreeSettings: { ...settings, confirming: input.root } } };
       const recorded = state.worktrees.find((item) => item.root === input.root);
-      if (!recorded || state.deletingWorktrees.includes(recorded.root)) return settled(state);
+      if (!recorded || state.deletingWorktrees.includes(recorded.root)) return {};
       const busy = threadActivity(state).working;
-      if (worktreeClaimants(state, recorded.id).some((thread) => busy.has(thread.id))) return settled(state);
-      const next = { ...state, worktreeSettings: { ...settings, confirming: input.root }, worktreeManagementLoading: true, worktreeManagementError: null };
-      return settled(next, state.worktreeManagementLoading ? [] : [{ type: "list-worktrees" }]);
+      if (worktreeClaimants(state, recorded.id).some((thread) => busy.has(thread.id))) return {};
+      return {
+        patch: { worktreeSettings: { ...settings, confirming: input.root }, worktreeManagementLoading: true, worktreeManagementError: null },
+        effects: state.worktreeManagementLoading ? [] : [{ type: "list-worktrees" }],
+      };
     }
     case "worktree.set-missing-open":
-      return settled({ ...state, worktreeSettings: { ...settings, missingOpen: input.open } });
+      return { patch: { worktreeSettings: { ...settings, missingOpen: input.open } } };
     case "worktree.set-threads-open": {
       const expandedThreads = settings.expandedThreads.filter((root) => root !== input.root);
       if (input.open) expandedThreads.push(input.root);
-      return settled({ ...state, worktreeSettings: { ...settings, expandedThreads } });
-    }
-    case "worktree.open-thread": {
-      const thread = state.threads.find((item) => item.id === input.taskId);
-      if (!thread?.worktreeId) return settled(state);
-      const closed = reduceSettings(state, { type: "view.set-settings-open", open: false });
-      const selected = selectThread(closed.state, thread.id);
-      return { state: selected.state, effects: [...closed.effects, ...selected.effects] };
+      return { patch: { worktreeSettings: { ...settings, expandedThreads } } };
     }
   }
+}
+
+/** A thread a checkout in Settings lists, opened: Settings closes and the thread is selected. */
+export function openWorktreeThread(state: WorkspaceState, input: Extract<WorktreeCommand, { type: "worktree.open-thread" }>): WorkspaceTransition {
+  const thread = state.threads.find((item) => item.id === input.taskId);
+  if (!thread?.worktreeId) return settled(state);
+  const closed = reduceSettings(state, { type: "view.set-settings-open", open: false });
+  const selected = selectThread(closed.state, thread.id);
+  return { state: selected.state, effects: [...closed.effects, ...selected.effects] };
 }

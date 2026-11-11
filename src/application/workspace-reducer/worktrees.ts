@@ -1,11 +1,12 @@
 /** Where a thread works: the branch it starts from, and the checkouts the app keeps. */
 import { reduceWorktreeMove, relocateThread, withFollowUp } from "./worktree-moves.js";
-import { reduceWorktreeSettings } from "./worktree-settings.js";
+import { openWorktreeThread, reduceWorktreeSettings } from "./worktree-settings.js";
 import { reduceDiffs } from "./diffs.js";
 import { rereadDiff } from "./diff-reads.js";
 import { refreshEnvironment } from "./environment.js";
 import { SWITCH_PROJECT_ERROR, SWITCH_RUNNING_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR } from "./errors.js";
-import { drainQueue } from "./run-queue.js";
+import { drainQueue, drained } from "./run-queue.js";
+import { afterward, applied, type SliceTransition } from "./slice.js";
 import { followUps, now, settled, targetId, rejected } from "./shared.js";
 import { dropWorktree, leaveWorktree, releaseWorktrees, withCreatingWorktree, withReleasingWorktree, withoutCreatingWorktree, withoutReleasingWorktree } from "./worktree-claims.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
@@ -15,7 +16,7 @@ import { isWorking, threadActivity } from "../thread-activity.js";
 import { worktreeSettingsViews } from "../worktree-settings.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, worktreeById, worktreeClaimants, worktreeFor } from "../thread-location.js";
 import type { WorkspaceState } from "../workspace-state.js";
-import { withoutWorktreeRoot } from "../state/worktrees.js";
+import { withoutWorktreeRoot, type WorktreesState } from "../state/worktrees.js";
 import { createConversationMessage } from "../../domain/conversation.js";
 import { dismissed } from "../../domain/attention.js";
 import type { Worktree } from "../../domain/worktree.js";
@@ -23,12 +24,19 @@ import type { CreatedWorktree, WorktreeSnapshotResult } from "../../contracts/ip
 import type { ManagedWorktree } from "../../domain/worktree.js";
 
 export const WORKTREE_INPUTS = [
-  "worktree.filter-project", "worktree.confirm-delete", "worktree.confirm-delete-safe", "worktree.delete-safe", "worktree.set-missing-open", "worktree.set-threads-open", "worktree.open-thread",
-  "view.move-worktree", "task.set-worktree", "task.move-worktree", "task.set-branch", "task.checkout-branch", "worktree.refresh", "worktree.reveal",
-  "worktree.delete", "worktree.created", "worktree.failed", "worktrees.loaded", "worktrees.failed", "worktree.released", "worktree.release-failed",
-  "worktree.deleted", "checkout.finished"
+  "worktree.open-thread", "view.move-worktree", "task.set-worktree", "task.move-worktree", "task.set-branch", "task.checkout-branch",
+  "worktree.created", "worktree.released", "worktree.deleted", "checkout.finished"
 ] as const;
 type WorktreeInput = Extract<WorkspaceInput, { type: (typeof WORKTREE_INPUTS)[number] }>;
+
+/** The checkouts Settings lists and manages, which change only the worktrees' own state. */
+export const WORKTREE_MANAGEMENT_INPUTS = [
+  "worktree.filter-project", "worktree.confirm-delete", "worktree.confirm-delete-safe", "worktree.delete-safe", "worktree.set-missing-open", "worktree.set-threads-open",
+  "worktree.refresh", "worktree.reveal", "worktree.delete", "worktree.failed", "worktrees.loaded", "worktrees.failed", "worktree.release-failed"
+] as const;
+type ManagementInput = Extract<WorkspaceInput, { type: (typeof WORKTREE_MANAGEMENT_INPUTS)[number] }>;
+
+type Own = WorktreesState;
 
 export type WorktreeEvent =
   | { type: "worktree.created"; taskId: string; worktree: CreatedWorktree; move?: boolean; projectId?: string; then?: string }
@@ -57,9 +65,8 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
   switch (input.type) {
     case "task.move-worktree": return reduceWorktreeMove(state, input);
 
-    case "worktree.filter-project": case "worktree.confirm-delete": case "worktree.confirm-delete-safe": case "worktree.set-missing-open":
-    case "worktree.set-threads-open": case "worktree.open-thread":
-      return reduceWorktreeSettings(state, input);
+    case "worktree.open-thread":
+      return openWorktreeThread(state, input);
 
     /**
      * Asks before moving, but only where the answer could cost something. A thread with no checkout
@@ -124,37 +131,6 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
     case "task.checkout-branch": case "checkout.finished":
       return reduceCheckout(state, input);
 
-    case "worktree.refresh":
-      if (state.worktreeManagementLoading) return settled(state);
-      return settled({ ...state, worktreeManagementLoading: true, worktreeSettings: { ...state.worktreeSettings, confirming: null, confirmingSafe: false }, worktreeManagementError: null, worktreeManagementNotice: null }, [{ type: "list-worktrees" }]);
-
-    case "worktree.reveal": {
-      /** The Settings list loads on demand, so a checkout a thread records is revealable before it has. */
-      const worktree = state.managedWorktrees?.find((item) => item.root === input.root) ?? state.worktrees.find((item) => item.root === input.root);
-      if (!worktree) return settled({ ...state, worktreeManagementError: WORKTREE_MISSING_ERROR }, [], { ok: false, message: WORKTREE_MISSING_ERROR });
-      return settled({ ...state, worktreeManagementError: null }, [{ type: "reveal-worktree", root: worktree.root }]);
-    }
-
-    /** Manual deletion snapshots loose work first and refuses to move the ground under a run. */
-    case "worktree.delete": {
-      const taskId = targetId(state, input.taskId), thread = taskId ? state.threads.find((item) => item.id === taskId) : undefined;
-      const current = worktreeFor(state, thread);
-      const recorded = input.worktreeId ? worktreeById(state, input.worktreeId) : input.root ? state.worktrees.find((item) => item.root === input.root) : current;
-      const managed = input.root ? state.managedWorktrees?.find((item) => item.root === input.root) : undefined;
-      const worktree = recorded ?? managed;
-      if (!worktree) return settled({ ...state, worktreeManagementError: WORKTREE_MISSING_ERROR }, [], { ok: false, message: WORKTREE_MISSING_ERROR });
-      if (state.deletingWorktrees.includes(worktree.root)) return settled(state);
-      const claimants = state.threads.filter((claimant) => claimant.worktreeId === worktree.id);
-      /** A checkout a thread is already walking out of is on its way; asking again would remove it twice. */
-      if (claimants.some((claimant) => state.releasingWorktrees.includes(claimant.id))) return settled({ ...state, worktreeManagementError: WORKTREE_RELEASING_ERROR }, [], { ok: false, message: WORKTREE_RELEASING_ERROR });
-      if (claimants.some((claimant) => isWorking(state, claimant.id))) return rejected({ ...state, worktreeManagementError: WORKTREE_RUNNING_ERROR }, WORKTREE_RUNNING_ERROR);
-      const effect: WorkspaceEffect = { type: "delete-worktree", worktreeId: worktree.id, root: worktree.root, title: worktree.root.split("/").filter(Boolean).at(-1) ?? worktree.id };
-      if (input.missingOnly) effect.missingOnly = true;
-      return settled({ ...state, worktreeSettings: { ...state.worktreeSettings, confirming: null }, deletingWorktrees: [...state.deletingWorktrees, worktree.root], actionError: null, worktreeManagementError: null, worktreeManagementNotice: null }, [effect]);
-    }
-
-    case "worktree.delete-safe": return deleteSafe(state, input.roots);
-
     case "worktree.created": {
       const settling = withoutCreatingWorktree(state, input.taskId);
       const thread = settling.threads.find((item) => item.id === input.taskId);
@@ -179,21 +155,6 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
         updatedAt: now(),
       })), input.taskId);
     }
-
-    case "worktree.failed": {
-      /** A thread that never moved runs what it had queued where it already is. */
-      const drained = drainQueue(withoutCreatingWorktree(state, input.taskId), input.taskId, "deliver");
-      return rejected(drained.state, input.message, drained.effects);
-    }
-
-    /** The checkout is still there and the thread is still in it, so only the wait and the error change. */
-    case "worktree.release-failed":
-      return rejected(withoutReleasingWorktree(state, [input.taskId]), input.message);
-
-    case "worktrees.loaded": return settled({ ...state, managedWorktrees: input.worktrees, worktreeManagementLoading: false, worktreeManagementError: null });
-
-    /** A failed delete leaves the checkout on the list, so only its wait and the error change. */
-    case "worktrees.failed": return settled({ ...state, deletingWorktrees: input.root ? withoutWorktreeRoot(state, input.root) : state.deletingWorktrees, worktreeSettings: input.root ? settleBulk(state, input.root, null) : state.worktreeSettings, worktreeManagementLoading: input.root ? state.worktreeManagementLoading : false, worktreeManagementError: input.message }, [], { ok: false, message: input.message });
 
     case "worktree.released": {
       const thread = state.threads.find((item) => item.id === input.taskId);
@@ -237,8 +198,73 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
   }
 }
 
+export function reduceWorktreeManagement(state: WorkspaceState, input: ManagementInput): SliceTransition<Own> {
+  switch (input.type) {
+    case "worktree.filter-project": case "worktree.confirm-delete": case "worktree.confirm-delete-safe": case "worktree.set-missing-open": case "worktree.set-threads-open":
+      return reduceWorktreeSettings(state, input);
+
+    case "worktree.refresh":
+      if (state.worktreeManagementLoading) return {};
+      return {
+        patch: { worktreeManagementLoading: true, worktreeSettings: { ...state.worktreeSettings, confirming: null, confirmingSafe: false }, worktreeManagementError: null, worktreeManagementNotice: null },
+        effects: [{ type: "list-worktrees" }],
+      };
+
+    case "worktree.reveal": {
+      /** The Settings list loads on demand, so a checkout a thread records is revealable before it has. */
+      const worktree = state.managedWorktrees?.find((item) => item.root === input.root) ?? state.worktrees.find((item) => item.root === input.root);
+      if (!worktree) return { patch: { worktreeManagementError: WORKTREE_MISSING_ERROR }, result: { ok: false, message: WORKTREE_MISSING_ERROR } };
+      return { patch: { worktreeManagementError: null }, effects: [{ type: "reveal-worktree", root: worktree.root }] };
+    }
+
+    case "worktree.delete": return deleteWorktree(state, input);
+
+    case "worktree.delete-safe": return deleteSafe(state, input.roots);
+
+    case "worktree.failed": {
+      /** A thread that never moved runs what it had queued where it already is. */
+      const patch = { creatingWorktrees: withoutCreatingWorktree(state, input.taskId).creatingWorktrees };
+      return { patch, ...drained(afterward(state, { patch }), input.taskId, "deliver"), refusal: input.message };
+    }
+
+    /** The checkout is still there and the thread is still in it, so only the wait and the error change. */
+    case "worktree.release-failed":
+      return { patch: { releasingWorktrees: withoutReleasingWorktree(state, [input.taskId]).releasingWorktrees }, refusal: input.message };
+
+    case "worktrees.loaded": return { patch: { managedWorktrees: input.worktrees, worktreeManagementLoading: false, worktreeManagementError: null } };
+
+    /** A failed delete leaves the checkout on the list, so only its wait and the error change. */
+    case "worktrees.failed": return {
+      patch: { deletingWorktrees: input.root ? withoutWorktreeRoot(state, input.root) : state.deletingWorktrees, worktreeSettings: input.root ? settleBulk(state, input.root, null) : state.worktreeSettings, worktreeManagementLoading: input.root ? state.worktreeManagementLoading : false, worktreeManagementError: input.message },
+      result: { ok: false, message: input.message },
+    };
+  }
+}
+
+/** Manual deletion snapshots loose work first and refuses to move the ground under a run. */
+function deleteWorktree(state: WorkspaceState, input: Extract<ManagementInput, { type: "worktree.delete" }>): SliceTransition<Own> {
+  const taskId = targetId(state, input.taskId), thread = taskId ? state.threads.find((item) => item.id === taskId) : undefined;
+  const current = worktreeFor(state, thread);
+  const recorded = input.worktreeId ? worktreeById(state, input.worktreeId) : input.root ? state.worktrees.find((item) => item.root === input.root) : current;
+  const managed = input.root ? state.managedWorktrees?.find((item) => item.root === input.root) : undefined;
+  const worktree = recorded ?? managed;
+  if (!worktree) return { patch: { worktreeManagementError: WORKTREE_MISSING_ERROR }, result: { ok: false, message: WORKTREE_MISSING_ERROR } };
+  if (state.deletingWorktrees.includes(worktree.root)) return {};
+  const claimants = state.threads.filter((claimant) => claimant.worktreeId === worktree.id);
+  /** A checkout a thread is already walking out of is on its way; asking again would remove it twice. */
+  if (claimants.some((claimant) => state.releasingWorktrees.includes(claimant.id))) return { patch: { worktreeManagementError: WORKTREE_RELEASING_ERROR }, result: { ok: false, message: WORKTREE_RELEASING_ERROR } };
+  if (claimants.some((claimant) => isWorking(state, claimant.id))) return { patch: { worktreeManagementError: WORKTREE_RUNNING_ERROR }, refusal: WORKTREE_RUNNING_ERROR };
+  const effect: WorkspaceEffect = { type: "delete-worktree", worktreeId: worktree.id, root: worktree.root, title: worktree.root.split("/").filter(Boolean).at(-1) ?? worktree.id };
+  if (input.missingOnly) effect.missingOnly = true;
+  return {
+    patch: { worktreeSettings: { ...state.worktreeSettings, confirming: null }, deletingWorktrees: [...state.deletingWorktrees, worktree.root], worktreeManagementError: null, worktreeManagementNotice: null },
+    clearsError: true,
+    effects: [effect],
+  };
+}
+
 /** Each checkout is judged again here, so one that changed since the confirmation stays. A bulk still running takes the new roots in. */
-function deleteSafe(state: WorkspaceState, requested: string[]): WorkspaceTransition {
+function deleteSafe(state: WorkspaceState, requested: string[]): SliceTransition<Own> {
   const views = worktreeSettingsViews(state, threadActivity(state).working) ?? [];
   const safe = new Set(views.filter((view) => view.safe).map((view) => view.root));
   let next: WorkspaceState = { ...state, worktreeSettings: { ...state.worktreeSettings, confirmingSafe: false } };
@@ -246,7 +272,7 @@ function deleteSafe(state: WorkspaceState, requested: string[]): WorkspaceTransi
   const pending: string[] = [];
   for (const root of new Set(requested)) {
     if (!safe.has(root)) continue;
-    const deleted = reduceWorktrees(next, { type: "worktree.delete", root });
+    const deleted = applied(next, deleteWorktree(next, { type: "worktree.delete", root }));
     if (!deleted.state.deletingWorktrees.includes(root)) continue;
     next = deleted.state;
     effects.push(...deleted.effects);
@@ -254,7 +280,12 @@ function deleteSafe(state: WorkspaceState, requested: string[]): WorkspaceTransi
   }
   const running = state.worktreeSettings.bulk;
   const bulk = running ? { ...running, pending: [...running.pending, ...pending] } : pending.length ? { pending, deleted: 0, recover: [] } : null;
-  return settled({ ...next, worktreeSettings: { ...next.worktreeSettings, bulk } }, effects);
+  const { deletingWorktrees, worktreeManagementError, worktreeManagementNotice } = next;
+  return {
+    patch: { worktreeSettings: { ...next.worktreeSettings, bulk }, deletingWorktrees, worktreeManagementError, worktreeManagementNotice },
+    ...pending.length ? { clearsError: true as const } : {},
+    effects,
+  };
 }
 
 type Bulk = NonNullable<WorkspaceState["worktreeSettings"]["bulk"]>;
