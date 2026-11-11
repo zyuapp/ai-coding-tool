@@ -1,6 +1,9 @@
 /** Threads waiting out their account's usage limit, and the line they resume in once it lifts. */
-import { drainQueue, queuedFor, resolveWorkspaceEffect, withQueued } from "./workspace-reducer/run-queue.js";
+import { drainQueue, drained, queuedFor, resolveWorkspaceEffect } from "./workspace-reducer/run-queue.js";
+import { pendingIn, queuedIn, runsOf } from "./workspace-reducer/run-edits.js";
 import { now, settled } from "./workspace-reducer/shared.js";
+import { andThen, applied, type Step } from "./workspace-reducer/slice.js";
+import { threadsOf, unpausedIn } from "./workspace-reducer/thread-edits.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 import { settledTurn, settleTurn } from "./run-settlement.js";
 import { updateThread, withTurnEnded } from "./thread-run-state.js";
@@ -20,23 +23,26 @@ export function heldByLimit(state: WorkspaceState, taskId: string, at: number) {
   return Boolean(pause && (resumesOnItsOwn(pause) || at < pause.resetsAt));
 }
 
-/** A message written to a paused thread waits with it and moves it to the front of the line. */
-export function nudged(state: WorkspaceState, taskId: string, at: number): WorkspaceState {
-  return updateThread(state, taskId, (thread) => thread.limitPause ? { ...thread, limitPause: { ...thread.limitPause, nudgedAt: at } } : thread);
-}
-
 /**
  * Takes a thread out of line and starts it: with the first message written to it while it waited,
  * or with a prompt to carry on. Either run warms up before the next thread in line goes.
  */
 export function resumeThread(state: WorkspaceState, taskId: string): WorkspaceTransition {
+  return applied(state, resumed(state, taskId));
+}
+
+/** {@link resumeThread}, as the edits it makes. */
+export function resumed(state: WorkspaceState, taskId: string): Step {
   const thread = state.threads.find((item) => item.id === taskId);
   const pause = thread?.limitPause;
-  if (!thread || !pause || threadBusy(state, taskId)) return settled(state);
-  const lifted = updateThread(state, taskId, withoutLimitPause);
-  const [written, ...rest] = queuedFor(lifted, taskId);
-  if (written) return drainQueue(withQueued(lifted, taskId, [{ ...written, prompt: resumePrompt(pause, written.prompt) }, ...rest]), taskId, "resume");
-  const project = projectFor(lifted, thread);
+  if (!thread || !pause || threadBusy(state, taskId)) return {};
+  const lifted = unpausedIn(threadsOf(state), taskId);
+  const [written, ...rest] = queuedFor(state, taskId);
+  if (written) {
+    const first = { edits: [lifted, queuedIn(runsOf(state), taskId, [{ ...written, prompt: resumePrompt(pause, written.prompt) }, ...rest])] };
+    return andThen(state, first, (next) => drained(next, taskId, "resume"));
+  }
+  const project = projectFor(state, thread);
   const pending: PendingRun = {
     id: crypto.randomUUID(),
     runId: crypto.randomUUID(),
@@ -49,10 +55,7 @@ export function resumeThread(state: WorkspaceState, taskId: string): WorkspaceTr
     attachments: [],
     warming: true,
   };
-  return settled(
-    { ...lifted, pendingRuns: { ...lifted.pendingRuns, [pending.id]: pending } },
-    [resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(lifted, thread), false)],
-  );
+  return { edits: [lifted, pendingIn(runsOf(state), pending)], effects: [resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false)] };
 }
 
 /**

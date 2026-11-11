@@ -32,7 +32,7 @@ import { isComputerInput, reduceComputers, type ComputerInput } from "../compute
 import { isEngineInput, reduceEngine, type EngineInput } from "../engine-access.js";
 import { reduceToasts } from "../toasts.js";
 import type { WorkspaceState } from "../workspace-state.js";
-import { cancelPause, resumeThread } from "../limit-pauses.js";
+import { cancelPause, resumed } from "../limit-pauses.js";
 import { reduceErrorDismissed } from "./shared.js";
 import { owned } from "./slice.js";
 import { APP_UPDATE_INPUTS, reduceAppUpdate } from "../app-updates.js";
@@ -60,7 +60,7 @@ export const CLAIMS = [
   claim(PROJECT_INPUTS, reduceProjectCommands),
   /** The line itself moves in {@link reconcileLimitPauses}, which every input passes through. */
   claim(["limits.elapsed"], owned(() => ({}))),
-  claim(["limit.resume"], (state, input) => resumeThread(state, input.taskId)),
+  claim(["limit.resume"], owned((state, input) => resumed(state, input.taskId))),
   claim(["limit.cancel"], (state, input) => cancelPause(state, input.taskId)),
   claim(RUN_INPUTS, reduceRuns),
   claim(AUTOMATION_INPUTS, owned(reduceAutomations)),
