@@ -206,6 +206,7 @@ function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]
     onPointerCancel={() => setDrag(null)}
   >
     <div className="effort-rail" ref={rail}>
+      {steps.map((spec, step) => <i key={spec.id} className="effort-tick" style={{ "--effort-stop": at(step) } as CSSProperties} />)}
       <div className="effort-fill" />
       <div className="effort-knob" />
     </div>
