@@ -333,3 +333,22 @@ test("a side chat the user is watching is never marked unseen", () => {
   assert.equal(required(settled.threads.find((item) => item.id === "chat-1")).outcomeUnread, undefined);
   assert.equal(deriveView(settled).sideChatAttention.size, 0);
 });
+
+test("a side chat whose run cannot start says why in the chat, not in the window's banner, and a tick that cannot start tells its automation", () => {
+  const pending = (id: string, taskId: string, origin: "composer" | "automation") => ({ id, runId: `run-${id}`, origin, taskId, text: "Ask", prompt: "Ask", attachments: [], automationId: "automation-1" });
+  const state = workspace({
+    threads: [task("main-task"), task("chat-1")],
+    currentId: "main-task",
+    sideChats: [{ id: "chat-1", sourceThreadId: "main-task", error: null }],
+    pendingRuns: { side: pending("side", "chat-1", "composer"), tick: pending("tick", "main-task", "automation") },
+  });
+
+  const chat = reduce(state, { type: "run.unresolved", pendingId: "side", message: "No checkout" });
+  assert.equal(required(chat.state.sideChats[0]).error, "No checkout");
+  assert.equal(chat.state.actionError, null);
+  assert.equal(chat.result?.ok, false);
+
+  const tick = reduce(state, { type: "run.unresolved", pendingId: "tick", message: "No checkout" });
+  assert.deepEqual(tick.effects, [{ type: "automation.ack", ack: { automationId: "automation-1", runId: "run-tick", started: false } }]);
+  assert.equal("tick" in tick.state.pendingRuns, false);
+});

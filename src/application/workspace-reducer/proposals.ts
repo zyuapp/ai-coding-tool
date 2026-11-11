@@ -236,11 +236,6 @@ function allowedElsewhere(retried: WorkspaceState, leadId: string, proposalId: s
  * A suggestion's start failing, with why, or a new start clearing that. Either way it is no longer
  * starting, which only the thread it becomes ends otherwise.
  */
-export function withProposalFailure(state: WorkspaceState, leadId: string, proposalId: string, error: string | undefined): WorkspaceState {
-  return afterward(state, proposalFailure(state, leadId, proposalId, error));
-}
-
-/** {@link withProposalFailure}, as the edits it makes. */
 export function proposalFailure(state: WorkspaceState, leadId: string, proposalId: string, error: string | undefined): ProposalStep {
   const lead = state.threads.find((item) => item.id === leadId);
   const marked = lead && withProposalError(lead, proposalId, error);

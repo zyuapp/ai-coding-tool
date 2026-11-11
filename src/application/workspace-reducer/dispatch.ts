@@ -11,7 +11,7 @@ import { CLI_INPUTS, reduceCli } from "./cli.js";
 import { COMPUTER_USE_INPUTS, reduceComputerUse } from "./computer-use.js";
 import { PLAN_USAGE_INPUTS, reducePlanUsage } from "./plan-usage.js";
 import { PULL_REQUEST_INPUTS, reducePullRequests } from "./pull-requests.js";
-import { reduceRunControl, reduceRuns, RUN_CONTROL_INPUTS, RUN_INPUTS } from "./runs.js";
+import { reduceRunControl, reduceRunUnresolved, reduceRuns, RUN_CONTROL_INPUTS, RUN_INPUTS } from "./runs.js";
 import { AUTOMATION_INPUTS, reduceAutomations } from "./automations.js";
 import { reduceSideChats, SIDE_CHAT_INPUTS } from "./side-chats.js";
 import { DIFF_INPUTS, reduceDiffs } from "./diffs.js";
@@ -86,6 +86,7 @@ export const CLAIMS = [
   claim(["limits.elapsed"], () => ({})),
   claim(["limit.resume"], (state, input) => resumed(state, input.taskId)),
   claim(["limit.cancel"], (state, input) => pauseCancelled(state, input.taskId)),
+  claim(["run.unresolved"], reduceRunUnresolved),
   unowned(RUN_INPUTS, reduceRuns),
   claim(RUN_CONTROL_INPUTS, reduceRunControl),
   claim(AUTOMATION_INPUTS, reduceAutomations),

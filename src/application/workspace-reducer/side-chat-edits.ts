@@ -14,6 +14,11 @@ export function sideChatsOf(state: SideChatsState): SideChatsEdit {
   return new SideChatsChange(ownFields<SideChatsState>(state, { sideChats: true, sideChatSequence: true }));
 }
 
+/** A side chat whose run could not start, saying why in the dock rather than in the main thread's banner. */
+export function chatFailedIn(edit: SideChatsEdit, chatId: string, error: string): SideChatsEdit {
+  return new SideChatsChange({ ...edit.view, sideChats: edit.view.sideChats.map((chat) => chat.id === chatId ? { ...chat, error } : chat) });
+}
+
 /** Threads gone for good take the side chats they were, or were forked from, with them. */
 export function sideChatsForgottenIn(edit: SideChatsEdit, removed: Set<string>): SideChatsEdit {
   return new SideChatsChange({ ...edit.view, sideChats: withoutMatching(edit.view.sideChats, (chat) => removed.has(chat.id) || removed.has(chat.sourceThreadId)) });

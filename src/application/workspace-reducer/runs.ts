@@ -1,13 +1,14 @@
 /** A run's life: the checkout it resolves to, what it reports, and how it ends. */
 import { ack } from "./automations.js";
-import { withProposalFailure } from "./proposals.js";
+import { proposalFailure } from "./proposals.js";
 import { coordinatedStart, withSuggestionStarted } from "./coordinated-start.js";
 import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { attendedRun, beginRun, cancelling, pendingStep, processStopped, queuedFor, resolveWorkspaceEffect, runModelOf, sideChannelFor, startRunCommand, withDeliveredMessage, withQueued, withSideChat, withSteeringFailure, withUnsent, withoutPending, withoutStartedDraft } from "./run-queue.js";
+import { attendedRun, beginRun, cancelling, pendingStep, processStopped, queuedFor, resolveWorkspaceEffect, runModelOf, sideChannelFor, startRunCommand, withDeliveredMessage, withQueued, withSteeringFailure, withUnsent, withoutPending, withoutStartedDraft, unsent } from "./run-queue.js";
 import { approvalAnsweredIn, runsOf, threadEventIn } from "./run-edits.js";
 import { andThen, applied as joined, type Step } from "./slice.js";
+import { chatFailedIn, sideChatsOf } from "./side-chat-edits.js";
 import { followUps, now, settled, targetId, rejected } from "./shared.js";
 import { memberPullRequestRead } from "./pull-requests.js";
 import { withUsedWorktree } from "./worktree-claims.js";
@@ -35,11 +36,11 @@ import { compactableSession, reviewableSession } from "../session-operations.js"
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
-import { isCoordinator, worksUnderCoordinator } from "../../domain/coordination.js";
+import { isCoordinator, worksUnderCoordinator, type CoordinationThread } from "../../domain/coordination.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 
-export const RUN_INPUTS = ["run.resolved", "run.unresolved", "run.event"] as const;
+export const RUN_INPUTS = ["run.resolved", "run.event"] as const;
 type RunInput = Extract<WorkspaceInput, { type: (typeof RUN_INPUTS)[number] }>;
 
 /** What the user asks of a live run, and what a session reports from beside it, which change only the runs' own state. */
@@ -107,7 +108,29 @@ export function reduceRunControl(state: WorkspaceState, input: RunControlInput):
 }
 type ReviewInput = Extract<RunControlInput, { type: "review.open" | "review.close" | "review.set-step" | "review.start" }>;
 
-export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTransition {
+/** A run whose workspace could not be resolved never starts: its message goes back where it came from, and the failure says so where it belongs. */
+export function reduceRunUnresolved(state: WorkspaceState, input: Extract<WorkspaceInput, { type: "run.unresolved" }>): Step<CoordinationThread> {
+  const pending = state.pendingRuns[input.pendingId];
+  if (!pending) return {};
+  const dropped = unsent(state, pending);
+  if (pending.origin === "automation") return { ...dropped, effects: ack(pending, false) };
+  /** A suggestion that could not start says so on its row, ready to start again. */
+  const proposalId = pending.coordination?.proposalId;
+  const leadId = pending.coordination?.coordinatorId;
+  if (proposalId && leadId) return { ...andThen<CoordinationThread>(state, dropped, (next) => proposalFailure(next, leadId, proposalId, input.message)), result: { ok: false, message: input.message } };
+  /** A side chat lives in the dock, so its failure belongs there and not in the main thread's banner. */
+  const chatId = pending.taskId;
+  if (chatId && state.sideChats.some((chat) => chat.id === chatId)) {
+    return { ...andThen(state, dropped, (next) => ({ edits: [chatFailedIn(sideChatsOf(next), chatId, input.message)] })), result: { ok: false, message: input.message } };
+  }
+  return { ...dropped, refusal: input.message };
+}
+
+/**
+ * A run starting in the workspace it resolved to, and what it reports. Both still change the whole
+ * state: a report folds into threads and runs in one pass on the hottest path there is.
+ */
+export function reduceRuns(state: WorkspaceState, input: Exclude<RunInput, { type: "run.unresolved" }>): WorkspaceTransition {
   switch (input.type) {
     case "run.resolved": {
       const pending = state.pendingRuns[input.pendingId];
@@ -130,23 +153,6 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       return pending.origin === "automation"
         ? startAutomationRun(next, pending, input.workspace, input.worktree)
         : startComposerRun(next, pending, input.workspace, input.worktree);
-    }
-
-    case "run.unresolved": {
-      const pending = state.pendingRuns[input.pendingId];
-      if (!pending) return settled(state);
-      const next = withUnsent(state, pending);
-      if (pending.origin === "automation") return settled(next, ack(pending, false));
-      /** A suggestion that could not start says so on its row, ready to start again. */
-      const proposalId = pending.coordination?.proposalId;
-      if (proposalId && pending.coordination?.coordinatorId) {
-        return settled(withProposalFailure(next, pending.coordination.coordinatorId, proposalId, input.message), [], { ok: false, message: input.message });
-      }
-      /** A side chat lives in the dock, so its failure belongs there and not in the main thread's banner. */
-      if (pending.taskId && next.sideChats.some((chat) => chat.id === pending.taskId)) {
-        return settled(withSideChat(next, pending.taskId, (chat) => ({ ...chat, error: input.message })), [], { ok: false, message: input.message });
-      }
-      return rejected(next, input.message);
     }
 
     case "run.event": {
