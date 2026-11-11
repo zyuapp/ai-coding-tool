@@ -93,23 +93,42 @@ export function inTurn<Facet>(state: WorkspaceState, first: Step<Facet>, next: I
     if (joined.refusal !== undefined) return joined;
     current = afterward(current, last);
     last = step(current);
-    joined = followed(joined, last);
+    joined = followed(joined, last, state);
   }
   return joined;
 }
 
-function followed<Facet>(first: Step<Facet>, second: Step<Facet>): Step<Facet> {
+function followed<Facet>(first: Step<Facet>, second: Step<Facet>, base: WorkspaceState): Step<Facet> {
   const error = second.error ?? (second.clearsError && first.error ? { message: null, page: first.error.page } : second.clearsError ? undefined : first.error);
   const result = second.result ?? first.result;
   return {
     ...(error ? { error } : first.clearsError || second.clearsError ? { clearsError: true as const } : {}),
-    edits: [...first.edits ?? [], ...second.edits ?? []],
+    edits: [...unsuperseded(first.edits ?? [], second.edits ?? [], base), ...second.edits ?? []],
     effects: [...first.effects ?? [], ...second.effects ?? []],
     ...(result ? { result } : {}),
     ...(second.refusal === undefined ? {} : { refusal: second.refusal }),
     ...(first.closesMenu || second.closesMenu ? { closesMenu: true as const } : {}),
     ...(first.persists || second.persists ? { persists: true as const } : {}),
   };
+}
+
+/**
+ * `earlier` without the edits one of the same owner in `later` replaces, since each holds every field
+ * of its owner. Where every later edit of an owner leaves it as `base`, the steps' starting state, has
+ * it, the last earlier edit that changed it stays, so a state changed and put back still comes out new.
+ */
+function unsuperseded<Facet>(earlier: OwnerEdit<Facet>[], later: OwnerEdit<Facet>[], base: WorkspaceState): OwnerEdit<Facet>[] {
+  if (!earlier.length || !later.length) return earlier;
+  const restoring = new Map<unknown, boolean>();
+  for (const edit of later) restoring.set(edit.constructor, (restoring.get(edit.constructor) ?? true) && !differs(edit, base));
+  if (!earlier.some((edit) => restoring.has(edit.constructor))) return earlier;
+  const witnesses = new Map<unknown, OwnerEdit<Facet>>();
+  for (const edit of earlier) if (restoring.get(edit.constructor) && differs(edit, base)) witnesses.set(edit.constructor, edit);
+  return earlier.filter((edit) => !restoring.has(edit.constructor) || witnesses.get(edit.constructor) === edit);
+}
+
+function differs(edit: { view: object }, state: WorkspaceState): boolean {
+  return Object.entries(edit.view).some(([field, value]) => state[field as keyof WorkspaceState] !== value);
 }
 
 /** Whether a step turned its input down, refusing it or answering that it failed. */
@@ -127,7 +146,7 @@ export function afterward<Own, Facet>(state: WorkspaceState, { patch, edits = []
     ...(closesMenu ? { openMenu: null } : {}),
   } : state;
   for (const edit of edits) {
-    if (Object.entries(edit.view).some(([field, value]) => next[field as keyof WorkspaceState] !== value)) next = { ...next, ...edit.view };
+    if (differs(edit, next)) next = { ...next, ...edit.view };
   }
   return next;
 }
