@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { LuShieldAlert as ShieldAlert } from "react-icons/lu";
 import { shortcutAction } from "../../domain/shortcuts";
 import { approvalPreview } from "../../domain/approval-preview";
 import { toolLabel } from "../../domain/tool-call";
@@ -28,7 +29,7 @@ const DEFAULT_BINDINGS: DecideBindings = { allow: shortcutAction("run.allow")?.d
 /** Allow or Deny, whose tip names the keys that answer it. */
 export function DecideButton({ label, binding, secondary = false, onDecide }: { label: string; binding: string | null; secondary?: boolean; onDecide: () => void }) {
   return (
-    <Button variant={secondary ? "secondary" : "inverse"} {...(binding ? { "data-tip": shortcutTip(label, binding) } : {})} onClick={onDecide}>
+    <Button variant={secondary ? "secondary" : "primary"} {...(binding ? { "data-tip": shortcutTip(label, binding) } : {})} onClick={onDecide}>
       {label}
     </Button>
   );
@@ -70,8 +71,8 @@ export function ApprovalAction({ input, toolName, id }: { input: Record<string, 
 export function ApprovalCard({ approval, onDecide, bindings = DEFAULT_BINDINGS }: ApprovalCardProps) {
   const id = useId();
   return (
-    <section className="glass-float approval-card" data-tone="accent" aria-labelledby={`${id}-title`} {...(approval.description ? { "aria-describedby": `${id}-description` } : {})}>
-      <div className="approval-icon raised" aria-hidden="true">!</div>
+    <section className="glass-float approval-card" aria-labelledby={`${id}-title`} {...(approval.description ? { "aria-describedby": `${id}-description` } : {})}>
+      <div className="approval-icon" aria-hidden="true"><ShieldAlert size={16} /></div>
       <div>
         <div role="alert">
           <strong id={`${id}-title`}>{approval.title}</strong>

@@ -99,7 +99,6 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
       {approval && (
         <Notice
           className="browser-approval"
-          tone="accent"
           role="alert"
           icon={<ShieldAlert size={16} />}
           actions={<>

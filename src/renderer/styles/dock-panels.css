@@ -6,6 +6,9 @@
  */
 .browser-bar > .text-field { flex: 1; margin-left: 4px; }
 .browser-approval { margin: 8px 10px 0; }
+/** Asks the way a run's approval does: clear glass the accent rings and pools in at the left. */
+.notice.browser-approval:not([data-floating]) { border-color: transparent; background: radial-gradient(90% 160% at 0% 50%, rgb(from var(--accent) r g b / 0.12), transparent 60%), var(--glass-menu); box-shadow: var(--glass-float-rim), 0 0 0 1px rgb(from var(--accent) r g b / 0.32); color: var(--ink-dim); }
+.browser-approval > .notice-glyph { color: var(--accent-text); }
 
 .browser-viewport { position: relative; min-height: 0; flex: 1; background: var(--sunken); }
 .browser-empty { position: absolute; inset: 0; }
