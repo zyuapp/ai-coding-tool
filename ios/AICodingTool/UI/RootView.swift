@@ -168,42 +168,16 @@ extension View {
     }
 }
 
-/// Which computer the phone is talking to, and the way to the others: switch, pair another, or open this one's settings.
-struct ComputerMenu: View {
+/// Which computer the phone is talking to, and the way to the others in the Computers sheet.
+struct ComputerButton: View {
     var model: PhoneModel
     @Environment(\.palette) private var palette
-    @State private var panel: Panel?
-
-    private enum Panel: String, Identifiable {
-        case pairing, computer
-        var id: String { rawValue }
-    }
+    @State private var open = false
 
     private var current: PairedComputer? { model.connection.computers.first { $0.origin == model.connection.origin } }
 
     var body: some View {
-        Menu {
-            Section("Computers") {
-                let computers = model.connection.computers
-                ForEach(computers) { computer in
-                    /// A toggle puts the checkmark in the menu's own gutter, so every name starts at one edge.
-                    Toggle(isOn: Binding(get: { computer.origin == model.connection.origin }, set: { _ in model.connection.switchTo(computer) })) {
-                        Text(computer.title)
-                        /// Two computers of one name are told apart by where each is reached.
-                        if computers.filter({ $0.title == computer.title }).count > 1 { Text(computer.address) }
-                    }
-                }
-                Button { panel = .pairing } label: { Text("Pair a Computer…") }
-            }
-            if current != nil {
-                Section {
-                    Button { panel = .computer } label: {
-                        Text("Computer Settings")
-                        if model.live, let note = model.view.upkeepNote { Text(note) }
-                    }
-                }
-            }
-        } label: {
+        Button { open = true } label: {
             if #available(iOS 26, *) {
                 HStack(spacing: 6) {
                     Image(systemName: "desktopcomputer")
@@ -237,41 +211,13 @@ struct ComputerMenu: View {
             }
         }
         .accessibilityLabel("Computer: \(model.state.computerName ?? current?.title ?? "none"), \(model.restarting ? "Restarting" : model.state.connection.label)\(model.view.updateOffered ? ", update available" : "")")
-        .simultaneousGesture(TapGesture().onEnded {
-            model.checkForUpdates()
-            model.readUsage(within: 15 * 60)
-        })
         .onChange(of: model.live, initial: true) { _, live in
             if live {
                 model.checkForUpdates()
                 model.readUsage(within: 15 * 60)
             }
         }
-        .sheet(item: $panel) { panel in
-            switch panel {
-            case .pairing: PairAnotherSheet(model: model)
-            case .computer:
-                if let current { ComputerSheet(model: model, computer: current) }
-            }
-        }
-    }
-}
-
-/// The pairing screen as a sheet, which closes once the new computer has let the phone in.
-private struct PairAnotherSheet: View {
-    var model: PhoneModel
-    @Environment(\.dismiss) private var dismiss
-    @State private var token: String?
-
-    var body: some View {
-        NavigationStack {
-            GateView(model: model)
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-        }
-        .onAppear { token = model.state.credential?.token }
-        .onChange(of: model.state.credential?.token) { _, next in
-            if let next, next != token { dismiss() }
-        }
+        .sheet(isPresented: $open) { ComputersSheet(model: model) }
     }
 }
 

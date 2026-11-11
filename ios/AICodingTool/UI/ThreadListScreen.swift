@@ -88,7 +88,7 @@ struct ThreadListScreen: View {
         .barSubtitle(model.state.computerName)
         .searchable(text: $query, prompt: "Search Threads")
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) { ComputerMenu(model: model) }
+            ToolbarItem(placement: .topBarLeading) { ComputerButton(model: model) }
             if filterable.count > 1 || narrowed != nil {
                 ToolbarItem(placement: .topBarTrailing) { projectFilter }
             }

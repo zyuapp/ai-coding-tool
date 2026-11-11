@@ -39,7 +39,7 @@ extension View {
         }
     }
 
-    @ViewBuilder fileprivate func sheetPresentationGround(_ palette: Palette) -> some View {
+    @ViewBuilder func sheetPresentationGround(_ palette: Palette) -> some View {
         if #available(iOS 26, *) {
             self
         } else {
