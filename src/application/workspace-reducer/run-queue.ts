@@ -1,11 +1,11 @@
 /** Starting a run: the prompt it carries, the checkout it asks for, and the messages waiting behind it. */
-import { now, settled } from "./shared.js";
+import { now } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import { promptWithAnnotations } from "../annotations.js";
 import { promptWithAttachments } from "../attachments.js";
 import { annotationsFor, composerOf, filesFor, handedBackIn, imagesFor, pastesFor, textAfterSend, withAnnotations, withFiles, withImages, withPastes } from "../composer-drafts.js";
 import { afterward, applied, type Step } from "./slice.js";
-import { attendedIn, pendingIn, queuedIn, runsOf, stopAskedIn, withoutPendingIn } from "./run-edits.js";
+import { attendedIn, cancellingIn, pendingIn, queuedIn, runsOf, stopAskedIn, withoutPendingIn } from "./run-edits.js";
 import { answerReopenedIn, notedIn, threadsOf, turnOpenedIn, type ThreadsEdit } from "./thread-edits.js";
 import { promptWithFiles } from "../files.js";
 import { promptWithPastes } from "../pastes.js";
@@ -264,8 +264,12 @@ export function withSteeringFailure(state: WorkspaceState, taskId: string, messa
  * as the stop asked.
  */
 export function cancellingRun(state: WorkspaceState, active: ActiveRun): WorkspaceTransition {
-  const marked = active.cancelling ? state : withActiveRun(state, active.taskId, { ...active, cancelling: true });
-  return settled(marked, [{ type: "send-run-command", command: { type: "cancel", taskId: active.taskId, runId: active.runId } }]);
+  return applied(state, cancelling(state, active));
+}
+
+/** {@link cancellingRun}, as the edits it makes. */
+export function cancelling(state: WorkspaceState, active: ActiveRun): Step {
+  return { edits: [cancellingIn(runsOf(state), active.taskId)], effects: [{ type: "send-run-command", command: { type: "cancel", taskId: active.taskId, runId: active.runId } }] };
 }
 
 /** The kill is the agent process's to make; the row only says a stop is on its way. */

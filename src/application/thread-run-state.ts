@@ -177,14 +177,14 @@ function quietFraming(surfaceWhen: string) {
   return `This run is quiet: it settles without reaching the user unless you say otherwise. Surface it when: ${surfaceWhen} If that is what you found, call the aicodingtool-automation notify tool with a headline before you finish. If it is not, call nothing_to_report with what you checked. Call neither and the run surfaces as an ordinary one, which is what a run that could not do its job should do.`;
 }
 
-export function withActiveRun<T extends RunTransitionState>(state: T, threadId: string, run: ActiveRun | null): T {
+export function withActiveRun<T extends RunFeedsState>(state: T, threadId: string, run: ActiveRun | null): T {
   if (run) return { ...state, activeRuns: { ...state.activeRuns, [threadId]: run } } as T;
   const { [threadId]: _finished, ...activeRuns } = state.activeRuns;
   return { ...state, activeRuns } as T;
 }
 
 /** A run moved to another phase: what the phase it left carried goes with it. */
-export function withRunPhase<T extends RunTransitionState>(state: T, threadId: string, phase: RunPhase): T {
+export function withRunPhase<T extends RunFeedsState>(state: T, threadId: string, phase: RunPhase): T {
   const run = state.activeRuns[threadId];
   if (!run) return state;
   const { status: _left, retry: _retry, ...record } = run;
@@ -192,7 +192,7 @@ export function withRunPhase<T extends RunTransitionState>(state: T, threadId: s
 }
 
 /** The run's approval is answered: it goes, and the run is running again. */
-export function withApprovalAnswered<T extends RunTransitionState>(state: T, threadId: string): T {
+export function withApprovalAnswered<T extends RunFeedsState>(state: T, threadId: string): T {
   const run = state.activeRuns[threadId];
   if (!run) return state;
   const { [run.runId]: _answered, ...approvals } = state.approvals;
@@ -205,7 +205,7 @@ export function withRunStatus<T extends Pick<RunFeedsState, "runStatuses">>(stat
   return { ...state, runStatuses } as T;
 }
 
-export function withStreamingTail<T extends RunTransitionState>(state: T, threadId: string, tail: StreamingTail | null): T {
+export function withStreamingTail<T extends RunFeedsState>(state: T, threadId: string, tail: StreamingTail | null): T {
   if (tail) return { ...state, streamingTails: { ...state.streamingTails, [threadId]: tail } } as T;
   if (!(threadId in state.streamingTails)) return state;
   const { [threadId]: _cleared, ...streamingTails } = state.streamingTails;
@@ -227,7 +227,7 @@ export function withWorkflows<T extends Pick<RunFeedsState, "workflows">>(state:
 }
 
 /** Every workflow record but the named one, with that one replaced by what the update returns. */
-function updateWorkflow<T extends RunTransitionState>(state: T, threadId: string, id: string, update: (existing?: Workflow) => Workflow): T {
+function updateWorkflow<T extends RunFeedsState>(state: T, threadId: string, id: string, update: (existing?: Workflow) => Workflow): T {
   const workflows = state.workflows[threadId] ?? [];
   const existing = workflows.find((workflow) => workflow.id === id);
   return withWorkflows(state, threadId, existing
@@ -246,7 +246,7 @@ export function withSubagents<T extends Pick<RunFeedsState, "subagents">>(state:
   return { ...state, subagents: rest } as T;
 }
 
-function updateSubagent<T extends RunTransitionState>(state: T, threadId: string, subagentId: string, update: (subagent?: Subagent) => Subagent): T {
+function updateSubagent<T extends RunFeedsState>(state: T, threadId: string, subagentId: string, update: (subagent?: Subagent) => Subagent): T {
   const held = state.subagents[threadId] ?? [];
   const index = held.findIndex((subagent) => subagent.id === subagentId);
   if (index === -1) return withSubagents(state, threadId, [...held, update()]);
@@ -256,7 +256,7 @@ function updateSubagent<T extends RunTransitionState>(state: T, threadId: string
 }
 
 /** Shared subagent state changes, whether a run carries them or a session reports them later. */
-function applySubagentReport<T extends RunTransitionState>(state: T, threadId: string, event: SubagentReport): T {
+function applySubagentReport<T extends RunFeedsState>(state: T, threadId: string, event: SubagentReport): T {
   const metadata = (details: SubagentMetadata): SubagentMetadata => ({
     ...(details.model !== undefined ? { model: details.model } : {}),
     ...(details.effort !== undefined ? { effort: details.effort } : {}),
@@ -349,7 +349,7 @@ function applySubagentReport<T extends RunTransitionState>(state: T, threadId: s
 }
 
 /** What the agent process reports about work that outlives the run that started it. */
-export function applyThreadEvent<T extends RunTransitionState>(state: T, event: ThreadEvent): T {
+export function applyThreadEvent<T extends RunFeedsState>(state: T, event: ThreadEvent): T {
   switch (event.type) {
     case "subagent.started":
     case "subagent.metadata":
@@ -375,13 +375,13 @@ export function applyThreadEvent<T extends RunTransitionState>(state: T, event: 
  * What the thread's session has running in the background, kept by the thread: a shell or a monitor
  * outlives the run that started it. A stop already asked for stays marked until the process is gone.
  */
-function applyBackgroundEvent<T extends RunTransitionState>(state: T, event: BackgroundEvent): T {
+function applyBackgroundEvent<T extends RunFeedsState>(state: T, event: BackgroundEvent): T {
   const stopping = new Set((state.backgroundProcesses[event.taskId] ?? []).filter((process) => process.stopping).map((process) => process.id));
   return withBackgroundProcesses(state, event.taskId, event.processes.map((process) => stopping.has(process.id) ? { ...process, stopping: true } : process));
 }
 
 /** What a workflow reports, kept by its thread: the run that started it may be long over. */
-function applyWorkflowEvent<T extends RunTransitionState>(state: T, event: WorkflowEvent): T {
+function applyWorkflowEvent<T extends RunFeedsState>(state: T, event: WorkflowEvent): T {
   if (event.type === "workflow.started") {
     return updateWorkflow(state, event.taskId, event.id, (existing) => ({
       ...(existing ?? { phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: now() }),

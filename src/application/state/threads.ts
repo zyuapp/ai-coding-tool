@@ -1,15 +1,12 @@
-import type { ActiveGoal } from "../../domain/goal.js";
 import type { Thread } from "../../domain/thread.js";
 import { awayLeadOf, remoteLeadOf } from "../../domain/coordination.js";
 
 export type ThreadsState = {
   threads: Thread[];
-  /** Native goals live only as long as this app session. */
-  goals: Record<string, ActiveGoal>;
 };
 
 export function initialThreadsState(): ThreadsState {
-  return { threads: [], goals: {} };
+  return { threads: [] };
 }
 
 const remotelyLed = new WeakMap<readonly Thread[], readonly Thread[]>();

@@ -1,5 +1,6 @@
 import type { Annotation, AttachedFile, PastedText } from "../../domain/conversation.js";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine.js";
+import type { ActiveGoal } from "../../domain/goal.js";
 import { isUsersOwn, type MessageOrigin } from "../../domain/message-origin.js";
 import type { ReviewTarget } from "../../domain/review.js";
 import type { AgentEffort, BackgroundProcess, ExecutionPolicy, Subagent } from "../../domain/run.js";
@@ -86,6 +87,8 @@ export type RunFeedsState = {
    * arriving every few milliseconds never rewrites the thread it belongs to.
    */
   subagents: Record<string, Subagent[]>;
+  /** Each thread's native goal, as its session reports it. Goals live only as long as this app session. */
+  goals: Record<string, ActiveGoal>;
 };
 
 /** Runs on their way, the messages waiting for them, and what each live one reports. */
@@ -110,6 +113,7 @@ export function initialRunsState(): RunsState {
     backgroundProcesses: {},
     workflows: {},
     subagents: {},
+    goals: {},
     pendingRuns: {}, startingProposals: [], quietStops: [], quietSessions: [],
     queuedMessages: {},
     lastRunIds: {},

@@ -5,7 +5,9 @@ import { coordinatedStart, withSuggestionStarted } from "./coordinated-start.js"
 import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { beginRun, cancellingRun, queuedFor, resolveWorkspaceEffect, runModelOf, sideChannelFor, startRunCommand, stoppingProcess, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withUnsent, withoutPending, withoutStartedDraft } from "./run-queue.js";
+import { attendedRun, beginRun, cancelling, pendingStep, processStopped, queuedFor, resolveWorkspaceEffect, runModelOf, sideChannelFor, startRunCommand, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withUnsent, withoutPending, withoutStartedDraft } from "./run-queue.js";
+import { approvalAnsweredIn, runsOf, threadEventIn } from "./run-edits.js";
+import { andThen, type Step } from "./slice.js";
 import { followUps, now, settled, targetId, rejected } from "./shared.js";
 import { memberPullRequestRead } from "./pull-requests.js";
 import { withUsedWorktree } from "./worktree-claims.js";
@@ -19,7 +21,7 @@ import { settledHeadline, type RunSurfacing } from "../run-testimony.js";
 import { stopIntentOf } from "../outstanding-stops.js";
 import { settledAfterTestimony, settledEvent, settledTurn, settleTurn, withTurnTestimony, type Settlement } from "../run-settlement.js";
 import { nextSortIndex } from "../thread-order.js";
-import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withApprovalAnswered, type ActiveRun } from "../thread-run-state.js";
+import { answerPartId, applyRunEvent, ATTENDED_RUN, threadMark, updateThread, type ActiveRun } from "../thread-run-state.js";
 import { threadBusy, threadToBegin } from "../run-record.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
@@ -36,11 +38,66 @@ import { isCoordinator, worksUnderCoordinator } from "../../domain/coordination.
 import { clampTitle, type Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 
-export const RUN_INPUTS = [
-  "run.resolved", "run.unresolved", "run.cancel", "run.compact", "run.stop-process", "run.decide", "run.event", "thread.event", "review.open",
-  "review.close", "review.set-step", "review.start"
-] as const;
+export const RUN_INPUTS = ["run.resolved", "run.unresolved", "run.event", "review.open", "review.close", "review.set-step", "review.start"] as const;
 type RunInput = Extract<WorkspaceInput, { type: (typeof RUN_INPUTS)[number] }>;
+
+/** What the user asks of a live run, and what a session reports from beside it, which change only the runs' own state. */
+export const RUN_CONTROL_INPUTS = ["run.compact", "run.cancel", "run.stop-process", "run.decide", "thread.event"] as const;
+type RunControlInput = Extract<WorkspaceInput, { type: (typeof RUN_CONTROL_INPUTS)[number] }>;
+
+export function reduceRunControl(state: WorkspaceState, input: RunControlInput): Step {
+  switch (input.type) {
+    case "run.compact": {
+      const taskId = targetId(state, input.taskId);
+      const thread = state.threads.find((item) => item.id === taskId);
+      if (!thread || !compactableSession(state, thread) || threadBusy(state, thread.id)) return {};
+      if (state.creatingWorktrees.includes(thread.id)) return { refusal: WORKTREE_CREATING_ERROR };
+      if (leavingThreadIds(state).has(thread.id)) return { refusal: WORKTREE_RELEASING_ERROR };
+      const project = projectFor(state, thread);
+      const pending: PendingRun = {
+        id: crypto.randomUUID(),
+        runId: crypto.randomUUID(),
+        origin: "composer",
+        operation: { type: "compact" },
+        taskId: thread.id,
+        ...(project ? { projectId: project.id } : {}),
+        text: "",
+        prompt: "",
+        attachments: [],
+      };
+      const resolving = resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false);
+      return { ...pendingStep(state, pending), effects: [resolving] };
+    }
+
+    case "run.cancel": {
+      const taskId = targetId(state, input.taskId);
+      const active = taskId ? state.activeRuns[taskId] : undefined;
+      return active ? cancelling(state, active) : {};
+    }
+
+    case "run.stop-process": {
+      const taskId = targetId(state, input.taskId);
+      return taskId ? processStopped(state, taskId, input.processId) : {};
+    }
+
+    case "run.decide": {
+      const active = state.activeRuns[input.taskId];
+      const approval = active ? state.approvals[active.runId] : undefined;
+      if (!active || !approval || active.runId !== input.runId || approval.approvalId !== input.approvalId) return {};
+      /** Answering a run's question is joining it, exactly as steering into it is. */
+      return andThen(state, { edits: [approvalAnsweredIn(runsOf(state), active.taskId)] }, (next) => ({
+        ...attendedRun(next, active.taskId),
+        effects: [{ type: "send-run-command", command: { type: "approval", taskId: active.taskId, runId: active.runId, approvalId: approval.approvalId, allow: input.allow } }],
+      }));
+    }
+
+    case "thread.event": {
+      const { event } = input;
+      if (!state.threads.some((item) => item.id === event.taskId)) return {};
+      return { edits: [threadEventIn(runsOf(state), event)] };
+    }
+  }
+}
 type ReviewInput = Extract<RunInput, { type: "review.open" | "review.close" | "review.set-step" | "review.start" }>;
 
 export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTransition {
@@ -86,48 +143,6 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
         return settled(withSideChat(next, pending.taskId, (chat) => ({ ...chat, error: input.message })), [], { ok: false, message: input.message });
       }
       return rejected(next, input.message);
-    }
-
-    case "run.compact": {
-      const taskId = targetId(state, input.taskId);
-      const thread = state.threads.find((item) => item.id === taskId);
-      if (!thread || !compactableSession(state, thread) || threadBusy(state, thread.id)) return settled(state);
-      if (state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
-      if (leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
-      const project = projectFor(state, thread);
-      const pending: PendingRun = {
-        id: crypto.randomUUID(),
-        runId: crypto.randomUUID(),
-        origin: "composer",
-        operation: { type: "compact" },
-        taskId: thread.id,
-        ...(project ? { projectId: project.id } : {}),
-        text: "",
-        prompt: "",
-        attachments: [],
-      };
-      const resolving = resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false);
-      return settled(withPending(state, pending), [resolving]);
-    }
-
-    case "run.cancel": {
-      const taskId = targetId(state, input.taskId);
-      const active = taskId ? state.activeRuns[taskId] : undefined;
-      return active ? cancellingRun(state, active) : settled(state);
-    }
-
-    case "run.stop-process":
-      return stopProcess(state, input);
-
-    case "run.decide": {
-      const active = state.activeRuns[input.taskId];
-      const approval = active ? state.approvals[active.runId] : undefined;
-      if (!active || !approval || active.runId !== input.runId || approval.approvalId !== input.approvalId) return settled(state);
-      /** Answering a run's question is joining it, exactly as steering into it is. */
-      return settled(withAttendedRun(withApprovalAnswered(state, active.taskId), active.taskId), [{
-        type: "send-run-command",
-        command: { type: "approval", taskId: active.taskId, runId: active.runId, approvalId: approval.approvalId, allow: input.allow },
-      }]);
     }
 
     case "run.event": {
@@ -176,11 +191,6 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       return settled(drained.state, [...environment, ...said, ...moved.effects, ...drained.effects]);
     }
 
-    case "thread.event": {
-      const { event } = input;
-      if (!state.threads.some((item) => item.id === event.taskId)) return settled(state);
-      return settled(applyThreadEvent(state, event));
-    }
   }
 }
 
@@ -392,11 +402,6 @@ function startResume(state: WorkspaceState, pending: PendingRun, workspace: Work
     ...sideChannelFor(state, thread),
   };
   return settled(beginRun(resumed, thread.id, pending.runId, ATTENDED_RUN, undefined, "warming"), [{ type: "start-run", command }]);
-}
-
-function stopProcess(state: WorkspaceState, input: Extract<RunInput, { type: "run.stop-process" }>): WorkspaceTransition {
-  const taskId = targetId(state, input.taskId);
-  return taskId ? stoppingProcess(state, taskId, input.processId) : settled(state);
 }
 
 function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord, worktree?: CreatedWorktree): WorkspaceTransition {

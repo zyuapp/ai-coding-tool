@@ -5,7 +5,8 @@
  */
 import type { PendingQuestion } from "../../domain/agent-question.js";
 import type { PendingRun, QueuedMessage, RunsState } from "../state/runs.js";
-import { withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type FinishedVerdict, type ThreadRunStatus } from "../thread-run-state.js";
+import { applyThreadEvent, withActiveRun, withApprovalAnswered, withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type FinishedVerdict, type ThreadRunStatus } from "../thread-run-state.js";
+import type { ThreadEvent } from "../../contracts/ipc.js";
 import type { Thread } from "../../domain/thread.js";
 
 /** The run state as one input leaves it. Only the functions here make one. */
@@ -18,11 +19,11 @@ export type RunsEdit = RunsChange;
 
 export function runsOf(state: RunsState): RunsEdit {
   const {
-    activeRuns, runStatuses, approvals, streamingTails, backgroundProcesses, workflows, subagents,
+    activeRuns, runStatuses, approvals, streamingTails, backgroundProcesses, workflows, subagents, goals,
     pendingRuns, startingProposals, quietStops, quietSessions, queuedMessages, lastRunIds,
   } = state;
   return new RunsChange({
-    activeRuns, runStatuses, approvals, streamingTails, backgroundProcesses, workflows, subagents,
+    activeRuns, runStatuses, approvals, streamingTails, backgroundProcesses, workflows, subagents, goals,
     pendingRuns, startingProposals, quietStops, quietSessions, queuedMessages, lastRunIds,
   });
 }
@@ -149,4 +150,21 @@ export function watchEndedBeforeIn(edit: RunsEdit, taskId: string, verdict: Fini
   const active = edit.view.activeRuns[taskId];
   if (!active) return edit;
   return new RunsChange({ ...edit.view, activeRuns: { ...edit.view.activeRuns, [taskId]: { ...active, before: { ...active.before, ...verdict } } } });
+}
+
+/** What a thread's session reports of work that outlives the run that started it, as {@link applyThreadEvent} keeps it. */
+export function threadEventIn(edit: RunsEdit, event: ThreadEvent): RunsEdit {
+  return new RunsChange(applyThreadEvent(edit.view, event));
+}
+
+/** A thread's live run with its approval answered, running again. */
+export function approvalAnsweredIn(edit: RunsEdit, taskId: string): RunsEdit {
+  return new RunsChange(withApprovalAnswered(edit.view, taskId));
+}
+
+/** The user stopping a thread's run, which the run remembers, so however it ends first it ends as the stop asked. */
+export function cancellingIn(edit: RunsEdit, taskId: string): RunsEdit {
+  const active = edit.view.activeRuns[taskId];
+  if (!active || active.cancelling) return edit;
+  return new RunsChange(withActiveRun(edit.view, taskId, { ...active, cancelling: true }));
 }
