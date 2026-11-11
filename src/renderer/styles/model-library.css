@@ -3,93 +3,86 @@
 @media (prefers-reduced-transparency: reduce) {
   .model-library { background: var(--glass-edge), var(--surface-menu); background-clip: border-area, border-box, border-box; backdrop-filter: none; }
 }
+/** One left edge runs down the pane: the magnifier, the rail's glyphs and the settings' names all start on it. */
 .model-search { position: relative; flex-shrink: 0; }
-.model-search .search-field-box { padding-right: 48px; }
-.model-search > .icon-btn { position: absolute; top: 10px; right: 10px; }
+.model-search .search-field-box { padding: 0 52px 0 17px; }
+.model-search > .icon-btn { position: absolute; top: 10px; right: 14px; }
 /** The list gives up height first when the window is short, down to a few rows. */
 .model-library-body { flex: 0 1 auto; display: grid; grid-template-columns: var(--library-rail) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); max-height: 460px; min-height: 150px; }
 .model-search, .library-settings, .model-library-footer { flex-shrink: 0; }
-.model-provider-rail { padding: 10px 8px; border-right: 1px solid var(--line-soft); overflow-y: auto; }
-.model-provider-rail .nav-item { padding-block: 10px; font-size: var(--text-control); }
+.model-provider-rail { gap: 1px; padding: 8px; border-right: 1px solid var(--line-soft); overflow-y: auto; }
+.model-provider-rail .nav-item { padding-block: 8px; font-size: var(--text-menu); }
+.model-provider-rail .nav-separator { margin: 7px 9px; }
 .model-provider-glyph { flex-shrink: 0; width: 16px; }
-.model-results { padding: 14px 12px; overflow-y: auto; overscroll-behavior: contain; }
-.model-results-heading { display: flex; justify-content: space-between; gap: 10px; padding: 0 12px 10px; color: var(--quiet-strong); font-size: var(--text-menu); }
-.model-results-heading > span:last-child { color: var(--quiet-soft); }
-.model-row { display: flex; align-items: center; gap: 2px; }
-.model-row > .model-choice { flex: 1; min-width: 0; gap: 12px; min-height: 60px; padding: 9px 12px; border-radius: 10px; font-size: var(--text-content); }
+.model-results { padding: 8px; overflow-y: auto; overscroll-behavior: contain; }
+.model-results-heading { display: flex; justify-content: space-between; gap: 10px; padding: 8px 6px 8px 10px; color: var(--quiet-strong); font-size: var(--text-meta); }
+.model-results-heading > span:last-child { color: var(--quiet-soft); font-variant-numeric: tabular-nums; }
+/** A model is a row with its mark on a tile; the pin rides inside the row's right end, so the wash under the pointer takes both. */
+.model-row { position: relative; }
+.model-row + .model-row { margin-top: 2px; }
+.model-row > .model-choice { gap: 12px; min-height: 54px; padding: 8px 44px 8px 9px; border-radius: 10px; font-size: var(--text-content); }
+.model-choice .menu-tick { display: none; }
 .model-choice .menu-label { font-weight: 500; }
-.model-choice .menu-copy { gap: 3px; }
-.model-choice .menu-description { font-size: var(--text-control); }
-.model-choice .menu-icon > svg { width: 20px; height: 20px; }
-.model-favorite[aria-pressed="true"] { color: var(--accent); }
-.model-empty { margin: 12px 0; }
+.model-choice .menu-copy { gap: 2px; }
+.model-choice .menu-description { font-size: var(--text-menu); }
+.model-choice .menu-icon { width: 36px; height: 36px; border-radius: 9px; background: var(--glass-control); box-shadow: var(--glass-rim); color: var(--muted); transition: background var(--touch-time) var(--touch-ease), color var(--touch-time) var(--touch-ease); }
+.model-choice .menu-icon > svg { width: 18px; height: 18px; }
+/** The model in use is raised, as the chosen filter beside it and the chosen stops under it are, and its tile takes the accent. */
+.model-choice[aria-pressed="true"]:not(:hover, :focus-visible) { background: var(--surface-active); box-shadow: var(--glass-rim); }
+.model-choice[aria-pressed="true"] .menu-icon { background: var(--glass-sheen), var(--accent-chip); color: var(--accent-text); }
+.model-choice[aria-pressed="true"] .menu-label { font-weight: 560; }
+/** A pinned model keeps its star lit; any other shows one only while its row has the pointer or the keyboard. */
+.model-favorite { position: absolute; top: 50%; right: 6px; translate: 0 -50%; color: var(--quiet); opacity: 0; }
+.model-row:is(:hover, :focus-within) > .model-favorite, .model-favorite[aria-pressed="true"] { opacity: 1; }
+.model-favorite[aria-pressed="true"] { background: none; box-shadow: none; color: var(--accent-text); }
+.model-favorite[aria-pressed="true"]:hover { background: var(--wash); }
+.model-empty { margin: 12px 0; padding-inline: 10px; }
 .model-library-footer { display: flex; justify-content: space-between; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line-soft); color: var(--quiet); font-size: var(--text-badge); flex-shrink: 0; }
 .model-library-footer span { display: flex; align-items: center; gap: 6px; }
-/** Effort and mode, each a row whose name lines up with the provider rail above. */
-.library-settings { display: grid; flex-shrink: 0; border-top: 1px solid var(--line-soft); }
-.library-setting { display: grid; grid-template-columns: var(--library-rail) minmax(0, 1fr); align-items: center; padding: 10px 18px 10px 0; }
-.library-setting + .library-setting { border-top: 1px solid var(--line-soft); }
-.library-setting-axis { display: flex; align-items: baseline; gap: 5px; min-width: 0; padding-left: 18px; color: var(--ink-soft); font-size: var(--text-menu); font-weight: 500; }
-.library-setting-axis small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-size: var(--text-meta); font-weight: 400; }
-.library-setting-axis small::before { content: "· "; }
-.effort-strip { align-items: start; }
-.effort-strip > .library-setting-axis { padding-top: 7px; }
-.effort-strip-none { padding: 6px 0; color: var(--quiet); font-size: var(--text-meta); }
-.library-setting > :last-child { margin-left: 8px; }
-.library-modes > button { flex: 1; justify-content: center; font-size: var(--text-menu); }
+/** Effort and mode share one strip, each a name and its track; where the pane is too narrow for both they take a line each. */
+.library-settings { display: flex; flex-wrap: wrap; flex-shrink: 0; gap: 8px 18px; border-top: 1px solid var(--line-soft); padding: 10px 8px 10px 17px; }
+.library-setting { flex: 1 1 auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.library-setting-axis { flex: none; min-width: 38px; color: var(--quiet-strong); font-size: var(--text-menu); }
+.effort-strip-none { color: var(--quiet); font-size: var(--text-meta); line-height: 32px; }
+/**
+ * A groove cut into the glass with its stops named along it, and one raised pane that glides to the
+ * stop in effect. The pane and the light behind it are layers under the names, so a name never moves.
+ */
+.library-track { position: relative; isolation: isolate; flex: 1 1 auto; min-width: 0; display: flex; height: 32px; border-radius: 10px; padding: 2px; background: rgb(from var(--p-bg-0) r g b / 0.42); box-shadow: inset 0 1px 2px rgb(var(--p-shadow) / calc(0.26 * var(--p-shadow-scale))), inset 0 0 0 1px var(--line-glass); }
+.track-thumb, .track-fill { position: absolute; z-index: -1; top: 2px; bottom: 2px; border-radius: 8px; pointer-events: none; }
+.track-thumb { left: var(--thumb-x); width: var(--thumb-w); background: var(--glass-sheen), var(--surface-menu-hover); box-shadow: var(--glass-rim), var(--shadow-thumb); transition: scale 180ms var(--touch-ease), background 160ms ease; }
+.library-track[data-glide] > .track-thumb { transition: left 280ms var(--glide-ease), width 280ms var(--glide-ease), scale 180ms var(--touch-ease), background 160ms ease; }
+/** The track is lit from its start up to the effort in effect, brightest where it meets the pane. */
+.track-fill { left: 2px; width: calc(var(--thumb-x) + var(--thumb-w) - 2px); background: linear-gradient(to right, rgb(from var(--ink) r g b / 0.02), rgb(from var(--ink) r g b / 0.13)); transition: background 200ms ease; }
+.library-track[data-glide] > .track-fill { transition: width 280ms var(--glide-ease), background 200ms ease; }
+.effort-stop, .library-modes > button { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; border-radius: 8px; padding: 0 10px; background: none; box-shadow: none; color: var(--muted); font-size: var(--text-meta); font-weight: 540; white-space: nowrap; transition: color 160ms ease; }
+.effort-stop:hover, .library-modes > button:hover { color: var(--ink-soft); }
+.effort-stop { color: var(--quiet-strong); }
+.effort-stop.lit { color: var(--ink-dim); }
+.effort-stop.current, .library-modes > button[aria-checked="true"] { background: none; box-shadow: none; color: var(--ink); }
+.library-modes { flex: 1; min-width: 0; gap: 0; border-radius: 0; padding: 0; background: none; box-shadow: none; }
 .library-modes > button[aria-checked="true"][data-tone="danger"], .library-modes > button[aria-checked="true"][data-tone="danger"] svg { color: var(--danger); }
-/** A thick track whose fill runs to the knob's middle; the knob tracks the pointer while dragged and glides to an effort otherwise. */
-.effort-slider { --effort-at: 0; --effort-knob: 30px; --effort-travel: calc(100% - var(--effort-knob)); padding: 10px 0 2px; border-radius: 14px; outline: none; cursor: grab; touch-action: none; user-select: none; }
-.effort-slider.dragging { cursor: grabbing; }
-.effort-slider:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .effort-knob { box-shadow: 0 0 0 2px var(--focus-ring), var(--shadow-thumb); }
-/** A groove cut into the glass, a bar of light lying in it, and a bead of glass riding on top. */
-.effort-rail { position: relative; height: 6px; border-radius: 999px; background: var(--meter-track); box-shadow: inset 0 1px 2px rgb(var(--p-shadow) / calc(0.32 * var(--p-shadow-scale))), inset 0 0 0 1px var(--line-glass); }
-.effort-fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--effort-travel) * var(--effort-at) + var(--effort-knob) / 2); border-radius: 999px; background: var(--glass-sheen), var(--ink-faint); transition: width 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background 200ms; }
-/** Each effort's name sits under its stop; the ends hug the rail's ends so the names stay inside it. */
-.effort-stops { position: relative; height: 16px; margin-top: 10px; }
-.effort-stop { position: absolute; left: calc(var(--effort-travel) * var(--effort-stop) + var(--effort-knob) / 2); color: var(--quiet); font-size: 11px; line-height: 16px; white-space: nowrap; transform: translateX(-50%); transition: color 140ms ease; }
-.effort-stop:first-child { left: 0; transform: none; }
-.effort-stop:last-child:not(:first-child) { left: auto; right: 0; transform: none; }
-.effort-stop:hover { color: var(--ink-soft); }
-.effort-stop.current { color: var(--ink); font-weight: 560; }
+.library-track:has([aria-checked="true"][data-tone="danger"]) > .track-thumb { background: var(--glass-sheen), var(--danger-chip); }
+.effort-slider { outline: none; cursor: pointer; touch-action: none; user-select: none; }
+.effort-slider:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) > .track-thumb { box-shadow: 0 0 0 2px var(--focus-ring), var(--shadow-thumb); }
+/** Held, the pane lifts off the groove. */
+.effort-slider.dragging > .track-thumb { scale: 1.03 1.1; background: var(--glass-sheen), var(--row-selected); }
+/** An effort that hands work on is lit in the accent. */
+.effort-slider.delegates > .track-thumb { background: var(--glass-sheen), var(--accent-chip); }
+.effort-slider.delegates > .track-fill { background: linear-gradient(to right, rgb(from var(--accent) r g b / 0.03), rgb(from var(--accent) r g b / 0.22)); }
 .effort-slider.delegates .effort-stop.current { color: var(--accent-bright); }
-.effort-knob {
-  position: absolute;
-  top: -7px;
-  left: calc(var(--effort-travel) * var(--effort-at));
-  width: var(--effort-knob);
-  height: 20px;
-  border-radius: 999px;
-  background: linear-gradient(to bottom, rgb(255 255 255 / 0.28), rgb(255 255 255 / 0)), var(--surface-inverse);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), inset 0 0 0 1px rgb(255 255 255 / 0.12), 0 0 0 0.5px rgb(var(--p-shadow) / 0.2), 0 1px 2px rgb(var(--p-shadow) / calc(0.4 * var(--p-shadow-scale))), 0 4px 10px rgb(var(--p-shadow) / calc(0.28 * var(--p-shadow-scale)));
-  transition: left 180ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background 160ms ease;
-}
-/** Held, the bead goes clear and swells, so the groove and the bar read through it as through a lens. */
-.effort-slider.dragging .effort-knob {
-  background: linear-gradient(to bottom, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.04)), rgb(from var(--surface-inverse) r g b / 0.14);
-  backdrop-filter: blur(1.5px) saturate(190%) brightness(1.12);
-  transform: scale(1.22, 1.34);
-}
-.effort-slider:hover:not(.dragging) .effort-knob { transform: scale(1.06); }
-.effort-slider.dragging .effort-fill, .effort-slider.dragging .effort-knob { transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background 160ms ease; }
-.effort-slider.delegates .effort-fill { background: var(--accent); }
-@media (prefers-reduced-motion: reduce) { .effort-fill, .effort-knob, .effort-stop { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .track-thumb, .track-fill, .effort-stop, .library-modes > button { transition: none; } }
 /** The layout follows the pane's own width, so it holds wherever the pane is drawn. */
 .model-library { container: model-library / inline-size; }
-/** Too narrow for a column beside the list: the providers run along the top, and each setting's name sits over it. */
+/** Too narrow for a column beside the list: the providers run along the top. */
 @container model-library (max-width: 600px) {
   .model-library-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .model-provider-rail { flex-direction: row; gap: 2px; padding: 8px; border-right: 0; border-bottom: 1px solid var(--line-soft); overflow: auto hidden; scrollbar-width: none; }
   .model-provider-rail .nav-item { flex: none; width: auto; padding: 7px 10px; }
   .model-provider-rail .nav-separator { margin: 6px 4px; border-top: 0; border-left: 1px solid var(--line-soft); }
-  .model-results { padding: 10px 8px; }
-  .library-setting { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 10px 16px; }
-  .library-setting-axis, .effort-strip > .library-setting-axis { padding: 0; }
-  .library-setting > :last-child { margin-left: 0; }
   .model-library-footer span { display: none; }
 }
 @container model-library (max-width: 460px) {
   .model-choice .menu-icon, .library-modes > button svg { display: none; }
-  .library-modes > button { padding-inline: 4px; }
-  .effort-stop:not(.current) { visibility: hidden; }
+  .effort-stop, .library-modes > button { padding-inline: 4px; }
 }
