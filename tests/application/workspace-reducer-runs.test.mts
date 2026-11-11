@@ -200,6 +200,24 @@ test("filing away a row the user is not on never moves them", () => {
   assert.equal(ranked.state.currentId, "task-b");
 });
 
+test("a thread dismissed while it runs stays out of priority once it finishes, but not once it fails", () => {
+  const running = workspace({ threads: [task("task-a"), task("task-b")], activeRuns: { "task-a": activeRun("task-a", "run-1") }, currentId: "task-b", notifications: true });
+  const dismissed = reduce(running, { type: "task.dismiss", taskId: "task-a" }).state;
+  const end = (status: "succeeded" | "failed") => ({ type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-1", sequence: 1, status } }) satisfies WorkspaceInput;
+
+  const finished = reduce(dismissed, end("succeeded"));
+  assert.equal(finished.state.threads[0].outcome, undefined);
+  assert.deepEqual(deriveView(finished.state).activityThreads.priority, []);
+  assert.ok(!finished.effects.some((effect) => effect.type === "announce-thread"), "and it finishes without a notice");
+
+  const failed = reduce(dismissed, end("failed")).state;
+  assert.deepEqual(deriveView(failed).activityThreads.priority.map((item) => item.id), ["task-a"]);
+
+  const undismissed = reduce(running, end("succeeded"));
+  assert.deepEqual(deriveView(undismissed.state).activityThreads.priority.map((item) => item.id), ["task-a"]);
+  assert.ok(undismissed.effects.some((effect) => effect.type === "announce-thread"));
+});
+
 test("one dismissal takes the dot off every thread carrying one", () => {
   const state = workspace({
     threads: [

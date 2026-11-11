@@ -239,6 +239,14 @@ test("a message one thread sends another names the thread it came from", async (
   assert.deepEqual(threadTranscript(host.state(), "receiver")?.messages.at(-1), { kind: "user", text: "Stop the stack", origin: "From Monday · sender", at: host.state().threads.find((thread) => thread.id === "receiver")!.messages.at(-1)!.at });
 });
 
+test("a dismiss naming no thread dismisses the caller's own, never the one on screen", async () => {
+  const host = driver(workspace({ threads: [task("caller"), task("shown", { outcome: "finished" })], currentId: "shown", activeRuns: { caller: activeRun("caller", "run-1") } }));
+  const dismissed = await answerThreadRequest(host, { type: "thread.request", requestId: "r1", taskId: "caller", op: "command", command: { type: "task.dismiss" } });
+  assert.equal(dismissed.ok, true);
+  assert.equal(host.state().activeRuns.caller?.dismissed, true);
+  assert.equal(host.state().threads.find((thread) => thread.id === "shown")?.outcome, "finished");
+});
+
 test("only a coordinator and its threads report or raise decisions", async () => {
   const host = driver(workspace({ threads: [task("lead", { role: "coordinator" }), task("worker", { parentId: "lead" }), task("alone")] }));
   const alone = await answerThreadRequest(host, { type: "thread.request", requestId: "r1", taskId: "alone", op: "report", state: "done", summary: "Done" });

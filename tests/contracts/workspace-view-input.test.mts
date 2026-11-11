@@ -155,6 +155,7 @@ test("what an agent may send is a command the window itself accepts, held to the
   const agentCommands = [
     { type: "task.send", text: "Start" },
     { type: "task.archive", taskId: "task-1" },
+    { type: "task.dismiss" },
     { type: "task.set-role", taskId: "task-1", role: "reviewer" },
     { type: "run.cancel", taskId: "task-1" },
     { type: "worktree.delete", worktreeId: "wt1" },

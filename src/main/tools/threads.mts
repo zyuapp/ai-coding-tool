@@ -281,6 +281,18 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
     }),
   }),
   defineTool({
+    name: "dismiss_thread",
+    description: "Dismiss a thread, taking it out of Priority as the sidebar's Dismiss does. Use when the user asks to dismiss a thread, such as this one once its last step is done. Dismissing this thread while it runs takes effect when this turn finishes; a turn that fails still surfaces.",
+    input: {
+      threadId: z.string().min(1).max(MAX_ID_LENGTH).optional().describe("The thread's ID, an unambiguous prefix of it, or its exact title. Omit to dismiss this thread."),
+    },
+    readOnly: false,
+    run: ({ bridge, now }, args) => report(async () => {
+      const { thread } = await bridge.command({ type: "task.dismiss", ...(args.threadId ? { taskId: args.threadId } : {}) });
+      return thread ? `Dismissed ${describe(thread, now())}` : "The thread was not dismissed.";
+    }),
+  }),
+  defineTool({
     name: "move_to_worktree",
     description: "Move a thread into a new worktree, one the project already has, or back to the project checkout, as the thread menu's Move to worktree does. This is how a thread works in a worktree: use it whenever the user asks for one, never git worktree, so the app knows where the thread works. File changes already made stay in the old checkout. Moving this thread waits for this turn to end, and its next turn starts in the new checkout, on its own when you pass then. Another thread must not be running.",
     input: {

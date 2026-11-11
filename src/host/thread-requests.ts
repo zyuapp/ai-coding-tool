@@ -163,7 +163,7 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     /** A thread is named the way the tools name it, and found on this computer or a paired one. */
     const target = command.taskId === undefined ? null : resolveThreadRead(before, command.taskId);
     const caller = before.threads.find((thread) => thread.id === request.taskId);
-    if ((command.type === "task.send" || command.type === "task.move-worktree") && command.taskId === undefined && !caller) {
+    if ((command.type === "task.send" || command.type === "task.move-worktree" || command.type === "task.dismiss") && command.taskId === undefined && !caller) {
       return failed(`No thread has the ID ${request.taskId}.`);
     }
     /** A thread moving itself is mid-run, so it goes once that run ends; a move naming no thread is the caller's. */
@@ -171,7 +171,9 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       ? { ...command, taskId: caller.id, afterRun: true as const }
       : undefined;
     if (command.type === "task.move-worktree" && command.then !== undefined && !ownMove) return failed(MOVE_FOLLOW_UP_ERROR);
-    const named = ownMove ?? (target ? { ...command, taskId: target.thread.id } as typeof command : command);
+    /** A dismiss naming no thread is the caller's own. */
+    const ownDismiss = command.type === "task.dismiss" && command.taskId === undefined && caller ? { ...command, taskId: caller.id } : undefined;
+    const named = ownMove ?? ownDismiss ?? (target ? { ...command, taskId: target.thread.id } as typeof command : command);
     /** What no thread asks of a coordinator is refused before it goes anywhere, here or on a paired computer. */
     const subject = target?.computer ? target.thread : before.threads.find((thread) => thread.id === named.taskId);
     const refusal = subject && (named.type === "task.move-worktree" || named.type === "task.set-role")

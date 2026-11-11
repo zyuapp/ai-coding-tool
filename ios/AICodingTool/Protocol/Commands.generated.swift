@@ -81,7 +81,7 @@ extension PhoneCommand {
     static func runDecide(allow: Bool, taskId: String, runId: String, approvalId: String) -> PhoneCommand { PhoneCommand(.runDecide, ["allow": JSONValue.bool(allow), "taskId": JSONValue.string(taskId), "runId": JSONValue.string(runId), "approvalId": JSONValue.string(approvalId)]) }
     static func runStopProcess(taskId: String? = nil, processId: String) -> PhoneCommand { PhoneCommand(.runStopProcess, ["taskId": taskId.map { JSONValue.string($0) }, "processId": JSONValue.string(processId)]) }
     static func taskArchive(taskId: String) -> PhoneCommand { PhoneCommand(.taskArchive, ["taskId": JSONValue.string(taskId)]) }
-    static func taskDismiss(taskId: String) -> PhoneCommand { PhoneCommand(.taskDismiss, ["taskId": JSONValue.string(taskId)]) }
+    static func taskDismiss(taskId: String? = nil) -> PhoneCommand { PhoneCommand(.taskDismiss, ["taskId": taskId.map { JSONValue.string($0) }]) }
     static func taskDismissAll(localOnly: Bool? = nil, projectId: String? = nil) -> PhoneCommand { PhoneCommand(.taskDismissAll, ["localOnly": localOnly.map { JSONValue.bool($0) }, "projectId": projectId.map { JSONValue.string($0) }]) }
     static func taskDropQueued(taskId: String? = nil, messageId: String, ifWaiting: Bool = false) -> PhoneCommand { PhoneCommand(.taskDropQueued, ["taskId": taskId.map { JSONValue.string($0) }, "messageId": JSONValue.string(messageId), "ifWaiting": ifWaiting ? .bool(true) : nil]) }
     static func taskEditQueued(taskId: String? = nil, messageId: String) -> PhoneCommand { PhoneCommand(.taskEditQueued, ["taskId": taskId.map { JSONValue.string($0) }, "messageId": JSONValue.string(messageId)]) }

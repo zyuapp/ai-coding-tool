@@ -6,6 +6,7 @@ import { afterward, andThen, inTurn, type Step } from "./slice.js";
 import { sideChatsClosed } from "./side-chats.js";
 import { leadsDiscarded } from "./coordination-remote.js";
 import { cancelling, fileThread } from "./run-queue.js";
+import { runDismissedIn, runsOf } from "./run-edits.js";
 import { now, targetId } from "./shared.js";
 import { coordinatorAskRefusal } from "./errors.js";
 import { allReadIn, dismissedIn, editThread, forkedIn, movedInListIn, removedIn, restoredIn, roleSetIn, threadsOf, unsnoozedIn, verdictCollectedIn } from "./thread-edits.js";
@@ -186,16 +187,20 @@ function archiveThread(state: WorkspaceState, taskId: string): ThreadStep {
   ]);
 }
 
-/** Files one row away, with the threads under it, here and on the paired computers holding them. */
+/**
+ * Files one row away, with the threads under it, here and on the paired computers holding them. A
+ * thread still running is filed away again once its turn finishes.
+ */
 function dismissThread(state: WorkspaceState, taskId: string): ThreadStep {
   const filing = dismissedIn(threadsOf(state), dismissedWith(state.threads, new Set([taskId]), threadActivity(state).blocked));
+  const running = runDismissedIn(runsOf(state), taskId);
   const elsewhere = dismissElsewhere(state, new Set([taskId]));
-  if (filing.view.threads === state.threads && !elsewhere.effects.length && !elsewhere.errors.length) return {};
+  if (filing.view.threads === state.threads && running.view.activeRuns === state.activeRuns && !elsewhere.effects.length && !elsewhere.errors.length) return {};
   /** Filing away the thread being read moves on to the row that takes its place, so Priority can be worked down without going back to the list. */
   const successor = state.currentId === taskId
     ? priorityNeighbour(state, taskId)
     : undefined;
-  const filed: ThreadStep = { edits: [filing] };
+  const filed: ThreadStep = { edits: [filing, running] };
   const landing = successor ? andThen<ThreadCore>(state, filed, (next) => landed(next, successor)) : filed;
   return { ...landing, effects: [...landing.effects ?? [], ...elsewhere.effects], ...(elsewhere.errors.length ? { refusal: elsewhere.errors.join("\n") } : {}) };
 }
@@ -249,7 +254,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       return selected(state, input.taskId);
 
     case "task.dismiss":
-      return dismissThread(state, input.taskId);
+      return input.taskId ? dismissThread(state, input.taskId) : {};
 
     case "task.dismiss-all":
       return dismissPriority(state, input.localOnly, input.projectId);

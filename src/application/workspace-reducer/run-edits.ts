@@ -147,6 +147,13 @@ export function acknowledgedIn(edit: RunsEdit, taskId: string): RunsEdit {
   return new RunsChange({ ...edit.view, activeRuns: { ...edit.view.activeRuns, [taskId]: { ...active, acknowledged: true } } });
 }
 
+/** A run whose thread was dismissed while it went on. */
+export function runDismissedIn(edit: RunsEdit, taskId: string): RunsEdit {
+  const active = edit.view.activeRuns[taskId];
+  if (!active || active.dismissed) return edit;
+  return new RunsChange({ ...edit.view, activeRuns: { ...edit.view.activeRuns, [taskId]: { ...active, dismissed: true } } });
+}
+
 /** Watches, keyed by thread, that ended while a tick of each was going: a tick that settles unseen puts its thread back to its verdict. */
 export function watchesEndedBeforeIn(edit: RunsEdit, verdicts: ReadonlyMap<string, FinishedVerdict>): RunsEdit {
   let activeRuns: RunsState["activeRuns"] | undefined;

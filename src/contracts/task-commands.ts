@@ -9,7 +9,7 @@ import { isScreenshotContext } from "../domain/screenshot-context.js";
 import type { ThreadDropTarget } from "../domain/project.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
 import type { RemoteSender } from "../domain/message-origin.js";
-import { agentId, array, boolean, deviceId, literals, namesThread, nullable, nullableText, number, object, optional, optionalBoolean, optionalText, record, text, type Declarations, type Validator } from "./command-declaration.js";
+import { agentId, agentThread, array, boolean, deviceId, literals, namesThread, nullable, nullableText, number, object, optional, optionalBoolean, optionalText, record, text, type Declarations, type Validator } from "./command-declaration.js";
 import { isString, MAX_PROMPT_LENGTH } from "./ipc.js";
 import * as phone from "./phone-commands.js";
 import { sendStaysInReach } from "./task-send.js";
@@ -69,7 +69,7 @@ export type TaskCommand =
    */
   | { type: "proposal.dismiss"; taskId: string; proposalId?: string; proposalIds?: string[] }
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
-  | { type: "task.dismiss"; taskId: string }
+  | { type: "task.dismiss"; taskId?: string }
   | { type: "task.snooze"; taskId: string; hours: SnoozeHours }
   /** Brings a snoozed thread back before its time. */
   | { type: "task.unsnooze"; taskId: string }
@@ -305,7 +305,7 @@ export const taskCommands = {
   "coordination.next-step": { fields: { taskId: text, step: isNextStep }, at: "thread" },
   "proposal.start": { fields: { taskId: text, proposalId: optionalText, proposalIds: optional(proposalIds), place: optional(proposalPlace) }, at: "thread", phone: startsProposal },
   "proposal.dismiss": { fields: { taskId: text, proposalId: optionalText, proposalIds: optional(proposalIds) }, at: "thread" },
-  "task.dismiss": { fields: { taskId: text }, at: "thread", phone: phone.namesThread },
+  "task.dismiss": { fields: { taskId: optionalText }, at: "thread", agent: agentThread, phone: phone.namesThread },
   "task.snooze": { fields: { taskId: text, hours: isSnoozeHours }, at: "thread", phone: snoozes },
   "task.unsnooze": { fields: { taskId: text }, at: "thread", phone: phone.namesThread },
   /** The reducer itself carries this to the computers shown in the sidebar. */

@@ -98,6 +98,7 @@ const OWN_TOOLS: Record<string, OwnTool> = {
   start_thread: { family: "thread", label: "Start thread", argument: (input) => text("title")(input) ?? text("prompt")(input) },
   message_thread: { family: "thread", label: "Message thread", thread: true, argument: text("text") },
   set_thread_role: { family: "thread", label: "Set role", thread: true, argument: (input) => text("role")(input) ?? "No role" },
+  dismiss_thread: { family: "thread", label: "Dismiss thread", thread: true },
   archive_thread: { family: "thread", label: "Archive thread", thread: true },
   stop_thread: { family: "thread", label: "Stop thread", thread: true },
   move_to_worktree: { family: "thread", label: "Move to worktree", thread: true, argument: (input) => input.worktreeId === "new" ? "New worktree" : text("worktreeId")(input) ?? "Project checkout" },

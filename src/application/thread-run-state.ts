@@ -50,6 +50,8 @@ export type ActiveRun = RunProvenance & RunPhase & {
   agentInitiated?: true;
   /** Set once the user asked this run to stop, so a usage limit that gets to it first cannot outlast the stop. */
   cancelling?: true;
+  /** Set once its thread is dismissed mid-run, so the turn that finishes leaves no verdict to dismiss again. */
+  dismissed?: true;
 };
 
 /**

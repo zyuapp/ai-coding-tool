@@ -7,7 +7,7 @@
 import { drained, type QueueIntent } from "./workspace-reducer/run-queue.js";
 import { runAnsweredIn, runStatusIn, runsOf } from "./workspace-reducer/run-edits.js";
 import { afterward, andThen, applied, type Step } from "./workspace-reducer/slice.js";
-import { engineLimitIn, limitPausedIn, newsQuietedIn, notedIn, reopenedIn, testimonyRestoredIn, threadsOf, turnEndedIn, verdictIn, withdrawnIn, type ThreadsEdit } from "./workspace-reducer/thread-edits.js";
+import { dismissedIn, engineLimitIn, limitPausedIn, newsQuietedIn, notedIn, reopenedIn, testimonyRestoredIn, threadsOf, turnEndedIn, verdictIn, withdrawnIn, type ThreadsEdit } from "./workspace-reducer/thread-edits.js";
 import type { WorkspaceTransition } from "./workspace-reducer/types.js";
 import { heardFacts } from "./member-facts.js";
 import { whyTurnSurfaces, type RunSurfacing } from "./run-testimony.js";
@@ -30,7 +30,7 @@ export type TurnEnd = {
   status: TurnStatus;
   message?: string;
   limit?: UsageLimit;
-  run?: Pick<ActiveRun, "origin" | "quiet" | "acknowledged" | "notified" | "usersOwn" | "answersStop" | "operation">;
+  run?: Pick<ActiveRun, "origin" | "quiet" | "acknowledged" | "notified" | "usersOwn" | "answersStop" | "operation" | "dismissed">;
   stop?: StopIntent;
 };
 
@@ -45,6 +45,8 @@ export type Settlement = {
   surfacing: RunSurfacing | null;
   /** The verdict it leaves its thread, or null when it leaves none. */
   verdict: ThreadOutcome | null;
+  /** A turn that finished after its thread was dismissed files the thread away rather than ranking it. */
+  dismisses: boolean;
   /** How the thread reads its last run ended, or null when the turn has not ended but carries on after a session limit. */
   runEndedAs: ThreadOutcome | null;
   /** Compacting is not a turn, so how the last turn ended, its verdict and its report are put back. */
@@ -93,7 +95,7 @@ export function settleTurn(end: TurnEnd): Settlement {
   const ended = runOutcome(status);
   const queue = status === "cancelled" ? "hand-back" : "deliver";
   if (end.run?.operation === "compact") {
-    return { status, queue, ...(message === undefined ? {} : { message }), surfacing: null, verdict: null, runEndedAs: ended, restoresTestimony: true, withdraws: false, closesIssues: false, limit: null, reopens: false, heard: null, answersStopAll: false, hushesNews: false };
+    return { status, queue, ...(message === undefined ? {} : { message }), surfacing: null, verdict: null, dismisses: false, runEndedAs: ended, restoresTestimony: true, withdraws: false, closesIssues: false, limit: null, reopens: false, heard: null, answersStopAll: false, hushesNews: false };
   }
   const surfacing = whyTurnSurfaces(end.run, status);
   const unseen = surfacing === null;
@@ -106,6 +108,7 @@ export function settleTurn(end: TurnEnd): Settlement {
     ...(message === undefined ? {} : { message }),
     surfacing,
     verdict: unseen || carriesOn ? null : ended,
+    dismisses: status === "succeeded" && end.run?.dismissed === true,
     runEndedAs: carriesOn ? null : ended,
     restoresTestimony: false,
     withdraws: unseen,
@@ -153,6 +156,7 @@ function turnTestimony(state: WorkspaceState, taskId: string, settlement: Settle
   let threads = threadsOf(state);
   /** Only a thread the user was not already looking at is marked unread by it; the one on screen they cannot have missed. */
   if (settlement.verdict) threads = verdictIn(threads, taskId, settlement.verdict, !threadOnScreen(state, taskId));
+  if (settlement.dismisses) threads = dismissedIn(threads, new Set([taskId]));
   if (run && (settlement.withdraws || settlement.closesIssues)) threads = withdrawnIn(threads, taskId, run, settlement);
   return { edits: [threads] };
 }
