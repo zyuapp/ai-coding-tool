@@ -745,10 +745,10 @@ test("the dictation strip draws the microphone's levels while listening, and sto
   const strip = (phase: "recording" | "transcribing") => React.createElement(DictationStrip, { phase, away: false, handsFree: false });
   const view = await mount(strip("recording"));
   assert.equal(listeners.size, 1);
-  const wave = () => query(view.container, ".wave-line").getAttribute("d");
+  const wave = () => [...view.container.querySelectorAll<HTMLElement>(".dictation-bar")].map((bar) => bar.style.height).join();
   const quiet = wave();
   await act(async () => { for (const listener of listeners) listener(0.9); });
-  assert.notEqual(wave(), quiet, "a loud reading moves the line");
+  assert.notEqual(wave(), quiet, "a loud reading raises a bar");
 
   await view.render(strip("transcribing"));
   assert.equal(listeners.size, 0);

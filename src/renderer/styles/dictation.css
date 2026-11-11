@@ -1,4 +1,4 @@
-/* Holding to talk: the voice is drawn as a wave flowing into the held microphone, whose ring swells with it. */
+/* Holding to talk: the voice is drawn as level bars running into the held microphone, whose ring swells with it. */
 .mic-button { position: relative; display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; touch-action: none; user-select: none; transition: transform 160ms ease, background-color 160ms ease, color 160ms ease; }
 .mic-button:hover:not(:disabled) { background: var(--wash); color: var(--ink); }
 .mic-button:disabled { cursor: default; }
@@ -18,28 +18,23 @@
 .composer-bar.dictating:not(.hands-free) .composer-actions > .send-button, .composer-bar.dictating .composer-actions > .send-button.running { visibility: hidden; }
 .dictation-strip { display: flex; flex: 1; align-items: center; gap: 14px; min-width: 0; height: 32px; padding-left: 8px; }
 .dictation-time { flex: none; min-width: 3.2ch; color: var(--accent-text); font-size: var(--text-control); font-variant-numeric: tabular-nums; font-weight: 560; }
-.dictation-wave { flex: 1; min-width: 40px; height: 26px; overflow: visible; -webkit-mask-image: linear-gradient(to right, transparent, #000 35%); mask-image: linear-gradient(to right, transparent, #000 35%); }
-.dictation-wave path { fill: none; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.wave-line { stroke-width: 2; }
-.wave-glow { stroke: var(--accent-text); stroke-width: 6; opacity: 0.25; filter: blur(4px); }
-.wave-body { stop-color: var(--accent-text); }
-.wave-head { stop-color: color-mix(in srgb, var(--accent-text) 30%, white); }
+.dictation-bars { flex: 1; min-width: 40px; height: 22px; display: flex; align-items: center; justify-content: flex-end; gap: 3px; overflow: hidden; -webkit-mask-image: linear-gradient(to right, transparent, #000 30%); mask-image: linear-gradient(to right, transparent, #000 30%); }
+.dictation-bar { flex: none; width: 3px; min-height: 3px; border-radius: 2px; background: var(--accent-text); transition: height 80ms linear; }
 .dictation-hint { display: flex; flex: none; align-items: center; gap: 12px; color: var(--ink-dim); font-size: var(--text-meta); white-space: nowrap; }
 .dictation-escape { display: flex; align-items: center; gap: 12px; color: var(--muted); }
 .dictation-escape > span { display: flex; align-items: center; gap: 5px; }
 .dictation-strip.away :is(.dictation-time, .dictation-hint) { color: var(--danger); }
-.dictation-strip.away :is(.wave-body, .wave-head) { stop-color: var(--danger); }
-.dictation-strip.away .wave-glow { stroke: var(--danger); }
+.dictation-strip.away .dictation-bar { background: var(--danger); }
 .dictation-strip.transcribing .dictation-time { color: var(--muted); }
 .dictation-strip.hands-free .dictation-time::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--accent-text); vertical-align: 1px; animation: hands-free-pulse 1.2s ease-in-out infinite; }
 @keyframes hands-free-pulse { 50% { opacity: 0.3; } }
-.dictation-strip.transcribing :is(.wave-body, .wave-head) { stop-color: var(--muted); }
-.dictation-strip.transcribing .wave-glow { stroke: var(--muted); }
-.dictation-strip.transcribing .dictation-wave { animation: talk-sweep 1.4s ease-in-out infinite; }
+.dictation-strip.transcribing .dictation-bar { background: var(--muted); }
+.dictation-strip.transcribing .dictation-bars { animation: talk-sweep 1.4s ease-in-out infinite; }
 @keyframes talk-sweep { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
 @container (max-width: 520px) { .dictation-escape { display: none; } }
 @media (prefers-reduced-motion: reduce) {
   .mic-button.talking { transform: none; }
   .talk-halo, .talk-halo::after { transition: none; }
-  .dictation-strip.transcribing .dictation-wave, .dictation-strip.hands-free .dictation-time::before { animation: none; }
+  .dictation-strip.transcribing .dictation-bars, .dictation-strip.hands-free .dictation-time::before { animation: none; }
+  .dictation-bar { transition: none; }
 }
