@@ -2,7 +2,7 @@
 import { shownPageEffects } from "./browser-tabs.js";
 import { APP_FOLDER_ERROR, FILE_FOLDER_ERROR } from "./errors.js";
 import { docksOf, closedWindowDocks } from "./dock-tabs.js";
-import type { SliceTransition } from "./slice.js";
+import { ownFields, type SliceTransition } from "./slice.js";
 import type { WorkspaceInput } from "./types.js";
 import type { DesktopState } from "../state/desktop.js";
 import { threadFileRoots } from "../thread-location.js";
@@ -30,6 +30,23 @@ export type DesktopEffect =
   | { type: "app.open-source-licenses" };
 
 type Own = DesktopState;
+
+/** The desktop around the window as one input leaves it. Only the functions here make one. */
+class DesktopChange {
+  private declare readonly owned: never;
+  constructor(readonly view: DesktopState) {}
+}
+
+export type DesktopEdit = DesktopChange;
+
+export function desktopOf(state: DesktopState): DesktopEdit {
+  return new DesktopChange(ownFields<DesktopState>(state, { installedApps: true, focused: true, viewingImage: true, viewingGallery: true }));
+}
+
+/** Whether the window is the one in front. */
+export function focusedIn(edit: DesktopEdit, focused: boolean): DesktopEdit {
+  return new DesktopChange({ ...edit.view, focused });
+}
 
 export function reduceDesktop(state: WorkspaceState, input: DesktopInput): SliceTransition<Own> {
   switch (input.type) {

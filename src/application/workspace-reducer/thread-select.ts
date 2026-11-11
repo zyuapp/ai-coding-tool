@@ -95,6 +95,11 @@ export function landed(state: WorkspaceState, taskId: string): Step {
   return { edits: [onThreadIn(navigationOf(state), taskId, thread?.projectId ?? null, project?.root), rowReadIn(threadsOf(state), taskId)], clearsError: true };
 }
 
+/** Back or forward to the thread at `index` in history, landing on it as any visit does. */
+export function visited(state: WorkspaceState, index: number): Step {
+  return andThen(state, { edits: [historyAtIn(navigationOf(state), index)] }, (moved) => landed(moved, state.history[index]));
+}
+
 /** {@link landed}, on the whole state. */
 export function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
   return afterward(state, landed(state, taskId));

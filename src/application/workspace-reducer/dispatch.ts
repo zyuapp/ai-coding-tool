@@ -89,7 +89,7 @@ export const CLAIMS = [
   claim(DICTATION_INPUTS, owned(reduceDictation)),
   claim(DESKTOP_INPUTS, owned(reduceDesktop)),
   claim(TERMINAL_INPUTS, owned(reduceTerminal)),
-  claim(VIEW_INPUTS, reduceView),
+  claim(VIEW_INPUTS, owned(reduceView)),
 ];
 
 type ClaimedInput = Extract<WorkspaceInput, { type: (typeof CLAIMS)[number]["types"][number] }>;

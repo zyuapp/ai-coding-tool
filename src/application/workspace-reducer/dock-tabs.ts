@@ -29,6 +29,11 @@ export function docksOf(state: DocksState): DocksEdit {
   return new DocksChange({ overviewFolds, dockFocus, docks, diffs, keyboardTab });
 }
 
+/** The dock tab holding the keyboard, or none. */
+export function keyboardTabIn(edit: DocksEdit, tab: string | null): DocksEdit {
+  return new DocksChange({ ...edit.view, keyboardTab: tab });
+}
+
 /** The review the next new thread's draft was left looking at, gone, so a fresh draft compares its own project. */
 export function draftReviewDroppedIn(edit: DocksEdit): DocksEdit {
   const { [DRAFT_DOCK]: _lastDraft, ...diffs } = edit.view.diffs;

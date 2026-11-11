@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { DIFF_PANEL, reduce } from "../../src/application/workspace-reducer.ts";
-import { dockOwner } from "../../src/application/workspace-state.ts";
+import { dockOwner, withDock } from "../../src/application/workspace-state.ts";
 import { deriveView, engineFeeds } from "../../src/application/workspace-view.ts";
 import { capabilitiesFor } from "../../src/domain/agent-engine.ts";
 import type { FindTarget } from "../../src/domain/find.ts";
@@ -159,6 +159,15 @@ test("a panel reports what it drew, and the reducer alone moves through it", () 
   assert.equal(run(stepped, [{ type: "view.find-step", delta: -1 }, { type: "view.find-step", delta: -1 }]).find!.index, 3, "stepping wraps");
 });
 
+test("a new search, or a search pointed somewhere new, drops the count the last one reported", () => {
+  const { state, target } = panelling();
+  const counted = reduce(state, { type: "find.results", target, results: { matches: 4 } }).state;
+
+  assert.equal(reduce(counted, { type: "view.find-query", query: "other" }).state.findResults, null);
+  assert.equal(reduce(counted, { type: "view.find-open", target: { kind: "thread", taskId: "task-a" } }).state.findResults, null);
+  assert.deepEqual(reduce(counted, { type: "view.find-open", target }).state.findResults, { matches: 4 }, "reopening the same search keeps its count");
+});
+
 test("closing the panel being searched takes its find bar with it", () => {
   const { state } = panelling();
   const closed = reduce(state, { type: "view.close-dock-panel", panel: "agents" }).state;
@@ -212,6 +221,10 @@ test("a thread's panels are fed only where its engine can fill them", () => {
   const codex = deriveView({ ...state, threads: [{ ...state.threads[0], engine: "codex", model: "gpt-6.1-sol" }] });
   assert.deepEqual(codex.subagents, [subagent], "Codex feeds the shared subagent panel");
   assert.deepEqual(codex.workflows, []);
+});
+
+test("the jump panel closes the menu it opened over", () => {
+  assert.equal(reduce(workspace({ openMenu: "thread:menu" }), { type: "view.jump-open" }).state.openMenu, null);
 });
 
 test("the jump panel opens on the most recent threads, then a name narrows them", () => {
@@ -327,6 +340,15 @@ test("zen mode shows only the toasts about something that went wrong", () => {
   assert.deepEqual(deriveView(entered).visibleToasts.map((toast) => toast.id), [2]);
   assert.equal(deriveView(entered).visibleToasts, deriveView(entered).visibleToasts, "a redraw keeps the same list");
   assert.deepEqual(deriveView(reduce(entered, zenKey).state).visibleToasts.map((toast) => toast.id), [1, 2]);
+});
+
+test("zen mode takes the keyboard back from a shell in the dock", () => {
+  const shell = { id: "terminal-1", title: "zsh", cwd: "/repo", taskId: "task-a", status: "running" as const };
+  const state = withDock(workspace({ threads: [talked("task-a")], currentId: "task-a" }), "task-a", { open: true, tab: shell.id, terminals: [shell], terminalId: shell.id });
+  const typing = reduce(state, { type: "view.dock-keys", tab: shell.id }).state;
+  assert.equal(typing.keyboardTab, shell.id);
+
+  assert.equal(reduce(typing, { type: "view.set-zen", zen: true }).state.keyboardTab, null);
 });
 
 test("the zen keystroke does nothing on a draft or a thread without messages", () => {

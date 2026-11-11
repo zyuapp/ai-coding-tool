@@ -299,6 +299,8 @@ test("opening settings puts the dock away, and closing them forgets the computer
   const closed = reduce(opened, { type: "view.set-settings-open", open: false });
   assert.equal(closed.state.computerUseSetup, false);
   assert.equal(deriveView(closed.state).settingsOpen, false);
+
+  assert.equal(reduce({ ...workspace(), computerUseSetup: true }, { type: "view.dismiss-computer-use-setup" }).state.computerUseSetup, false, "the ask can be put away on its own");
 });
 
 test("a coordinator with no threads yet leads its dock with the Overview, and a thread whose role is taken off loses it", () => {
