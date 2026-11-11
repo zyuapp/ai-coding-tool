@@ -15,6 +15,9 @@ import type { SettingsEdit } from "./settings.js";
 import type { ComputerUseEdit } from "./computer-use.js";
 import type { DesktopEdit } from "./desktop.js";
 import type { GitEdit } from "./environment.js";
+import type { SideChatsEdit } from "./side-chats.js";
+import type { AutomationsEdit } from "./automations.js";
+import type { BrowserEdit } from "./browser-tabs.js";
 import type { WorkspaceCommandResult } from "../../contracts/workspace-result.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import type { SettingsSection } from "../../domain/settings-section.js";
@@ -29,7 +32,8 @@ export type OwnPatch<Own> = Partial<Own> & { [Field in Exclude<keyof WorkspaceSt
  */
 export type OwnerEdit<Facet = Record<never, never>> =
   | DocksEdit | ComposerEdit | ToastsEdit | ThreadsEdit<Facet> | RunsEdit | EnginesEdit | WorktreesEdit | NavigationEdit | DialogsEdit
-  | ProjectsEdit | ComputersEdit | SettingsEdit | ComputerUseEdit | DesktopEdit | GitEdit;
+  | ProjectsEdit | ComputersEdit | SettingsEdit | ComputerUseEdit | DesktopEdit | GitEdit
+  | SideChatsEdit | AutomationsEdit | BrowserEdit;
 
 /**
  * Every field of an owner's state, taken from `state`: what that owner's edit starts from. Naming one

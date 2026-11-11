@@ -271,6 +271,13 @@ test("closing a tab takes what is in front, and only then the window", () => {
   assert.equal(shutCapturing.state.settingsSection, null);
   assert.deepEqual(shutCapturing.effects, [{ type: "capture-shortcut", capturing: false }], "closing settings stops a shortcut capture the same way Escape does");
 
+  for (const dialog of [{ worktreeMove: { taskId: "task-1", worktree: true } }, { forkName: { taskId: "task-1", worktree: false, title: "Copy" } }, { archivePrompt: "task-1" }, { projectEdit: { projectId: "p", saving: false, error: null } }]) {
+    const [field] = Object.keys(dialog) as (keyof typeof dialog)[];
+    const closedDialog = reduce({ ...base, ...dialog, settingsOpen: true }, { type: "view.close-tab" });
+    assert.equal(closedDialog.state[field], null, `${field} closes before anything behind it`);
+    assert.equal(closedDialog.state.settingsOpen, true);
+  }
+
   const asked = reduce({ ...base, computerUseSetup: true }, { type: "view.close-tab" });
   assert.equal(asked.state.computerUseSetup, false, "the settings computer use opened close the same way");
 

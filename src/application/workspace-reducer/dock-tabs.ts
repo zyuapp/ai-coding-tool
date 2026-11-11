@@ -6,6 +6,8 @@ import { isCoordinator, type OverviewFold, type OverviewSection } from "../../do
 import { DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, diffFor, dockFor, dockTabAfterClosing, withDock, type DiffState, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
 import { workflowById } from "../state/runs.js";
 import type { DocksState } from "../state/dock.js";
+import type { SideChat } from "../state/side-chats.js";
+import { dockKeeps, withoutThreadKeys, withoutThreadTabs } from "../thread-pruning.js";
 
 /** The caret goes to the tab a side chat is drawn in, because its composer is not the thread's own. */
 export function focusedTab<S extends Pick<WorkspaceState, "dockFocus">>(state: S, owner: string, tab: string): S {
@@ -44,6 +46,34 @@ export function keyboardTabIn(edit: DocksEdit, tab: string | null): DocksEdit {
 export function draftReviewDroppedIn(edit: DocksEdit): DocksEdit {
   const { [DRAFT_DOCK]: _lastDraft, ...diffs } = edit.view.diffs;
   return new DocksChange({ ...edit.view, diffs });
+}
+
+/**
+ * Threads gone for good: their docks and reviews go, no dock keeps a tab on them, and neither the
+ * focus nor the keyboard is left on something no dock still draws among the `sideChats` that remain.
+ */
+export function docksForgottenIn(edit: DocksEdit, removed: Set<string>, sideChats: SideChat[]): DocksEdit {
+  const { view } = edit;
+  const docks = withoutThreadTabs(withoutThreadKeys(view.docks, removed), removed);
+  return new DocksChange({
+    ...view,
+    docks,
+    diffs: withoutThreadKeys(view.diffs, removed),
+    dockFocus: view.dockFocus && (removed.has(view.dockFocus.owner) || removed.has(view.dockFocus.tab)) ? null : view.dockFocus,
+    keyboardTab: view.keyboardTab && dockKeeps(docks, sideChats, view.keyboardTab) ? view.keyboardTab : null,
+  });
+}
+
+/** Side chats closing: a dock showing one moves to the tab beside it, among the `sideChats` it still holds. */
+export function chatTabsClosedIn(edit: DocksEdit, sideChats: SideChat[], closed: Set<string>): DocksEdit {
+  const state = { docks: edit.view.docks, sideChats };
+  return new DocksChange({
+    ...edit.view,
+    docks: Object.fromEntries(Object.entries(edit.view.docks).map(([owner, dock]): [string, ThreadDock] => [
+      owner,
+      closed.has(dock.tab) ? { ...dock, tab: dockTabAfterClosing(state, owner, dock.tab) } : dock,
+    ])),
+  });
 }
 
 /** One dock's review with what the patch says, the rest of it as it was. */

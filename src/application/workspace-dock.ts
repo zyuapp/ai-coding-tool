@@ -142,7 +142,7 @@ export function dockTabKind(state: DockState, owner: string, tab: string) {
 }
 
 /** Every tab in the dock, in the order the strip draws them. */
-export function dockTabIds(state: DockState, owner: string) {
+export function dockTabIds(state: Pick<DockState, "docks" | "sideChats">, owner: string) {
   const dock = dockFor(state, owner);
   return [
     ...dock.panels,
@@ -193,7 +193,7 @@ export function keyboardTerminalId(state: DockState): string | null {
 }
 
 /** Which tab takes over when `tab` closes: its neighbour on the left, else on the right, else the picker. */
-export function dockTabAfterClosing(state: DockState, owner: string, tab: string) {
+export function dockTabAfterClosing(state: Pick<DockState, "docks" | "sideChats">, owner: string, tab: string) {
   const tabs = dockTabIds(state, owner);
   const index = tabs.indexOf(tab);
   if (index === -1) return dockFor(state, owner).tab;

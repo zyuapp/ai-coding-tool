@@ -49,6 +49,9 @@ test("a run has to be allowed an origin the user has never visited, and then nev
   assert.deepEqual(asked.state.browserApproval, { approvalId: asked.state.browserApproval?.approvalId, url: "https://dash.example.com/metrics", taskId: "task-1", tabId: blank.id });
   assert.equal(dock(asked.state).tab, blank.id, "the ask is shown where the page would have been");
 
+  const dismissed = reduce(asked.state, { type: "view.close-tab" });
+  assert.equal(dismissed.state.browserApproval, null, "closing the tab the ask is shown in answers nothing, and drops the ask");
+
   const blocked = reduce(asked.state, { type: "browser.decide", approvalId: required(asked.state.browserApproval).approvalId, allow: false });
   assert.equal(blocked.state.browserApproval, null);
   assert.deepEqual(blocked.state.browserOrigins, []);

@@ -4,6 +4,7 @@ import { now } from "./shared.js";
 import type { WorkspaceEffect } from "./types.js";
 import { afterward, type Step } from "./slice.js";
 import type { WorktreesState } from "../state/worktrees.js";
+import { withoutMatching, withoutThreadKeys } from "../thread-pruning.js";
 import { updateThread } from "../thread-run-state.js";
 import { worktreeClaimants, worktreeFor } from "../thread-location.js";
 import type { WorkspaceState } from "../workspace-state.js";
@@ -27,6 +28,22 @@ export function worktreesOf(state: WorktreesState): WorktreesEdit {
   return new WorktreesChange({
     worktrees, managedWorktrees, worktreeSettings, worktreeMenuSearch, worktreeManagementLoading, worktreeManagementError,
     worktreeManagementNotice, creatingWorktrees, releasingWorktrees, deletingWorktrees, movesAfterRun, worktreeMove,
+  });
+}
+
+/** The confirmation of a move between checkouts, put away. */
+export function moveDismissedIn(edit: WorktreesEdit): WorktreesEdit {
+  return new WorktreesChange({ ...edit.view, worktreeMove: null });
+}
+
+/** Threads gone for good, no longer making or letting go of a checkout, or moving once their run ends. */
+export function checkoutClaimsForgottenIn(edit: WorktreesEdit, removed: Set<string>): WorktreesEdit {
+  const { view } = edit;
+  return new WorktreesChange({
+    ...view,
+    creatingWorktrees: withoutMatching(view.creatingWorktrees, (threadId) => removed.has(threadId)),
+    releasingWorktrees: withoutMatching(view.releasingWorktrees, (threadId) => removed.has(threadId)),
+    movesAfterRun: withoutThreadKeys(view.movesAfterRun, removed),
   });
 }
 

@@ -185,13 +185,15 @@ test("a reading place that is malformed or names no thread is refused", () => {
   assert.equal(reduce(state, { type: "view.reading-point", taskId: "no-such-thread", point: { anchor: "m1", depth: 0 } }).state, state);
 });
 
-test("closing a side chat takes its reading place with it", () => {
+test("closing a side chat takes its reading place and the files attached in it with it", () => {
   const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
   const opened = run(workspace({ threads: [source], currentId: "main-task", readingPoints: { "chat-1": { anchor: "m2", depth: 10 }, "main-task": { anchor: "m4", depth: 30 } } }), [
     { type: "side-chat.open", chatId: "chat-1" },
   ]);
-  const closed = reduce(opened, { type: "side-chat.close", chatId: "chat-1" });
+  const attached = { ...opened, files: { "chat-1": [{ id: "file-1", path: "/repo/notes.md", name: "notes.md" }] } };
+  const closed = reduce(attached, { type: "side-chat.close", chatId: "chat-1" });
   assert.deepEqual(closed.state.readingPoints, { "main-task": { anchor: "m4", depth: 30 } });
+  assert.equal("chat-1" in closed.state.files, false);
 });
 
 test("closing a side chat cancels its run, and leaving the thread leaves the chat in its dock", () => {

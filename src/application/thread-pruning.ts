@@ -1,7 +1,16 @@
 import { DOCK_PICKER, type ThreadDock } from "./workspace-dock.js";
 import type { SideChat, WorkspaceState } from "./workspace-state.js";
+import { draftsForgottenIn, composerOf } from "./composer-drafts.js";
+import { automationsForgottenIn, automationsOf } from "./workspace-reducer/automations.js";
+import { approvalForgottenIn, browserOf } from "./workspace-reducer/browser-tabs.js";
+import { docksForgottenIn, docksOf } from "./workspace-reducer/dock-tabs.js";
+import { runsForgottenIn, runsOf } from "./workspace-reducer/run-edits.js";
+import { sideChatsForgottenIn, sideChatsOf } from "./workspace-reducer/side-chats.js";
+import { afterward, type Step } from "./workspace-reducer/slice.js";
+import { navigationOf, visitsForgottenIn } from "./workspace-reducer/thread-select.js";
+import { checkoutClaimsForgottenIn, worktreesOf } from "./workspace-reducer/worktree-claims.js";
 
-function withoutThreadKeys<T>(record: Record<string, T>, removed: Set<string>): Record<string, T> {
+export function withoutThreadKeys<T>(record: Record<string, T>, removed: Set<string>): Record<string, T> {
   let cleaned: Record<string, T> | null = null;
   for (const threadId of removed) {
     if (!Object.hasOwn(record, threadId)) continue;
@@ -11,7 +20,7 @@ function withoutThreadKeys<T>(record: Record<string, T>, removed: Set<string>): 
   return cleaned ?? record;
 }
 
-function withoutMatchingValues<T>(record: Record<string, T>, matches: (value: T) => boolean): Record<string, T> {
+export function withoutMatchingValues<T>(record: Record<string, T>, matches: (value: T) => boolean): Record<string, T> {
   let cleaned: Record<string, T> | null = null;
   for (const key in record) {
     if (!matches(record[key]!)) continue;
@@ -21,7 +30,7 @@ function withoutMatchingValues<T>(record: Record<string, T>, matches: (value: T)
   return cleaned ?? record;
 }
 
-function withoutMatching<T>(items: T[], matches: (item: T) => boolean): T[] {
+export function withoutMatching<T>(items: T[], matches: (item: T) => boolean): T[] {
   const first = items.findIndex(matches);
   if (first === -1) return items;
   const kept = items.slice(0, first);
@@ -32,7 +41,7 @@ function withoutMatching<T>(items: T[], matches: (item: T) => boolean): T[] {
 }
 
 /** A deleted thread is no dock's tab, and a dock showing it falls back to the picker. */
-function withoutThreadTabs(docks: Record<string, ThreadDock>, removed: Set<string>): Record<string, ThreadDock> {
+export function withoutThreadTabs(docks: Record<string, ThreadDock>, removed: Set<string>): Record<string, ThreadDock> {
   let cleaned: Record<string, ThreadDock> | null = null;
   for (const owner in docks) {
     const dock = docks[owner]!;
@@ -44,7 +53,7 @@ function withoutThreadTabs(docks: Record<string, ThreadDock>, removed: Set<strin
 }
 
 /** Whether any dock still draws this tab: a panel, a page, a shell, a side chat, or a thread. */
-function dockKeeps(docks: Record<string, ThreadDock>, sideChats: SideChat[], tab: string): boolean {
+export function dockKeeps(docks: Record<string, ThreadDock>, sideChats: SideChat[], tab: string): boolean {
   if (sideChats.some((chat) => chat.id === tab)) return true;
   for (const owner in docks) {
     const dock = docks[owner]!;
@@ -56,44 +65,28 @@ function dockKeeps(docks: Record<string, ThreadDock>, sideChats: SideChat[], tab
   return false;
 }
 
-/** A permanently deleted thread leaves no session-only record holding its data or making it reachable. */
-export function pruneDeletedThreads(state: WorkspaceState, removed: Set<string>): WorkspaceState {
-  if (!removed.size) return state;
-  const history = withoutMatching(state.history, (threadId) => removed.has(threadId));
-  let historyIndex = -1;
-  for (let index = 0; index <= state.historyIndex && index < state.history.length; index += 1) {
-    if (!removed.has(state.history[index]!)) historyIndex += 1;
-  }
-  const docks = withoutThreadTabs(withoutThreadKeys(state.docks, removed), removed);
-  const sideChats = withoutMatching(state.sideChats, (chat) => removed.has(chat.id) || removed.has(chat.sourceThreadId));
+/**
+ * A permanently deleted thread leaves no session-only record holding its data or making it reachable:
+ * each owner forgets it in its own state.
+ */
+export function pruned(state: WorkspaceState, removed: Set<string>): Step {
+  if (!removed.size) return {};
+  const sideChats = sideChatsForgottenIn(sideChatsOf(state), removed);
   return {
-    ...state,
-    creatingWorktrees: withoutMatching(state.creatingWorktrees, (threadId) => removed.has(threadId)),
-    releasingWorktrees: withoutMatching(state.releasingWorktrees, (threadId) => removed.has(threadId)),
-    movesAfterRun: withoutThreadKeys(state.movesAfterRun, removed),
-    history,
-    historyIndex: Math.min(historyIndex, history.length - 1),
-    prompts: withoutThreadKeys(state.prompts, removed),
-    annotations: withoutThreadKeys(state.annotations, removed),
-    pastes: withoutThreadKeys(state.pastes, removed),
-    images: withoutThreadKeys(state.images, removed),
-    docks,
-    diffs: withoutThreadKeys(state.diffs, removed),
-    readingPoints: withoutThreadKeys(state.readingPoints, removed),
-    pendingRuns: withoutMatchingValues(state.pendingRuns, (pending) => Boolean(pending.taskId && removed.has(pending.taskId))),
-    queuedMessages: withoutThreadKeys(state.queuedMessages, removed),
-    sideChats,
-    lastRunIds: withoutThreadKeys(state.lastRunIds, removed),
-    activeRuns: withoutThreadKeys(state.activeRuns, removed),
-    runStatuses: withoutThreadKeys(state.runStatuses, removed),
-    approvals: withoutMatchingValues(state.approvals, (approval) => removed.has(approval.taskId)),
-    streamingTails: withoutThreadKeys(state.streamingTails, removed),
-    backgroundProcesses: withoutThreadKeys(state.backgroundProcesses, removed),
-    workflows: withoutThreadKeys(state.workflows, removed),
-    subagents: withoutThreadKeys(state.subagents, removed),
-    automations: withoutMatching(state.automations, (automation) => removed.has(automation.taskId)),
-    dockFocus: state.dockFocus && (removed.has(state.dockFocus.owner) || removed.has(state.dockFocus.tab)) ? null : state.dockFocus,
-    keyboardTab: state.keyboardTab && dockKeeps(docks, sideChats, state.keyboardTab) ? state.keyboardTab : null,
-    browserApproval: state.browserApproval && !removed.has(state.browserApproval.taskId) ? state.browserApproval : null,
+    edits: [
+      checkoutClaimsForgottenIn(worktreesOf(state), removed),
+      visitsForgottenIn(navigationOf(state), removed),
+      draftsForgottenIn(composerOf(state), removed),
+      docksForgottenIn(docksOf(state), removed, sideChats.view.sideChats),
+      sideChats,
+      runsForgottenIn(runsOf(state), removed),
+      automationsForgottenIn(automationsOf(state), removed),
+      approvalForgottenIn(browserOf(state), removed),
+    ],
   };
+}
+
+/** {@link pruned}, on the whole state. */
+export function pruneDeletedThreads(state: WorkspaceState, removed: Set<string>): WorkspaceState {
+  return afterward(state, pruned(state, removed));
 }

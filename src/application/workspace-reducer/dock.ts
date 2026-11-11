@@ -1,27 +1,27 @@
 /** The dock itself: its tabs, its panels, and how much of the window it takes. */
-import { newBrowserTab, reduceBrowser } from "./browser.js";
+import { newBrowserTab } from "./browser.js";
 import { reduceTerminal } from "./terminal.js";
-import { andThen, applied, owned, type Step } from "./slice.js";
+import { andThen, type Step } from "./slice.js";
 import { settingsShown } from "./settings.js";
-import { reduceSideChatClose } from "./side-chats.js";
-import { browserEffectsForTab } from "./browser-tabs.js";
+import { sideChatsClosed } from "./side-chats.js";
+import { browserEffectsForTab, browserTabClosed } from "./browser-tabs.js";
+import { moveDismissedIn, worktreesOf } from "./worktree-claims.js";
+import { editorClosedIn, projectsOf } from "../project-commands.js";
+import { archivePromptIn, dialogsOf, forkNameIn } from "../workspace-dialogs.js";
 import { defaultBranchRange, diffRead, initialRange } from "./diff-reads.js";
 import { subjectWorkspaceId } from "./environment.js";
 import { TAKE_KEYS, docksOf, editDock, focusDockTabIn, overviewFoldIn, type DocksEdit } from "./dock-tabs.js";
-import { followUps, settled } from "./shared.js";
+import { followUps } from "./shared.js";
 import { readIn, threadsOf } from "./thread-edits.js";
-import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
+import type { WorkspaceInput } from "./types.js";
 import { isOverviewSection } from "../../domain/coordination.js";
-import { DIFF_PANEL, DOCK_PICKER, OVERVIEW_PANEL, WORKFLOW_PANEL, diffFor, dockOwner, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock, withDock, type WorkspaceState } from "../workspace-state.js";
+import { DIFF_PANEL, DOCK_PICKER, OVERVIEW_PANEL, WORKFLOW_PANEL, diffFor, dockOwner, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock, ownerOfBrowserTab, type WorkspaceState } from "../workspace-state.js";
 
 export const DOCK_INPUTS = [
-  "view.new-tab", "view.select-dock-index", "view.set-dock-open", "view.set-dock-expanded", "view.open-dock-panel",
+  "view.close-tab", "view.new-tab", "view.select-dock-index", "view.set-dock-open", "view.set-dock-expanded", "view.open-dock-panel",
   "view.open-workflow", "view.close-dock-panel", "view.select-dock-tab", "view.close-thread-tab", "view.set-overview-group"
 ] as const;
 type DockInput = Extract<WorkspaceInput, { type: (typeof DOCK_INPUTS)[number] }>;
-
-/** ⌘W, which closes whatever is in front, a side chat's run with it. */
-export const DOCK_CLOSE_INPUTS = ["view.close-tab"] as const;
 
 /** Reads the review for the checkout it is about now, starting over when that is another checkout. */
 function reviewSubject(state: WorkspaceState, owner: string): Step {
@@ -31,30 +31,34 @@ function reviewSubject(state: WorkspaceState, owner: string): Step {
   return diffRead(state, owner, range, { result: null, collapsed: [], viewed: {} });
 }
 
-export function reduceDockClose(state: WorkspaceState, _input: Extract<WorkspaceInput, { type: "view.close-tab" }>): WorkspaceTransition {
+/** ⌘W: whatever is in front closes, a dialog before the settings, the settings before the dock, and the dock's tab before the window. */
+function closeFront(state: WorkspaceState): Step {
   const { owner, dock } = frontDock(state);
-  if (state.worktreeMove) return settled({ ...state, worktreeMove: null });
-  if (state.forkName) return settled({ ...state, forkName: null });
-  if (state.archivePrompt) return settled({ ...state, archivePrompt: null });
-  if (state.projectEdit) return settled({ ...state, projectEdit: null });
-  if (state.settingsOpen || state.computerUseSetup) return applied(state, settingsShown(state, false));
-  if (!dock.open) return settled(state, [{ type: "close-window" }]);
+  if (state.worktreeMove) return { edits: [moveDismissedIn(worktreesOf(state))] };
+  if (state.forkName) return { edits: [forkNameIn(dialogsOf(state), null)] };
+  if (state.archivePrompt) return { edits: [archivePromptIn(dialogsOf(state), null)] };
+  if (state.projectEdit) return { edits: [editorClosedIn(projectsOf(state))] };
+  if (state.settingsOpen || state.computerUseSetup) return settingsShown(state, false);
+  if (!dock.open) return { effects: [{ type: "close-window" }] };
   /** A dock across the whole workspace is the frontmost thing there is, so it gives that up first. */
-  if (dock.expanded) return settled(withDock(state, owner, { expanded: false }));
+  if (dock.expanded) return { edits: [editDock(docksOf(state), owner, { expanded: false })] };
   const kind = dockTabKind(state, owner, dock.tab);
   /** Overview does not close, so ⌘W on it hides the dock the way it does on the picker. */
-  const closed = kind === "picker" || dock.tab === OVERVIEW_PANEL ? settled(withDock(state, owner, { open: false }))
-    : kind === "browser" ? owned(reduceBrowser)(state, { type: "browser.close-tab", tabId: dock.tab })
-    : kind === "terminal" ? owned(reduceTerminal)(state, { type: "terminal.close", terminalId: dock.tab })
-    : kind === "side-chat" ? reduceSideChatClose(state, { type: "side-chat.close", chatId: dock.tab })
-    : kind === "thread" ? applied(state, reduceDock(state, { type: "view.close-thread-tab", taskId: dock.tab }))
-    : applied(state, reduceDock(state, { type: "view.close-dock-panel", panel: dock.tab }));
+  const closed = kind === "picker" || dock.tab === OVERVIEW_PANEL ? { edits: [editDock(docksOf(state), owner, { open: false })] }
+    : kind === "browser" ? browserTabClosed(state, ownerOfBrowserTab(state, dock.tab) ?? dockOwner(state), dock.tab)
+    : kind === "terminal" ? reduceTerminal(state, { type: "terminal.close", terminalId: dock.tab })
+    : kind === "side-chat" ? sideChatsClosed(state, state.sideChats.filter((chat) => chat.id === dock.tab))
+    : kind === "thread" ? reduceDock(state, { type: "view.close-thread-tab", taskId: dock.tab })
+    : reduceDock(state, { type: "view.close-dock-panel", panel: dock.tab });
   /** Whatever the closed view was holding is gone with it, so the window takes the keys back. */
-  return { state: closed.state, effects: [...closed.effects, ...TAKE_KEYS] };
+  return { ...closed, effects: [...closed.effects ?? [], ...TAKE_KEYS] };
 }
 
 export function reduceDock(state: WorkspaceState, input: DockInput): Step {
   switch (input.type) {
+    case "view.close-tab":
+      return closeFront(state);
+
     /** ⌘W's inverse, answering with whatever the panel is showing rather than one fixed thing. */
     case "view.new-tab": {
       if (state.settingsOpen) return {};

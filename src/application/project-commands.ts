@@ -55,6 +55,11 @@ export function openedIn(edit: ProjectsEdit, workspace: WorkspaceRecord, unliste
   return { projects: new ProjectsChange({ ...edit.view, projects }), id };
 }
 
+/** The folder editor, closed. */
+export function editorClosedIn(edit: ProjectsEdit): ProjectsEdit {
+  return new ProjectsChange({ ...edit.view, projectEdit: null });
+}
+
 /** A project with no workspace of its own, adopting the one just opened for its folder. */
 export function adoptedIn(edit: ProjectsEdit, projectId: string, workspaceId: string): ProjectsEdit {
   return new ProjectsChange({ ...edit.view, projects: edit.view.projects.map((item) => item.id === projectId ? { ...item, workspaceId } : item) });

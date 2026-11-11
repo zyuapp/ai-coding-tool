@@ -173,6 +173,11 @@ export function rowReadIn<Field extends keyof Thread>(edit: ThreadsChange<Field>
   return read === edit.view ? edit : new ThreadsChange(read);
 }
 
+/** Threads gone for good, out of the list. */
+export function removedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, ids: Set<string>): ThreadsChange<Field> {
+  return new ThreadsChange({ threads: edit.view.threads.filter((thread) => !ids.has(thread.id)) });
+}
+
 /** A thread's conversation, loaded from the store where only its summary was held. */
 export function historyLoadedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, messages: Thread["messages"]): ThreadsChange<Field> {
   return mapped(edit, id, ({ historySummary: _loaded, ...thread }) => ({ ...thread, messages }));

@@ -4,7 +4,7 @@ import { test } from "vitest";
 import { apply, CLAIMS } from "../../src/application/workspace-reducer/dispatch.ts";
 import { reduceCli } from "../../src/application/workspace-reducer/cli.ts";
 import { owned } from "../../src/application/workspace-reducer/slice.ts";
-import { reduceSideChatClose } from "../../src/application/workspace-reducer/side-chats.ts";
+import { reduceSideChats } from "../../src/application/workspace-reducer/side-chats.ts";
 import { isComputerInput } from "../../src/application/computer-commands.ts";
 import { isEngineInput } from "../../src/application/engine-access.ts";
 import { isRemoteInput } from "../../src/application/remote-commands.ts";
@@ -31,7 +31,7 @@ test("no claimed input belongs to a family answered before the claims", () => {
 test("an input reaches the reducer that claims it", () => {
   const state = emptyWorkspaceState();
   assert.deepEqual(apply(state, { type: "cli.read" }), owned(reduceCli)(state, { type: "cli.read" }));
-  assert.deepEqual(apply(state, { type: "side-chat.close", chatId: "c1" }), reduceSideChatClose(state, { type: "side-chat.close", chatId: "c1" }));
+  assert.deepEqual(apply(state, { type: "side-chat.close", chatId: "c1" }), owned(reduceSideChats)(state, { type: "side-chat.close", chatId: "c1" }));
 });
 
 test("a lifted limit leaves the state to the reconcilers", () => {

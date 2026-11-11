@@ -13,12 +13,12 @@ import { PLAN_USAGE_INPUTS, reducePlanUsage } from "./plan-usage.js";
 import { PULL_REQUEST_INPUTS, reducePullRequests } from "./pull-requests.js";
 import { reduceRunControl, reduceRuns, RUN_CONTROL_INPUTS, RUN_INPUTS } from "./runs.js";
 import { AUTOMATION_INPUTS, reduceAutomations } from "./automations.js";
-import { reduceSideChatClose, reduceSideChats, SIDE_CHAT_CLOSE_INPUTS, SIDE_CHAT_INPUTS } from "./side-chats.js";
+import { reduceSideChats, SIDE_CHAT_INPUTS } from "./side-chats.js";
 import { DIFF_INPUTS, reduceDiffs } from "./diffs.js";
 import { reduceHiddenThreadsDismissed, reduceStore, reduceStoreLoad, STORE_INPUTS, STORE_LOAD_INPUTS } from "./store.js";
 import { COMPOSER_INPUTS, reduceComposer } from "./composer.js";
 import { reduceSettings, reduceModelFavorite, reduceRememberProject, SETTINGS_INPUTS } from "./settings.js";
-import { DOCK_CLOSE_INPUTS, DOCK_INPUTS, reduceDock, reduceDockClose } from "./dock.js";
+import { DOCK_INPUTS, reduceDock } from "./dock.js";
 import { BROWSER_INPUTS, reduceBrowser } from "./browser.js";
 import { BROWSER_IMPORT_INPUTS, reduceBrowserImport } from "./browser-import.js";
 import { reduceSimulator, SIMULATOR_INPUTS } from "./simulator.js";
@@ -66,7 +66,6 @@ export const CLAIMS = [
   claim(RUN_CONTROL_INPUTS, owned(reduceRunControl)),
   claim(AUTOMATION_INPUTS, owned(reduceAutomations)),
   claim(SIDE_CHAT_INPUTS, owned(reduceSideChats)),
-  claim(SIDE_CHAT_CLOSE_INPUTS, reduceSideChatClose),
   claim(PULL_REQUEST_INPUTS, owned(reducePullRequests)),
   claim(COMPUTER_USE_INPUTS, owned(reduceComputerUse)),
   claim(PLAN_USAGE_INPUTS, owned(reducePlanUsage)),
@@ -83,7 +82,6 @@ export const CLAIMS = [
   claim(APP_UPDATE_INPUTS, owned(reduceAppUpdate)),
   claim(SETTINGS_INPUTS, owned(reduceSettings)),
   claim(DOCK_INPUTS, owned(reduceDock)),
-  claim(DOCK_CLOSE_INPUTS, reduceDockClose),
   claim(BROWSER_INPUTS, owned(reduceBrowser)),
   claim(BROWSER_IMPORT_INPUTS, owned(reduceBrowserImport)),
   claim(SIMULATOR_INPUTS, owned(reduceSimulator)),

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { pruneDeletedThreads } from "../../src/application/thread-pruning.ts";
-import { emptyWorkspaceState } from "../../src/application/workspace-state.ts";
+import { DOCK_PICKER, diffFor, dockFor, emptyWorkspaceState, withDock } from "../../src/application/workspace-state.ts";
 import type { ActiveRun } from "../../src/application/thread-run-state.ts";
 
 function activeRun(taskId: string): ActiveRun {
@@ -64,4 +64,34 @@ test("pruning a missing task keeps unrelated keyed state intact", () => {
 
   assert.equal(pruned.prompts, state.prompts);
   assert.equal(pruned.readingPoints, state.readingPoints);
+});
+
+test("a deleted thread holds no checkout, dock, review, focus, side chat or ask to browse either", () => {
+  const gone = "gone";
+  const base = emptyWorkspaceState();
+  const state = {
+    ...withDock(withDock(base, gone, { open: true }), "kept", { open: true, threadTabs: [gone], tab: gone }),
+    threads: [task("kept")],
+    currentId: "kept",
+    creatingWorktrees: [gone],
+    releasingWorktrees: [gone],
+    movesAfterRun: { [gone]: { destination: { kind: "local" as const } } },
+    diffs: { [gone]: diffFor(base, gone) },
+    dockFocus: { owner: gone, tab: "agents", count: 1 },
+    keyboardTab: gone,
+    sideChats: [{ id: "chat", sourceThreadId: gone, error: null }],
+    subagents: { [gone]: [] },
+    browserApproval: { approvalId: "ask", url: "https://example.com", taskId: gone },
+  };
+
+  const pruned = pruneDeletedThreads(state, new Set([gone]));
+
+  assert.deepEqual([pruned.creatingWorktrees, pruned.releasingWorktrees], [[], []]);
+  for (const record of [pruned.movesAfterRun, pruned.docks, pruned.diffs, pruned.subagents]) assert.equal(gone in record, false);
+  assert.deepEqual(dockFor(pruned, "kept").threadTabs, []);
+  assert.equal(dockFor(pruned, "kept").tab, DOCK_PICKER, "a dock showing the thread falls back to the picker");
+  assert.equal(pruned.dockFocus, null);
+  assert.equal(pruned.keyboardTab, null);
+  assert.deepEqual(pruned.sideChats, [], "a side chat forked from it goes with it");
+  assert.equal(pruned.browserApproval, null);
 });

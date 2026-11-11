@@ -10,6 +10,7 @@ import { afterward, andThen, applied, ownFields, type Step } from "./slice.js";
 import { readIn, rowReadIn, threadsOf } from "./thread-edits.js";
 import type { WorkspaceTransition } from "./types.js";
 import { projectFor } from "../thread-location.js";
+import { withoutMatching } from "../thread-pruning.js";
 import { dockFor, type WorkspaceState } from "../workspace-state.js";
 import type { NavigationState } from "../state/navigation.js";
 import type { NewThreadDraftState } from "../state/new-thread-draft.js";
@@ -37,6 +38,17 @@ export function navigationOf(state: NavigationView): NavigationEdit {
 /** The window on a thread, the draft's project and the folder following it there. */
 export function onThreadIn(edit: NavigationEdit, taskId: string, projectId: string | null, folder: string | undefined): NavigationEdit {
   return new NavigationChange({ ...edit.view, currentId: taskId, draftProjectId: projectId, lastFolder: folder ?? edit.view.lastFolder });
+}
+
+/** Threads gone for good, gone from history, the cursor staying on the visit it was on or the one before it. */
+export function visitsForgottenIn(edit: NavigationEdit, removed: Set<string>): NavigationEdit {
+  const { view } = edit;
+  const history = withoutMatching(view.history, (threadId) => removed.has(threadId));
+  let historyIndex = -1;
+  for (let index = 0; index <= view.historyIndex && index < view.history.length; index += 1) {
+    if (!removed.has(view.history[index]!)) historyIndex += 1;
+  }
+  return new NavigationChange({ ...view, history, historyIndex: Math.min(historyIndex, history.length - 1) });
 }
 
 /** The place in history back or forward lands on. */

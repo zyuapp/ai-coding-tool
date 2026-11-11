@@ -1,6 +1,6 @@
 /** The pages a dock holds: what loads in them, which one the panel draws, and who may open them. */
 import { docksOf, editDock, focusDockTabIn, persistView, showDockTabIn, type DocksEdit } from "./dock-tabs.js";
-import { afterward, type SliceTransition } from "./slice.js";
+import { afterward, ownFields, type SliceTransition, type Step } from "./slice.js";
 import type { WorkspaceEffect } from "./types.js";
 import type { BrowserState } from "../state/browser.js";
 import { browserTarget, dockFor, dockOwner, dockTabAfterClosing, frontDock, type WorkspaceState } from "../workspace-state.js";
@@ -8,6 +8,24 @@ import { browserOrigin, type BrowserTab } from "../../domain/browser.js";
 
 /** What the browser panel itself owns: the sites a run may reach, and the one waiting on the user. */
 export type BrowserOwn = Pick<BrowserState, "browserOrigins" | "browserApproval">;
+
+/** The browser's own state as one input leaves it. Only the functions here make one. */
+class BrowserChange {
+  private declare readonly owned: never;
+  constructor(readonly view: BrowserOwn) {}
+}
+
+export type BrowserEdit = BrowserChange;
+
+export function browserOf(state: BrowserOwn): BrowserEdit {
+  return new BrowserChange(ownFields<BrowserOwn>(state, { browserOrigins: true, browserApproval: true }));
+}
+
+/** A run's ask to browse goes with the thread that asked, once that thread is gone for good. */
+export function approvalForgottenIn(edit: BrowserEdit, removed: Set<string>): BrowserEdit {
+  const approval = edit.view.browserApproval;
+  return new BrowserChange({ ...edit.view, browserApproval: approval && !removed.has(approval.taskId) ? approval : null });
+}
 
 type Pages = SliceTransition<BrowserOwn>;
 
@@ -110,6 +128,12 @@ export function closeBrowserTab(state: WorkspaceState, own: Pages["patch"], owne
       ...persistView(afterward(state, { patch, edits: [docks] })),
     ],
   };
+}
+
+/** {@link closeBrowserTab} of the user's own accord, which any slice can carry. */
+export function browserTabClosed(state: WorkspaceState, owner: string, tabId: string): Step {
+  const { patch, ...closed } = closeBrowserTab(state, undefined, owner, tabId);
+  return patch ? { ...closed, edits: [new BrowserChange({ ...browserOf(state).view, ...patch }), ...closed.edits ?? []] } : closed;
 }
 
 /**

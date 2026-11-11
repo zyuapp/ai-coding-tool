@@ -6,6 +6,7 @@
 import { clampQuote } from "./annotations.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import { withPrompt, type ComposerState } from "./state/composer.js";
+import { withoutThreadKeys } from "./thread-pruning.js";
 import type { AttachmentSendState } from "./composer-attachments.js";
 import type { AnnotationCommand, FileCommand, ImageCommand, PasteCommand } from "../contracts/commands.js";
 import { MAX_ATTACHED_FILES, MAX_ATTACHMENTS, type Annotation, type AttachedFile, type AttachedFileDraft, type PastedText, type StagedImage } from "../domain/conversation.js";
@@ -21,6 +22,19 @@ export type ComposerEdit = ComposerChange;
 export function composerOf(state: ComposerState): ComposerEdit {
   const { prompts, annotations, pastes, images, files, composerFocus, readingPoints, annotationReveal, attachmentSends } = state;
   return new ComposerChange({ prompts, annotations, pastes, images, files, composerFocus, readingPoints, annotationReveal, attachmentSends });
+}
+
+/** Threads gone for good take what was drafted in them, and where their reader was, with them. */
+export function draftsForgottenIn(edit: ComposerEdit, removed: Set<string>): ComposerEdit {
+  const { view } = edit;
+  return new ComposerChange({
+    ...view,
+    prompts: withoutThreadKeys(view.prompts, removed),
+    annotations: withoutThreadKeys(view.annotations, removed),
+    pastes: withoutThreadKeys(view.pastes, removed),
+    images: withoutThreadKeys(view.images, removed),
+    readingPoints: withoutThreadKeys(view.readingPoints, removed),
+  });
 }
 
 export function withPromptIn(edit: ComposerEdit, key: string, prompt: string): ComposerEdit {
