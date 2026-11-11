@@ -3,8 +3,8 @@
  * through the functions here, and changes that span features are the functions here that make them.
  */
 import type { ThreadsState } from "../state/threads.js";
-import { endedTurn, openedTurn, restoredTestimony, withdrawRun, type ActiveRun, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
-import { dismissed, withClosedIssues } from "../../domain/attention.js";
+import { endedTurn, openedTurn, restoredTestimony, withdrawRun, type ActiveRun, type FinishedVerdict, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
+import { dismissed, withClosedIssues, withFinding } from "../../domain/attention.js";
 import { reopenedIfStuck, withCoordinationNote, withoutAnswer, type CoordinationNote } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
 import type { ThreadOutcome } from "../../domain/thread-run.js";
@@ -143,6 +143,16 @@ export function limitPausedIn<Field extends keyof Thread>(edit: ThreadsChange<Fi
     const { outcome: _expected, outcomeUnread: _unread, runEndedAs: _carriedOn, ...rest } = thread;
     return { ...rest, limitPause: pause };
   });
+}
+
+/** What a run found, said in the thread and kept with its findings, unless the thread already carries it. */
+export function findingIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, report: Parameters<typeof withFinding>[1], at: number, seen: boolean): ThreadsChange<Field> {
+  return mapped(edit, id, (thread) => withFinding(thread, report, at, seen));
+}
+
+/** A thread whose work finished, ranked and marked as {@link finishedVerdict} has it. */
+export function finishedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, verdict: FinishedVerdict): ThreadsChange<Field> {
+  return mapped(edit, id, (thread) => ({ ...thread, ...verdict }));
 }
 
 /** A resolved thread its failed turn left stuck, open again. */

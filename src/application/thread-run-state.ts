@@ -156,6 +156,13 @@ export function openedTurn(thread: Thread, provenance: Pick<RunProvenance, "orig
   return provenance.operation === "compact" || provenance.origin === "automation" && provenance.quiet ? thread : { ...thread, runOpen: true, rankedAt: now() };
 }
 
+/** What a thread whose work finished at `at` reads as: unread unless the user was looking at it. */
+export type FinishedVerdict = Pick<ThreadMark, "runEndedAt" | "rankedAt" | "outcomeUnread"> & { outcome: "finished"; runEndedAs: "finished" };
+
+export function finishedVerdict(at: number, onScreen: boolean): FinishedVerdict {
+  return { outcome: "finished", runEndedAs: "finished", runEndedAt: at, rankedAt: at, ...(onScreen ? {} : { outcomeUnread: true as const }) };
+}
+
 /** Scheduled runs carry their own framing: nobody is present to answer a question or end the loop. */
 export function automationRunPrompt(prompt: string, runNumber: number, surfaceWhen?: string, endsWhen?: string) {
   const stop = endsWhen

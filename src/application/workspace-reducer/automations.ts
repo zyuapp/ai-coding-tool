@@ -1,28 +1,33 @@
 /** Scheduled ticks: what a thread arms, and what a tick makes of the run it starts. */
-import { resolveWorkspaceEffect, withPending } from "./run-queue.js";
-import { now, settled, targetId } from "./shared.js";
-import type { SliceTransition } from "./slice.js";
-import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
+import { pendingStep, resolveWorkspaceEffect } from "./run-queue.js";
+import { runsOf, watchEndedBeforeIn } from "./run-edits.js";
+import { now, targetId } from "./shared.js";
+import { afterward, type SliceTransition, type Step } from "./slice.js";
+import { finishedIn, notedIn, threadsOf } from "./thread-edits.js";
+import type { WorkspaceEffect, WorkspaceInput } from "./types.js";
 import { coordinationNote } from "../coordination-messages.js";
 import { declinedTick, raisedFinding, whyTickCannotRun } from "../findings.js";
-import { withNothingToReport } from "../run-testimony.js";
+import { nothingToReport } from "../run-testimony.js";
 import { threadOnScreen } from "../thread-attention.js";
 import { isWatching, sameAutomationFields, type AutomationView } from "../../domain/automation.js";
-import { coordinatorOf, withCoordinationNote } from "../../domain/coordination.js";
+import { coordinatorOf } from "../../domain/coordination.js";
+import type { FindingsThread } from "../../domain/finding.js";
 import type { Thread } from "../../domain/thread.js";
-import { automationRunPrompt, updateThread } from "../thread-run-state.js";
+import { automationRunPrompt, finishedVerdict } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import type { AutomationsState } from "../state/automations.js";
 import type { AutomationAck, AutomationFire } from "../../contracts/ipc.js";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation.js";
 
-export const AUTOMATION_INPUTS = ["automation.save", "automation.update", "automation.delete", "automation.run-now", "view.edit-automation"] as const;
+export const AUTOMATION_INPUTS = [
+  "automation.save", "automation.update", "automation.delete", "automation.run-now", "view.edit-automation",
+  "automation.fired", "automation.notify", "automation.nothing-to-report", "automations.changed"
+] as const;
 type AutomationInput = Extract<WorkspaceInput, { type: (typeof AUTOMATION_INPUTS)[number] }>;
 
-/** What a tick does once it fires, and what the scheduler's list ending a watch does, which runs keep track of. */
-export const AUTOMATION_RUN_INPUTS = ["automation.fired", "automation.notify", "automation.nothing-to-report", "automations.changed"] as const;
-type AutomationRunInput = Extract<WorkspaceInput, { type: (typeof AUTOMATION_RUN_INPUTS)[number] }>;
+/** What schedules keep is the automations' own; on threads, what their runs found. */
+type AutomationTransition = SliceTransition<AutomationsState, FindingsThread>;
 
 export type AutomationEvent =
   | { type: "automation.fired"; fire: AutomationFire }
@@ -35,7 +40,7 @@ export type AutomationEffect =
   | { type: "automation.run-now"; taskId: string }
   | { type: "automation.ack"; ack: AutomationAck };
 
-export function reduceAutomations(state: WorkspaceState, input: AutomationInput): SliceTransition<AutomationsState> {
+export function reduceAutomations(state: WorkspaceState, input: AutomationInput): AutomationTransition {
   switch (input.type) {
     case "automation.save": {
       const taskId = targetId(state, input.taskId);
@@ -61,11 +66,7 @@ export function reduceAutomations(state: WorkspaceState, input: AutomationInput)
       const taskId = targetId(state, input.taskId);
       return taskId ? { effects: [{ type: "automation.run-now", taskId }] } : {};
     }
-  }
-}
 
-export function reduceAutomationRuns(state: WorkspaceState, input: AutomationRunInput): WorkspaceTransition {
-  switch (input.type) {
     /** The scheduler owns the cadence; the workspace decides whether this tick can actually run. */
     case "automation.fired": {
       const { fire } = input;
@@ -88,17 +89,19 @@ export function reduceAutomationRuns(state: WorkspaceState, input: AutomationRun
         ...(fire.unattended ? { unattended: true as const } : {}),
         automationId: fire.automationId,
       };
-      return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false)]);
+      return { ...pendingStep(state, pending), effects: [resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false)] };
     }
 
     case "automation.notify":
       return raisedFinding(state, input);
 
     case "automation.nothing-to-report":
-      return settled(withNothingToReport(state, input.taskId, input.checked, Date.now()));
+      return nothingToReport(state, input.taskId, input.checked, Date.now());
 
-    case "automations.changed":
-      return settled(withEndedWatches({ ...state, automations: input.automations }, state.automations));
+    case "automations.changed": {
+      const patch = { automations: input.automations };
+      return { patch, ...endedWatches(afterward(state, { patch }), state.automations) };
+    }
   }
 }
 
@@ -109,26 +112,26 @@ export function reduceAutomationRuns(state: WorkspaceState, input: AutomationRun
  * thread to this verdict. Its coordinator hears it finished as the user sees it, here or, by the
  * moment its work ended, on the computer it works under.
  */
-function withEndedWatches(state: WorkspaceState, before: readonly AutomationView[]): WorkspaceState {
+function endedWatches(state: WorkspaceState, before: readonly AutomationView[]): Step {
   const kept = new Set(state.automations.map((automation) => automation.taskId));
   const ended = new Set(before.filter((automation) => isWatching(automation) && !kept.has(automation.taskId)).map((automation) => automation.taskId));
-  if (!ended.size) return state;
+  if (!ended.size) return {};
   const at = now();
-  const activeRuns = { ...state.activeRuns };
+  let runs = runsOf(state);
+  let threads = threadsOf(state);
   const finished: Thread[] = [];
-  const threads = state.threads.map((thread) => {
-    if (!ended.has(thread.id) || thread.archivedAt !== undefined) return thread;
-    const verdict = { outcome: "finished" as const, runEndedAs: "finished" as const, runEndedAt: at, rankedAt: at, ...(threadOnScreen(state, thread.id) ? {} : { outcomeUnread: true as const }) };
-    const run = activeRuns[thread.id];
-    if (run) activeRuns[thread.id] = { ...run, before: { ...run.before, ...verdict } };
+  for (const thread of state.threads) {
+    if (!ended.has(thread.id) || thread.archivedAt !== undefined) continue;
+    const verdict = finishedVerdict(at, threadOnScreen(state, thread.id));
+    runs = watchEndedBeforeIn(runs, thread.id, verdict);
+    threads = finishedIn(threads, thread.id, verdict);
     finished.push(thread);
-    return { ...thread, ...verdict };
-  });
-  const watched = { ...state, threads, activeRuns };
-  return finished.reduce((next, thread) => {
-    const lead = coordinatorOf(next.threads, thread);
-    return lead ? updateThread(next, lead.id, (item) => withCoordinationNote(item, coordinationNote(thread.id, `"${thread.title}" finished watching.`, at))) : next;
-  }, watched);
+  }
+  for (const thread of finished) {
+    const lead = coordinatorOf(threads.view.threads, thread);
+    if (lead) threads = notedIn(threads, lead.id, coordinationNote(thread.id, `"${thread.title}" finished watching.`, at));
+  }
+  return { edits: [threads, runs] };
 }
 
 /** An archived thread is unreachable, so its automation would tick forever with nowhere to run. */
@@ -141,7 +144,7 @@ export function ack(pending: PendingRun, started: boolean): WorkspaceEffect[] {
   return pending.automationId ? [{ type: "automation.ack", ack: { automationId: pending.automationId, runId: pending.runId, started } }] : [];
 }
 
-function withoutAutomationEdit(state: WorkspaceState, taskId: string): SliceTransition<AutomationsState> {
+function withoutAutomationEdit(state: WorkspaceState, taskId: string): AutomationTransition {
   if (!(taskId in state.automationEdits)) return {};
   const { [taskId]: _dropped, ...automationEdits } = state.automationEdits;
   return { patch: { automationEdits } };

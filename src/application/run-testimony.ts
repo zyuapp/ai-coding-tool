@@ -3,14 +3,16 @@
  * the run behind the thread: where the run came from, whether it answered, and what it reported.
  */
 import type { FindingReport } from "../contracts/threads.js";
-import { isNews, withFinding } from "../domain/attention.js";
+import { isNews } from "../domain/attention.js";
+import type { FindingsThread } from "../domain/finding.js";
 import type { RunStatus } from "../domain/run.js";
 import type { ThreadOutcome } from "../domain/thread-run.js";
 import { threadOnScreen } from "./thread-attention.js";
-import { afterward } from "./workspace-reducer/slice.js";
-import { threadsOf, verdictIn } from "./workspace-reducer/thread-edits.js";
+import { acknowledgedIn, notifiedIn, runsOf } from "./workspace-reducer/run-edits.js";
+import { afterward, type Step } from "./workspace-reducer/slice.js";
+import { editThread, findingIn, threadsOf, verdictIn } from "./workspace-reducer/thread-edits.js";
 import type { WorkspaceState } from "./workspace-state.js";
-import { updateThread, type ActiveRun, type RunTransitionState } from "./thread-run-state.js";
+import type { ActiveRun, RunTransitionState } from "./thread-run-state.js";
 
 /**
  * The verdict a settled turn leaves its thread, which is what ranks it. Only a thread the user was
@@ -31,29 +33,17 @@ export function scheduledRun(state: RunTransitionState, taskId: string): ActiveR
  * Records what a run found and marks the run as having answered for itself. Anything the thread was
  * not already carrying is news, so the run surfaces; only a duplicate leaves the silence intact.
  */
-export function withNotifiedRun<T extends RunTransitionState>(state: T, taskId: string, report: FindingReport, at: number, seen = false): T {
-  const active = scheduledRun(state, taskId);
-  if (!active) return state;
+export function notifiedRun(state: WorkspaceState, taskId: string, report: FindingReport, at: number, seen = false): Step {
+  if (!scheduledRun(state, taskId)) return {};
   /** A duplicate is still the run answering for itself, but it is not news, so it does not break the silence. */
   const raised = state.threads.some((thread) => thread.id === taskId && isNews(thread, report.key));
-  return {
-    ...state,
-    activeRuns: { ...state.activeRuns, [taskId]: {
-      ...active,
-      acknowledged: true,
-      notified: active.notified || raised,
-      reportedIssues: report.key === undefined || active.reportedIssues.includes(report.key) ? active.reportedIssues : [...active.reportedIssues, report.key],
-    } },
-    threads: state.threads.map((thread) => thread.id === taskId ? withFinding(thread, report, at, seen) : thread),
-  };
+  return { edits: [notifiedIn(runsOf(state), taskId, raised, report.key), findingIn(threadsOf(state), taskId, report, at, seen)] };
 }
 
 /** A run saying it looked and found nothing. What it says never retracts what it already surfaced. */
-export function withNothingToReport<T extends RunTransitionState>(state: T, taskId: string, checked: string, at: number): T {
-  const active = scheduledRun(state, taskId);
-  if (!active) return state;
-  const acknowledged = { ...state, activeRuns: { ...state.activeRuns, [taskId]: { ...active, acknowledged: true } } };
-  return updateThread(acknowledged, taskId, (thread) => ({ ...thread, lastChecked: { at, note: checked } }));
+export function nothingToReport(state: WorkspaceState, taskId: string, checked: string, at: number): Step<FindingsThread> {
+  if (!scheduledRun(state, taskId)) return {};
+  return { edits: [acknowledgedIn(runsOf(state), taskId), editThread(threadsOf<FindingsThread>(state), taskId, () => ({ lastChecked: { at, note: checked } }))] };
 }
 
 /** Why a settling run reaches the user, or null when it has earned its silence. */

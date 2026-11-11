@@ -5,7 +5,7 @@
  */
 import type { PendingQuestion } from "../../domain/agent-question.js";
 import type { PendingRun, QueuedMessage, RunsState } from "../state/runs.js";
-import { withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type ThreadRunStatus } from "../thread-run-state.js";
+import { withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type FinishedVerdict, type ThreadRunStatus } from "../thread-run-state.js";
 import type { Thread } from "../../domain/thread.js";
 
 /** The run state as one input leaves it. Only the functions here make one. */
@@ -127,4 +127,26 @@ export function stopAskedIn(edit: RunsEdit, taskId: string, processId: string): 
   const subagent = subagents.find((candidate) => candidate.id === processId);
   if (!subagent || subagent.stopping || subagent.status !== "working") return null;
   return new RunsChange({ ...view, ...withSubagents(view, taskId, subagents.map((candidate) => candidate.id === subagent.id ? { ...candidate, stopping: true as const } : candidate)) });
+}
+
+/** A scheduled run that answered for itself, having found something: news unless `raised` is false, and the issue it named. */
+export function notifiedIn(edit: RunsEdit, taskId: string, raised: boolean, key: string | undefined): RunsEdit {
+  const active = edit.view.activeRuns[taskId];
+  if (!active) return edit;
+  const reportedIssues = key === undefined || active.reportedIssues.includes(key) ? active.reportedIssues : [...active.reportedIssues, key];
+  return new RunsChange({ ...edit.view, activeRuns: { ...edit.view.activeRuns, [taskId]: { ...active, acknowledged: true, notified: active.notified || raised, reportedIssues } } });
+}
+
+/** A scheduled run that answered for itself, having found nothing. */
+export function acknowledgedIn(edit: RunsEdit, taskId: string): RunsEdit {
+  const active = edit.view.activeRuns[taskId];
+  if (!active) return edit;
+  return new RunsChange({ ...edit.view, activeRuns: { ...edit.view.activeRuns, [taskId]: { ...active, acknowledged: true } } });
+}
+
+/** A watch ended while a tick of it was going: a tick that settles unseen puts its thread back to this verdict. */
+export function watchEndedBeforeIn(edit: RunsEdit, taskId: string, verdict: FinishedVerdict): RunsEdit {
+  const active = edit.view.activeRuns[taskId];
+  if (!active) return edit;
+  return new RunsChange({ ...edit.view, activeRuns: { ...edit.view.activeRuns, [taskId]: { ...active, before: { ...active.before, ...verdict } } } });
 }
