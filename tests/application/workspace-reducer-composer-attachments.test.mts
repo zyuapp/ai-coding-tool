@@ -5,7 +5,7 @@ import { attachmentSendFor } from "../../src/application/composer-attachments.ts
 import { imagesFor } from "../../src/application/composer-drafts.ts";
 import { NEW_THREAD_DRAFT } from "../../src/application/state/composer.ts";
 import { MAX_ATTACHMENTS, type OutgoingAttachment } from "../../src/domain/conversation.ts";
-import { effectAt, run, task, workspace } from "./workspace-reducer-fixtures.mts";
+import { effectAt, run, running, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 function image(id: string, path?: string): OutgoingAttachment {
   return { id, source: "data:image/png;base64,AQID", annotations: [], ...(path === undefined ? {} : { path }) };
@@ -156,4 +156,15 @@ test("images written after the composer left the new-thread draft wait there and
   assert.deepEqual(attachmentSendFor(written.state.attachmentSends).sent, [], "the strip keeps the image to send again");
   assert.equal(written.state.prompts[NEW_THREAD_DRAFT], "A new thread");
   assert.equal(written.state.threads[0]!.messages.length, 0);
+});
+
+test("images written for a thread whose run is going wait in its queue, and the strip is told they left", () => {
+  const state = run(running(), [{ type: "view.set-prompt", prompt: "And this one" }]);
+  const sending = reduce(state, { type: "attachments.send", attachments: [image("one")] });
+  const written = reduce(sending.state, { type: "attachments.saved", ids: ["one"], attachments: [{ path: "/tmp/one.png", labels: [] }] });
+
+  assert.deepEqual(written.state.queuedMessages["task-a"]?.map((message) => message.attachments), [["/tmp/one.png"]]);
+  const send = attachmentSendFor(written.state.attachmentSends);
+  assert.equal(send.busy, false);
+  assert.deepEqual(send.sent, ["one"]);
 });

@@ -55,7 +55,7 @@ export const CLAIMS = [
   claim(PROPOSAL_INPUTS, owned(reduceProposals)),
   claim(PROPOSAL_START_INPUTS, reduceProposalStarts),
   claim(WORKTREE_INPUTS, reduceWorktrees),
-  claim(ATTACHMENT_INPUTS, reduceComposerAttachments),
+  claim(ATTACHMENT_INPUTS, owned(reduceComposerAttachments)),
   claim(SEND_INPUTS, owned(reduceSending)),
   claim(PROJECT_ADD_INPUTS, reduceProjectAdd),
   claim(PROJECT_INPUTS, reduceProjectCommands),
