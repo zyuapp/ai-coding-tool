@@ -1,18 +1,20 @@
 /** The pull request the checkout in front belongs to, those a coordinator's threads work on, and which ask each answer belongs to. */
 import { currentWorkspaceId } from "./environment.js";
 import { threadWorkspaceId } from "../thread-location.js";
-import { now, settled } from "./shared.js";
-import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
+import { now } from "./shared.js";
+import type { SliceTransition } from "./slice.js";
+import { editThreads, resolvedIn, threadsOf, type ThreadsEdit } from "./thread-edits.js";
+import type { WorkspaceEffect, WorkspaceInput } from "./types.js";
 import { coordinationMembers } from "../coordination.js";
 import { remotelyLedThreads } from "../state/threads.js";
 import { ownPullRequest } from "../coordinated-thread-status.js";
 import { awaitsPullRequest, branchOf, memberCheckouts } from "../pull-request-view.js";
 import type { WorkspaceState } from "../workspace-state.js";
+import type { GitState } from "../state/pull-requests.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { dismissed } from "../../domain/attention.js";
 import { isCoordinator, stuckVerdict, worksUnderCoordinator } from "../../domain/coordination.js";
-import { linkMatches, linkOf, NO_PULL_REQUEST, samePullRequest, type PullRequestAnswer, type PullRequestLink, type PullRequestRead, type PullRequestRef } from "../../domain/pull-request.js";
+import { linkMatches, linkOf, NO_PULL_REQUEST, samePullRequest, type PullRequestAnswer, type PullRequestLink, type PullRequestRead, type PullRequestRef, type PullRequestThread } from "../../domain/pull-request.js";
 import type { Thread } from "../../domain/thread.js";
 
 export const PULL_REQUEST_INPUTS = ["pull-request.read", "pull-request.read-members", "pull-request.read-member", "pull-request.answered"] as const;
@@ -24,22 +26,22 @@ export type PullRequestEvent = { type: "pull-request.answered"; workspaceId: str
 /** `members` marks an ask for a coordinator's threads, which counts its reads apart from the checkout in front. */
 export type PullRequestEffect = { type: "read-pull-request"; workspaceId: string; branch: string | null; read: number; members?: true };
 
-export function reducePullRequests(state: WorkspaceState, input: PullRequestInput): WorkspaceTransition {
+export function reducePullRequests(state: WorkspaceState, input: PullRequestInput): SliceTransition<GitState, PullRequestThread> {
   switch (input.type) {
     case "pull-request.read": {
       const threadId = input.taskId ?? state.currentId;
       const workspaceId = input.taskId ? threadWorkspaceId(state, state.threads.find((thread) => thread.id === input.taskId)) : currentWorkspaceId(state);
       /** Nothing to ask about leaves nothing to draw, so the answer the last checkout gave goes too. */
-      if (!workspaceId) return settled(state.pullRequest === null ? state : { ...state, pullRequest: null });
+      if (!workspaceId) return state.pullRequest === null ? {} : { patch: { pullRequest: null } };
       const branch = branchOf(state.environments[workspaceId] ?? null);
       const held = state.pullRequest;
       /** Only another checkout or another branch can have a different answer, so only those blank the row. */
       const kept = held && held.workspaceId === workspaceId && held.branch === branch ? held.answer : NO_PULL_REQUEST;
       const read = (held?.read ?? 0) + 1;
-      return settled(
-        { ...state, pullRequest: { workspaceId, branch, read, answer: kept, ...(threadId ? { threadIds: [threadId] } : {}) } },
-        [{ type: "read-pull-request", workspaceId, branch, read }],
-      );
+      return {
+        patch: { pullRequest: { workspaceId, branch, read, answer: kept, ...(threadId ? { threadIds: [threadId] } : {}) } },
+        effects: [{ type: "read-pull-request", workspaceId, branch, read }],
+      };
     }
     case "pull-request.read-members": {
       const lead = state.threads.find((thread) => thread.id === (input.taskId ?? state.currentId));
@@ -50,23 +52,25 @@ export function reducePullRequests(state: WorkspaceState, input: PullRequestInpu
        * Merged, never replaced, so another coordinator's read still in flight keeps its place. Only a
        * checkout no coordinator's thread works in any more is let go, and stops being drawn.
        */
-      const kept = Object.keys(state.memberPullRequests).every((workspaceId) => everyone.has(workspaceId))
+      let memberPullRequests = Object.keys(state.memberPullRequests).every((workspaceId) => everyone.has(workspaceId))
         ? state.memberPullRequests
         : Object.fromEntries(Object.entries(state.memberPullRequests).filter(([workspaceId]) => everyone.has(workspaceId)));
-      let next = kept === state.memberPullRequests ? state : { ...state, memberPullRequests: kept };
       const effects: WorkspaceEffect[] = [];
       for (const workspaceId of ours.keys()) {
-        const read = checkoutRead(next, workspaceId, everyone.get(workspaceId) ?? []);
-        next = read.state;
+        const read = checkoutRead(state, memberPullRequests, workspaceId, everyone.get(workspaceId) ?? []);
+        memberPullRequests = read.memberPullRequests;
         effects.push(read.effect);
       }
-      return settled(next, [...effects, ...(lead && isCoordinator(lead) ? remoteReads(state, lead.id) : [])]);
+      return {
+        ...(memberPullRequests === state.memberPullRequests ? {} : { patch: { memberPullRequests } }),
+        effects: [...effects, ...(lead && isCoordinator(lead) ? remoteReads(state, lead.id) : [])],
+      };
     }
     /** One thread's checkout, asked for by the coordinator it works under on another computer, which reads the answer off this computer's state. */
     case "pull-request.read-member": {
       const thread = state.threads.find((item) => item.id === input.taskId);
-      const read = thread && thread.archivedAt === undefined && worksUnderCoordinator(state.threads, thread) && awaitsPullRequest(thread) ? memberPullRequestRead(state, thread) : null;
-      return read ? settled(read.state, [read.effect]) : settled(state);
+      const read = thread && thread.archivedAt === undefined && worksUnderCoordinator(state.threads, thread) && awaitsPullRequest(thread) ? memberRead(state, thread) : null;
+      return read ? { patch: { memberPullRequests: read.memberPullRequests }, effects: [read.effect] } : {};
     }
     case "pull-request.answered": {
       /** Answers to asks older than the latest are dropped, whichever order they arrive in. */
@@ -74,17 +78,20 @@ export function reducePullRequests(state: WorkspaceState, input: PullRequestInpu
       const answersHeld = !input.members && held && held.read === input.read && held.workspaceId === input.workspaceId && held.branch === input.branch;
       const member = state.memberPullRequests[input.workspaceId];
       const answersMember = input.members && member && member.read === input.read && member.branch === input.branch;
-      if (!answersHeld && !answersMember) return settled(state);
+      if (!answersHeld && !answersMember) return {};
       const current = answersHeld && !samePullRequest(held.answer, input.answer);
       /** A checkout's first answer is news even when it says none, since none is now GitHub's word. */
       const changedMember = answersMember && (!member.answered || !samePullRequest(member.answer, input.answer));
-      const next = linked(state, answersHeld ? held.threadIds : member?.threadIds, input.answer);
-      if (!current && !changedMember) return settled(next);
-      return settled({
-        ...next,
-        ...(current ? { pullRequest: { ...held, answer: input.answer } } : {}),
-        ...(changedMember ? { memberPullRequests: { ...state.memberPullRequests, [input.workspaceId]: { ...member, answer: input.answer, answered: true } } } : {}),
-      });
+      const threads = linked(state, answersHeld ? held.threadIds : member?.threadIds, input.answer);
+      const edits = threads ? [threads] : [];
+      if (!current && !changedMember) return { edits };
+      return {
+        patch: {
+          ...(current ? { pullRequest: { ...held, answer: input.answer } } : {}),
+          ...(changedMember ? { memberPullRequests: { ...state.memberPullRequests, [input.workspaceId]: { ...member, answer: input.answer, answered: true } } } : {}),
+        },
+        edits,
+      };
     }
   }
 }
@@ -95,13 +102,20 @@ export function reducePullRequests(state: WorkspaceState, input: PullRequestInpu
  * replaces it.
  */
 export function memberPullRequestRead(state: WorkspaceState, thread: Thread): { state: WorkspaceState; effect: WorkspaceEffect } | null {
-  const workspaceId = threadWorkspaceId(state, thread);
-  if (!workspaceId) return null;
-  return checkoutRead(state, workspaceId, everyMemberCheckout(state).get(workspaceId) ?? [thread]);
+  const read = memberRead(state, thread);
+  return read && { state: { ...state, memberPullRequests: read.memberPullRequests }, effect: read.effect };
 }
 
-function checkoutRead(state: WorkspaceState, workspaceId: string, threads: Thread[]): { state: WorkspaceState; effect: WorkspaceEffect } {
-  const held = state.memberPullRequests[workspaceId];
+function memberRead(state: WorkspaceState, thread: Thread): MemberRead | null {
+  const workspaceId = threadWorkspaceId(state, thread);
+  if (!workspaceId) return null;
+  return checkoutRead(state, state.memberPullRequests, workspaceId, everyMemberCheckout(state).get(workspaceId) ?? [thread]);
+}
+
+type MemberRead = { memberPullRequests: GitState["memberPullRequests"]; effect: WorkspaceEffect };
+
+function checkoutRead(state: WorkspaceState, reads: GitState["memberPullRequests"], workspaceId: string, threads: Thread[]): MemberRead {
+  const held = reads[workspaceId];
   const branch = branchOf(state.environments[workspaceId] ?? null);
   /** What GitHub said of another branch says nothing of this one, so the checkout waits for its answer again. */
   const kept = held?.branch === branch ? held : undefined;
@@ -114,7 +128,7 @@ function checkoutRead(state: WorkspaceState, workspaceId: string, threads: Threa
     ...(kept?.answered ? { answered: true as const } : {}),
   };
   return {
-    state: { ...state, memberPullRequests: { ...state.memberPullRequests, [workspaceId]: read } },
+    memberPullRequests: { ...reads, [workspaceId]: read },
     effect: { type: "read-pull-request", workspaceId, branch: read.branch, read: read.read, members: true },
   };
 }
@@ -159,23 +173,21 @@ function everyMemberCheckout(state: WorkspaceState): Map<string, Thread[]> {
  * stuck, which still needs the user. One the user reopened after that pull request merged was told
  * nothing new and stays open, though a different pull request of its own merging is news.
  */
-function linked(state: WorkspaceState, threadIds: string[] | undefined, answer: PullRequestAnswer): WorkspaceState {
-  if (answer.status !== "found" || !threadIds?.length) return state;
+function linked(state: WorkspaceState, threadIds: string[] | undefined, answer: PullRequestAnswer): ThreadsEdit<PullRequestThread> | null {
+  if (answer.status !== "found" || !threadIds?.length) return null;
   const { pullRequest } = answer;
   const ids = new Set(threadIds);
   const resolving = new Set<string>();
-  let changed = false;
-  const threads = state.threads.map((thread) => {
-    if (!ids.has(thread.id) || linkMatches(thread.pullRequest, pullRequest)) return thread;
-    changed = true;
-    const recorded: Thread = { ...thread, pullRequest: linkOf(pullRequest) };
-    const merged = !mergedAlready(thread.pullRequest, pullRequest) && ownPullRequest(recorded)?.state === "merged";
-    if (!merged || recorded.resolvedAt !== undefined || recorded.archivedAt !== undefined || stuckVerdict(recorded) || !worksUnderCoordinator(state.threads, recorded)) return recorded;
-    resolving.add(thread.id);
-    return { ...recorded, resolvedAt: now() };
+  const recorded = editThreads(threadsOf<PullRequestThread>(state), (thread) => {
+    if (!ids.has(thread.id) || linkMatches(thread.pullRequest, pullRequest)) return null;
+    const link = linkOf(pullRequest);
+    const after: Thread = { ...thread, pullRequest: link };
+    const merged = !mergedAlready(thread.pullRequest, pullRequest) && ownPullRequest(after)?.state === "merged";
+    if (merged && after.resolvedAt === undefined && after.archivedAt === undefined && !stuckVerdict(after) && worksUnderCoordinator(state.threads, after)) resolving.add(thread.id);
+    return { pullRequest: link };
   });
-  if (!changed) return state;
-  return { ...state, threads: resolving.size ? dismissed(threads, resolving) : threads };
+  if (recorded.view.threads === state.threads) return null;
+  return resolving.size ? resolvedIn(recorded, resolving, now()) : recorded;
 }
 
 /** Whether a thread's link already said the pull request found for it had merged. */

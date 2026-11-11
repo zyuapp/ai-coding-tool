@@ -64,7 +64,7 @@ export const CLAIMS = [
   claim(RUN_INPUTS, reduceRuns),
   claim(AUTOMATION_INPUTS, reduceAutomations),
   claim(SIDE_CHAT_INPUTS, reduceSideChats),
-  claim(PULL_REQUEST_INPUTS, reducePullRequests),
+  claim(PULL_REQUEST_INPUTS, owned(reducePullRequests)),
   claim(COMPUTER_USE_INPUTS, owned(reduceComputerUse)),
   claim(PLAN_USAGE_INPUTS, owned(reducePlanUsage)),
   claim(CLI_INPUTS, owned(reduceCli)),
