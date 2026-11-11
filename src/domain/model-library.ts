@@ -27,31 +27,40 @@ export type LibraryGroup = {
   hint?: LibraryHint;
 };
 
-/** Favorites, every model, or one heading by its key. */
-export type LibraryFilter = "favorites" | "all" | (string & {});
+/** One model as the picker lists it. */
+export type LibraryEntry = { group: LibraryGroup; spec: ModelSpec; pinned: boolean };
 
 export type LibraryOptions = {
   /** The thread's engine, or the draft's. One only a newer build knows leaves every heading locked when locked. */
   engine: EngineId;
   /** Set once the thread has an engine for good. */
   locked: boolean;
+  /** The model in use, which always has a row among the first. */
+  model?: AgentModel;
+  /** The pinned models, in the order they were pinned. */
   favorites?: readonly EngineModel[];
-  filter?: LibraryFilter;
   query?: string;
   /** Narrows the library to the models this choice may take. */
   allows?: (engine: AgentEngine, model: AgentModel) => boolean;
 };
 
 export type ModelLibrary = {
-  /** Every heading with the models this choice may take, which a filter rail lists and counts. */
+  /** Every heading with the models this choice may take. */
   available: readonly LibraryGroup[];
-  /** The headings the filter or search leaves, with the models they leave. */
-  shown: readonly LibraryGroup[];
-  /** How many models `shown` holds, `available` holds, and are pinned. */
-  count: number;
-  total: number;
-  favoriteCount: number;
-  heading: string;
+  /** The heading the model in use sits under, else the engine's first. */
+  home?: string;
+  /**
+   * The rows always in reach: the model in use where it is not pinned, then the pins in the order
+   * they were made. With nothing pinned, the models under `home`. A search keeps the ones it matches.
+   */
+  top: readonly LibraryEntry[];
+  /**
+   * Every model `top` does not hold, under its heading, for a picker asked for all of them or for
+   * what a search matches. A heading left with no models stays only while it has something to say.
+   */
+  rest: readonly LibraryGroup[];
+  /** What stands in the way of the thread's own engine, said beside `top` rather than under a heading. */
+  notice?: LibraryGroup;
 };
 
 type Heading = Pick<LibraryGroup, "key" | "engine" | "label" | "first" | "models">;
@@ -90,11 +99,10 @@ function hintOf(heading: Heading, readiness: EngineReadiness, locked: boolean): 
   return notice ? { kind: "notice", notice } : undefined;
 }
 
-/** The library a model picker draws: which headings it lists, what each lets the user pick, and what stands in the way. */
+/** The library a model picker draws: which rows it keeps in reach, which headings hold the others, what each lets the user pick, and what stands in the way. */
 export function modelLibrary(catalog: ModelCatalog, access: Readonly<Record<AgentEngine, EngineReadiness>>, options: LibraryOptions): ModelLibrary {
-  const { engine, favorites = [], filter = "all", allows } = options;
+  const { engine, favorites = [], allows } = options;
   const search = options.query?.trim().toLocaleLowerCase() ?? "";
-  const pinned = (group: Heading, spec: ModelSpec) => isFavorite(favorites, group.engine, spec.id);
   const available = headingsOf(catalog).map((heading): LibraryGroup => {
     const readiness = access[heading.engine];
     const locked = options.locked && heading.engine !== engine;
@@ -107,32 +115,29 @@ export function modelLibrary(catalog: ModelCatalog, access: Readonly<Record<Agen
       ...(hint ? { hint } : {}),
     };
   });
-  const shown = available
-    .filter((group) => search || filter === "all" || filter === "favorites" || filter === group.key)
-    .map((group) => ({
-      ...group,
-      models: group.models.filter((spec) => search ? `${group.label} ${spec.label} ${spec.id} ${spec.description}`.toLocaleLowerCase().includes(search) : filter !== "favorites" || pinned(group, spec)),
-    }))
-    .filter((group) => group.models.length || !(search || filter === "favorites"));
-  let heading = "All models";
-  if (filter === "favorites") heading = "Favorites";
-  else if (filter !== "all") heading = available.find((group) => group.key === filter)?.label ?? filter;
-  if (search) heading = "Search results";
-  return {
-    available,
-    shown,
-    count: shown.reduce((total, group) => total + group.models.length, 0),
-    total: available.reduce((total, group) => total + group.models.length, 0),
-    favoriteCount: available.reduce((total, group) => total + group.models.filter((spec) => pinned(group, spec)).length, 0),
-    heading,
+  const entry = (group: LibraryGroup, spec: ModelSpec): LibraryEntry => ({ group, spec, pinned: isFavorite(favorites, group.engine, spec.id) });
+  const find = (owner: EngineId, model: AgentModel): LibraryEntry[] => {
+    for (const group of available) {
+      const spec = group.engine === owner ? group.models.find((candidate) => candidate.id === model) : undefined;
+      if (spec) return [entry(group, spec)];
+    }
+    return [];
   };
-}
-
-/** Where the library opens: a settled thread on the heading holding its model, else Favorites while any are pinned. */
-export function libraryOpening(catalog: ModelCatalog, options: { engine: AgentEngine; locked: boolean; model: AgentModel | undefined; favorites?: readonly EngineModel[] }): LibraryFilter {
-  if (options.locked) {
-    const own = headingsOf(catalog).filter((heading) => heading.engine === options.engine);
-    return (own.find((heading) => heading.models.some((spec) => spec.id === options.model)) ?? own[0])?.key ?? "all";
-  }
-  return options.favorites?.length ? "favorites" : "all";
+  const own = available.filter((group) => group.engine === engine);
+  const inUse = options.model === undefined ? [] : find(engine, options.model);
+  const home = inUse[0]?.group ?? own[0];
+  const pins = favorites.flatMap((favorite) => find(favorite.engine, favorite.model));
+  let top = pins.length ? [...inUse.filter((used) => !used.pinned), ...pins] : home?.models.map((spec) => entry(home, spec)) ?? [];
+  const held = new Set(top.map(({ group, spec }) => `${group.key}/${spec.id}`));
+  const matches = (group: LibraryGroup, spec: ModelSpec) => !search || `${group.label} ${spec.label} ${spec.id}`.toLocaleLowerCase().includes(search);
+  top = top.filter(({ group, spec }) => matches(group, spec));
+  const notice = own.find((group) => group.hint);
+  const rest = available
+    .map((group): LibraryGroup => ({
+      key: group.key, engine: group.engine, label: group.label, first: group.first, locked: group.locked, selectable: group.selectable,
+      models: group.models.filter((spec) => !held.has(`${group.key}/${spec.id}`) && matches(group, spec)),
+      ...(group.hint && group !== notice ? { hint: group.hint } : {}),
+    }))
+    .filter((group) => group.models.length || (!search && group.hint));
+  return { available, ...(home ? { home: home.key } : {}), top, rest, ...(notice ? { notice } : {}) };
 }

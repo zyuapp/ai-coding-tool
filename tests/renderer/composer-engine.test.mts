@@ -42,16 +42,13 @@ test("a thread that has an engine offers only its models, and says a new thread 
   const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[0]);
   assert.equal(query(modelMenu, ".setting-value").textContent, "Terra");
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  assert.equal(query(modelMenu, ".model-results-heading > span").textContent, "Codex");
   assert.deepEqual([...modelMenu.querySelectorAll("button.model-choice .menu-label")].map((item) => item.textContent), ["Astra", "Sol", "Terra", "Luna"]);
-  const claudeFilter = [...modelMenu.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("Claude"))!;
-  await act(async () => { claudeFilter.click(); });
-  assert.equal(query(modelMenu, ".setting-hint").textContent, "Start a new thread to use Claude");
-  assert.ok([...modelMenu.querySelectorAll<HTMLButtonElement>(".model-choice")].every((button) => button.getAttribute("aria-disabled") === "true"));
-  await act(async () => { query<HTMLButtonElement>(modelMenu, ".model-choice").click(); });
+  await act(async () => { query<HTMLButtonElement>(modelMenu, ".model-all").click(); });
+  const claude = query(modelMenu, "[role=group][aria-label=Claude]");
+  assert.equal(query(claude, ".setting-hint").textContent, "Start a new thread to use Claude");
+  assert.ok([...claude.querySelectorAll<HTMLButtonElement>(".model-choice")].every((button) => button.getAttribute("aria-disabled") === "true"));
+  await act(async () => { query<HTMLButtonElement>(claude, ".model-choice").click(); });
   assert.equal(chosen.length, 0);
-  const codexFilter = [...modelMenu.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("Codex"))!;
-  await act(async () => { codexFilter.click(); });
   await act(async () => { item(modelMenu.querySelectorAll<HTMLButtonElement>("button.model-choice")[0]).click(); });
   assert.deepEqual(chosen, [["codex", "gpt-6-astra"]]);
   await view.unmount();
@@ -74,6 +71,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
   assert.equal(reads, 0, "nothing is asked until the menu opens");
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.equal(reads, 1, "opening the menu asks which engines can be picked");
+  await act(async () => { query<HTMLButtonElement>(modelMenu, ".model-all").click(); });
   const codex = query(modelMenu, "[role=group][aria-label=Codex]");
   assert.deepEqual([...codex.querySelectorAll(".model-choice")].map((option) => option.getAttribute("aria-disabled") === "true"), [true, true, true, true]);
   assert.equal(query(codex, ".setting-hint").textContent, "Sign in to use Codex");
@@ -90,6 +88,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
     queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   }));
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  await act(async () => { query<HTMLButtonElement>(modelMenu, ".model-all").click(); });
   const missing = query(modelMenu, "[role=group][aria-label=Codex]");
   assert.equal(query(missing, ".setting-hint span").textContent, "Codex is not installed.");
   assert.equal(query(missing, ".setting-hint code").textContent, "brew install --cask codex", "the hint carries the command that installs it");
@@ -112,6 +111,7 @@ test("an engine too old to speak to is inert, and its hint names both versions a
 
   const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[0]);
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  await act(async () => { query<HTMLButtonElement>(modelMenu, ".model-all").click(); });
   const codex = query(modelMenu, "[role=group][aria-label=Codex]");
   assert.equal(query(codex, ".setting-hint span").textContent, "Codex 0.147.0 is too old. Update to 0.150.1.");
   assert.equal(query(codex, ".setting-hint code").textContent, "brew update && brew upgrade --cask codex");
@@ -133,10 +133,9 @@ test("a Claude behind the app offers only the models it knows, and says an upgra
 
   const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[0]);
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  const claude = query(modelMenu, "[role=group][aria-label=Claude]");
-  assert.deepEqual([...claude.querySelectorAll(".model-choice .menu-label")].map((option) => option.textContent), ["Opus", "Sonnet"], "the models it never heard of are simply absent");
-  assert.equal(query(claude, ".setting-hint span").textContent, "Claude 2.1.100 is behind 2.1.250, so some models are hidden.");
-  assert.equal(query(claude, ".setting-hint code").textContent, "claude update");
+  assert.deepEqual([...modelMenu.querySelectorAll(".model-choice .menu-label")].map((option) => option.textContent), ["Opus", "Sonnet"], "the models it never heard of are simply absent");
+  assert.equal(query(modelMenu, ".setting-hint span").textContent, "Claude 2.1.100 is behind 2.1.250, so some models are hidden.", "the thread's own engine says so beside the models in reach");
+  assert.equal(query(modelMenu, ".setting-hint code").textContent, "claude update");
   await view.unmount();
 });
 
@@ -155,6 +154,7 @@ test("the hint about a broken engine opens the Engines page, which is where it i
 
   const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[0]);
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  await act(async () => { query<HTMLButtonElement>(modelMenu, ".model-all").click(); });
   const codex = query(modelMenu, "[role=group][aria-label=Codex]");
   await act(async () => { query<HTMLButtonElement>(codex, ".setting-readiness-link").click(); });
   assert.equal(opened, 1);
@@ -367,11 +367,10 @@ test("the model menu's effort strip offers what the model takes, and says so for
     const menu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[0]);
     const chip = query(menu, "summary").textContent;
     await act(async () => { query<HTMLElement>(menu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-    const strip = query(menu, ".effort-strip");
-    const labels = [...strip.querySelectorAll(".effort-stop")].map((stop) => stop.textContent);
-    const slider = strip.querySelector<HTMLElement>("[role=slider]");
+    const labels = [...menu.querySelectorAll(".effort-strip .effort-stop")].map((stop) => stop.textContent);
+    const slider = menu.querySelector<HTMLElement>(".effort-strip [role=slider]");
     if (slider) await act(async () => { slider.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })); });
-    const none = strip.querySelector(".effort-strip-none")?.textContent;
+    const none = menu.querySelector(".effort-strip-none")?.textContent;
     await view.unmount();
     return { chip, labels, none };
   };

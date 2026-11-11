@@ -233,7 +233,7 @@ test("the Overview says what a coordinator's threads run on, and picks another w
   const [model] = head.querySelectorAll<HTMLDetailsElement>(".setting-menu");
   await act(async () => { query<HTMLElement>(item(model), "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   await act(async () => {
-    [...item(model).querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("All models"))!.click();
+    query<HTMLButtonElement>(item(model), ".model-all").click();
   });
   const offered = [...item(model).querySelectorAll(".model-choice .menu-label")].map((node) => node.textContent);
   assert.ok(offered.includes("Opus") && !offered.includes("Haiku"), "a coordinator's threads are never offered Haiku");
@@ -278,7 +278,7 @@ test("the Overview tab sets what the coordinator in front runs its threads on", 
   const [model] = mounted.container.querySelectorAll<HTMLDetailsElement>(".coordination-overview-header .setting-menu");
   await act(async () => { query<HTMLElement>(item(model), "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   await act(async () => {
-    [...item(model).querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("All models"))!.click();
+    query<HTMLButtonElement>(item(model), ".model-all").click();
   });
   await act(async () => { [...item(model).querySelectorAll<HTMLButtonElement>(".model-choice")].find((button) => button.textContent?.includes("Opus"))!.click(); });
   assert.deepEqual(dispatched.filter((input) => input.type === "coordination.set-thread-model"), [{ type: "coordination.set-thread-model", taskId: "lead", engine: "claude", model: "opus" }], "a model alone leaves the effort for the reducer to fit");
