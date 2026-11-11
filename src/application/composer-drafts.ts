@@ -6,7 +6,7 @@
 import { clampQuote } from "./annotations.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import { withPrompt, type ComposerState } from "./state/composer.js";
-import { withoutThreadKeys } from "./thread-pruning.js";
+import { withoutThreadKeys } from "./removals.js";
 import type { AttachmentSendState } from "./composer-attachments.js";
 import type { AnnotationCommand, FileCommand, ImageCommand, PasteCommand } from "../contracts/commands.js";
 import { MAX_ATTACHED_FILES, MAX_ATTACHMENTS, type Annotation, type AttachedFile, type AttachedFileDraft, type PastedText, type StagedImage } from "../domain/conversation.js";

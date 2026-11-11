@@ -5,7 +5,7 @@
  */
 import type { PendingQuestion } from "../../domain/agent-question.js";
 import type { PendingRun, QueuedMessage, RunsState } from "../state/runs.js";
-import { withoutMatchingValues, withoutThreadKeys } from "../thread-pruning.js";
+import { withoutMatchingValues, withoutThreadKeys } from "../removals.js";
 import { applyThreadEvent, withActiveRun, withApprovalAnswered, withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type FinishedVerdict, type ThreadRunStatus } from "../thread-run-state.js";
 import type { ThreadEvent } from "../../contracts/ipc.js";
 import type { Thread } from "../../domain/thread.js";

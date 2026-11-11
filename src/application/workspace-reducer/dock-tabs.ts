@@ -7,7 +7,7 @@ import { DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, diffFor, dockF
 import { workflowById } from "../state/runs.js";
 import type { DocksState } from "../state/dock.js";
 import type { SideChat } from "../state/side-chats.js";
-import { dockKeeps, withoutThreadKeys, withoutThreadTabs } from "../thread-pruning.js";
+import { withoutThreadKeys } from "../removals.js";
 
 /** The caret goes to the tab a side chat is drawn in, because its composer is not the thread's own. */
 export function focusedTab<S extends Pick<WorkspaceState, "dockFocus">>(state: S, owner: string, tab: string): S {
@@ -62,6 +62,31 @@ export function docksForgottenIn(edit: DocksEdit, removed: Set<string>, sideChat
     dockFocus: view.dockFocus && (removed.has(view.dockFocus.owner) || removed.has(view.dockFocus.tab)) ? null : view.dockFocus,
     keyboardTab: view.keyboardTab && dockKeeps(docks, sideChats, view.keyboardTab) ? view.keyboardTab : null,
   });
+}
+
+/** A deleted thread is no dock's tab, and a dock showing it falls back to the picker. */
+function withoutThreadTabs(docks: Record<string, ThreadDock>, removed: Set<string>): Record<string, ThreadDock> {
+  let cleaned: Record<string, ThreadDock> | null = null;
+  for (const owner in docks) {
+    const dock = docks[owner]!;
+    if (!dock.threadTabs.some((id) => removed.has(id))) continue;
+    cleaned ??= { ...docks };
+    cleaned[owner] = { ...dock, threadTabs: dock.threadTabs.filter((id) => !removed.has(id)), tab: removed.has(dock.tab) ? DOCK_PICKER : dock.tab };
+  }
+  return cleaned ?? docks;
+}
+
+/** Whether any dock still draws this tab: a panel, a page, a shell, a side chat, or a thread. */
+function dockKeeps(docks: Record<string, ThreadDock>, sideChats: SideChat[], tab: string): boolean {
+  if (sideChats.some((chat) => chat.id === tab)) return true;
+  for (const owner in docks) {
+    const dock = docks[owner]!;
+    if (dock.panels.includes(tab)
+      || dock.browserTabs.some((page) => page.id === tab)
+      || dock.terminals.some((terminal) => terminal.id === tab)
+      || dock.threadTabs.includes(tab)) return true;
+  }
+  return false;
 }
 
 /** Side chats closing: a dock showing one moves to the tab beside it, among the `sideChats` it still holds. */

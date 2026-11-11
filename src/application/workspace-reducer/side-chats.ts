@@ -3,11 +3,11 @@ import { retireAutomations } from "./automations.js";
 import { chatTabsClosedIn, docksOf, focusDockTabIn, showDockTabIn } from "./dock-tabs.js";
 import { clearedDraftIn, composerOf } from "../composer-drafts.js";
 import { now } from "./shared.js";
-import { andThen, applied, inTurn, ownFields, type SliceTransition, type Step } from "./slice.js";
+import { andThen, applied, inTurn, type SliceTransition, type Step } from "./slice.js";
 import { addedIn, removedIn, threadsOf } from "./thread-edits.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { sideChatThread } from "../thread-fork.js";
-import { pruned, withoutMatching } from "../thread-pruning.js";
+import { pruned } from "../thread-pruning.js";
 import type { SideChat, WorkspaceState } from "../workspace-state.js";
 import type { SideChatsState } from "../state/side-chats.js";
 
@@ -31,23 +31,6 @@ export function reduceSideChats(state: WorkspaceState, input: Extract<WorkspaceI
 function sideChatClosed(state: WorkspaceState, chatId: string): Step {
   const chat = state.sideChats.find((item) => item.id === chatId);
   return chat ? sideChatsClosed(state, [chat]) : {};
-}
-
-/** Side chats as one input leaves them. Only the functions here make one. */
-class SideChatsChange {
-  private declare readonly owned: never;
-  constructor(readonly view: SideChatsState) {}
-}
-
-export type SideChatsEdit = SideChatsChange;
-
-export function sideChatsOf(state: SideChatsState): SideChatsEdit {
-  return new SideChatsChange(ownFields<SideChatsState>(state, { sideChats: true, sideChatSequence: true }));
-}
-
-/** Threads gone for good take the side chats they were, or were forked from, with them. */
-export function sideChatsForgottenIn(edit: SideChatsEdit, removed: Set<string>): SideChatsEdit {
-  return new SideChatsChange({ ...edit.view, sideChats: withoutMatching(edit.view.sideChats, (chat) => removed.has(chat.id) || removed.has(chat.sourceThreadId)) });
 }
 
 /** Closing a side chat discards the thread itself, so its run, queue, and draft go with it, the run cancelled first. */

@@ -4,7 +4,7 @@ import { now } from "./shared.js";
 import type { WorkspaceEffect } from "./types.js";
 import { afterward, type Step } from "./slice.js";
 import type { WorktreesState } from "../state/worktrees.js";
-import { withoutMatching, withoutThreadKeys } from "../thread-pruning.js";
+import { withoutMatching, withoutThreadKeys } from "../removals.js";
 import { updateThread } from "../thread-run-state.js";
 import { worktreeClaimants, worktreeFor } from "../thread-location.js";
 import type { WorkspaceState } from "../workspace-state.js";

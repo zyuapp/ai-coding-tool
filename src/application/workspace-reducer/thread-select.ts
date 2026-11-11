@@ -10,7 +10,7 @@ import { afterward, andThen, applied, ownFields, type Step } from "./slice.js";
 import { readIn, rowReadIn, threadsOf } from "./thread-edits.js";
 import type { WorkspaceTransition } from "./types.js";
 import { projectFor } from "../thread-location.js";
-import { withoutMatching } from "../thread-pruning.js";
+import { withoutMatching } from "../removals.js";
 import { dockFor, type WorkspaceState } from "../workspace-state.js";
 import type { NavigationState } from "../state/navigation.js";
 import type { NewThreadDraftState } from "../state/new-thread-draft.js";

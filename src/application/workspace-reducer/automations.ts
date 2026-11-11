@@ -2,8 +2,7 @@
 import { pendingStep, resolveWorkspaceEffect } from "./run-queue.js";
 import { runsOf, watchEndedBeforeIn } from "./run-edits.js";
 import { now, targetId } from "./shared.js";
-import { afterward, ownFields, type SliceTransition, type Step } from "./slice.js";
-import { withoutMatching } from "../thread-pruning.js";
+import { afterward, type SliceTransition, type Step } from "./slice.js";
 import { finishedIn, notedIn, threadsOf } from "./thread-edits.js";
 import type { WorkspaceEffect, WorkspaceInput } from "./types.js";
 import { coordinationNote } from "../coordination-messages.js";
@@ -136,23 +135,6 @@ function endedWatches(state: WorkspaceState, before: readonly AutomationView[]):
 }
 
 /** An archived thread is unreachable, so its automation would tick forever with nowhere to run. */
-/** Schedules as one input leaves them. Only the functions here make one. */
-class AutomationsChange {
-  private declare readonly owned: never;
-  constructor(readonly view: AutomationsState) {}
-}
-
-export type AutomationsEdit = AutomationsChange;
-
-export function automationsOf(state: AutomationsState): AutomationsEdit {
-  return new AutomationsChange(ownFields<AutomationsState>(state, { automations: true, automationEdits: true }));
-}
-
-/** Threads gone for good have no schedule left listed. */
-export function automationsForgottenIn(edit: AutomationsEdit, removed: Set<string>): AutomationsEdit {
-  return new AutomationsChange({ ...edit.view, automations: withoutMatching(edit.view.automations, (automation) => removed.has(automation.taskId)) });
-}
-
 export function retireAutomations(state: WorkspaceState, taskIds: Iterable<string>): WorkspaceEffect[] {
   const scheduled = new Set(state.automations.map((automation) => automation.taskId));
   return [...taskIds].filter((taskId) => scheduled.has(taskId)).map((taskId) => ({ type: "automation.delete" as const, taskId }));
