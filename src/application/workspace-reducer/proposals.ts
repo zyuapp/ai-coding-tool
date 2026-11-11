@@ -1,6 +1,8 @@
 /** A coordinator's suggestions, and the threads it asked for on other computers: filed, started or allowed, turned down, and settled. */
 import { reduceSending } from "./sending.js";
 import { now, settled } from "./shared.js";
+import { afterward, type SliceTransition } from "./slice.js";
+import { editThread, threadsOf } from "./thread-edits.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { coordinationNote, memoryPrompt, requestHeadline } from "../coordination-messages.js";
 import { announced } from "../notices.js";
@@ -12,15 +14,19 @@ import type { PairedComputer } from "../state/computers.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { coordinatorOf, isCoordinator, withCoordinationNote, withoutProposals, withProposalCarried, withProposalError, withProposals, type ThreadProposal } from "../../domain/coordination.js";
+import { coordinatorOf, isCoordinator, withCoordinationNote, withoutProposals, withProposalCarried, withProposalError, withProposals, type CoordinationThread, type ThreadProposal } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
 
-export const PROPOSAL_INPUTS = ["coordination.proposed", "proposal.start", "proposal.dismiss", "proposal.settled"] as const;
+export const PROPOSAL_INPUTS = ["coordination.proposed", "proposal.dismiss"] as const;
 type ProposalInput = Extract<WorkspaceInput, { type: (typeof PROPOSAL_INPUTS)[number] }>;
+
+/** What starts a suggestion, or settles one starting, which runs keep track of. */
+export const PROPOSAL_START_INPUTS = ["proposal.start", "proposal.settled"] as const;
+type ProposalStartInput = Extract<WorkspaceInput, { type: (typeof PROPOSAL_START_INPUTS)[number] }>;
 
 const ASKER_GONE = "The thread that asked for this no longer works under this coordinator.";
 
-export function reduceProposals(state: WorkspaceState, input: ProposalInput): WorkspaceTransition {
+export function reduceProposals(state: WorkspaceState, input: ProposalInput): SliceTransition<Record<never, never>, CoordinationThread> {
   switch (input.type) {
     /**
      * Suggestions wait for the user, as many as there is room for. Nothing starts until the user starts
@@ -30,15 +36,45 @@ export function reduceProposals(state: WorkspaceState, input: ProposalInput): Wo
      */
     case "coordination.proposed": {
       const lead = state.threads.find((item) => item.id === input.taskId);
-      if (!lead || !isCoordinator(lead)) return settled(state);
+      if (!lead || !isCoordinator(lead)) return {};
       const proposed = withProposals(lead, input.proposals);
-      if (proposed === lead) return settled(state);
-      const filed = updateThread(state, lead.id, () => proposed);
+      if (proposed === lead) return {};
+      const filed = editThread(threadsOf<CoordinationThread>(state), lead.id, () => ({ proposals: proposed.proposals }));
       const held = new Set(lead.proposals?.map((proposal) => proposal.id));
       const asked = proposed.proposals!.filter((proposal) => !held.has(proposal.id) && proposal.from !== undefined);
-      return settled(filed, asked.flatMap((proposal) => proposal.place.computer ? announced(filed, lead, requestHeadline(proposal, proposal.place.computer), "request") : []));
+      const after = afterward(state, { edits: [filed] });
+      return { edits: [filed], effects: asked.flatMap((proposal) => proposal.place.computer ? announced(after, lead, requestHeadline(proposal, proposal.place.computer), "request") : []) };
     }
 
+    /**
+     * What the user turned down is gone, and its coordinator hears so with its next wake. One already
+     * starting is past turning down; dismissing them all means the suggestions here, each thread asked
+     * for on another computer being allowed or denied on its own. One elsewhere that was allowed and
+     * carried there may have started with its answer lost, so it is given up on rather than denied;
+     * one refused here before it ever went is denied, as it never left.
+     */
+    case "proposal.dismiss": {
+      const lead = state.threads.find((item) => item.id === input.taskId);
+      if (!lead || !isCoordinator(lead)) return {};
+      const declined = targetedProposals(state, lead, input);
+      if (!declined.length) return {};
+      const titles = declined.map((proposal) => `"${proposal.title}"`);
+      const { place, carried } = declined[0]!;
+      const denied = place.computer;
+      const text = denied ? carried ? `The user gave up on starting ${titles[0]} on ${denied.name}. If it started there after all, you will hear from it.`
+        : `The user did not allow ${titles[0]} to run on ${denied.name}.`
+        : titles.length === 1 ? `The user declined the suggested thread ${titles[0]}.` : `The user declined the suggested threads ${titles.slice(0, -1).join(", ")} and ${titles.at(-1)}.`;
+      const note = coordinationNote(lead.id, text, now(), { quiet: true });
+      return { edits: [editThread(threadsOf<CoordinationThread>(state), lead.id, (item) => {
+        const told = withCoordinationNote(withoutProposals(item, new Set(declined.map((proposal) => proposal.id))), note);
+        return { proposals: told.proposals, coordinationNotes: told.coordinationNotes };
+      })] };
+    }
+  }
+}
+
+export function reduceProposalStarts(state: WorkspaceState, input: ProposalStartInput): WorkspaceTransition {
+  switch (input.type) {
     /**
      * The user starts a suggestion, or every one here not already starting, as its coordinator would
      * have started it then, or allows one on another computer in the place they picked. One that
@@ -58,28 +94,6 @@ export function reduceProposals(state: WorkspaceState, input: ProposalInput): Wo
       return transition;
     }
 
-    /**
-     * What the user turned down is gone, and its coordinator hears so with its next wake. One already
-     * starting is past turning down; dismissing them all means the suggestions here, each thread asked
-     * for on another computer being allowed or denied on its own. One elsewhere that was allowed and
-     * carried there may have started with its answer lost, so it is given up on rather than denied;
-     * one refused here before it ever went is denied, as it never left.
-     */
-    case "proposal.dismiss": {
-      const lead = state.threads.find((item) => item.id === input.taskId);
-      if (!lead || !isCoordinator(lead)) return settled(state);
-      const declined = targetedProposals(state, lead, input);
-      if (!declined.length) return settled(state);
-      const titles = declined.map((proposal) => `"${proposal.title}"`);
-      const { place, carried } = declined[0]!;
-      const denied = place.computer;
-      const text = denied ? carried ? `The user gave up on starting ${titles[0]} on ${denied.name}. If it started there after all, you will hear from it.`
-        : `The user did not allow ${titles[0]} to run on ${denied.name}.`
-        : titles.length === 1 ? `The user declined the suggested thread ${titles[0]}.` : `The user declined the suggested threads ${titles.slice(0, -1).join(", ")} and ${titles.at(-1)}.`;
-      const note = coordinationNote(lead.id, text, now(), { quiet: true });
-      return settled(updateThread(state, lead.id, (item) => withCoordinationNote(withoutProposals(item, new Set(declined.map((proposal) => proposal.id))), note)));
-    }
-
     case "proposal.settled":
       return proposalSettled(state, input);
   }
@@ -92,7 +106,7 @@ export function reduceProposals(state: WorkspaceState, input: ProposalInput): Wo
  * its way has nothing left to say, and is let go only once that computer said it started nothing,
  * since one whose answer was lost may still land, and is stopped then. Any other waits to be allowed again.
  */
-function proposalSettled(state: WorkspaceState, input: Extract<ProposalInput, { type: "proposal.settled" }>): WorkspaceTransition {
+function proposalSettled(state: WorkspaceState, input: Extract<ProposalStartInput, { type: "proposal.settled" }>): WorkspaceTransition {
   const lead = state.threads.find((item) => item.id === input.taskId);
   if (input.threadId !== undefined) {
     const proposal = lead?.proposals?.find((item) => item.id === input.proposalId);

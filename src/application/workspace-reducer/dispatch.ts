@@ -1,7 +1,7 @@
 import { reduceThreadCommands, THREAD_COMMAND_INPUTS } from "./thread-commands.js";
 import { reduceWorktrees, WORKTREE_INPUTS } from "./worktrees.js";
 import { COORDINATION_INPUTS, COORDINATION_RUN_INPUTS, reduceCoordination, reduceCoordinationRuns } from "./coordination.js";
-import { PROPOSAL_INPUTS, reduceProposals } from "./proposals.js";
+import { PROPOSAL_INPUTS, PROPOSAL_START_INPUTS, reduceProposals, reduceProposalStarts } from "./proposals.js";
 import { reduceWorktreeMenu, WORKTREE_MENU_INPUTS } from "./worktree-menu.js";
 import { reduceSending, SEND_INPUTS } from "./sending.js";
 import { ATTACHMENT_INPUTS, reduceComposerAttachments } from "./composer-attachments.js";
@@ -52,7 +52,8 @@ export const CLAIMS = [
   claim(THREAD_COMMAND_INPUTS, reduceThreadCommands),
   claim(COORDINATION_INPUTS, owned(reduceCoordination)),
   claim(COORDINATION_RUN_INPUTS, reduceCoordinationRuns),
-  claim(PROPOSAL_INPUTS, reduceProposals),
+  claim(PROPOSAL_INPUTS, owned(reduceProposals)),
+  claim(PROPOSAL_START_INPUTS, reduceProposalStarts),
   claim(WORKTREE_INPUTS, reduceWorktrees),
   claim(ATTACHMENT_INPUTS, reduceComposerAttachments),
   claim(SEND_INPUTS, reduceSending),
