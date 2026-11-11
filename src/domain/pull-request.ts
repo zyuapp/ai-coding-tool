@@ -222,3 +222,9 @@ export function samePullRequest(left: PullRequestAnswer, right: PullRequestAnswe
 function sameNeeds(left: PullRequestNeeds, right: PullRequestNeeds) {
   return left.checks === right.checks && left.review === right.review && left.conflicts === right.conflicts;
 }
+
+/** What the forge last said of a thread's work. */
+export type PullRequestThread = {
+  /** The pull request this thread's work was last seen on. */
+  pullRequest?: PullRequestLink;
+};

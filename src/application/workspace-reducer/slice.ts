@@ -3,6 +3,7 @@ import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import type { DocksEdit } from "./dock-tabs.js";
 import type { ComposerEdit } from "../composer-drafts.js";
 import type { ToastsEdit } from "../toasts.js";
+import type { ThreadsEdit } from "./thread-edits.js";
 import type { WorkspaceCommandResult } from "../../contracts/workspace-result.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import type { SettingsSection } from "../../domain/settings-section.js";
@@ -15,12 +16,13 @@ export type OwnPatch<Own> = Partial<Own> & { [Field in Exclude<keyof WorkspaceSt
  * State another owner keeps, as that owner's own functions left it. Each is a value only its owner's
  * functions make, naming only that owner's fields, so a slice changes it through them or not at all.
  */
-export type OwnerEdit = DocksEdit | ComposerEdit | ToastsEdit;
+export type OwnerEdit<Facet = Record<never, never>> = DocksEdit | ComposerEdit | ToastsEdit | ThreadsEdit<Facet>;
 
-export type SliceTransition<Own> = {
+/** `Facet` is the fields the slice keeps on threads: the only ones its thread edits may patch directly. */
+export type SliceTransition<Own, Facet = Record<never, never>> = {
   patch?: OwnPatch<Own>;
   /** Joined in after the patch, in this order. One that changes nothing leaves the state as it was. */
-  edits?: OwnerEdit[];
+  edits?: OwnerEdit<Facet>[];
   effects?: WorkspaceEffect[];
   result?: WorkspaceCommandResult;
   /** Turns the input down, saying why where the window shows errors. */
@@ -36,7 +38,7 @@ export type SliceTransition<Own> = {
 };
 
 /** The state a slice's answer leaves, for reading what its own effects describe. */
-export function afterward<Own>(state: WorkspaceState, { patch, edits = [], clearsError, error, closesMenu }: Omit<SliceTransition<Own>, "effects" | "result" | "refusal" | "persists">): WorkspaceState {
+export function afterward<Own, Facet>(state: WorkspaceState, { patch, edits = [], clearsError, error, closesMenu }: Omit<SliceTransition<Own, Facet>, "effects" | "result" | "refusal" | "persists">): WorkspaceState {
   let next = patch || clearsError || error || closesMenu ? {
     ...state,
     ...patch,
@@ -51,12 +53,12 @@ export function afterward<Own>(state: WorkspaceState, { patch, edits = [], clear
 }
 
 /** A slice's reducer run on the whole state, with its patch joined in. One that changed nothing leaves the state as it was. */
-export function owned<Own, Input>(reducer: (state: WorkspaceState, input: Input) => SliceTransition<Own>): (state: WorkspaceState, input: Input) => WorkspaceTransition {
+export function owned<Own, Facet, Input>(reducer: (state: WorkspaceState, input: Input) => SliceTransition<Own, Facet>): (state: WorkspaceState, input: Input) => WorkspaceTransition {
   return (state, input) => applied(state, reducer(state, input));
 }
 
 /** A slice's answer joined into the state it was given. */
-export function applied<Own>(state: WorkspaceState, transition: SliceTransition<Own>): WorkspaceTransition {
+export function applied<Own, Facet>(state: WorkspaceState, transition: SliceTransition<Own, Facet>): WorkspaceTransition {
   const { effects: own = [], refusal, persists } = transition;
   const changed = afterward(state, transition);
   const next = refusal === undefined ? changed : { ...changed, actionError: refusal };

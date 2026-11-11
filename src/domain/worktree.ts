@@ -130,3 +130,17 @@ export function worktreeHue(worktreeId: string) {
   for (let index = 0; index < worktreeId.length; index += 1) hash = Math.imul(hash, 31) + worktreeId.charCodeAt(index) | 0;
   return Math.abs(hash) % WORKTREE_HUES;
 }
+
+/** The checkout a thread's runs happen in. */
+export type WorktreeThread = {
+  /**
+   * The checkout this thread's runs happen in, named by id because other threads may work in the
+   * same one. Absent while the thread runs in the project itself.
+   */
+  worktreeId?: string;
+  /**
+   * When this thread's session forked into that checkout, set by its own first run there. Threads
+   * sharing a checkout fork independently, so a thread that has yet to run in one has no fork.
+   */
+  worktreeEnteredAt?: number;
+};

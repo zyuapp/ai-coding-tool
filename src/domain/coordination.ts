@@ -861,3 +861,62 @@ export function isCoordinationNote(value: unknown): value is CoordinationNote {
     && (value.runId === undefined || text(value.runId, 200))
     && (value.quiet === undefined || value.quiet === true);
 }
+
+/** What coordination keeps on a thread: who it works under, what it reports and asks, and a coordinator's own bookkeeping. */
+export type CoordinationThread = {
+  /** The coordinator this thread works under. It only counts while that thread is a live coordinator. */
+  parentId?: string;
+  /**
+   * The coordinator on a paired computer this thread works under, as that computer named it when it
+   * started the thread here, with the suggestion it is when the user allowed it there. A coordinator
+   * of its own here outranks it.
+   */
+  remoteLead?: HeldLead;
+  /** What the coordinator asked of this thread when it started it. */
+  brief?: ThreadBrief;
+  /** Where this thread last said its work stands. */
+  report?: CoordinationReport;
+  /**
+   * Under a coordinator: when its work was settled, by the user or by its own pull request merging,
+   * which files it away under Resolved until a message starts it again.
+   */
+  resolvedAt?: number;
+  /** Choices this thread has put to the user, answered or not. */
+  decisions?: Decision[];
+  /** On a coordinator: what its threads have done that it has yet to be told. */
+  coordinationNotes?: CoordinationNote[];
+  /** On a coordinator: what the threads it starts run on unless it names another. */
+  threadModel?: ThreadModelChoice;
+  /** On a coordinator: its purpose and the notes it keeps, which it and every thread it starts read. */
+  memory?: CoordinatorMemory;
+  /** On a coordinator: threads it suggested that wait for the user to start or dismiss them. */
+  proposals?: ThreadProposal[];
+  /** On a coordinator: set while the user wants no desktop notice from it or its threads. */
+  muted?: true;
+  /**
+   * On a coordinator: for each of its threads on a paired computer, the newest moment on that
+   * computer's clock whose news it has taken, so news from while the link was down is caught up.
+   */
+  remoteHeard?: Record<string, number>;
+  /**
+   * On a coordinator: each of its threads that a paired computer last said was working, with that
+   * computer's id and the thread's title, so a computer silent since this app started is not taken
+   * for their work ending, and the coordinator can still name them.
+   */
+  remoteWorking?: Record<string, HeardWork>;
+  /**
+   * On a coordinator: each of its threads on a paired computer whose work Stop all stopped there, until
+   * it hears that turn end, which it hears quietly, after a restart here too, unless the turn finished
+   * or failed on its own, and the turn the agent opens there to answer stopped session work, however it
+   * ends. A thread that carries on with a run of its own first, or is no longer under it, is no longer
+   * the stop's.
+   */
+  remoteStops?: Record<string, RemoteStop>;
+  /**
+   * On a coordinator: each start of a thread on a paired computer, by the suggestion it is, that Stop
+   * all caught on its way there, after a restart here too. Whenever it lands it is stopped there, even
+   * once the coordinator is filed away or its role taken off, and its turn ending is heard quietly. One
+   * that computer refused, or that is no longer under it, is let go.
+   */
+  caughtStarts?: Record<string, CaughtStart>;
+};
