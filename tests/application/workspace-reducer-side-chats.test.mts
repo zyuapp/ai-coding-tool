@@ -206,10 +206,18 @@ test("closing a side chat cancels its run, and leaving the thread leaves the cha
   const running = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).state;
   const runId = required(running.activeRuns["chat-1"]).runId;
 
-  const closed = reduce(running, { type: "side-chat.close", chatId: "chat-1" });
+  const approval = (taskId: string, approvalRun: string) => ({ approvalId: `${taskId}-approval`, taskId, runId: approvalRun, title: "Run", description: "", toolName: "Bash", input: {} });
+  const waiting = {
+    ...running,
+    approvals: { [runId]: approval("chat-1", runId), "run-other": approval("other", "run-other") },
+    backgroundProcesses: { "chat-1": [{ id: "shell-1", kind: "shell" as const, description: "npm test" }] },
+  };
+  const closed = reduce(waiting, { type: "side-chat.close", chatId: "chat-1" });
   assert.deepEqual(closed.effects, [{ type: "send-run-command", command: { type: "cancel", taskId: "chat-1", runId } }]);
   assert.deepEqual(closed.state.sideChats, []);
   assert.equal(closed.state.activeRuns["chat-1"], undefined);
+  assert.deepEqual(Object.keys(closed.state.approvals), ["run-other"], "its approval goes with it, another thread's stays");
+  assert.equal("chat-1" in closed.state.backgroundProcesses || "chat-1" in closed.state.runStatuses, false);
 
   const switched = reduce(running, { type: "task.select", taskId: "other" });
   assert.deepEqual(switched.state.sideChats.map((chat) => chat.id), ["chat-1"], "a fork belongs to the thread it was taken from");
