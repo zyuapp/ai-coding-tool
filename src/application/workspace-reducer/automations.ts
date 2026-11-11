@@ -1,6 +1,6 @@
 /** Scheduled ticks: what a thread arms, and what a tick makes of the run it starts. */
 import { pendingStep, resolveWorkspaceEffect } from "./run-queue.js";
-import { runsOf, watchEndedBeforeIn } from "./run-edits.js";
+import { runsOf, watchesEndedBeforeIn } from "./run-edits.js";
 import { now, targetId } from "./shared.js";
 import { afterward, type SliceTransition, type Step } from "./slice.js";
 import { finishedIn, notedIn, threadsOf } from "./thread-edits.js";
@@ -13,7 +13,7 @@ import { isWatching, sameAutomationFields, type AutomationView } from "../../dom
 import { coordinatorOf } from "../../domain/coordination.js";
 import type { FindingsThread } from "../../domain/finding.js";
 import type { Thread } from "../../domain/thread.js";
-import { automationRunPrompt, finishedVerdict } from "../thread-run-state.js";
+import { automationRunPrompt, finishedVerdict, type FinishedVerdict } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import type { AutomationsState } from "../state/automations.js";
@@ -117,16 +117,15 @@ function endedWatches(state: WorkspaceState, before: readonly AutomationView[]):
   const ended = new Set(before.filter((automation) => isWatching(automation) && !kept.has(automation.taskId)).map((automation) => automation.taskId));
   if (!ended.size) return {};
   const at = now();
-  let runs = runsOf(state);
-  let threads = threadsOf(state);
+  const verdicts = new Map<string, FinishedVerdict>();
   const finished: Thread[] = [];
   for (const thread of state.threads) {
     if (!ended.has(thread.id) || thread.archivedAt !== undefined) continue;
-    const verdict = finishedVerdict(at, threadOnScreen(state, thread.id));
-    runs = watchEndedBeforeIn(runs, thread.id, verdict);
-    threads = finishedIn(threads, thread.id, verdict);
+    verdicts.set(thread.id, finishedVerdict(at, threadOnScreen(state, thread.id)));
     finished.push(thread);
   }
+  const runs = watchesEndedBeforeIn(runsOf(state), verdicts);
+  let threads = finishedIn(threadsOf(state), verdicts);
   for (const thread of finished) {
     const lead = coordinatorOf(threads.view.threads, thread);
     if (lead) threads = notedIn(threads, lead.id, coordinationNote(thread.id, `"${thread.title}" finished watching.`, at));

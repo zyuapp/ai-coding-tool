@@ -157,9 +157,13 @@ export function findingIn<Field extends keyof Thread>(edit: ThreadsChange<Field>
   return mapped(edit, id, (thread) => withFinding(thread, report, at, seen));
 }
 
-/** A thread whose work finished, ranked and marked as {@link finishedVerdict} has it. */
-export function finishedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, verdict: FinishedVerdict): ThreadsChange<Field> {
-  return mapped(edit, id, (thread) => ({ ...thread, ...verdict }));
+/** Threads whose work finished, keyed by id, each ranked and marked as its {@link finishedVerdict} has it. */
+export function finishedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, verdicts: ReadonlyMap<string, FinishedVerdict>): ThreadsChange<Field> {
+  if (!verdicts.size) return edit;
+  return new ThreadsChange({ threads: edit.view.threads.map((thread) => {
+    const verdict = verdicts.get(thread.id);
+    return verdict ? { ...thread, ...verdict } : thread;
+  }) });
 }
 
 /** A resolved thread its failed turn left stuck, open again. */

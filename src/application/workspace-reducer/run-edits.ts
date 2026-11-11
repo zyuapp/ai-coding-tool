@@ -147,11 +147,17 @@ export function acknowledgedIn(edit: RunsEdit, taskId: string): RunsEdit {
   return new RunsChange({ ...edit.view, activeRuns: { ...edit.view.activeRuns, [taskId]: { ...active, acknowledged: true } } });
 }
 
-/** A watch ended while a tick of it was going: a tick that settles unseen puts its thread back to this verdict. */
-export function watchEndedBeforeIn(edit: RunsEdit, taskId: string, verdict: FinishedVerdict): RunsEdit {
-  const active = edit.view.activeRuns[taskId];
-  if (!active) return edit;
-  return new RunsChange({ ...edit.view, activeRuns: { ...edit.view.activeRuns, [taskId]: { ...active, before: { ...active.before, ...verdict } } } });
+/** Watches, keyed by thread, that ended while a tick of each was going: a tick that settles unseen puts its thread back to its verdict. */
+export function watchesEndedBeforeIn(edit: RunsEdit, verdicts: ReadonlyMap<string, FinishedVerdict>): RunsEdit {
+  let activeRuns: RunsState["activeRuns"] | undefined;
+  for (const taskId in edit.view.activeRuns) {
+    const verdict = verdicts.get(taskId);
+    const active = edit.view.activeRuns[taskId];
+    if (!verdict || !active) continue;
+    activeRuns ??= { ...edit.view.activeRuns };
+    activeRuns[taskId] = { ...active, before: { ...active.before, ...verdict } };
+  }
+  return activeRuns ? new RunsChange({ ...edit.view, activeRuns }) : edit;
 }
 
 /** What a thread's session reports of work that outlives the run that started it, as {@link applyThreadEvent} keeps it. */
