@@ -56,7 +56,7 @@ function ReadinessHint({ notice, onOpenSettings }: { notice: EngineNotice; onOpe
 }
 
 /** The widest the library is drawn; a narrower window takes it to its own width. */
-const LIBRARY_WIDTH = 620;
+const LIBRARY_WIDTH = 720;
 
 /** The library is placed against the window, so a composer narrowed by a panel beside it does not narrow the library too. */
 function LibraryPopover({ anchor, heading, onKeyDown, children }: { anchor: HTMLElement | null; heading: string; onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void; children: ReactNode }) {
@@ -302,7 +302,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
         <NavSeparator />
         {available.map((group) => <NavItem key={group.key} selected={!search && filter === group.key} icon={<ProviderMark engine={group.engine} groupKey={group.key} />} count={group.models.length} onClick={() => { setFilter(group.key); setQuery(""); }}>{group.label}</NavItem>)}
       </NavList>
-      <div className="model-results" data-checkable ref={results} onKeyDown={navigate}>
+      <div className={`model-results${shown.length > 1 ? "" : " one-provider"}`} data-checkable ref={results} onKeyDown={navigate}>
         <div className="model-results-heading"><span>{heading}</span><span aria-live="polite">{count} models</span></div>
         {shown.map((group) => <div key={group.key} role="group" aria-label={group.label}>
           {group.models.map((spec) => {
@@ -316,7 +316,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
                 checked={selected}
                 disabled={!group.selectable}
                 icon={<Icon size={16} />}
-                description={<span data-tip={`${group.label} · ${spec.description}`} data-tip-overflow>{group.label} · {spec.description}</span>}
+                description={<>{shown.length > 1 && <span className="model-provider">{group.label}</span>}<span className="model-purpose" data-tip={spec.description} data-tip-overflow>{spec.description}</span></>}
                 onClick={() => { onChange(group.engine, spec.id); if (!effort) close(); }}
               >
                 {spec.label}
