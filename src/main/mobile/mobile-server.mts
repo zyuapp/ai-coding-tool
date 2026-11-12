@@ -165,6 +165,7 @@ export class MobileServer {
   /**
    * Which running server this is. What a device has run is remembered only as long as the server
    * runs, so a device that finds a new one does not send it what the old one may have run already.
+   * An edit is the exception: its outcome is stored with the device, so it is safe to send again.
    */
   private instance = randomUUID();
   /** Per device: every request ID it has sent, and what came of it. Null while one is in flight. */
@@ -538,6 +539,10 @@ export class MobileServer {
     const { requestId } = message;
     const handled = this.handled.get(session.deviceId);
     if (!handled) return;
+    const edit = message.command.type === "task.edit-queued";
+    /** An edit's outcome outlives this server, since the phone keeps the words until it hears it. */
+    const stored = edit && !handled.has(requestId) ? this.options.devices.editOutcome(session.deviceId, requestId) : null;
+    if (stored) handled.set(requestId, stored);
     if (handled.has(requestId)) {
       const settled = handled.get(requestId);
       if (settled) this.ack(session, requestId, settled);
@@ -549,9 +554,13 @@ export class MobileServer {
     }
     handled.set(requestId, null);
     this.trim(handled);
+    const settle = (outcome: { ok: true } | { ok: false; message: string }) => {
+      if (edit) this.options.devices.rememberEdit(session.deviceId, requestId, outcome);
+      this.settle(session, requestId, outcome);
+    };
     this.options.command(session.id, message.command).then(
-      () => this.settle(session, requestId, { ok: true }),
-      (error: unknown) => this.settle(session, requestId, { ok: false, message: error instanceof Error ? error.message : String(error) }),
+      () => settle({ ok: true }),
+      (error: unknown) => settle({ ok: false, message: error instanceof Error ? error.message : String(error) }),
     );
   }
 

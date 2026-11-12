@@ -6,7 +6,7 @@ import { executeWorkspaceInput } from "../../src/application/workspace-execution
 import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { deriveView } from "../../src/application/workspace-view.ts";
 import { NEW_THREAD_DRAFT } from "../../src/application/state/composer.ts";
-import { answerMobileRequest, MOBILE_DRAFT_BUSY, MOBILE_EDIT_LATE, MOBILE_EDIT_WAIT_MS, MOBILE_NO_CHECKOUT, MOBILE_NO_COMMANDS, MOBILE_QUEUED_NOT_WORDS, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/host/mobile-bridge.ts";
+import { answerMobileRequest, MOBILE_DRAFT_BUSY, MOBILE_EDIT_LATE, MOBILE_EDIT_MARGIN_MS, MOBILE_EDIT_TOO_LATE, MOBILE_EDIT_WAIT_MS, MOBILE_NO_CHECKOUT, MOBILE_NO_COMMANDS, MOBILE_QUEUED_NOT_WORDS, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/host/mobile-bridge.ts";
 import { QUEUED_NOT_YOURS, QUEUED_SENT } from "../../src/application/state/runs.ts";
 import { emptyMobileServerState, type MobileServerState, type MobileSessionView } from "../../src/domain/mobile.ts";
 import type { MobileRequest, MobileView } from "../../src/contracts/mobile.ts";
@@ -371,6 +371,29 @@ test("a phone's edit of a paired computer's queue that is not answered in time s
   answer();
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(driver.current().prompts.member, "Then the docs\n\ntyped here");
+});
+
+test("a phone's edit is answered before the server stops waiting, and one that reaches the window too late takes nothing out", async () => {
+  const queued = { id: "q1", text: "Then the docs", prompt: "Then the docs", attachments: [], usersOwn: true as const };
+  const holder = workspace({ threads: [task("member", { remoteLead: { threadId: "lead", title: "Lead", computer: "Mac" } })], currentId: "member", activeRuns: { member: activeRun("member", "run-1") }, queuedMessages: { member: [queued] } });
+  const base = workspace({ threads: [task("lead", { role: "coordinator", title: "Lead" })], currentId: "lead" });
+  const paired = { id: "linux", name: "Linux", host: "linux.ts.net", status: "connected" as const, error: null, pairedAt: 1, capabilities: COMPUTER_CAPABILITIES, state: holder };
+  const driver = host({ ...base, computers: { ...base.computers, name: "Mac", paired: [paired] } }, () => new Promise<void>(() => {}));
+  const edit = (answerBy: number) => answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "r1", sessionId: "s1", answerBy, op: "command", command: { type: "task.edit-queued", taskId: "member", messageId: "q1" } }));
+
+  vi.useFakeTimers();
+  try {
+    assert.deepEqual(await edit(Date.now() + MOBILE_EDIT_MARGIN_MS), { type: "mobile.response", requestId: "r1", ok: false, message: MOBILE_EDIT_TOO_LATE });
+    assert.deepEqual(driver.inputs, []);
+    let answered = false;
+    const edited = edit(Date.now() + MOBILE_EDIT_MARGIN_MS + 2_000).finally(() => { answered = true; });
+    await vi.advanceTimersByTimeAsync(1_999);
+    assert.equal(answered, false);
+    await vi.advanceTimersByTimeAsync(1);
+    assert.deepEqual(await edited, { type: "mobile.response", requestId: "r1", ok: false, message: MOBILE_EDIT_LATE });
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("a coordinator's thread on a paired computer whose line is down is shown so, and opening it says why it cannot", async () => {

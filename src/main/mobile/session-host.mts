@@ -80,7 +80,7 @@ export class MobileRelay {
       }, patience);
       timer.unref?.();
       this.pending.set(request.requestId, { settle: resolve, timer });
-      if (this.host.send(request)) return;
+      if (this.host.send({ ...request, answerBy: Date.now() + patience })) return;
       this.answer({ type: "mobile.response", requestId: request.requestId, ok: false, message: "The AI Coding Tool window is not open on your computer." });
     });
   }

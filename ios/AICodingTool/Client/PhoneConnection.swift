@@ -114,11 +114,11 @@ final class PhoneConnection {
         settle?.cancel()
     }
 
-    /// Answers with the id the computer acknowledges the command by.
+    /// Answers with the id the computer acknowledges the command by. `words` ride with an edit until the computer answers it.
     @discardableResult
-    func send(_ command: PhoneCommand) -> String {
+    func send(_ command: PhoneCommand, words: String? = nil) -> String {
         let requestId = UUID().uuidString.lowercased()
-        dispatch(.dispatch(requestId: requestId, command: command, at: Self.now))
+        dispatch(.dispatch(requestId: requestId, command: command, at: Self.now, words: words))
         return requestId
     }
 

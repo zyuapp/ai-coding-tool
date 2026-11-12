@@ -135,6 +135,10 @@ function editedQueued(state: WorkspaceState, command: Extract<AppCommand, { type
 
 /** How long a phone's edit waits for the computer holding the queue, well inside the relay's own deadline. */
 export const MOBILE_EDIT_WAIT_MS = 5_000;
+/** Kept back from the relay's deadline, so an edit's answer reaches the phone before the relay gives up on it. */
+export const MOBILE_EDIT_MARGIN_MS = 1_500;
+
+export const MOBILE_EDIT_TOO_LATE = "Your computer did not answer in time. Try again.";
 
 export const MOBILE_EDIT_LATE = "That computer has not answered yet. If it takes the message out, its words wait in this computer's composer.";
 
@@ -142,9 +146,12 @@ export const MOBILE_EDIT_LATE = "That computer has not answered yet. If it takes
  * The phone hears the edit went through only once the computer holding the queue says the message
  * left it. A line that drops can still carry the drop minutes later, so a holder that has not
  * answered in time leaves the phone told so, and the words of a drop it takes later wait in this
- * computer's composer for the thread rather than being lost.
+ * computer's composer for the thread rather than being lost. Every answer is given before the
+ * server stops waiting at `answerBy`, and one that reaches this window too late takes nothing out.
  */
-async function answerEdit(host: MobileBridgeHost, command: Extract<AppCommand, { type: "task.edit-queued" }>): Promise<WorkspaceCommandResult> {
+async function answerEdit(host: MobileBridgeHost, command: Extract<AppCommand, { type: "task.edit-queued" }>, answerBy = Infinity): Promise<WorkspaceCommandResult> {
+  const wait = Math.min(MOBILE_EDIT_WAIT_MS, answerBy - Date.now() - MOBILE_EDIT_MARGIN_MS);
+  if (wait <= 0) return { ok: false, message: MOBILE_EDIT_TOO_LATE };
   const edited = editedQueued(host.state(), command);
   if ("refusal" in edited) return { ok: false, message: edited.refusal };
   const execution = host.execute(edited.drop);
@@ -154,7 +161,7 @@ async function answerEdit(host: MobileBridgeHost, command: Extract<AppCommand, {
     return accepted.ok ? execution.completed : accepted;
   })();
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const late = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), MOBILE_EDIT_WAIT_MS); });
+  const late = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), wait); });
   const answer = await Promise.race([outcome, late]).finally(() => clearTimeout(timer));
   if (answer) return answer;
   const { taskId } = edited;
@@ -216,7 +223,7 @@ export async function answerMobileRequest(host: MobileBridgeHost, request: Mobil
     /** The draft holds one send's words, so nothing may rewrite or send it until the last send from it has started. */
     if (touchesDraft(host.state(), request.command) && draftSending(host.state())) return failed(MOBILE_DRAFT_BUSY);
     if (request.command.type === "task.edit-queued") {
-      const edited = await answerEdit(host, request.command);
+      const edited = await answerEdit(host, request.command, request.answerBy);
       if (!edited.ok) return failed(edited.message);
       return ok(projectMobileView(host.state(), Date.now()));
     }

@@ -54,16 +54,20 @@ test("a code is traded for a token the Mac keeps only the hash of", async (t) =>
   assert.equal(reopen().authenticate(paired.token)?.id, paired.device.id, "a restart still knows the phone");
 });
 
-test("a revoked phone is forgotten, on disk as well as in memory", async (t) => {
+test("a revoked phone is forgotten with its edits, on disk as well as in memory", async (t) => {
   const { devices, reopen } = await store(t);
   const paired = devices.redeem(devices.mint(AT).code, "iPhone", PHONE, AT);
   assert.ok(paired.ok);
+
+  devices.rememberEdit(paired.device.id, "edit-1", { ok: false, message: "Already sent." });
+  assert.deepEqual(reopen().editOutcome(paired.device.id, "edit-1"), { ok: false, message: "Already sent." }, "an edit's outcome survives a restart");
 
   assert.equal(devices.revoke("not-a-device"), false);
   assert.equal(devices.revoke(paired.device.id), true);
   assert.equal(devices.authenticate(paired.token), null);
   assert.deepEqual(devices.views(), []);
   assert.deepEqual(reopen().list(), []);
+  assert.equal(reopen().editOutcome(paired.device.id, "edit-1"), null);
 });
 
 test("wrong codes shut the door on the phone that keeps trying", async (t) => {

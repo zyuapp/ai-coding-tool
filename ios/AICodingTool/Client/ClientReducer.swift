@@ -35,6 +35,15 @@ struct OutboxEntry: Codable, Equatable, Sendable {
     var queuedAt: Double
     var writes: Int
     var instance: String?
+    /// An edit's words, which go back to the thread's draft once the computer says the message left its queue.
+    var words: String?
+}
+
+/// Words the computer took out of a queue, for the draft of the thread they came from.
+struct Refill: Equatable, Sendable {
+    var requestId: String
+    var taskId: String
+    var words: String
 }
 
 /// A command the computer turned down, handed back so the screen that sent it can give the user their words back.
@@ -61,8 +70,8 @@ struct MobileClientState: Equatable, Sendable {
     var computerName: String?
     var outbox: [OutboxEntry] = []
     var returned: ReturnedCommand?
-    /// The request id of the last command the computer took that its screen waits to hear was taken.
-    var accepted: String?
+    /// The words of the last edit the computer took.
+    var refill: Refill?
     var openedAt: Double = 0
     var attempt = 0
     var notice: String?
@@ -91,7 +100,7 @@ enum MobileClientEvent: Sendable {
     case received(MobileServerMessage)
     case skipped(sequence: Int)
     case closed
-    case dispatch(requestId: String, command: PhoneCommand, at: Double)
+    case dispatch(requestId: String, command: PhoneCommand, at: Double, words: String? = nil)
     case remind
     case settled
     case wake(stale: Bool)
@@ -135,8 +144,6 @@ enum MobileClient {
     static let viewCommands: Set<PhoneCommand.Kind> = [.taskSelect, .taskNew]
     /// Commands that act on a run as it stood when asked, dropped rather than carried out late.
     static let momentCommands: Set<PhoneCommand.Kind> = [.runCancel, .runDecide]
-    /// Commands whose screen acts only once the computer has taken them.
-    static let confirmedCommands: Set<PhoneCommand.Kind> = [.taskEditQueued]
 
     static func backoffDelay(_ attempt: Int) -> Int {
         if attempt <= 1 { return retryBaseMs }
@@ -195,8 +202,8 @@ enum MobileClient {
             return (next, [])
         case .closed:
             return closed(state)
-        case .dispatch(let requestId, let command, let at):
-            return dispatch(state, requestId: requestId, command: command, at: at)
+        case .dispatch(let requestId, let command, let at, let words):
+            return dispatch(state, requestId: requestId, command: command, at: at, words: words)
         case .remind:
             return state.connection == .live ? flush(state, owed: state.outbox.filter(\.sent)) : (state, [])
         case .settled:
@@ -256,7 +263,7 @@ enum MobileClient {
         return (next, [.connect(delayMs: backoffDelay(next.attempt))])
     }
 
-    private static func dispatch(_ state: MobileClientState, requestId: String, command: PhoneCommand, at: Double) -> (MobileClientState, [MobileClientEffect]) {
+    private static func dispatch(_ state: MobileClientState, requestId: String, command: PhoneCommand, at: Double, words: String?) -> (MobileClientState, [MobileClientEffect]) {
         let live = state.connection == .live
         let kept = live || command.kind.map(viewCommands.contains) != true ? state.outbox : withoutTrailingMoves(state.outbox)
         var next = state
@@ -264,7 +271,7 @@ enum MobileClient {
             next.notice = "Too much is already waiting for your computer. Wait for it to catch up."
             return (next, [])
         }
-        let entry = OutboxEntry(requestId: requestId, command: command, sent: live, queuedAt: at, writes: live ? 1 : 0, instance: live ? state.instance : nil)
+        let entry = OutboxEntry(requestId: requestId, command: command, sent: live, queuedAt: at, writes: live ? 1 : 0, instance: live ? state.instance : nil, words: words)
         next.outbox = kept + [entry]
         return (next, live ? [.send(.command(requestId: requestId, command: command))] : [])
     }
@@ -276,11 +283,12 @@ enum MobileClient {
     }
 
     /// Writes every command owed a send, in the order it was asked. One written as often as the
-    /// limit allows without an answer is given up on, and the user told.
+    /// limit allows without an answer is given up on, and the user told. An edit never is: the
+    /// computer may already have taken its message out, and only its answer says where the words go.
     private static func flush(_ state: MobileClientState, owed: [OutboxEntry]) -> (MobileClientState, [MobileClientEffect]) {
         guard !owed.isEmpty else { return (state, []) }
         let owedIds = Set(owed.map(\.requestId))
-        let spentIds = Set(owed.filter { $0.writes >= resendLimit }.map(\.requestId))
+        let spentIds = Set(owed.filter { $0.writes >= resendLimit && $0.words == nil }.map(\.requestId))
         let effects = owed.filter { !spentIds.contains($0.requestId) }.map { MobileClientEffect.send(.command(requestId: $0.requestId, command: $0.command)) }
         var next = state
         next.outbox = state.outbox.compactMap { item in
@@ -356,7 +364,7 @@ enum MobileClient {
             let asked = seen.outbox.first { $0.requestId == requestId }
             seen.outbox.removeAll { $0.requestId == requestId }
             if ok {
-                if let asked, asked.command.kind.map(confirmedCommands.contains) == true { seen.accepted = requestId }
+                if let asked, let words = asked.words, let taskId = asked.command.taskId { seen.refill = Refill(requestId: requestId, taskId: taskId, words: words) }
                 return settled(seen)
             }
             if let asked { seen = givenBack(seen, [asked], message: text) }
@@ -384,10 +392,11 @@ enum MobileClient {
     }
 
     /// Only a command written to this very server is sent again after a restart; the rest are let
-    /// go of, since a server that forgot them could run them twice.
+    /// go of, since a server that forgot them could run them twice. An edit is kept: the computer
+    /// stores what came of it, so asking again is answered rather than run twice.
     private static func restarted(_ state: MobileClientState, instance: String?) -> MobileClientState {
         var next = state
-        let kept = { (entry: OutboxEntry) in entry.writes == 0 || (instance != nil && entry.instance == instance) }
+        let kept = { (entry: OutboxEntry) in entry.writes == 0 || entry.words != nil || (instance != nil && entry.instance == instance) }
         next.outbox = state.outbox.filter(kept)
         return givenBack(next, state.outbox.filter { !kept($0) }, message: MobileClient.restarted)
     }

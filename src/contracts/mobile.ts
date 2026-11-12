@@ -653,6 +653,8 @@ export type MobileRequest = {
   type: "mobile.request";
   requestId: string;
   sessionId: string;
+  /** When the server stops waiting for the answer, in milliseconds since 1970. */
+  answerBy?: number;
 } & (
   | { op: "snapshot" }
   | { op: "command"; command: MobileCommand }
@@ -667,6 +669,7 @@ export type MobileResponse = {
 export function isMobileRequest(value: unknown): value is MobileRequest {
   if (!isRecord(value)) return false;
   if (value.type !== "mobile.request" || !isString(value.requestId) || !isString(value.sessionId)) return false;
+  if (value.answerBy !== undefined && !(typeof value.answerBy === "number" && Number.isFinite(value.answerBy))) return false;
   if (value.op === "snapshot") return true;
   if (value.op === "command") return isPhoneCommand(value.command);
   if (value.op === "query") return isMobileQuery(value.query);

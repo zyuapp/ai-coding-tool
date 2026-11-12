@@ -275,6 +275,31 @@ test("a command re-sent after a lost ack is answered, not run again", async (t) 
   assert.deepEqual(commands, [command], "the window was asked once");
 });
 
+test("an edit's outcome outlives the server, so an edit re-sent after a restart is answered, not run again", async (t) => {
+  const { server, devices, socketUrl, commands } = await harness(t);
+  const code = devices.mint(Date.now());
+  const client = phone(socketUrl);
+  await client.opened();
+  client.send({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: code.code, deviceName: "iPhone" });
+  const paired = await client.waitFor("paired");
+  await client.waitFor("snapshot");
+  const edit: MobileCommand = { type: "task.edit-queued", taskId: "task-1", messageId: "q1" };
+  client.send({ kind: "command", requestId: "edit-1", command: edit });
+  await client.waitFor("ack");
+  client.socket.close();
+
+  await server.stop();
+  await server.start("127.0.0.1");
+  const again = phone(`ws://127.0.0.1:${server.port}/m/socket`, { origin: `http://127.0.0.1:${server.port}` });
+  t.onTestFinished(() => again.socket.close());
+  await again.opened();
+  again.send({ kind: "resume", version: MOBILE_PROTOCOL_VERSION, token: paired.token, lastSequence: 0 });
+  await again.waitFor("snapshot");
+  again.send({ kind: "command", requestId: "edit-1", command: edit });
+  assert.equal((await again.waitFor("ack")).ok, true);
+  assert.deepEqual(commands, [edit], "the window was asked once");
+});
+
 test("a phone whose pairing is revoked loses the session with it", async (t) => {
   const { devices, socketUrl, server } = await harness(t);
   const code = devices.mint(Date.now());
@@ -389,8 +414,10 @@ test("a phone's request is answered by the window, or by the wait running out", 
 
   relay.answer({ type: "mobile.response", requestId: sent[0].requestId, ok: true, result: view("first") });
 
+  const before = Date.now();
   const refused = relay.command("session-1", { type: "task.select", taskId: "task-1" });
   await until(() => sent.length === 2, "the command never reached the window");
+  assert.ok((sent[1].answerBy ?? 0) >= before + 40, "the window is told when the relay stops waiting");
   relay.answer({ type: "mobile.response", requestId: sent[1].requestId, ok: false, message: "No such thread." });
   await assert.rejects(refused, /No such thread/);
 

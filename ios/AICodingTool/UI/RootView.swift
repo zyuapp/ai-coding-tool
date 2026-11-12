@@ -26,7 +26,7 @@ struct RootView: View {
                 model.threadMoved()
             }
             .onChange(of: model.live) { _, _ in model.reconsiderOpening() }
-            .onChange(of: model.state.outbox.count) { _, _ in model.settleEdit() }
+            .onChange(of: model.state.refill?.requestId) { _, _ in model.takeRefill() }
     }
 
     @ViewBuilder private var content: some View {

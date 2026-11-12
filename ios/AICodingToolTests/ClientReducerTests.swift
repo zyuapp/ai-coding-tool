@@ -117,16 +117,32 @@ final class ClientReducerTests: XCTestCase {
         XCTAssertEqual(refused.notice, "No.")
     }
 
-    func testOnlyAnEditTheComputerTookIsAccepted() {
-        var state = run(paired(), [.dispatch(requestId: "edit", command: .editQueued("t1", messageId: "q1"), at: 1), .dispatch(requestId: "send", command: .send("t1", text: "hi"), at: 1)]).0
+    func testOnlyAnEditTheComputerTookRefillsTheDraft() {
+        var state = run(paired(), [.dispatch(requestId: "edit", command: .editQueued("t1", messageId: "q1"), at: 1, words: "old words"), .dispatch(requestId: "send", command: .send("t1", text: "hi"), at: 1)]).0
         state = run(state, [.received(.ack(sequence: 2, requestId: "send", ok: true, message: ""))]).0
-        XCTAssertNil(state.accepted)
+        XCTAssertNil(state.refill)
         state = run(state, [.received(.ack(sequence: 3, requestId: "edit", ok: true, message: ""))]).0
-        XCTAssertEqual(state.accepted, "edit")
-        state = run(state, [.dispatch(requestId: "late", command: .editQueued("t1", messageId: "q2"), at: 2), .received(.ack(sequence: 4, requestId: "late", ok: false, message: "That message has already been sent."))]).0
-        XCTAssertEqual(state.accepted, "edit")
+        XCTAssertEqual(state.refill, Refill(requestId: "edit", taskId: "t1", words: "old words"))
+        state = run(state, [.dispatch(requestId: "late", command: .editQueued("t1", messageId: "q2"), at: 2, words: "other"), .received(.ack(sequence: 4, requestId: "late", ok: false, message: "That message has already been sent."))]).0
+        XCTAssertEqual(state.refill?.requestId, "edit")
         XCTAssertEqual(state.returned?.requestId, "late")
         XCTAssertEqual(state.notice, "That message has already been sent.")
+    }
+
+    func testAnEditOutlivesTheAppAndItsWordsComeBackWhenTheComputerAnswers() {
+        let asked = run(paired(), [.dispatch(requestId: "edit", command: .editQueued("t1", messageId: "q1"), at: 1, words: "old words")]).0
+        let relaunched = MobileClientState(credential: asked.credential, code: nil, deviceName: "iPhone", outbox: asked.outbox)
+        let (reopened, effects) = run(relaunched, [.opened(at: 2), .received(snapshot(1, session: "s2"))])
+        XCTAssertTrue(sent(effects).contains(.command(requestId: "edit", command: .editQueued("t1", messageId: "q1"))), "the edit is asked again")
+        let state = run(reopened, [.received(.ack(sequence: 2, requestId: "edit", ok: true, message: ""))]).0
+        XCTAssertEqual(state.refill?.words, "old words")
+    }
+
+    func testAnEditIsNeverGivenUpOnWhileItsAnswerIsOwed() {
+        var state = run(paired(), [.dispatch(requestId: "edit", command: .editQueued("t1", messageId: "q1"), at: 1, words: "old words"), .dispatch(requestId: "send", command: .send("t1", text: "hi"), at: 1)]).0
+        for _ in 0..<MobileClient.resendLimit { state = run(state, [.remind]).0 }
+        XCTAssertEqual(state.outbox.map(\.requestId), ["edit"])
+        XCTAssertEqual(state.returned?.requestId, "send")
     }
 
     func testStaleDecisionReleasesItsCard() {
@@ -168,6 +184,13 @@ final class ClientReducerTests: XCTestCase {
         let (restarted, _) = run(state, [.closed, .opened(at: 2), .received(snapshot(1, session: "s2", instance: "two"))])
         XCTAssertTrue(restarted.outbox.isEmpty)
         XCTAssertEqual(restarted.notice, MobileClient.restarted)
+    }
+
+    func testRestartKeepsAnEditForTheComputerToAnswer() {
+        let state = run(paired(), [.dispatch(requestId: "edit", command: .editQueued("t1", messageId: "q1"), at: 1, words: "old words"), .dispatch(requestId: "r1", command: .send("t1", text: "one"), at: 1)]).0
+        let (restarted, effects) = run(state, [.closed, .opened(at: 2), .received(snapshot(1, session: "s2", instance: "two"))])
+        XCTAssertEqual(restarted.outbox.map(\.requestId), ["edit"])
+        XCTAssertTrue(sent(effects).contains(.command(requestId: "edit", command: .editQueued("t1", messageId: "q1"))))
     }
 
     func testRevokedPhoneForgetsItsToken() {

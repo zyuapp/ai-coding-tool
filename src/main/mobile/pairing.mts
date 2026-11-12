@@ -28,6 +28,18 @@ const MAX_DEVICE_NAME = 128;
 const SEEN_WRITE_INTERVAL_MS = 60 * 1_000;
 /** How often a list that could not be read is read again, when a device that may be on it knocks. */
 const REREAD_INTERVAL_MS = 5 * 1_000;
+/** How many edits' outcomes each device keeps. A phone waits on one edit at a time. */
+const MAX_EDITS_PER_DEVICE = 8;
+
+/** What came of a phone's edit of a queued message. */
+export type EditOutcome = { ok: true } | { ok: false; message: string };
+type StoredEdit = { requestId: string } & EditOutcome;
+
+function isStoredEdit(value: unknown): value is StoredEdit {
+  if (!value || typeof value !== "object") return false;
+  const edit = value as Record<string, unknown>;
+  return typeof edit.requestId === "string" && (edit.ok === true || (edit.ok === false && typeof edit.message === "string"));
+}
 
 export type PairingOutcome =
   | { ok: true; device: PairedDevice; token: string }
@@ -86,6 +98,8 @@ export class PairingStore {
   private devices: PairedDevice[] = [];
   /** Records this version does not read, written back untouched so a newer version's devices survive. */
   private kept: unknown[] = [];
+  /** Per device, the outcomes of its latest edits, kept across restarts so a resent edit is answered rather than lost. */
+  private edits: Record<string, StoredEdit[]> = {};
   private fields: Record<string, unknown> = {};
   /**
    * Set while the file is there but could not be read. Nothing is written over it then, because
@@ -109,7 +123,15 @@ export class PairingStore {
     const loaded = this.read(at);
     if (!loaded) return;
     this.unreadableSince = null;
-    ({ devices: this.devices, kept: this.kept, fields: this.fields } = loaded);
+    const { edits, ...fields } = loaded.fields;
+    ({ devices: this.devices, kept: this.kept } = loaded);
+    this.fields = fields;
+    this.edits = {};
+    if (edits && typeof edits === "object") {
+      for (const [deviceId, list] of Object.entries(edits)) {
+        if (Array.isArray(list)) this.edits[deviceId] = list.filter(isStoredEdit).slice(-MAX_EDITS_PER_DEVICE);
+      }
+    }
   }
 
   /**
@@ -163,7 +185,7 @@ export class PairingStore {
    */
   private write(): boolean {
     if (this.unreadableSince !== null) return false;
-    const stored: StoredDevices = { ...this.fields, version: 1, devices: [...this.devices, ...this.kept] };
+    const stored: StoredDevices = { ...this.fields, version: 1, devices: [...this.devices, ...this.kept], ...(Object.keys(this.edits).length ? { edits: this.edits } : {}) };
     try {
       mkdirSync(path.dirname(this.filePath), { recursive: true });
       const staging = `${this.filePath}.tmp`;
@@ -296,10 +318,25 @@ export class PairingStore {
     this.write();
   }
 
+  editOutcome(deviceId: string, requestId: string): EditOutcome | null {
+    const found = this.edits[deviceId]?.find((edit) => edit.requestId === requestId);
+    if (!found) return null;
+    return found.ok ? { ok: true } : { ok: false, message: found.message };
+  }
+
+  rememberEdit(deviceId: string, requestId: string, outcome: EditOutcome) {
+    if (!this.devices.some((device) => device.id === deviceId)) return;
+    const stored: StoredEdit = outcome.ok ? { requestId, ok: true } : { requestId, ok: false, message: outcome.message };
+    this.edits = { ...this.edits, [deviceId]: [...(this.edits[deviceId] ?? []).filter((edit) => edit.requestId !== requestId), stored].slice(-MAX_EDITS_PER_DEVICE) };
+    this.write();
+  }
+
   revoke(deviceId: string): boolean {
     const kept = this.devices.filter((device) => device.id !== deviceId);
     if (kept.length === this.devices.length) return false;
     this.devices = kept;
+    const { [deviceId]: _forgotten, ...edits } = this.edits;
+    this.edits = edits;
     this.write();
     return true;
   }

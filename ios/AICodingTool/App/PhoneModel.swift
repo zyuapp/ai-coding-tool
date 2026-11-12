@@ -37,8 +37,7 @@ final class PhoneModel {
     }
     /// Unsent words by thread, kept for as long as the app runs.
     @ObservationIgnored private var drafts: [String: String] = [:]
-    /// A queued message on its way out of the queue, whose words come back once the computer has taken it out.
-    private(set) var editing: (requestId: String, taskId: String, messageId: String, text: String)?
+    @ObservationIgnored private var refilledFrom: String?
     /// The draft last filled from outside its composer, so a composer showing it reads it again, and
     /// takes the keyboard when the words are ones to rewrite.
     private(set) var refilled: (id: UUID, key: String, focus: Bool)?
@@ -299,20 +298,25 @@ final class PhoneModel {
         refilled = (UUID(), key, false)
     }
 
+    /// A queued message on its way out of the queue. The edit is kept with the outbox, so it outlives
+    /// the app being closed and the phone talking to another computer meanwhile.
+    var editing: (taskId: String, messageId: String)? {
+        guard let entry = state.outbox.first(where: { $0.words != nil }), let taskId = entry.command.taskId, let messageId = entry.command.json["messageId"]?.stringValue else { return nil }
+        return (taskId, messageId)
+    }
+
     /// Asks for a queued message back; its words reach the composer only once it has left the queue.
     func editQueued(_ taskId: String, _ message: MobileQueuedMessage) {
         guard editing == nil else { return }
-        editing = (send(.editQueued(taskId, messageId: message.id)), taskId, message.id, message.text)
+        connection.send(.editQueued(taskId, messageId: message.id), words: message.text)
     }
 
-    /// Settles the edit once its command has left the outbox: taken, its words join its thread's draft,
-    /// whichever screen is showing; otherwise it lets go.
-    func settleEdit() {
-        guard let editing, !state.outbox.contains(where: { $0.requestId == editing.requestId }) else { return }
-        self.editing = nil
-        guard state.accepted == editing.requestId else { return }
-        let typed = draft(for: editing.taskId).trimmingCharacters(in: .whitespacesAndNewlines)
-        keepDraft(typed.isEmpty ? editing.text : "\(typed)\n\n\(editing.text)", for: editing.taskId)
-        refilled = (UUID(), editing.taskId, true)
+    /// Words of an edit the computer took join its thread's draft, whichever screen is showing.
+    func takeRefill() {
+        guard let refill = state.refill, refill.requestId != refilledFrom else { return }
+        refilledFrom = refill.requestId
+        let typed = draft(for: refill.taskId).trimmingCharacters(in: .whitespacesAndNewlines)
+        keepDraft(typed.isEmpty ? refill.words : "\(typed)\n\n\(refill.words)", for: refill.taskId)
+        refilled = (UUID(), refill.taskId, true)
     }
 }
