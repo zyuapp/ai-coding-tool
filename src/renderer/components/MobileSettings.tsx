@@ -4,6 +4,7 @@ import { addressOrigin, type MobileAddress, type MobileConnectionState, type Mob
 import { SettingRow, SettingRowBase, SettingStatus, SettingSwitch } from "./SettingRow";
 import { SettingsPage, SettingsSection } from "./SettingsLayout";
 import { Button, ButtonLink } from "../ui/Button";
+import { Dialog } from "../ui/Dialog";
 import { ConfirmAction } from "../ui/ConfirmAction";
 import { ComputerSettings, type ComputerSettingsProps } from "./ComputerSettings";
 import { SpinningIcon } from "./SpinningIcon";
@@ -50,8 +51,7 @@ function countdownLabel(remaining: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-/** The pairing URL as a QR image, redrawn when the URL changes. The encoder is fetched with the
- * first pairing offer, because pairing a phone is the only thing in the app that draws a QR. */
+/** A URL as a QR image, redrawn when the URL changes. The encoder is fetched the first time a QR is drawn. */
 function useQrCode(url: string | null): string | null {
   const [image, setImage] = useState<string | null>(null);
   useEffect(() => {
@@ -74,6 +74,26 @@ type Step = { id: string; done: boolean; name: string; hint: string | null; link
 
 const TAILSCALE_DOWNLOAD = "https://tailscale.com/download";
 const TAILSCALE_DNS = "https://login.tailscale.com/admin/dns";
+const TESTFLIGHT_LINK = "https://testflight.apple.com/join/v37MHegn";
+
+function GetAppDialog({ onClose }: { onClose: () => void }) {
+  const qr = useQrCode(TESTFLIGHT_LINK);
+  const done = useRef<HTMLButtonElement>(null);
+  return (
+    <Dialog title="Get the iPhone app" className="phone-get-app" onClose={onClose} initialFocus={done}
+      actions={<Button ref={done} size="lg" onClick={onClose}>Done</Button>}>
+      <p>Scan with the iPhone's camera to install the beta from TestFlight.</p>
+      {qr
+        ? <img className="phone-qr" src={qr} alt={`QR code for ${TESTFLIGHT_LINK}`} />
+        : <div className="phone-qr placeholder" aria-hidden="true" />}
+      <div className="phone-pairing-url">
+        <code>{TESTFLIGHT_LINK}</code>
+        <CopyButton text={TESTFLIGHT_LINK} label="Copy TestFlight link" />
+      </div>
+      <p className="phone-get-app-note">Android app coming later.</p>
+    </Dialog>
+  );
+}
 
 function tailscaleSteps(tailscale: TailscaleState, on: boolean): Step[] {
   const installed = tailscale.status !== "missing" && tailscale.status !== "unknown";
@@ -155,6 +175,7 @@ function PairingSection({ pairing, ready, onCreatePairingCode }: { pairing: Mobi
   const live = pairing !== null && remaining > 0;
   const qr = useQrCode(pairing?.url ?? null);
   const asked = useRef<string | null>(null);
+  const [gettingApp, setGettingApp] = useState(false);
   useEffect(() => {
     if (!ready || live) return;
     /** One request per code that has run out, so a bridge that will not mint is not asked in a loop. */
@@ -166,7 +187,11 @@ function PairingSection({ pairing, ready, onCreatePairingCode }: { pairing: Mobi
 
   return (
     <SettingsSection setting="phone.pairing" description="Scan the code with the phone's camera. Each code works once and lasts two minutes."
-      action={<Button disabled={!ready} onClick={onCreatePairingCode}>New code</Button>}>
+      action={<>
+        <Button onClick={() => setGettingApp(true)}>Get the app</Button>
+        <Button disabled={!ready} onClick={onCreatePairingCode}>New code</Button>
+      </>}>
+      {gettingApp && <GetAppDialog onClose={() => setGettingApp(false)} />}
       {!ready && <p className="settings-empty">Turn phone access on and finish the Tailscale steps to pair a phone.</p>}
       {ready && !pairing && <p className="settings-empty">Making a code…</p>}
       {ready && pairing && (

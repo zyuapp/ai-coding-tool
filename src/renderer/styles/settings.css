@@ -293,7 +293,7 @@
 .setting-row > label.setting-row-text { cursor: pointer; }
 .setting-row strong { color: var(--ink-dim); font-size: var(--text-control); font-weight: 570; }
 .setting-row p { margin: 5px 0 0; color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.45; }
-.settings-group code { border-radius: 5px; padding: 1px 5px; background: var(--wash); color: var(--ink-dim); font: 0.9em/1.4 var(--mono); }
+:is(.settings-group, .phone-get-app) code { border-radius: 5px; padding: 1px 5px; background: var(--wash); color: var(--ink-dim); font: 0.9em/1.4 var(--mono); }
 .settings-group .setting-status.blank { border-color: transparent; }
 .setting-row.shortcut-row { grid-template-columns: minmax(0, 1fr) minmax(274px, auto); }
 /** The keystroke is what the row is about, so it sits apart from the buttons that change it. */
@@ -354,6 +354,9 @@
 .phone-qr.placeholder { background: var(--wash); box-shadow: none; }
 .phone-qr.expired { opacity: 0.25; }
 .phone-pairing-copy { min-width: 0; }
+.phone-get-app { --dialog-width: 380px; }
+.phone-get-app .phone-qr { align-self: center; width: 208px; height: 208px; }
+.dialog > p.phone-get-app-note { color: var(--quiet-strong); font-size: var(--text-meta); }
 .phone-pairing-copy strong { display: block; color: var(--ink); font: 640 26px/1.2 var(--mono); letter-spacing: 0.16em; }
 .phone-pairing-copy p { margin: 7px 0 0; color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.45; }
 .phone-pairing-copy p.phone-pairing-expired { color: var(--accent-soft); }
