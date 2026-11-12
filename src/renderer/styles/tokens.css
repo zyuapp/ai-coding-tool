@@ -413,6 +413,7 @@
   :root[data-glass-sheet] .workspace.dock-full .right-dock { inset: 0; }
   :root[data-glass-sheet] .subagent-inspector { --panel-header-height: var(--chrome-head); margin: 0 0 0 var(--frame-gap); grid-template-rows: var(--chrome-head) minmax(0, 1fr); }
   :root[data-glass-sheet] :is(.right-dock, .subagent-inspector)::before { content: ""; position: absolute; z-index: 6; inset: 0 auto 0 0; width: 1px; background: var(--line-glass); pointer-events: none; }
+  :root[data-glass-sheet] .right-dock-resizer { --seam-centre: 12.5px; }
 }
 /** And keeps solid panes in place of glass ones. */
 @media (prefers-reduced-transparency: reduce) {

@@ -1,5 +1,5 @@
 /** A picker read closely, so its glass is thick: what passes behind tints it but never shows as words. */
-.model-library { --library-rail: 164px; position: fixed; z-index: 1000; max-height: min(720px, var(--menu-room, 100vh)); padding: 0; overflow: hidden; display: flex; flex-direction: column; --glass-radius: 13px; background: var(--glass-edge), var(--glass-sheen), rgb(from var(--p-bg-4) r g b / calc(0.9 + 0.06 * var(--glass-tint))); background-clip: border-area, border-box, border-box; }
+.model-library { --library-rail: 164px; position: fixed; z-index: 1000; min-height: min(340px, var(--menu-room, 100vh)); max-height: min(720px, var(--menu-room, 100vh)); padding: 0; overflow: hidden; display: flex; flex-direction: column; --glass-radius: 13px; background: var(--glass-edge), var(--glass-sheen), rgb(from var(--p-bg-4) r g b / calc(0.9 + 0.06 * var(--glass-tint))); background-clip: border-area, border-box, border-box; }
 @media (prefers-reduced-transparency: reduce) {
   .model-library { background: var(--glass-edge), var(--surface-menu); background-clip: border-area, border-box, border-box; backdrop-filter: none; }
 }
@@ -8,8 +8,8 @@
 .model-search .search-field-box > svg { width: 14px; height: 14px; }
 .model-search .search-field input { height: 36px; font-size: var(--text-menu); }
 .model-search > .icon-btn { position: absolute; top: 4px; right: 8px; }
-/** The list holds one height whatever the filter shows, and gives it up first when the window is short, down to a few rows. */
-.model-library-body { flex: 0 1 400px; display: grid; grid-template-columns: var(--library-rail) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); min-height: 120px; }
+/** The list fills the picker's least height, and gives up height first when the window is short, down to a few rows. */
+.model-library-body { flex: 1 1 auto; display: grid; grid-template-columns: var(--library-rail) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); max-height: 480px; min-height: 120px; }
 .model-search, .library-settings, .model-library-footer { flex-shrink: 0; }
 .model-provider-rail { gap: 1px; padding: 6px; border-right: 1px solid var(--line-soft); overflow-y: auto; }
 .model-provider-rail .nav-item { padding-block: 6px; font-size: var(--text-menu); }

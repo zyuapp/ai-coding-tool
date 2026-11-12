@@ -36,7 +36,7 @@
 .workspace.dock-full .right-dock-tabs { -webkit-app-region: drag; }
 .workspace.dock-full .right-dock-tabs.traffic-inset { padding-left: max(8px, var(--window-controls-inset)); }
 .workspace.dock-full .right-dock-tabs > div, .workspace.dock-full .right-dock-tabs button { -webkit-app-region: no-drag; }
-/** A 16px grab strip reaching into the gap beside the dock; its 2px line and grip sit centred on the dock's edge. */
+/** A 16px grab strip reaching into the gap beside the dock; its 2px line and grip centre on the seam, the ring just outside the dock's edge. */
 .right-dock-resizer {
   position: absolute;
   z-index: 5;
@@ -44,13 +44,17 @@
   left: -12px;
   bottom: 0;
   width: 16px;
+  --seam-centre: 11.5px;
   cursor: col-resize;
   touch-action: none;
 }
 .right-dock-resizer:hover::after, .right-dock-resizer:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *)::after {
   content: "";
   position: absolute;
-  inset: 0 3px 0 11px;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--seam-centre) - 1px);
+  width: 2px;
   background: var(--line-input);
 }
 /** A grip on the edge, faint at rest and full while the pointer is over the dock, so the edge reads as one to drag. */
@@ -58,7 +62,7 @@
   content: "";
   position: absolute;
   top: 50%;
-  left: 10px;
+  left: calc(var(--seam-centre) - 2px);
   width: 4px;
   height: 32px;
   margin-top: -16px;
