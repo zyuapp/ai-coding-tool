@@ -50,14 +50,34 @@ function streamReply(runId: string) {
   const run = live.get(runId);
   if (!run) return;
   const reply = REPLIES[Math.floor(Math.random() * REPLIES.length)]!;
-  const chunks = reply.match(/[\s\S]{1,60}/g) ?? [reply];
-  chunks.forEach((_, index) => {
-    run.timers.push(setTimeout(() => {
-      emit({ type: "assistant.delta", taskId: run.taskId, runId, sequence: (run.sequence += 1), messageId: `reply-${runId}`, text: chunks.slice(0, index + 1).join("") });
-    }, 40 * (index + 1)));
+  const messageId = `reply-${runId}`;
+  /** As an engine streams: the unfinished block as a tail, then each finished block once as a delta. */
+  const steps: Record<string, unknown>[] = [];
+  for (const block of markdownBlocks(reply)) {
+    const chunks = block.match(/[\s\S]{1,60}/g) ?? [block];
+    chunks.slice(0, -1).forEach((_, index) => steps.push({ type: "assistant.tail", messageId, text: chunks.slice(0, index + 1).join("") }));
+    steps.push({ type: "assistant.delta", messageId, text: block, append: true });
+  }
+  steps.forEach((step, index) => {
+    run.timers.push(setTimeout(() => emit({ ...step, taskId: run.taskId, runId, sequence: (run.sequence += 1) }), 40 * (index + 1)));
   });
   const failed = Math.random() < 0.1;
-  run.timers.push(setTimeout(() => finish(runId, failed ? "failed" : "succeeded"), 40 * (chunks.length + 2)));
+  run.timers.push(setTimeout(() => finish(runId, failed ? "failed" : "succeeded"), 40 * (steps.length + 2)));
+}
+
+/** Blank-line-separated blocks, keeping a fenced code block whole; each keeps the break after it. */
+function markdownBlocks(text: string): string[] {
+  const blocks: string[] = [];
+  let open = "";
+  for (const piece of text.split(/(?<=\n\n)/)) {
+    open += piece;
+    if ((open.match(/```/g)?.length ?? 0) % 2 === 0) {
+      blocks.push(open);
+      open = "";
+    }
+  }
+  if (open) blocks.push(open);
+  return blocks;
 }
 
 function start(command: Extract<RunCommand, { type: "start" }>) {
