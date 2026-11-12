@@ -3,6 +3,7 @@ import { test } from "vitest";
 import React, { act } from "react";
 import type { Thread } from "../../src/domain/thread.ts";
 import { mount, query } from "../support/renderer-dom.mts";
+import { settleFrame } from "../support/settle.mts";
 
 const { WorkspaceHeader } = await import("../../src/renderer/components/WorkspaceHeader.tsx");
 
@@ -61,6 +62,8 @@ test("a blank title is refused in place rather than quietly reverted", async () 
     assert.deepEqual(renames, []);
     await act(async () => { input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
     assert.equal(query(view.container, "button.heading-thread").textContent, "Codex thread");
+    await settleFrame();
+    assert.equal(document.activeElement, query(view.container, "button.heading-thread"), "and the keys go back to the title");
   } finally { await view.unmount(); }
 });
 

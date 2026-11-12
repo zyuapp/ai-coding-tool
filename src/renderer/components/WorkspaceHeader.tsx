@@ -79,7 +79,7 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
               onCancel={name.cancel}
             />
           : currentThread
-            ? <button type="button" className="heading-thread renamable" data-tip={currentThread.title} data-tip-overflow onClick={(event) => name.start(currentThread.id, event.currentTarget)}>
+            ? <button type="button" ref={(element) => { name.row.current = element; }} className="heading-thread renamable" data-tip={currentThread.title} data-tip-overflow onClick={(event) => name.start(currentThread.id, event.currentTarget)}>
                 <span>{currentThread.title}</span>
                 <Pencil size={14} aria-hidden="true" data-tip="Rename" />
               </button>

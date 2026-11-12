@@ -35,7 +35,8 @@ export function useDismissibleLayer(open: boolean, roots: ElementRef[], onDismis
       document.removeEventListener("pointerdown", pointerDown);
       document.removeEventListener("keydown", keyDown);
       window.removeEventListener("blur", blur);
-      restoreFocus(fallback);
+      /** Read again as the layer closes: the element to return to may have been drawn anew meanwhile. */
+      restoreFocus(returnFocus?.current?.isConnected ? returnFocus.current : fallback);
     };
   }, [open, returnFocus]);
 }
