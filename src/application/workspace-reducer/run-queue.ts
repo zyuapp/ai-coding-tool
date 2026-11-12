@@ -14,6 +14,7 @@ import { projectFor, worktreeFor } from "../thread-location.js";
 import { runOf, runStatus, threadBusy } from "../run-record.js";
 import type { DraftBranch, PendingRun, QueuedMessage, SideChat, WorkspaceState } from "../workspace-state.js";
 import { withPrompt } from "../state/composer.js";
+import { drainingQueued } from "../state/runs.js";
 import type { StartRunCommand } from "../../contracts/ipc.js";
 import { withoutOutcome } from "../../domain/attention.js";
 import { coordinationRole } from "../coordination.js";
@@ -331,12 +332,16 @@ export function drained(state: WorkspaceState, taskId: string, intent: QueueInte
   const queued = queuedFor(state, taskId);
   if (!queued.length) return {};
   const thread = state.threads.find((item) => item.id === taskId);
+  /** A message a starting run is already taking goes with that run, which drains the rest once it settles. */
+  const starting = queued.filter((message) => drainingQueued(state, taskId, message.id));
   if (intent === "hand-back" || thread?.archivedAt !== undefined) {
-    const own = queued.filter(isUsersOwn);
-    const undelivered = undeliveredIn(threadsOf(state), taskId, queued.filter((message) => !isUsersOwn(message)));
-    return { edits: [queuedIn(runsOf(state), taskId, []), undelivered, ...own.length ? [handedBackIn(composerOf(state), taskId, own)] : []] };
+    const rest = queued.filter((message) => !starting.includes(message));
+    const own = rest.filter(isUsersOwn);
+    const undelivered = undeliveredIn(threadsOf(state), taskId, rest.filter((message) => !isUsersOwn(message)));
+    return { edits: [queuedIn(runsOf(state), taskId, starting), undelivered, ...own.length ? [handedBackIn(composerOf(state), taskId, own)] : []] };
   }
   if (!thread) return { edits: [queuedIn(runsOf(state), taskId, [])] };
+  if (starting.length) return {};
   /** A thread waiting out its usage limit keeps its queue until the limit lifts. */
   if (thread.limitPause) return {};
   /** A thread moving into a checkout still being made keeps its queue until it lands there. */

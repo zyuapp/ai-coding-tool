@@ -198,6 +198,13 @@ test("a run that finishes after its thread was archived hands the queue back rat
   assert.equal(finished.state.actionError, null);
 });
 
+test("a message sent while the queue's next run is starting waits behind it, so nothing goes twice or out of order", () => {
+  const finished = reduce(queueMessage(running(), "Run the tests"), { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 1, status: "succeeded" } });
+  const sending = reduce(run(finished.state, [{ type: "view.set-prompt", prompt: "Then the docs" }]), { type: "task.send", attachments: [] });
+  assert.deepEqual(sending.state.queuedMessages["task-a"].map((message) => message.text), ["Run the tests", "Then the docs"]);
+  assert.equal(Object.keys(sending.state.pendingRuns).length, 1, "only the queue's run is starting");
+});
+
 test("a queued message whose run cannot start goes back to the composer rather than waiting on nothing", () => {
   const finished = reduce(queueMessage(queueMessage(running(), "Run the tests"), "Then the docs"), { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 1, status: "succeeded" } });
   const { pendingId } = required(finished.effects.find((effect) => effect.type === "resolve-run-workspace"));

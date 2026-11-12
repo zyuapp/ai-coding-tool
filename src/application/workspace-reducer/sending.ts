@@ -178,7 +178,9 @@ function sent(state: WorkspaceState, input: Extract<SendInput, { type: "task.sen
   const usersOwn = thread !== undefined && input.from === undefined && input.sender === undefined && answers === undefined && !said.step ? { usersOwn: true as const } : {};
   /** A thread waiting out its usage limit holds the message for when it lifts, and goes first then. */
   const held = Boolean(thread && !state.activeRuns[thread.id] && heldByLimit(state, thread.id, Date.now()));
-  if (thread && (state.activeRuns[thread.id] || held)) {
+  /** One whose queue is already starting its next run waits behind that run, as behind any run. */
+  const draining = Boolean(thread && Object.values(state.pendingRuns).some((pending) => pending.taskId === thread.id && pending.queuedIds));
+  if (thread && (state.activeRuns[thread.id] || held || draining)) {
     const queued: QueuedMessage = {
       id: crypto.randomUUID(),
       text,
