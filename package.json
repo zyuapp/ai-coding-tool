@@ -17,6 +17,7 @@
     "check:licenses": "node scripts/generate-legal-notices.mjs --check",
     "check:ios-contract": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-ios-contract.mts --check",
     "check:ios-themes": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-ios-themes.mts --check",
+    "check:specs": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/check-specs.mts",
     "generate:native-licenses": "node scripts/generate-native-legal-notices.mjs",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "test": "npm run check && npm run build && vitest run",
