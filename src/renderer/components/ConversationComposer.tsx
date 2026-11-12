@@ -1,5 +1,5 @@
 import { LuArrowUp as ArrowUp, LuCircleAlert as CircleAlert, LuInfo as Info, LuPaperclip as Paperclip } from "react-icons/lu";
-import { useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import { DictationStrip, MicButton, useComposerTalk, type ComposerDictation } from "./ComposerDictation";
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "./QuestionPrompt";
@@ -64,7 +64,7 @@ const STOP_TIP = shortcutTip("Stop", "Escape");
 /**
  * Sends what is written, or stops the run while one is going. `busy` is a send already on its way.
  */
-function SendButton({ taskId, surface, runActive, command, disabled, busy, onSend, onCancel }: {
+function SendButton({ taskId, surface, runActive, command, disabled, busy, onSend, onCancel, keysTo }: {
   taskId: string | undefined;
   surface: ComposerSurface;
   runActive: boolean;
@@ -73,10 +73,12 @@ function SendButton({ taskId, surface, runActive, command, disabled, busy, onSen
   busy: boolean;
   onSend: () => void;
   onCancel: () => void;
+  keysTo: RefObject<HTMLElement | null>;
 }) {
+  const focus = useFocusHandOff(!runActive && (disabled || busy), keysTo);
   if (runActive) {
     return (
-      <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)} data-tip={STOP_TIP}>
+      <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)} data-tip={STOP_TIP} {...focus}>
         <span className="stop-glyph" />
       </CommandButton>
     );
@@ -86,6 +88,7 @@ function SendButton({ taskId, surface, runActive, command, disabled, busy, onSen
       className={`send-button${busy ? " busy" : ""}`}
       disabled={disabled || busy}
       onClick={onSend}
+      {...focus}
       aria-label={sendLabel(surface, false)}
       aria-busy={busy || undefined}
       data-tip={SEND_TIP}
@@ -93,6 +96,20 @@ function SendButton({ taskId, surface, runActive, command, disabled, busy, onSen
       {busy ? <span className="send-spinner" aria-hidden="true" /> : <ArrowUp size={16} strokeWidth={2.5} aria-hidden="true" />}
     </CommandButton>
   );
+}
+
+/**
+ * A focused button that turns disabled, as Stop does when its run ends with nothing left to send,
+ * hands the keys to `keysTo` instead of letting them fall to the page.
+ */
+function useFocusHandOff(unavailable: boolean, keysTo: RefObject<HTMLElement | null>) {
+  const held = useRef(false);
+  useLayoutEffect(() => {
+    const active = document.activeElement;
+    if (!unavailable || !held.current) return;
+    if (!active || active === document.body || active.matches(":disabled")) keysTo.current?.focus();
+  }, [unavailable, keysTo]);
+  return { onFocus: () => { held.current = true; }, onBlur: () => { held.current = false; } };
 }
 
 /** Opens the system file picker; what is picked rides the next send the way a drop or paste would. */
@@ -410,7 +427,7 @@ export function ConversationComposer({
             {planUsage && model !== undefined && <PlanUsageMeter engine={engine} engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
             {dictation?.model === "ready" && <MicButton dictation={dictation} talk={talk} disabled={disabled} />}
-            <SendButton taskId={taskId} surface={surface} runActive={runActive && !handsFree} command={sendCommand} disabled={disabled || (nothingToSend && !handsFree)} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} />
+            <SendButton taskId={taskId} surface={surface} runActive={runActive && !handsFree} command={sendCommand} disabled={disabled || (nothingToSend && !handsFree)} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} keysTo={caret.textareaRef} />
           </div>
         </div>
       </div>}

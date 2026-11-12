@@ -5,7 +5,7 @@ import { act } from "react";
 
 import { composer } from "../support/composer.mts";
 import { outbox } from "../support/composer-outbox.mts";
-import { mount, query } from "../support/renderer-dom.mts";
+import { dom, mount, query } from "../support/renderer-dom.mts";
 
 async function press(runActive: boolean, keys: KeyboardEventInit) {
   const sent: boolean[] = [];
@@ -38,4 +38,12 @@ test("Shift+Enter is left to the field, which breaks the line", async () => {
   const during = await press(true, { shiftKey: true });
   assert.deepEqual(during.sent, []);
   assert.equal(during.handled, false);
+});
+
+test("a focused Stop that ends with nothing left to send hands the keys to the composer", async () => {
+  const view = await mount(composer({ runActive: true }));
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Stop task"]').focus(); });
+  await view.render(composer({ runActive: false }));
+  assert.equal(dom.window.document.activeElement, query(view.container, "textarea"));
+  await view.unmount();
 });
