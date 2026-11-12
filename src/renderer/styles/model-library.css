@@ -9,7 +9,7 @@
 .model-search .search-field input { height: 36px; font-size: var(--text-menu); }
 .model-search > .icon-btn { position: absolute; top: 4px; right: 8px; }
 /** The list gives up height first when the window is short, down to a few rows. */
-.model-library-body { flex: 0 1 auto; display: grid; grid-template-columns: var(--library-rail) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); max-height: 340px; min-height: 120px; }
+.model-library-body { flex: 0 1 auto; display: grid; grid-template-columns: var(--library-rail) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); max-height: 480px; min-height: 120px; }
 .model-search, .library-settings, .model-library-footer { flex-shrink: 0; }
 .model-provider-rail { gap: 1px; padding: 6px; border-right: 1px solid var(--line-soft); overflow-y: auto; }
 .model-provider-rail .nav-item { padding-block: 6px; font-size: var(--text-menu); }
