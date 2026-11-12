@@ -244,13 +244,19 @@ static BOOL sendMessage(AICDevice *entry, void *message, NSString **error) {
   return YES;
 }
 
-static void *touchMessage(double x, double y, BOOL down) {
-  CGPoint point = CGPointMake(fmin(fmax(x, 0), 1), fmin(fmax(y, 0), 1));
-  return mouseMessage(&point, NULL, kTouchTarget, down ? kTouchDown : kTouchUp, CGSizeMake(1, 1), 0);
+static CGPoint onScreen(double x, double y) {
+  return CGPointMake(fmin(fmax(x, 0), 1), fmin(fmax(y, 0), 1));
+}
+
+/** One finger, or two when `second` is given, as a pinch puts them. */
+static void *touchMessage(double x, double y, const CGPoint *second, BOOL down) {
+  CGPoint point = onScreen(x, y);
+  CGPoint other = second ? onScreen(second->x, second->y) : CGPointZero;
+  return mouseMessage(&point, second ? &other : NULL, kTouchTarget, down ? kTouchDown : kTouchUp, CGSizeMake(1, 1), 0);
 }
 
 static BOOL touch(AICDevice *entry, double x, double y, BOOL down, NSString **error) {
-  return sendMessage(entry, touchMessage(x, y, down), error);
+  return sendMessage(entry, touchMessage(x, y, NULL, down), error);
 }
 
 static BOOL key(AICDevice *entry, uint32_t usage, BOOL down, NSString **error) {
@@ -818,7 +824,9 @@ static void handle(NSDictionary *request) {
     BOOL ok;
     if ([op isEqualToString:@"touch"]) {
       NSString *phase = request[@"phase"];
-      ok = touch(entry, number(request, @"x", 0), number(request, @"y", 0), ![phase isEqual:@"up"], &failure);
+      BOOL pinch = [request[@"x2"] isKindOfClass:[NSNumber class]] && [request[@"y2"] isKindOfClass:[NSNumber class]];
+      CGPoint second = CGPointMake(number(request, @"x2", 0), number(request, @"y2", 0));
+      ok = sendMessage(entry, touchMessage(number(request, @"x", 0), number(request, @"y", 0), pinch ? &second : NULL, ![phase isEqual:@"up"]), &failure);
     } else if ([op isEqualToString:@"tap"]) {
       double x = number(request, @"x", 0);
       double y = number(request, @"y", 0);

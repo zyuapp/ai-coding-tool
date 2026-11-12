@@ -183,6 +183,10 @@ test("what an agent may send is a command the window itself accepts, held to the
   assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "  \n " }), false, "a blank message would be answered as sent with nothing sent");
   assert.equal(isExternalCommand({ type: "simulator.input", taskId: "task-1", udid: "PHONE", input: { kind: "button", button: "home" } }), false, "a run's gestures go to its own dock's device");
   assert.equal(isExternalCommand({ type: "simulator.input", input: { kind: "button", button: "home" } }), false, "an agent names the thread driving the simulator");
+  for (const input of [{ kind: "paste", text: "hi" }, { kind: "shortcut", usage: 6 }, { kind: "pasteboard", phase: "leave" }]) {
+    assert.equal(isWorkspaceViewInput({ type: "simulator.input", udid: "PHONE", input }), true, input.kind);
+    assert.equal(isExternalCommand({ type: "simulator.input", taskId: "task-1", input }), false, `a run never reaches the Mac's clipboard: ${input.kind}`);
+  }
 });
 
 test("pairing takes only a host, with an optional port, in the form it is dialled in", () => {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 
 vi.mock("electron", () => ({ app: { isPackaged: false, getAppPath: () => "/app" } }));
-const { parseDeviceList } = await import("../../src/main/simulator-host.ts");
+const { parseDeviceList, pastedText } = await import("../../src/main/simulator-host.ts");
 
 test("devices list iOS only, newest runtime first and iPhones before iPads, skipping unavailable ones", () => {
   const listed = parseDeviceList(JSON.stringify({
@@ -24,4 +24,10 @@ test("devices list iOS only, newest runtime first and iPhones before iPads, skip
     { udid: "old", name: "iPhone 16", runtime: "iOS 18.5", state: "shutdown" },
   ]);
   assert.deepEqual(parseDeviceList("{}"), []);
+});
+
+test("text a US keyboard cannot type is pasted whole, with the Returns at its end still pressed", () => {
+  assert.equal(pastedText("plain text\n"), null);
+  assert.deepEqual(pastedText("Grüße 👋\n"), { paste: "Grüße 👋", returns: "\n" });
+  assert.deepEqual(pastedText("a\nñ"), { paste: "a\nñ", returns: "" });
 });

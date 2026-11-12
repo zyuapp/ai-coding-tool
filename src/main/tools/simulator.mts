@@ -121,7 +121,7 @@ export const SIMULATOR_TOOLS: readonly ToolDefinition<SimulatorBridge>[] = [
   }),
   defineTool({
     name: "simulator_type",
-    description: "Type text into whatever field has the keyboard in the simulator; tap the field first. Only characters on a US keyboard can be typed. Answers with the elements on screen afterwards.",
+    description: "Type text into whatever field has the keyboard in the simulator; tap the field first. Characters a US keyboard lacks, such as emoji or accents, are pasted through the device's pasteboard. Answers with the elements on screen afterwards.",
     input: {
       text: z.string().min(1).max(MAX_SIMULATOR_TEXT - 1).describe("The text to type."),
       submit: z.boolean().optional().describe("Press Return afterwards."),

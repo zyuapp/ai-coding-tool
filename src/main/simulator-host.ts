@@ -4,8 +4,9 @@ import { mkdtemp, rm, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
-import { app } from "electron";
+import { app, clipboard } from "electron";
 import { ORIENTATION_CODES, untilted, type SimulatorAvailability, type SimulatorDevice, type SimulatorDeviceState, type SimulatorElement, type SimulatorFrame, type SimulatorInput, type SimulatorOrientation, type SimulatorShot, type SimulatorSnapshot } from "../domain/simulator.js";
 import { simulatorSupported } from "./platform-capabilities.js";
 import { FrameReader, type HelperMessage } from "./simulator-frames.js";
@@ -22,7 +23,9 @@ const ACTIONABLE_ROLES = new Set(["AXButton", "AXTextField", "AXSecureTextField"
 type Pending = { resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> };
 type Helper = { child: ChildProcessWithoutNullStreams; ready: Promise<void>; pending: Map<number, Pending> };
 type Snapshot = { id: number; width: number; height: number; elements: SimulatorElement[] };
-type Moves = { inFlight: boolean; next: { x: number; y: number } | null };
+/** Where a touch is, with a second finger when it is a pinch. */
+type Fingers = { x: number; y: number; x2?: number; y2?: number };
+type Moves = { queued: boolean; next: Fingers | null };
 
 let helper: Helper | null = null;
 let unavailable: string | null = null;
@@ -42,6 +45,12 @@ const orientations = new Map<string, SimulatorOrientation>();
 const startedHere = new Set<string>();
 /** Devices whose input is already kept off the Mac's default microphone. */
 const quieted = new Map<string, Promise<void>>();
+/** What each device's pasteboard held when this app last read or set it. */
+const pasteboards = new Map<string, string>();
+/** Each device's inputs, one at a time in the order they came, so a key never overtakes a paste still being set up. */
+const inputWork = new Map<string, Promise<unknown>>();
+/** Each device's pasteboard work, one piece at a time, so a read never overtakes the write before it. */
+const pasteboardWork = new Map<string, Promise<unknown>>();
 let frameListener: ((frame: SimulatorFrame) => void) | null = null;
 
 function helperPath() {
@@ -111,6 +120,7 @@ export async function listSimulators(): Promise<{ availability: SimulatorAvailab
     if (device.state === "booted") continue;
     orientations.delete(device.udid);
     quieted.delete(device.udid);
+    pasteboards.delete(device.udid);
   }
   return { availability, devices };
 }
@@ -127,6 +137,7 @@ export async function shutdownSimulator(udid: string) {
   if (!startedHere.delete(udid)) return;
   quieted.delete(udid);
   orientations.delete(udid);
+  pasteboards.delete(udid);
   await run("xcrun", ["simctl", "shutdown", udid]).catch(() => undefined);
 }
 
@@ -261,25 +272,130 @@ async function fractions(udid: string, x: number, y: number, points: boolean | u
   return onDevice(udid, ratio(x / screen.width), ratio(y / screen.height), screen);
 }
 
-/** A drag streams moves faster than the device takes them, so only the newest waiting move is kept. */
-async function move(udid: string, x: number, y: number) {
-  const state = moves.get(udid) ?? { inFlight: false, next: null };
+function inTurn<Value>(queue: Map<string, Promise<unknown>>, udid: string, work: () => Promise<Value>): Promise<Value> {
+  const turn = (queue.get(udid) ?? Promise.resolve()).then(work, work);
+  const settled = turn.catch(() => undefined);
+  queue.set(udid, settled);
+  void settled.then(() => { if (queue.get(udid) === settled) queue.delete(udid); });
+  return turn;
+}
+
+/** A drag streams moves faster than the device takes them, so a move waiting its turn only ever sends the newest position. */
+function move(udid: string, fingers: Fingers) {
+  const state = moves.get(udid) ?? { queued: false, next: null };
   moves.set(udid, state);
-  if (state.inFlight) {
-    state.next = { x, y };
-    return;
-  }
-  state.inFlight = true;
+  state.next = fingers;
+  if (state.queued) return Promise.resolve();
+  state.queued = true;
+  return inTurn(inputWork, udid, async () => {
+    state.queued = false;
+    const next = state.next;
+    state.next = null;
+    if (next) await request({ op: "touch", udid, phase: "move", ...next });
+  });
+}
+
+const COMMAND_KEY = 227;
+const KEY_C = 6;
+const KEY_V = 25;
+const KEY_X = 27;
+/** `simctl` reads and writes the pasteboard in the locale's encoding, which an app opened from the Finder leaves unset. */
+const UTF8_ENV = { ...process.env, LANG: "en_US.UTF-8" };
+/** How long the device takes to handle a paste; a key that reaches it sooner loses the paste or meets a paste prompt. */
+const PASTE_SETTLE_MS = 300;
+/** How long a copy on the device may take to reach its pasteboard. */
+const COPY_WAIT_MS = 1_500;
+const COPY_POLL_MS = 100;
+
+function pasteboardTurn<Value>(udid: string, work: () => Promise<Value>): Promise<Value> {
+  return inTurn(pasteboardWork, udid, work);
+}
+
+async function readPasteboard(udid: string) {
+  const { stdout } = await run("xcrun", ["simctl", "pbpaste", udid], { env: UTF8_ENV, timeout: REQUEST_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 });
+  return stdout;
+}
+
+async function writePasteboard(udid: string, text: string) {
+  await new Promise<void>((resolve, reject) => {
+    const child = execFile("xcrun", ["simctl", "pbcopy", udid], { env: UTF8_ENV, timeout: REQUEST_TIMEOUT_MS }, (error) => error ? reject(error) : resolve());
+    child.stdin?.end(text);
+  });
+  pasteboards.set(udid, text);
+}
+
+/** Presses ⌘ around one key, letting go of it even when the device refuses the key. Other modifiers are the keyboard's own, already held. */
+async function shortcut(udid: string, usage: number) {
+  await request({ op: "key", udid, usage: COMMAND_KEY, down: true });
   try {
-    let point: { x: number; y: number } | null = { x, y };
-    while (point) {
-      state.next = null;
-      await request({ op: "touch", udid, phase: "move", x: point.x, y: point.y });
-      point = state.next;
-    }
+    await request({ op: "key", udid, usage, down: true });
+    await request({ op: "key", udid, usage, down: false });
   } finally {
-    state.inFlight = false;
+    await request({ op: "key", udid, usage: COMMAND_KEY, down: false }).catch(() => undefined);
   }
+}
+
+/** Puts text on the device's pasteboard and pastes it into whatever has the keyboard, holding the device's next input until the paste lands. */
+async function paste(udid: string, text: string) {
+  await pasteboardTurn(udid, async () => {
+    await writePasteboard(udid, text);
+    await shortcut(udid, KEY_V);
+  });
+  await delay(PASTE_SETTLE_MS);
+}
+
+/**
+ * ⌘C or ⌘X on the device, then what it copied onto the Mac's clipboard once it reaches the device's
+ * pasteboard. A copy that changes nothing, such as one with nothing selected, leaves the Mac's clipboard
+ * alone; so does copying the very text the device's pasteboard already holds.
+ */
+async function copyOut(udid: string, usage: number) {
+  const before = await inTurn(inputWork, udid, async () => {
+    const current = await pasteboardTurn(udid, () => readPasteboard(udid));
+    await shortcut(udid, usage);
+    return current;
+  });
+  await pasteboardTurn(udid, async () => {
+    for (const until = Date.now() + COPY_WAIT_MS; Date.now() < until;) {
+      await delay(COPY_POLL_MS);
+      const text = await readPasteboard(udid);
+      if (text === before) continue;
+      pasteboards.set(udid, text);
+      if (text) clipboard.writeText(text);
+      return;
+    }
+  });
+}
+
+/** Notes what the device's pasteboard holds, and on leaving brings anything copied on the device since to the Mac. */
+function syncPasteboard(udid: string, phase: "enter" | "leave") {
+  return pasteboardTurn(udid, async () => {
+    const text = await readPasteboard(udid);
+    const known = pasteboards.get(udid);
+    pasteboards.set(udid, text);
+    if (phase === "leave" && known !== undefined && text && text !== known) clipboard.writeText(text);
+  });
+}
+
+/**
+ * Text a US keyboard cannot type, which is pasted whole instead: a paste among typed keys lands before
+ * iOS has taken them and is lost or met with a paste prompt. Returns at its end are still pressed, so a
+ * submit still submits. Null for text the keyboard types.
+ */
+export function pastedText(text: string): { paste: string; returns: string } | null {
+  if (/^[\x20-\x7e\n\t]*$/.test(text)) return null;
+  const paste = text.replace(/\n+$/, "");
+  return { paste, returns: text.slice(paste.length) };
+}
+
+async function typeText(udid: string, text: string) {
+  const pasted = pastedText(text);
+  if (pasted) {
+    await paste(udid, pasted.paste);
+    if (!pasted.returns) return;
+  }
+  const typed = pasted ? pasted.returns : text;
+  await request({ op: "type", udid, text: typed }, REQUEST_TIMEOUT_MS + typed.length * 40);
 }
 
 /**
@@ -294,15 +410,23 @@ async function upright(udid: string) {
   await request({ op: "rotate", udid, orientation: ORIENTATION_CODES.portrait }).catch(() => undefined);
 }
 
-export async function simulatorInput(udid: string, input: SimulatorInput) {
+export function simulatorInput(udid: string, input: SimulatorInput): Promise<void> {
+  if (input.kind === "pasteboard") return syncPasteboard(udid, input.phase);
+  if (input.kind === "shortcut" && (input.usage === KEY_C || input.usage === KEY_X)) return copyOut(udid, input.usage);
+  if (input.kind === "touch" && input.phase === "move") return move(udid, fingersOf(input));
+  /** A finger landing or lifting ends what a waiting move may still be folded into, so the next drag's moves queue after it. */
+  if (input.kind === "touch") moves.delete(udid);
+  return inTurn(inputWork, udid, () => perform(udid, input));
+}
+
+function fingersOf(input: Extract<SimulatorInput, { kind: "touch" }>): Fingers {
+  return { x: input.x, y: input.y, ...(input.x2 === undefined ? {} : { x2: input.x2, y2: input.y2 }) };
+}
+
+async function perform(udid: string, input: Exclude<SimulatorInput, { kind: "pasteboard" }>) {
   if (input.kind !== "rotate") await upright(udid);
   switch (input.kind) {
-    case "touch":
-      if (input.phase === "move") return move(udid, input.x, input.y);
-      /** The touch lifts or lands where it says, so a move still waiting has nothing left to add. */
-      if (moves.get(udid)) moves.get(udid)!.next = null;
-      await request({ op: "touch", udid, phase: input.phase, x: input.x, y: input.y });
-      return;
+    case "touch": await request({ op: "touch", udid, phase: input.phase, ...fingersOf(input) }); return;
     case "tap": await request({ op: "tap", udid, ...await fractions(udid, input.x, input.y, input.points) }); return;
     case "tap-element": await request({ op: "tap", udid, ...elementCenter(udid, input.ref) }); return;
     case "swipe": {
@@ -312,8 +436,10 @@ export async function simulatorInput(udid: string, input: SimulatorInput) {
       return;
     }
     case "button": await request({ op: "button", udid, button: input.button }); return;
-    case "type": await request({ op: "type", udid, text: input.text }, REQUEST_TIMEOUT_MS + input.text.length * 40); return;
+    case "type": await typeText(udid, input.text); return;
     case "key": await request({ op: "key", udid, usage: input.usage, down: input.down }); return;
+    case "shortcut": await shortcut(udid, input.usage); return;
+    case "paste": await paste(udid, input.text); return;
     case "rotate":
       await request({ op: "rotate", udid, orientation: ORIENTATION_CODES[input.orientation] });
       orientations.set(udid, input.orientation);

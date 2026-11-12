@@ -1,4 +1,4 @@
-import { isSimulatorInput, type SimulatorInput } from "../domain/simulator.js";
+import { isSimulatorInput, usesMacClipboard, type SimulatorInput } from "../domain/simulator.js";
 import { namesThread, optionalText, text, type Declarations } from "./command-declaration.js";
 import { isString } from "./ipc.js";
 
@@ -15,9 +15,12 @@ export type SimulatorCommand =
   | { type: "simulator.select"; udid: string }
   | { type: "simulator.input"; taskId?: string; udid?: string; input: SimulatorInput };
 
-/** A run's gestures go to the device its own dock shows, so it names itself and never a device outright. */
-function drivesSimulator(command: { taskId?: string; udid?: string }): boolean {
-  return isString(command.taskId) && command.udid === undefined;
+/**
+ * A run's gestures go to the device its own dock shows, so it names itself and never a device outright.
+ * The Mac's clipboard is the person's, so a run never moves text through it.
+ */
+function drivesSimulator(command: { taskId?: string; udid?: string; input: SimulatorInput }): boolean {
+  return isString(command.taskId) && command.udid === undefined && !usesMacClipboard(command.input);
 }
 
 export const simulatorCommands = {

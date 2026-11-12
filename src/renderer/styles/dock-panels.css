@@ -39,6 +39,9 @@
 .simulator-screen:focus-visible { box-shadow: 0 0 0 2px var(--info), 0 18px 40px -18px rgb(0 0 0 / 0.45); }
 .simulator-screen.driven { box-shadow: 0 0 0 2px var(--info), 0 0 0 6px var(--info-surface), 0 18px 40px -18px rgb(0 0 0 / 0.45); }
 .simulator-screen[hidden] { display: none; }
+.simulator-fingers { position: absolute; inset: 0; pointer-events: none; }
+.simulator-fingers[hidden] { display: none; }
+.simulator-fingers > i { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: rgb(255 255 255 / 0.32); box-shadow: 0 0 0 1.5px rgb(255 255 255 / 0.7), 0 2px 8px rgb(0 0 0 / 0.35); }
 .simulator-notice { position: absolute; inset: 0; }
 
 .terminal-status { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line-soft); margin: 0; padding: 5px 8px 5px 11px; color: var(--muted); font: var(--text-meta)/1.3 var(--mono); }

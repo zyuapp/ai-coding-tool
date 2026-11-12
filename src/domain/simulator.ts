@@ -74,7 +74,8 @@ export type SimulatorButton = "home" | "lock";
 
 /** Positions are fractions of the screen from its top left, so they hold whatever the device's size. */
 export type SimulatorInput =
-  | { kind: "touch"; phase: "down" | "move" | "up"; x: number; y: number }
+  /** `x2` and `y2` place a second finger, for a pinch. */
+  | { kind: "touch"; phase: "down" | "move" | "up"; x: number; y: number; x2?: number; y2?: number }
   /** `points` measures the position in the screen's points from its top left instead of fractions. */
   | { kind: "tap"; x: number; y: number; points?: true }
   /** A tap on an element a read listed, named by the ref that read gave it. */
@@ -84,6 +85,15 @@ export type SimulatorInput =
   | { kind: "type"; text: string }
   /** One key going down or up, by its USB HID usage, for a keyboard held over the panel. */
   | { kind: "key"; usage: number; down: boolean }
+  /** A ⌘ shortcut, by the HID usage of its key. ⌘C and ⌘X also bring what they copied to the Mac's clipboard. */
+  | { kind: "shortcut"; usage: number }
+  /** Text pasted from the Mac: it goes on the device's pasteboard, then ⌘V pastes it. */
+  | { kind: "paste"; text: string }
+  /**
+   * A person's focus entering or leaving the screen. Entering notes what the device's pasteboard holds;
+   * leaving brings anything copied on the device since to the Mac's clipboard.
+   */
+  | { kind: "pasteboard"; phase: "enter" | "leave" }
   | { kind: "rotate"; orientation: SimulatorOrientation };
 
 /** One element of the app on screen, with its frame in points from the screen's top left. */
@@ -110,6 +120,7 @@ export type SimulatorSnapshot = {
 export type SimulatorShot = { path: string; width: number; height: number };
 
 export const MAX_SIMULATOR_TEXT = 2_000;
+export const MAX_PASTE_TEXT = 100_000;
 export const MAX_SWIPE_MS = 5_000;
 /** The longest a key's HID usage code runs: the keyboard page ends at 0xE7. */
 const MAX_KEY_USAGE = 0xe7;
@@ -125,10 +136,18 @@ function positioned(value: Record<string, unknown>, ...coordinates: unknown[]) {
   return value.points === true && coordinates.every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate) && coordinate >= 0 && coordinate <= MAX_POINTS);
 }
 
+const keyUsage = (usage: unknown) => Number.isInteger(usage) && (usage as number) > 0 && (usage as number) <= MAX_KEY_USAGE;
+
+/** Inputs that move text between the device and the Mac's clipboard, which only a person at the panel sends. */
+export function usesMacClipboard(input: SimulatorInput) {
+  return input.kind === "shortcut" || input.kind === "paste" || input.kind === "pasteboard";
+}
+
 export function isSimulatorInput(value: unknown): value is SimulatorInput {
   if (!isRecord(value)) return false;
   switch (value.kind) {
-    case "touch": return (value.phase === "down" || value.phase === "move" || value.phase === "up") && fraction(value.x) && fraction(value.y);
+    case "touch": return (value.phase === "down" || value.phase === "move" || value.phase === "up") && fraction(value.x) && fraction(value.y)
+      && (value.x2 === undefined && value.y2 === undefined || fraction(value.x2) && fraction(value.y2));
     case "tap": return positioned(value, value.x, value.y);
     case "tap-element": return typeof value.ref === "string" && value.ref.length > 0 && value.ref.length <= 64;
     case "swipe": return positioned(value, value.x, value.y) && positioned(value, value.toX, value.toY)
@@ -136,7 +155,10 @@ export function isSimulatorInput(value: unknown): value is SimulatorInput {
     case "button": return value.button === "home" || value.button === "lock";
     case "type": return typeof value.text === "string" && value.text.length > 0 && value.text.length <= MAX_SIMULATOR_TEXT;
     case "rotate": return SIMULATOR_ORIENTATIONS.includes(value.orientation as SimulatorOrientation);
-    case "key": return Number.isInteger(value.usage) && (value.usage as number) > 0 && (value.usage as number) <= MAX_KEY_USAGE && typeof value.down === "boolean";
+    case "key": return keyUsage(value.usage) && typeof value.down === "boolean";
+    case "shortcut": return keyUsage(value.usage);
+    case "paste": return typeof value.text === "string" && value.text.length > 0 && value.text.length <= MAX_PASTE_TEXT;
+    case "pasteboard": return value.phase === "enter" || value.phase === "leave";
     default: return false;
   }
 }
@@ -162,7 +184,9 @@ const LETTERS = "abcdefghijklmnopqrstuvwxyz";
 const NAMED_KEYS: Record<string, number> = {
   Digit0: 39, Enter: 40, NumpadEnter: 40, Escape: 41, Backspace: 42, Tab: 43, Space: 44, Minus: 45, Equal: 46,
   BracketLeft: 47, BracketRight: 48, Backslash: 49, Semicolon: 51, Quote: 52, Backquote: 53, Comma: 54, Period: 55, Slash: 56,
-  Delete: 76, ArrowRight: 79, ArrowLeft: 80, ArrowDown: 81, ArrowUp: 82,
+  IntlBackslash: 100, Home: 74, PageUp: 75, Delete: 76, End: 77, PageDown: 78,
+  ArrowRight: 79, ArrowLeft: 80, ArrowDown: 81, ArrowUp: 82,
+  NumpadDivide: 84, NumpadMultiply: 85, NumpadSubtract: 86, NumpadAdd: 87, Numpad0: 98, NumpadDecimal: 99, NumpadEqual: 103,
   ControlLeft: 224, ShiftLeft: 225, AltLeft: 226, ControlRight: 228, ShiftRight: 229, AltRight: 230,
 };
 
@@ -170,6 +194,7 @@ const NAMED_KEYS: Record<string, number> = {
 export function hidUsage(code: string): number | undefined {
   if (/^Key[A-Z]$/.test(code)) return 4 + LETTERS.indexOf(code.slice(3).toLowerCase());
   if (/^Digit[1-9]$/.test(code)) return 29 + Number(code.slice(5));
+  if (/^Numpad[1-9]$/.test(code)) return 88 + Number(code.slice(6));
   return NAMED_KEYS[code];
 }
 

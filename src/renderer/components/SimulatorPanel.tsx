@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { useRef, type CSSProperties, type ReactNode } from "react";
 import { LuHouse as House, LuLock as Lock, LuRotateCcw as RotateLeft, LuRotateCw as RotateRight, LuSmartphone as Smartphone, LuTriangleAlert as AlertTriangle } from "react-icons/lu";
-import { hidUsage, MAX_SIMULATOR_TEXT, screenCornerRadius, screenTurns, turned, untilted, type SimulatorInput, type SimulatorOrientation, type SimulatorState } from "../../domain/simulator";
+import { screenCornerRadius, screenTurns, turned, type SimulatorInput, type SimulatorOrientation, type SimulatorState } from "../../domain/simulator";
 import { useSimulatorStream } from "../simulator/use-simulator-stream";
-import { WheelSwipe } from "../simulator/wheel-swipe";
+import { useScreenInput } from "../simulator/use-screen-input";
 import { CommandButton, CommandIconButton } from "./CommandControl";
 import { SimulatorDeviceMenu } from "./SimulatorDeviceMenu";
 import { SpinningIcon } from "./SpinningIcon";
@@ -26,13 +26,6 @@ function Notice({ icon, title, detail, action, tone }: { icon: ReactNode; title:
   return <EmptyState className="simulator-notice" role={tone === "danger" ? "alert" : "status"} tone={tone} icon={icon} title={title} detail={detail} action={action} />;
 }
 
-/** Where a pointer is on the screen as it is shown, as fractions of it from its top left. */
-function shownAt(element: HTMLElement, clientX: number, clientY: number) {
-  const box = element.getBoundingClientRect();
-  const clamp = (value: number) => Math.min(1, Math.max(0, value));
-  return { x: clamp((clientX - box.left) / box.width), y: clamp((clientY - box.top) / box.height) };
-}
-
 /** The screen's shape as it is shown, its corners, and how the picture turns to read upright. */
 function screenStyle(size: { width: number; height: number }, name: string, orientation: SimulatorOrientation): CSSProperties {
   const sideways = screenTurns(orientation) % 2 === 1;
@@ -47,7 +40,6 @@ function screenStyle(size: { width: number; height: number }, name: string, orie
 
 export function SimulatorPanel({ simulator, udid, active, openMenu, onSetOpenMenu, onInput }: SimulatorPanelProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const pressed = useRef<Set<number>>(new Set());
   const device = simulator.devices.find((item) => item.udid === udid);
   const orientation = (device && simulator.orientations[device.udid]) ?? "portrait";
   const booted = device?.state === "booted";
@@ -57,42 +49,7 @@ export function SimulatorPanel({ simulator, udid, active, openMenu, onSetOpenMen
   const error = device ? simulator.errors[device.udid] : undefined;
   const booting = device ? simulator.booting.includes(device.udid) || device.state === "booting" : false;
 
-  const send = (input: SimulatorInput) => { if (device) onInput(device.udid, input); };
-  /** A touch lands on the device's own portrait screen, wherever the turned picture puts it. */
-  const touch = (phase: "down" | "move" | "up", shownX: number, shownY: number) => send({ kind: "touch", phase, ...untilted(shownX, shownY, orientation) });
-  const latestTouch = useRef(touch);
-  latestTouch.current = touch;
-  const wheel = useMemo(() => new WheelSwipe((phase, x, y) => latestTouch.current(phase, x, y)), []);
-  /** A finger the wheel left down lifts when the device or the way it is held changes under it. */
-  useEffect(() => () => wheel.lift(), [wheel, udid, orientation]);
-  const release = () => {
-    for (const usage of pressed.current) send({ kind: "key", usage, down: false });
-    pressed.current.clear();
-  };
-
-  const onKey = (event: KeyboardEvent<HTMLElement>, down: boolean) => {
-    /** Simulator.app's own keys for the hardware: ⌘⇧H goes home, ⌘← and ⌘→ turn the device. */
-    const hardware: SimulatorInput | null = !down || !event.metaKey ? null
-      : event.shiftKey && event.code === "KeyH" ? { kind: "button", button: "home" }
-      : !event.shiftKey && event.code === "ArrowLeft" ? { kind: "rotate", orientation: turned(orientation, -1) }
-      : !event.shiftKey && event.code === "ArrowRight" ? { kind: "rotate", orientation: turned(orientation, 1) }
-      : null;
-    if (hardware) {
-      event.preventDefault();
-      if (!event.repeat) send(hardware);
-      return;
-    }
-    /** Every other ⌘ key keeps meaning the app's own shortcuts, so only typing reaches the device. */
-    if (event.metaKey) return;
-    const usage = hidUsage(event.code);
-    if (usage === undefined) return;
-    event.preventDefault();
-    if (down && (event.repeat || pressed.current.has(usage))) return;
-    if (down) pressed.current.add(usage);
-    else if (!pressed.current.delete(usage)) return;
-    send({ kind: "key", usage, down });
-  };
-
+  const screen = useScreenInput(device?.udid ?? null, orientation, onInput);
 
   let body: ReactNode;
   if (simulator.availability.status === "unsupported") {
@@ -136,47 +93,10 @@ export function SimulatorPanel({ simulator, udid, active, openMenu, onSetOpenMen
             tabIndex={0}
             role="application"
             aria-label={`${device.name} screen`}
-            onPointerDown={(event) => {
-              if (event.button !== 0) return;
-              wheel.lift();
-              event.currentTarget.setPointerCapture(event.pointerId);
-              event.currentTarget.focus({ preventScroll: true, focusVisible: false });
-              const at = shownAt(event.currentTarget, event.clientX, event.clientY);
-              touch("down", at.x, at.y);
-            }}
-            onPointerMove={(event) => {
-              if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-              const at = shownAt(event.currentTarget, event.clientX, event.clientY);
-              touch("move", at.x, at.y);
-            }}
-            onPointerUp={(event) => {
-              if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-              event.currentTarget.releasePointerCapture(event.pointerId);
-              const at = shownAt(event.currentTarget, event.clientX, event.clientY);
-              touch("up", at.x, at.y);
-            }}
-            onPointerCancel={(event) => {
-              const at = shownAt(event.currentTarget, event.clientX, event.clientY);
-              touch("up", at.x, at.y);
-            }}
-            onWheel={(event) => {
-              /** A pinch arrives as a wheel with Control held, and a phone has nothing for it to zoom. */
-              if (event.ctrlKey) return;
-              const box = event.currentTarget.getBoundingClientRect();
-              const at = shownAt(event.currentTarget, event.clientX, event.clientY);
-              wheel.wheel(at.x, at.y, event.deltaX / box.width, event.deltaY / box.height);
-            }}
-            onPaste={(event) => {
-              const text = event.clipboardData.getData("text/plain").slice(0, MAX_SIMULATOR_TEXT);
-              if (!text) return;
-              event.preventDefault();
-              send({ kind: "type", text });
-            }}
-            onKeyDown={(event) => onKey(event, true)}
-            onKeyUp={(event) => onKey(event, false)}
-            onBlur={release}
+            {...screen.handlers}
           >
             <canvas ref={canvas} />
+            <div ref={screen.fingerMarks} className="simulator-fingers" aria-hidden="true" hidden><i /><i /></div>
           </div>
         )}
         {booted && stream.error && <Notice tone="danger" icon={<AlertTriangle size={18} />} title={`Could not show ${device.name}`} detail={stream.error}

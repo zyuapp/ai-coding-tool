@@ -11,6 +11,13 @@ test("a gesture is held to fractions of the screen, or to points when it says so
   assert.ok(!isSimulatorInput({ kind: "swipe", x: 0.5, y: 0.8, toX: 0.5, toY: 0.2, durationMs: 60_000 }));
   assert.ok(isSimulatorInput({ kind: "touch", phase: "move", x: 0, y: 0 }));
   assert.ok(!isSimulatorInput({ kind: "touch", phase: "hover", x: 0, y: 0 }));
+  assert.ok(isSimulatorInput({ kind: "touch", phase: "down", x: 0.4, y: 0.5, x2: 0.6, y2: 0.5 }));
+  assert.ok(!isSimulatorInput({ kind: "touch", phase: "down", x: 0.4, y: 0.5, x2: 0.6 }), "a second finger needs both coordinates");
+  assert.ok(!isSimulatorInput({ kind: "touch", phase: "down", x: 0.4, y: 0.5, x2: 1.5, y2: 0.5 }));
+  assert.ok(isSimulatorInput({ kind: "shortcut", usage: 4 }));
+  assert.ok(!isSimulatorInput({ kind: "shortcut", usage: 0 }));
+  assert.ok(!isSimulatorInput({ kind: "paste", text: "" }));
+  assert.ok(!isSimulatorInput({ kind: "pasteboard", phase: "sync" }));
   assert.ok(isSimulatorInput({ kind: "key", usage: 4, down: true }));
   assert.ok(!isSimulatorInput({ kind: "key", usage: 0x100, down: true }));
   assert.ok(!isSimulatorInput({ kind: "type", text: "" }));
@@ -24,6 +31,10 @@ test("keys map to their HID usage", () => {
   assert.equal(hidUsage("Digit0"), 39);
   assert.equal(hidUsage("Enter"), 40);
   assert.equal(hidUsage("ShiftLeft"), 225);
+  assert.equal(hidUsage("Home"), 74);
+  assert.equal(hidUsage("Numpad1"), 89);
+  assert.equal(hidUsage("Numpad9"), 97);
+  assert.equal(hidUsage("Numpad0"), 98);
   assert.equal(hidUsage("F13"), undefined);
 });
 
