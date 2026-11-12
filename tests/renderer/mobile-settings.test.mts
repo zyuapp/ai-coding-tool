@@ -64,6 +64,12 @@ function served(overrides: Partial<MobileServerState> = {}): MobileServerState {
   };
 }
 
+function newCodeButton() {
+  const button = [...document.querySelectorAll<HTMLButtonElement>("[data-setting='phone.pairing'] button")].find((node) => node.textContent === "New code");
+  assert.ok(button, "no New code button");
+  return button;
+}
+
 function text() {
   return document.body.textContent ?? "";
 }
@@ -75,7 +81,7 @@ test("a bridge that is off says so and offers nothing to pair with", () => {
   assert.equal(pill?.className, "neutral", "a bridge the user turned off is not drawn as a problem");
   assert.match(text(), /Turn phone access on and finish the Tailscale steps/);
   assert.match(text(), /No phone has paired/);
-  assert.equal(document.querySelector<HTMLButtonElement>("[data-setting='phone.pairing'] button")?.disabled, true);
+  assert.equal(newCodeButton().disabled, true);
   assert.equal(calls.codes, 0, "a code was asked for with nothing to reach it by");
 
   click(".settings-group:has([data-setting='phone.availability']) [role='switch']");
@@ -98,7 +104,7 @@ test("a served bridge draws the QR of the code on screen, and the address it is 
   assert.match(qr.src, /^data:image\/png;base64,/);
   assert.equal(qr.alt, `QR code for ${pairingUrl(TAILNET, "K7M2P9QX")}`);
 
-  click("[data-setting='phone.pairing'] button");
+  act(() => void newCodeButton().dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
   assert.equal(calls.codes, 1);
 });
 
