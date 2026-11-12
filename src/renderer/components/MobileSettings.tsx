@@ -90,7 +90,7 @@ function GetAppDialog({ onClose }: { onClose: () => void }) {
         <code>{TESTFLIGHT_LINK.replace("https://", "")}</code>
         <CopyButton text={TESTFLIGHT_LINK} label="Copy TestFlight link" />
       </div>
-      <p className="phone-get-app-note">Android app coming later.</p>
+      <p>Android app coming the day I get a Pixel.</p>
     </Dialog>
   );
 }

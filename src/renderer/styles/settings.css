@@ -358,7 +358,6 @@
 .phone-get-app .phone-qr { align-self: center; width: 208px; height: 208px; }
 .phone-get-app .phone-pairing-url { justify-content: center; margin-top: 0; }
 .phone-get-app .phone-pairing-url code { font-size: var(--text-meta); }
-.dialog > p.phone-get-app-note { color: var(--quiet-strong); font-size: var(--text-meta); }
 .phone-pairing-copy strong { display: block; color: var(--ink); font: 640 26px/1.2 var(--mono); letter-spacing: 0.16em; }
 .phone-pairing-copy p { margin: 7px 0 0; color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.45; }
 .phone-pairing-copy p.phone-pairing-expired { color: var(--accent-soft); }
