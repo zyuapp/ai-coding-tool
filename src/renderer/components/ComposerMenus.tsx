@@ -41,6 +41,18 @@ function shortDescription(description: string) {
   return firstSentence.length > 110 ? `${firstSentence.slice(0, 107).trimEnd()}…` : firstSentence;
 }
 
+/**
+ * A highlighted row that goes back to the first whenever any of `keys` changes. It is worked out
+ * while rendering so a keystroke queues no update of its own; a fast burst of typing would
+ * otherwise trip React's update-loop limit.
+ */
+function useRowSelection(keys: unknown[]): [number, Dispatch<SetStateAction<number>>] {
+  const [picked, setPicked] = useState({ index: 0, keys });
+  const current = (pick: typeof picked) => (pick.keys.length === keys.length && pick.keys.every((key, at) => Object.is(key, keys[at])) ? pick.index : 0);
+  const select: Dispatch<SetStateAction<number>> = (next) => setPicked((pick) => ({ index: typeof next === "function" ? next(current(pick)) : next, keys }));
+  return [current(picked), select];
+}
+
 export type ComposerMenus = {
   commandMenuRef: RefObject<HTMLDivElement | null>;
   threadMenuRef: RefObject<HTMLDivElement | null>;
@@ -76,8 +88,6 @@ export function useComposerMenus({ prompt, caret, actions, threads, workspaceId,
   const commandMenuRef = useRef<HTMLDivElement>(null);
   const threadMenuRef = useRef<HTMLDivElement>(null);
   const { commands, loading: commandsLoading } = useAgentCommands(workspaceId, engine);
-  const [selectedCommand, setSelectedCommand] = useState(0);
-  const [selectedThread, setSelectedThread] = useState(0);
   const dismiss = () => setDismissedPrompt(prompt);
 
   const token = commandTokenAt(prompt, Math.min(caret.caret, prompt.length));
@@ -90,11 +100,13 @@ export function useComposerMenus({ prompt, caret, actions, threads, workspaceId,
       .map((command) => ({ ...command, aliases: command.aliases ?? [], kind: "skill" as const })),
   ];
   const matchingCommands = token === null ? [] : menuEntries.filter((entry) => commandMatches(entry, token.query));
+  const [selectedCommand, setSelectedCommand] = useRowSelection([prompt, commands]);
   const commandMenuOpen = enabled && inputFocused && token !== null && dismissedPrompt !== prompt;
   useDismissibleLayer(commandMenuOpen, [textareaRef, commandMenuRef], dismiss, textareaRef);
 
   const threadToken = handleTokenAt(prompt, Math.min(caret.caret, prompt.length));
   const matchingThreads = threadToken === null ? [] : rankThreadHandles(threads, threadToken.query, THREAD_MENU_LIMIT);
+  const [selectedThread, setSelectedThread] = useRowSelection([threadToken?.query]);
   const threadMenuOpen = enabled && inputFocused && threadToken !== null && dismissedPrompt !== prompt;
   useDismissibleLayer(threadMenuOpen, [textareaRef, threadMenuRef], dismiss, textareaRef);
 
@@ -125,16 +137,10 @@ export function useComposerMenus({ prompt, caret, actions, threads, workspaceId,
     moveCaret(threadToken.start + inserted.length);
   }
 
-  useEffect(() => setSelectedCommand(0), [prompt, commands]);
-
   useEffect(() => {
     if (!commandMenuOpen) return;
     commandMenuRef.current?.querySelector(`#slash-command-${selectedCommand}`)?.scrollIntoView?.({ block: "nearest" });
   }, [commandMenuOpen, selectedCommand]);
-
-  useEffect(() => {
-    setSelectedThread(0);
-  }, [threadToken?.query]);
 
   useEffect(() => {
     if (!threadMenuOpen) return;

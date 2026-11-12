@@ -127,7 +127,7 @@ function ConditionField({ label, value, placeholder, onChange }: { label: string
   );
 }
 
-function AutomationEmpty({ onCreate }: { onCreate: () => void }) {
+function AutomationEmpty({ onCreate, refocus }: { onCreate: () => void; refocus: boolean }) {
   return (
     <section className="automation-panel" aria-label="Automation">
       <AutomationHeading />
@@ -135,7 +135,7 @@ function AutomationEmpty({ onCreate }: { onCreate: () => void }) {
         icon={<AlarmClock size={18} />}
         title="No automation yet"
         action={(
-          <CommandButton command={{ type: "automation.save", draft: { prompt: "", schedule: "" } }} variant="soft" icon={<Plus size={14} aria-hidden="true" />} onClick={onCreate}>
+          <CommandButton command={{ type: "automation.save", draft: { prompt: "", schedule: "" } }} variant="soft" icon={<Plus size={14} aria-hidden="true" />} autoFocus={refocus} onClick={onCreate}>
             New schedule
           </CommandButton>
         )}
@@ -152,6 +152,8 @@ export function AutomationPanel({ automation, edit, lastFoundAt, lastChecked, on
   const [now, setNow] = useState(() => Date.now());
   /** A new schedule being written before any exists. */
   const [creating, setCreating] = useState(false);
+  /** Set once a new schedule is let go, so the keys go back to the button that started it. */
+  const [cancelled, setCancelled] = useState(false);
   const controls = useCommandControls();
   const scheduleId = useId();
   const canDelete = controls.available({ type: "automation.delete" });
@@ -180,7 +182,7 @@ export function AutomationPanel({ automation, edit, lastFoundAt, lastChecked, on
     return () => window.clearInterval(timer);
   }, [automation?.nextRunAt]);
 
-  if (!automation && !creating) return <AutomationEmpty onCreate={() => setCreating(true)} />;
+  if (!automation && !creating) return <AutomationEmpty refocus={cancelled} onCreate={() => setCreating(true)} />;
 
   /** A one-time run always surfaces, so it has no quiet sentence to say or keep. */
   const oneShot = isOneShotSchedule(schedule);
@@ -203,6 +205,7 @@ export function AutomationPanel({ automation, edit, lastFoundAt, lastChecked, on
     setSurfaceWhen("");
     setEndsWhen("");
     setCreating(false);
+    setCancelled(true);
   };
 
   return (

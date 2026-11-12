@@ -53,7 +53,7 @@ test("the automation panel sets up a schedule from its empty state, and Cancel o
   await act(async () => { item(button("New schedule")).click(); });
   assert.equal(query<HTMLInputElement>(view.container, 'input.automation-schedule').value, "", "a cancelled draft is not kept");
   await act(async () => { query(view.container, 'input.automation-schedule').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); });
-  assert.ok(button("New schedule"), "so does Esc");
+  assert.ok(dom.window.document.activeElement === button("New schedule"), "so does Esc, and the keys go back to the button");
 
   await view.render(React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch() {} } },
     React.createElement(AutomationPanel, { automation: automationView(), lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow() {} })));
