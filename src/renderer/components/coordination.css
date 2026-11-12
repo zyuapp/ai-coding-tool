@@ -322,10 +322,10 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .coordination-note-actions:has(.danger) { background: var(--sunken); box-shadow: -10px 0 8px var(--sunken); }
 .coordination-note:has(.editing) .coordination-note-actions { display: none; }
 .coordination-group + .coordination-group { margin-top: 12px; }
-/** Each group's rows sit on one pane of glass, split by hairlines inset past their marks. */
-.coordination-group > .subagent-list { --glass-radius: 12px; gap: 0; margin-top: 2px; padding: 3px; }
-.coordination-group > .subagent-list > :is(.coordination-item, .coordination-note) + :is(.coordination-item, .coordination-note)::before { content: ""; position: absolute; z-index: 1; top: 0; left: 36px; right: 8px; height: 1px; background: var(--line-soft); pointer-events: none; }
-.coordination-memory > .subagent-list > .coordination-note + .coordination-note::before { left: 12px; }
+.coordination-group > .subagent-list { margin-top: 2px; }
+/** Memory's notes sit on one pane of glass, split by hairlines. */
+.coordination-memory > .subagent-list { --glass-radius: 12px; gap: 0; padding: 3px; }
+.coordination-memory > .subagent-list > .coordination-note + .coordination-note::before { content: ""; position: absolute; z-index: 1; top: 0; left: 12px; right: 8px; height: 1px; background: var(--line-soft); pointer-events: none; }
 .coordination-group.needs > .list-heading { color: var(--accent); }
 .coordination-stop { display: flex; gap: 4px; margin-right: 4px; }
 .coordination-more {

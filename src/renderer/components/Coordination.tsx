@@ -437,7 +437,7 @@ function ThreadGroup({ group, members, fold, worktrees, action, onSetFold, ...ac
     <section className={`coordination-group ${group}`} aria-label={label} data-section={group}>
       <FoldHead label={label} count={members.length} open={open} action={action} asks={group === "needs"} onToggle={() => onSetFold(group, { open: !open })} />
       {/** Only Needs you speaks, as only Priority does in the sidebar: a working thread's progress is not news to read out. */}
-      {open && <div className="glass-chip subagent-list" aria-live={group === "needs" ? "polite" : undefined}>
+      {open && <div className="subagent-list" aria-live={group === "needs" ? "polite" : undefined}>
         {shown.map((view) => <ThreadRow key={view.thread.id} view={view} worktrees={worktrees} {...actions} />)}
         {members.length > shown.length && (
           <button type="button" className="coordination-more" onClick={() => onSetFold(group, { all: true })}>Show {members.length - shown.length} more</button>
