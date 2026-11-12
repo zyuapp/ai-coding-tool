@@ -80,6 +80,8 @@
   border-radius: inherit;
   background: var(--glass-edge), var(--glass);
   background-clip: border-area, border-box, border-box;
+  /* From the padding box, the sheen's tile repeats into the bottom border at its brightest. */
+  background-origin: border-box;
   backdrop-filter: var(--glass-blur) var(--glass-lens,);
   box-shadow: var(--glass-float-rim), var(--glass-pane-shadow, 0 0 transparent);
   pointer-events: none;
