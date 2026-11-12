@@ -13,7 +13,7 @@ import { coordinationMembers, coordinatorRoster, memberActivity, ownCoordination
 import { computerOfThread } from "./computers.js";
 import { selectedComputer, type PairedComputer } from "./state/computers.js";
 import { isUsersOwn } from "../domain/message-origin.js";
-import { drainingQueued } from "./workspace-reducer/run-queue.js";
+import { drainingQueued } from "./state/runs.js";
 import { supportsComputerCommand } from "../contracts/computer-capabilities.js";
 import { describeToolCall } from "../domain/tool-call.js";
 import { deliveryLabel, isCoordinator } from "../domain/coordination.js";

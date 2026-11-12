@@ -1,4 +1,5 @@
-import type { QueuedMessage, SideChat, WorkspaceState } from "./workspace-state.js";
+import type { QueuedMessageView, SideChat, WorkspaceState } from "./workspace-state.js";
+import { queuedView } from "./state/runs.js";
 import type { ReadingPoint } from "../contracts/commands.js";
 import type { Annotation, AttachedFile, PastedText, StagedImage } from "../domain/conversation.js";
 import type { RetryNotice } from "../domain/run.js";
@@ -16,7 +17,7 @@ import type { ChangedFilesResult } from "../contracts/ipc.js";
 import { threadModel, type AgentModel } from "../domain/agent-engine.js";
 import { catalogOf } from "./state/engines.js";
 
-const NO_QUEUED: QueuedMessage[] = [];
+const NO_QUEUED: QueuedMessageView[] = [];
 
 /** A conversation drawn in a dock tab: its thread, its composer's draft, and its run as it stands. */
 export type DockConversationView = {
@@ -36,7 +37,7 @@ export type DockConversationView = {
   retrying: RetryNotice | null;
   status: ThreadRunStatus;
   streamingTail: StreamingTail | null;
-  queuedMessages: QueuedMessage[];
+  queuedMessages: QueuedMessageView[];
   approval?: ApprovalView;
   question?: PendingQuestion;
   readingPoint: ReadingPoint;
@@ -77,7 +78,7 @@ function dockConversationView(state: WorkspaceState, thread: Thread): DockConver
     retrying: active?.retry ?? null,
     status: runStatus(state, thread.id),
     streamingTail: state.streamingTails[thread.id] ?? null,
-    queuedMessages: state.queuedMessages[thread.id] ?? NO_QUEUED,
+    queuedMessages: queuedView(state, thread.id) ?? NO_QUEUED,
     readingPoint: state.readingPoints[thread.id] ?? null,
     ...(approval ? { approval } : {}),
   };

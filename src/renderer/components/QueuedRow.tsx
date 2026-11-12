@@ -1,5 +1,5 @@
 import { LuChevronDown as ChevronDown, LuCornerDownRight as CornerDownRight, LuPencil as Pencil, LuX as X } from "react-icons/lu";
-import type { QueuedMessage } from "../../application/workspace-state";
+import type { QueuedMessage, QueuedMessageView } from "../../application/workspace-state";
 import { isUsersOwn, messageLabel } from "../../domain/message-origin";
 import { useState, type KeyboardEvent } from "react";
 import { AnnotationRow, useClamped } from "./AnnotationRow";
@@ -40,7 +40,7 @@ function QueuedText({ text }: { text: string }) {
 
 /** Messages waiting on the run, each with what it carries and what you can do to it. */
 export function QueuedRow({ messages, surface, canSteer, onEdit, onSteer, onDrop }: {
-  messages: QueuedMessage[];
+  messages: QueuedMessageView[];
   surface: ComposerSurface;
   /** Only a run that is going can take a message early; one held for a usage limit waits for it to lift. */
   canSteer: boolean;
@@ -60,7 +60,7 @@ export function QueuedRow({ messages, surface, canSteer, onEdit, onSteer, onDrop
             {message.text && <QueuedText text={message.text} />}
             {message.annotations?.length ? <AnnotationRow annotations={message.annotations} /> : null}
           </div>
-          {message.steering ? <span className="queued-state">Steering…</span> : (
+          {message.steering || message.starting ? <span className="queued-state">{message.steering ? "Steering…" : "Sending…"}</span> : (
             <span className="queued-actions">
               {isUsersOwn(message) && (
                 <IconButton className="queued-edit" label="Edit queued message" tip="Edit" onClick={() => onEdit(message.id)}>

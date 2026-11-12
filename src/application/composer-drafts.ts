@@ -162,9 +162,16 @@ export function withFiles<S extends Pick<ComposerState, "files">>(state: S, key:
   return { ...state, files: withDrafts(state.files, key, files) };
 }
 
-/** What a composer keeps once `sent` has gone: whatever was typed after it, or all of it if it was rewritten meanwhile. */
+/**
+ * What a composer keeps once `sent` has gone: whatever was typed after it and whatever was handed
+ * back ahead of it meanwhile, or all of it if it was rewritten.
+ */
 export function textAfterSend(typed: string, sent: string): string {
-  return typed === sent ? "" : typed.startsWith(sent) ? typed.slice(sent.length).trimStart() : typed;
+  if (typed === sent) return "";
+  if (typed.startsWith(sent)) return typed.slice(sent.length).trimStart();
+  const at = typed.lastIndexOf(`\n\n${sent}`);
+  if (at < 0) return typed;
+  return [typed.slice(0, at), typed.slice(at + 2 + sent.length).trimStart()].filter(Boolean).join("\n\n");
 }
 
 /** The caret goes back to the composer, which is where anything arriving in a draft is spoken about. */

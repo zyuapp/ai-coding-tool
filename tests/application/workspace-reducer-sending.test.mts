@@ -198,6 +198,20 @@ test("a run that finishes after its thread was archived hands the queue back rat
   assert.equal(finished.state.actionError, null);
 });
 
+test("a queued message whose run cannot start goes back to the composer rather than waiting on nothing", () => {
+  const finished = reduce(queueMessage(queueMessage(running(), "Run the tests"), "Then the docs"), { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 1, status: "succeeded" } });
+  const { pendingId } = required(finished.effects.find((effect) => effect.type === "resolve-run-workspace"));
+
+  const unresolved = reduce(finished.state, { type: "run.unresolved", pendingId, message: "Choose the project folder again." });
+  assert.deepEqual(unresolved.state.queuedMessages, {});
+  assert.equal(unresolved.state.prompts["task-a"], "Run the tests\n\nThen the docs");
+
+  const archived = reduce(finished.state, { type: "task.archive", taskId: "task-a" }).state;
+  const refused = reduce(archived, { type: "run.resolved", pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  assert.deepEqual(refused.state.queuedMessages, {});
+  assert.equal(refused.state.prompts["task-a"], "Run the tests\n\nThen the docs", "restoring the thread finds the words in its composer");
+});
+
 test("dropping a queued message removes only that one", () => {
   const queued = queueMessage(queueMessage(running(), "First"), "Second");
   const [first] = queued.queuedMessages["task-a"];
@@ -229,6 +243,10 @@ test("editing a queued message takes it back into the composer, ahead of the dra
   assert.equal(reduce(steering, { type: "task.edit-queued", messageId: first.id }).state, steering, "a steered message is already on its way");
   const sent = { ...queued, queuedMessages: { "task-a": [{ ...first, origin: { kind: "coordination" as const } }] } };
   assert.equal(reduce(sent, { type: "task.edit-queued", messageId: first.id }).state, sent, "another thread's message is not the user's to rewrite");
+
+  const starting = reduce(queued, { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 1, status: "succeeded" } }).state;
+  assert.equal(reduce(starting, { type: "task.edit-queued", messageId: first.id }).state, starting, "a message a starting run is taking is already on its way");
+  assert.deepEqual(deriveView(starting).queuedMessages.map((message) => message.starting), [true, undefined]);
 });
 
 test("a run starting on a task the user is not looking at leaves them where they are", () => {

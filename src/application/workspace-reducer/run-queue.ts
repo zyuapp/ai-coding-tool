@@ -4,7 +4,7 @@ import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import { promptWithAnnotations } from "../annotations.js";
 import { promptWithAttachments } from "../attachments.js";
 import { annotationsFor, composerOf, filesFor, handedBackIn, imagesFor, pastesFor, textAfterSend, withAnnotations, withFiles, withImages, withPastes } from "../composer-drafts.js";
-import { afterward, applied, type Step } from "./slice.js";
+import { afterward, andThen, applied, type Step } from "./slice.js";
 import { attendedIn, cancellingIn, pendingIn, queuedIn, runsOf, stopAskedIn, withoutPendingIn } from "./run-edits.js";
 import { answerReopenedIn, notedIn, threadsOf, turnOpenedIn, type ThreadsEdit } from "./thread-edits.js";
 import { promptWithFiles } from "../files.js";
@@ -52,11 +52,16 @@ export function withUnsent(state: WorkspaceState, pending: PendingRun): Workspac
   return afterward(state, unsent(state, pending));
 }
 
-/** {@link withUnsent}, as the edits it makes. */
+/**
+ * {@link withUnsent}, as the edits it makes. A queue whose next message never started has no run
+ * left to send it, so what the user wrote goes back to the composer, as a stop hands it back.
+ */
 export function unsent(state: WorkspaceState, pending: PendingRun): Step {
   const runs = withoutPendingIn(runsOf(state), pending.id);
   const { answers, taskId } = pending;
-  return { edits: answers === undefined || taskId === undefined ? [runs] : [runs, answerReopenedIn(threadsOf(state), taskId, answers)] };
+  const dropped = { edits: answers === undefined || taskId === undefined ? [runs] : [runs, answerReopenedIn(threadsOf(state), taskId, answers)] };
+  if (!pending.queuedIds?.length || taskId === undefined) return dropped;
+  return andThen(state, dropped, (next) => next.activeRuns[taskId] ? {} : drained(next, taskId, "hand-back"));
 }
 
 export function queuedFor(state: WorkspaceState, taskId: string): QueuedMessage[] {
@@ -277,15 +282,6 @@ export function stoppingProcess(state: WorkspaceState, taskId: string, processId
 export function processStopped(state: WorkspaceState, taskId: string, processId: string): Step {
   const marked = stopAskedIn(runsOf(state), taskId, processId);
   return marked ? { edits: [marked], effects: [{ type: "send-run-command", command: { type: "stop-process", taskId, processId } }] } : {};
-}
-
-/**
- * The queued message the user may take back into the composer to rewrite, or why not: a steered one
- * is already on its way to the agent, and only the user's own messages are theirs to rewrite.
- */
-/** Whether a queued message is already on its way into a run that is starting, which takes it out of the queue once it does. */
-export function drainingQueued(state: Pick<WorkspaceState, "pendingRuns">, taskId: string, messageId: string): boolean {
-  return Object.values(state.pendingRuns).some((pending) => pending.taskId === taskId && pending.queuedIds?.includes(messageId));
 }
 
 /**

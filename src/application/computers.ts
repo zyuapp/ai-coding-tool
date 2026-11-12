@@ -19,7 +19,7 @@ import { NEW_THREAD_DRAFT } from "./state/composer.js";
 import { doingWork, threadActivity, threadLists, type ThreadActivity } from "./thread-activity.js";
 import { stoppableCoordinators } from "./coordination.js";
 import type { WorkspaceInput } from "./workspace-reducer.js";
-import { editableQueued, QUEUED_SENT } from "./state/runs.js";
+import { drainingQueued, editableQueued, QUEUED_SENT } from "./state/runs.js";
 import { isAgentEngine, unopenableEngine, type EngineId } from "../domain/agent-engine.js";
 import { MAX_DISCARDED_LEADS, selectedComputer, type ComputersSliceState, type ComputersState, type PairedComputer } from "./state/computers.js";
 
@@ -304,6 +304,7 @@ const OWN: { [Type in Exclude<PlacedCommand<"own">["type"], "project.add">]: Rou
     if (!taskId) return { kind: "refuse", message: QUEUED_SENT };
     const edit = editableQueued(holder.state?.queuedMessages[taskId] ?? [], input.messageId);
     if ("refusal" in edit) return { kind: "refuse", message: edit.refusal };
+    if (holder.state && drainingQueued(holder.state, taskId, edit.message.id)) return { kind: "refuse", message: QUEUED_SENT };
     /** Its images and files are paths on that computer, which a composer here cannot hold. */
     if (edit.message.attachments.length || edit.message.files?.length) return { kind: "refuse", message: QUEUED_ATTACHMENTS_ELSEWHERE };
     return forwarded(holder, [{ type: "task.drop-queued", taskId, messageId: input.messageId }], { also: true });

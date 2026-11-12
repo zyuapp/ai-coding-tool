@@ -1,8 +1,8 @@
 /** A send: the prompt the composer hands over, and the queue behind a run already going. */
 import { ARCHIVED_SEND_ERROR, CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { attendedRun, drainingQueued, fileThread, forkableContinuation, pendingStep, queuedFor, resolveWorkspaceEffect, sentPrompt, sideChatPrompt, undeliveredIn } from "./run-queue.js";
+import { attendedRun, fileThread, forkableContinuation, pendingStep, queuedFor, resolveWorkspaceEffect, sentPrompt, sideChatPrompt, undeliveredIn } from "./run-queue.js";
 import { queuedIn, questionAnswerIn, runsOf } from "./run-edits.js";
-import { editableQueued, QUEUED_SENT } from "../state/runs.js";
+import { drainingQueued, editableQueued, QUEUED_SENT } from "../state/runs.js";
 import { targetId } from "./shared.js";
 import { andThen, type Step } from "./slice.js";
 import { nudgedIn, restoredIn, threadsOf, unsnoozedIn, type ThreadsEdit } from "./thread-edits.js";
@@ -90,7 +90,8 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
 
     /**
      * Editing takes the message out of the queue and back into the composer, so a run that finishes
-     * mid-edit never sends the old words. Only the user's own messages are theirs to rewrite.
+     * mid-edit never sends the old words. Only the user's own messages are theirs to rewrite, and
+     * one a starting run is already taking is on its way.
      */
     case "task.edit-queued": {
       /** A paired computer's thread has already been told to let the message go; only the draft is this computer's. */
@@ -98,7 +99,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
       const taskId = remote ? remote.taskId : targetId(state, input.taskId);
       const queued = !taskId ? [] : remote ? (remote.computer.state ? queuedFor(remote.computer.state, taskId) : []) : queuedFor(state, taskId);
       const edit = editableQueued(queued, input.messageId);
-      if (!taskId || "refusal" in edit) return {};
+      if (!taskId || "refusal" in edit || (!remote && drainingQueued(state, taskId, edit.message.id))) return {};
       const handed = handedBackIn(composerOf(state), taskId, [edit.message]);
       const holder = tabHolderOf(state, taskId);
       return {

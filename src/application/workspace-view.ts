@@ -31,7 +31,7 @@ import { worktreeName, type Worktree } from "../domain/worktree.js";
 import { locationOf, projectFor, threadWorkspaceId, worktreeById } from "./thread-location.js";
 import { heldViews } from "./view-reuse.js";
 import { linePositions } from "../domain/usage-limit.js";
-import { workflowById, type QueuedMessage } from "./state/runs.js";
+import { queuedView, workflowById, type QueuedMessageView } from "./state/runs.js";
 import { currentFolder, promptKey, reachableVisit, type WorkspaceState } from "./workspace-state.js";
 
 export type { FindView } from "./workspace-find.js";
@@ -57,7 +57,7 @@ const reusedSideChats = heldViews<SideChatView>();
 const reusedThreadTabs = heldViews<ThreadTabView>();
 
 const NO_SUBAGENTS: Subagent[] = [];
-const NO_QUEUED: QueuedMessage[] = [];
+const NO_QUEUED: QueuedMessageView[] = [];
 const NO_WORKFLOWS: Workflow[] = [];
 
 /** What the thread's engine reports about its run; a feed the engine cannot fill stays empty. */
@@ -188,7 +188,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     limitPositions: linePositions(state.threads),
     runActive: Boolean(currentRun),
     question: currentRun?.questions?.[0],
-    queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? NO_QUEUED,
+    queuedMessages: (state.currentId ? queuedView(state, state.currentId) : undefined) ?? NO_QUEUED,
     runningThreadIds: collections.everyBusy, monitoringThreadIds: collections.everyMonitoring,
     blockedThreadIds: collections.everyBlocked, stoppableCoordinatorIds: collections.everyStoppable,
     approval: currentRun?.status === "awaiting-approval" ? state.approvals[currentRun.runId] as ApprovalView | undefined : undefined,

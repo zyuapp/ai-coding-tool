@@ -133,8 +133,27 @@ export function workflowById(state: Pick<RunFeedsState, "workflows">, id: string
 export const QUEUED_NOT_YOURS = "Only a message you wrote can be edited.";
 export const QUEUED_SENT = "That message has already been sent.";
 
+/**
+ * The queued message the user may take back into the composer to rewrite, or why not: a steered one
+ * is already on its way to the agent, and only the user's own messages are theirs to rewrite.
+ */
 export function editableQueued(queued: readonly QueuedMessage[], messageId: string): { message: QueuedMessage } | { refusal: string } {
   const message = queued.find((item) => item.id === messageId);
   if (!message || message.steering) return { refusal: QUEUED_SENT };
   return isUsersOwn(message) ? { message } : { refusal: QUEUED_NOT_YOURS };
+}
+
+/** Whether a queued message is already on its way into a run that is starting, which takes it out of the queue once it does. */
+export function drainingQueued(state: Pick<RunsState, "pendingRuns">, taskId: string, messageId: string): boolean {
+  return Object.values(state.pendingRuns).some((pending) => pending.taskId === taskId && pending.queuedIds?.includes(messageId));
+}
+
+/** A queued message as a composer shows it: `starting` once a run is taking it, past editing or dropping. */
+export type QueuedMessageView = QueuedMessage & { starting?: true };
+
+/** A thread's queue as shown: the stored list itself unless a starting run is taking from it. */
+export function queuedView(state: Pick<RunsState, "pendingRuns" | "queuedMessages">, taskId: string): QueuedMessageView[] | undefined {
+  const queued = state.queuedMessages[taskId];
+  if (!queued?.some((message) => drainingQueued(state, taskId, message.id))) return queued;
+  return queued.map((message) => drainingQueued(state, taskId, message.id) ? { ...message, starting: true as const } : message);
 }
