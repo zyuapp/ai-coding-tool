@@ -45,7 +45,9 @@
 .effort-strip > .library-setting-axis { line-height: 22px; }
 .effort-strip-none { padding: 6px 0; color: var(--quiet); font-size: var(--text-meta); }
 .library-setting > :last-child { margin-left: 8px; }
-.library-modes > button { flex: 1; justify-content: center; padding-block: 4px; }
+/** The picked mode fills its share of the track to the edge. */
+.library-modes { gap: 0; padding: 0; }
+.library-modes > button { flex: 1; justify-content: center; padding-block: 6px; border-radius: 9px; }
 .library-modes > button[aria-checked="true"][data-tone="danger"], .library-modes > button[aria-checked="true"][data-tone="danger"] svg { color: var(--danger); }
 /** A slim track marked at each effort, whose fill runs to the knob's middle; the knob tracks the pointer while dragged and glides to an effort otherwise. */
 .effort-slider { --effort-at: 0; --effort-knob: 18px; --effort-travel: calc(100% - var(--effort-knob)); padding: 9px 0 0; border-radius: 14px; outline: none; cursor: grab; touch-action: none; user-select: none; }
