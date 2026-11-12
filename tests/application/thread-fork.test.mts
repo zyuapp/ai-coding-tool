@@ -58,6 +58,23 @@ test("a fork carries the conversation and sits under the thread it was copied fr
   assert.deepEqual(orderThreads(state.threads).map((item) => item.id), ["first", fork.id, "second"]);
 });
 
+test("a fork sits under its source when a coordinator's threads are drawn above it", () => {
+  const threads = [
+    task("lead", { projectId: "p", sortIndex: 0, role: "coordinator" }),
+    task("m1", { projectId: "p", sortIndex: 1, parentId: "lead" }),
+    task("m2", { projectId: "p", sortIndex: 2, parentId: "lead" }),
+    task("source", { projectId: "p", sortIndex: 3 }),
+    task("next", { projectId: "p", sortIndex: 4 }),
+  ];
+  const rows = (state: WorkspaceState) => orderThreads(state.threads.filter((item) => !item.parentId)).map((item) => item.id);
+  const before = workspace({ threads, currentId: "source" });
+  const fromSource = reduce(before, { type: "task.fork" }).state;
+  assert.deepEqual(rows(fromSource), ["lead", "source", forked(before, fromSource, "source").fork.id, "next"]);
+
+  const fromMember = reduce({ ...before, currentId: "m1" }, { type: "task.fork" }).state;
+  assert.deepEqual(rows(fromMember), ["lead", forked(before, fromMember, "m1").fork.id, "source", "next"], "a copy of a coordinator's thread goes under the coordinator's row");
+});
+
 test("a fork of a fork is numbered rather than suffixed twice", () => {
   const before = workspace({ threads: [task("first", { title: "Fix the login" })], currentId: "first" });
   const once = reduce(before, { type: "task.fork" }).state;

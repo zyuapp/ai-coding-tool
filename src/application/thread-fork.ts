@@ -1,4 +1,5 @@
 import { capabilitiesFor } from "../domain/agent-engine.js";
+import { coordinatedThreadIds, leadIdOf } from "../domain/coordination.js";
 import { clampTitle, forkTitle, type Thread } from "../domain/thread.js";
 import { moveThread, nextSortIndex, orderThreads } from "./thread-order.js";
 
@@ -49,8 +50,13 @@ export function forkedThreads(threads: Thread[], source: Thread, id: string, at:
     rankedAt: at,
     updatedAt: at,
   };
-  /** The slot after the source, counted in the list the copy is dropped into with the copy left out. */
-  const group = orderThreads(threads.filter((thread) => thread.archivedAt === undefined && thread.projectId === source.projectId));
-  const under = group.findIndex((thread) => thread.id === source.id) + 1;
+  /**
+   * The slot after the source's row, counted the way a drop counts: threads under a coordinator draw
+   * beneath it, so they take no slot, and a copy of one goes under its coordinator's row.
+   */
+  const members = coordinatedThreadIds(threads);
+  const anchorId = members.has(source.id) ? leadIdOf(source) : source.id;
+  const group = orderThreads(threads.filter((thread) => thread.archivedAt === undefined && !members.has(thread.id) && thread.projectId === source.projectId));
+  const under = group.findIndex((thread) => thread.id === anchorId) + 1;
   return { fork, threads: moveThread([...threads, fork], fork.id, { projectId: source.projectId ?? null, index: under }) };
 }
