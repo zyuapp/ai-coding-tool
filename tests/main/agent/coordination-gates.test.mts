@@ -125,17 +125,12 @@ test("a coordinator never waits on a thread, while every other run still can", (
   assert.ok(threadToolNames({}).includes("wait_for_thread"));
 });
 
-test("a coordinator and its threads are not offered Haiku for a thread they start", () => {
+test("start_thread's model field takes any well-formed model and says what an omitted one runs on", () => {
   const threads = { list: async () => [], read: async () => { throw new Error("unused"); }, wait: async () => { throw new Error("unused"); }, command: async () => ({ thread: null }) };
   const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }), remember: async () => ({ note: "" }), propose: async () => ({ note: "" }) };
   const startModel = (sources: Partial<Parameters<typeof runTools>[0]>) => runTools({ channel: "main", computerUse: { status: "unavailable" }, threads, emit: () => {}, ...sources } as Parameters<typeof runTools>[0])
     .find((set) => set.server === "aicodingtool-threads")!.tools.find((tool) => tool.name === "start_thread")!.input.model!;
   const accepts = (sources: Partial<Parameters<typeof runTools>[0]>, model: string) => z.object({ model: startModel(sources) }).safeParse({ model }).success;
-  assert.equal(accepts({ coordinationRole: "coordinator", coordination }, "haiku"), false);
-  assert.equal(accepts({ coordinationRole: "coordinator", coordination }, "sonnet"), true);
-  assert.equal(accepts({ coordinationRole: "member", coordination }, "haiku"), false, "a thread one of its threads starts works under the coordinator too");
-  assert.equal(accepts({ coordinationRole: "member", coordination }, "sonnet"), true);
-  assert.equal(accepts({}, "haiku"), true);
   assert.equal(accepts({ coordinationRole: "coordinator", coordination }, "openrouter/z-ai/glm-5.3-flash"), true, "a model an engine names for itself is the window's to check");
   assert.equal(accepts({}, "opencode"), true, "an engine stands for its default model");
   assert.equal(z.object({ model: startModel({}) }).parse({ model: "GLM 5.3 Flash" }).model, "GLM-5.3-Flash", "a name said with spaces is taken hyphenated, as the window reads it");

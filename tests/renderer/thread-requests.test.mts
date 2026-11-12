@@ -209,8 +209,6 @@ test("a coordinator's threads run on the model chosen for them, not its own", as
   assert.deepEqual(await start("lead", { model: "gpt-6-luna" }), { engine: "codex", model: "gpt-6-luna", effort: "high" }, "a named model keeps the threads' effort");
   assert.deepEqual(await start("lead", { effort: "low" }), { engine: "claude", model: "opus", effort: "low" }, "a named effort keeps the threads' model");
   assert.equal(await start("lead", { model: "gpt-6-luna", effort: "ultra" }), "The gpt-6-luna model does not support ultra effort.");
-  assert.equal(await start("lead", { model: "haiku" }), "Threads under a coordinator cannot run on the haiku model. Pick another model.");
-  assert.equal(await start("worker", { model: "haiku" }), "Threads under a coordinator cannot run on the haiku model. Pick another model.", "a thread one of its threads starts works under it too");
   assert.deepEqual(await start("worker"), { engine: "claude", model: "opus", effort: "high" });
 
   await workspace.view.unmount();
@@ -293,12 +291,12 @@ test("only a coordinator suggests threads, each checked as its start would be an
   assert.equal(failedThreadResponse(await propose("solo", [{ title: "Docs", prompt: "Write them", brief }])).message, "Only a coordinator suggests threads.");
   const answer = responseRecord(await propose("lead", [
     { title: "Fix login", prompt: "Fix the login test", brief },
-    { title: "Light work", prompt: "Tidy up", brief, model: "haiku" },
+    { title: "Light work", prompt: "Tidy up", brief, model: "gpt-6-luna", effort: "ultra" },
     { title: "Docs", prompt: "Write the docs", brief, model: "gpt-6-luna", worktree: true },
   ]));
   assert.equal(answer.note, [
     "Suggested 2 threads. The user starts the ones they want; you hear from each once it ends a turn.",
-    'Not suggested "Light work": Threads under a coordinator cannot run on the haiku model. Pick another model.',
+    'Not suggested "Light work": The gpt-6-luna model does not support ultra effort.',
   ].join("\n"));
   const proposals = item(workspace.get().threads.find((candidate) => candidate.id === "lead")).proposals ?? [];
   assert.deepEqual(proposals.map(({ title, place, model }) => ({ title, place, model })), [

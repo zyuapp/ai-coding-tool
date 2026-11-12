@@ -34,8 +34,6 @@ export type LibraryOptions = {
   favorites?: readonly EngineModel[];
   filter?: LibraryFilter;
   query?: string;
-  /** Narrows the library to the models this choice may take. */
-  allows?: (engine: AgentEngine, model: AgentModel) => boolean;
 };
 
 export type ModelLibrary = {
@@ -87,7 +85,7 @@ function hintOf(heading: Heading, readiness: EngineReadiness): LibraryHint | und
 
 /** The library a model picker draws: which headings it lists, what each lets the user pick, and what stands in the way. */
 export function modelLibrary(catalog: ModelCatalog, access: Readonly<Record<AgentEngine, EngineReadiness>>, options: LibraryOptions): ModelLibrary {
-  const { engine, favorites = [], filter = "all", allows } = options;
+  const { engine, favorites = [], filter = "all" } = options;
   const search = options.query?.trim().toLocaleLowerCase() ?? "";
   const pinned = (group: Heading, spec: ModelSpec) => isFavorite(favorites, group.engine, spec.id);
   const available = headingsOf(catalog).filter((heading) => !options.locked || heading.engine === engine).map((heading): LibraryGroup => {
@@ -95,7 +93,7 @@ export function modelLibrary(catalog: ModelCatalog, access: Readonly<Record<Agen
     const hint = hintOf(heading, readiness);
     return {
       ...heading,
-      models: heading.models.filter((spec) => (!readiness.models || readiness.models.includes(spec.id)) && (!allows || allows(heading.engine, spec.id))),
+      models: heading.models.filter((spec) => (!readiness.models || readiness.models.includes(spec.id))),
       selectable: readiness.access === "ready",
       ...(hint ? { hint } : {}),
     };

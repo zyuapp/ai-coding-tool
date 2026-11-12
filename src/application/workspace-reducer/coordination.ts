@@ -20,8 +20,8 @@ import { stoppedAll, withoutLapsedStops } from "../outstanding-stops.js";
 import { threadBusy } from "../run-record.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
-import { canJoinCoordinator, coordinatorOf, decisionsFull, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type CoordinationThread, type MemoryChange } from "../../domain/coordination.js";
-import { defaultEffortFor, effortForModel, engineHasModel, modelDelegable, modelEngine, modelHasEffort, modelTakesEffort, unknownModel } from "../../domain/agent-engine.js";
+import { canJoinCoordinator, coordinatorOf, decisionsFull, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, withAnswer, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type CoordinationThread, type MemoryChange } from "../../domain/coordination.js";
+import { defaultEffortFor, effortForModel, engineHasModel, modelEngine, modelHasEffort, modelTakesEffort, unknownModel } from "../../domain/agent-engine.js";
 import { catalogOf } from "../state/engines.js";
 import type { Thread } from "../../domain/thread.js";
 
@@ -101,7 +101,6 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       const catalog = catalogOf(state);
       const engine = input.engine ?? modelEngine(catalog, input.model, lead.engine);
       if (!engine || !engineHasModel(catalog, engine, input.model)) return { refusal: unknownModel(input.model, input.engine) };
-      if (!modelDelegable(catalog, engine, input.model)) return { refusal: undelegable(input.model) };
       /** An effort the model lacks, or none, keeps the depth the threads run at as near as that model allows. */
       const effort = input.effort && modelHasEffort(catalog, engine, input.model, input.effort)
         ? input.effort

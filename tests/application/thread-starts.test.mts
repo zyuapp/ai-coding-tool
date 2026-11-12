@@ -62,7 +62,7 @@ test("a thread under no coordinator starts on the caller's own model, in the cal
   assert.equal(placed.project, "elsewhere", "a place the send names outranks the caller's");
   assert.equal(placed.worktree, true);
   assert.equal(placed.worktreeId, undefined, "asking for a worktree of its own leaves the caller's");
-  assert.equal(placed.model, "haiku", "only a thread under a coordinator is kept off Haiku");
+  assert.equal(placed.model, "haiku");
   assert.equal(placed.effort, undefined, "a model that takes no effort runs without one");
 });
 
@@ -110,7 +110,6 @@ test("a suggestion is checked as its start would be, and kept in the place that 
   assert.deepEqual(kept({ worktree: false }).place, { project: PROJECT.id, worktree: false }, "sharing the project checkout is said, so a start never moves into a checkout the coordinator entered since");
 
   assert.deepEqual(suggest({ brief: undefined }), { error: BRIEF_REQUIRED });
-  assert.deepEqual(suggest({ model: "haiku" }), { error: "Threads under a coordinator cannot run on the haiku model. Pick another model." });
   const unknown = suggest({ project: "nowhere" });
   assert.ok("error" in unknown && /No project matches "nowhere"/.test(unknown.error), "an unknown project comes straight back");
   assert.deepEqual(suggest({ worktreeId: "wt-gone" }), { error: WORKTREE_MISSING_ERROR });
@@ -163,7 +162,6 @@ test("a thread under a coordinator on another computer starts its threads under 
   assert.deepEqual(command, { type: "task.send", text: "Fix it", engine: "claude", model: "sonnet", effort: "low", project: PROJECT.id, lead, from: "member" }, "on its own model, with no memory of the coordinator's");
   const allowed = { ...state, threads: [{ ...thread(state, "member"), remoteLead: { ...lead, proposalId: "p1" } }] };
   assert.deepEqual(started(newThreadSend(allowed, thread(allowed, "member"), send())).lead, lead, "the suggestion it was is its own, not its threads'");
-  assert.equal(refused(newThreadSend(state, thread(state, "member"), send({ model: "haiku" }))), "Threads under a coordinator cannot run on the haiku model. Pick another model.");
   const linux = { id: "linux", name: "Linux", host: "linux.test", pairedAt: 1, status: "connected", error: null, state: workspace() } satisfies PairedComputer;
   assert.equal(refused(newThreadSend(state, thread(state, "member"), send(), linux)), REMOTE_LED_HERE);
 });

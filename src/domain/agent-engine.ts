@@ -45,7 +45,7 @@ const CLAUDE_MODELS = [
   { id: "fable", label: "Fable", description: "Most capable for demanding work", contextWindow: 1_000_000, efforts: EFFORTS_THROUGH_MAX, manualCompaction: true },
   { id: "opus", label: "Opus", description: "Best for complex reasoning", contextWindow: 1_000_000, efforts: EFFORTS_THROUGH_MAX, manualCompaction: true },
   { id: "sonnet", label: "Sonnet", description: "Balanced speed and capability", contextWindow: 1_000_000, efforts: EFFORTS_THROUGH_MAX, manualCompaction: true },
-  { id: "haiku", label: "Haiku", description: "Fastest for lightweight work", contextWindow: 200_000, efforts: [], manualCompaction: true, delegable: false },
+  { id: "haiku", label: "Haiku", description: "Fastest for lightweight work", contextWindow: 200_000, efforts: [], manualCompaction: true },
 ] as const;
 
 /** The default context window in Codex's model catalogue, used until the server reports its own. */
@@ -87,10 +87,9 @@ export function currentModel(value: unknown): unknown {
  * Runs always request the widest context a model offers, so `contextWindow` is that ceiling. An
  * empty `efforts` is a model that takes no effort at all, which is drawn as no effort control.
  * `manualCompaction` is the model compacting its thread on request, without a user message.
- * `delegable: false` is a model a coordinator may not start a thread on. `provider` names who serves
- * the model, for an engine that runs models from many, which pickers list it under.
+ * `provider` names who serves the model, for an engine that runs models from many, which pickers list it under.
  */
-export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number; efforts: readonly EffortSpec[]; manualCompaction?: boolean; delegable?: false; provider?: string };
+export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number; efforts: readonly EffortSpec[]; manualCompaction?: boolean; provider?: string };
 
 /** `delegates` is an effort that hands work to the engine's own agents, which a coordinator never takes. */
 export type EffortSpec = { id: AgentEffort; label: string; description?: string; delegates?: true };
@@ -431,10 +430,6 @@ export function resolveModel(catalog: ModelCatalog, name: AgentModel, favorites:
 /** Manual context compaction belongs to the model, so an engine that does not offer it cannot ask. */
 export function modelSupportsManualCompaction(catalog: ModelCatalog, engine: AgentEngine, model: AgentModel) {
   return entryOf(catalog, engine, model)?.spec.manualCompaction === true;
-}
-
-export function modelDelegable(catalog: ModelCatalog, engine: AgentEngine, model: AgentModel) {
-  return entryOf(catalog, engine, model)?.spec.delegable !== false;
 }
 
 /** An effort Claude does not offer lands on its default, so a foreign one never reaches the SDK. */

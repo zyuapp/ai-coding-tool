@@ -9,7 +9,7 @@ import { newThreadSend } from "../../src/application/thread-starts.ts";
 
 const named: ModelSpec[] = [
   { id: "openai/gpt-9", label: "GPT-9", description: "Named by the engine", contextWindow: 400_000, efforts: [{ id: "high", label: "High" }, { id: "low", label: "Low" }], manualCompaction: true },
-  { id: "local/tiny", label: "Tiny", description: "Runs alone", contextWindow: 8_000, efforts: [], delegable: false },
+  { id: "local/tiny", label: "Tiny", description: "Runs alone", contextWindow: 8_000, efforts: [] },
 ];
 const status: EngineStatus = { claude: { access: "ready" }, codex: { access: "ready", catalog: named } };
 const projectless = { id: "projectless", kind: "projectless" as const, root: "/tmp" };
@@ -56,15 +56,12 @@ test("a send naming a model no engine offers is refused before any run, whoever 
   assert.deepEqual(fromThread.state.pendingRuns, {});
 });
 
-test("a coordinator's threads cannot be set to run on a model no engine offers, nor on one that may not be delegated", () => {
+test("a coordinator's threads cannot be set to run on a model no engine offers", () => {
   const lead = task("lead", { role: "coordinator" });
   const state = reduce(workspace({ threads: [lead] }), { type: "engine.status", status }).state;
   const unknown = reduce(state, { type: "coordination.set-thread-model", taskId: "lead", model: "mystery/model" });
   assert.equal(unknown.state.threads[0]?.threadModel, undefined);
   assert.equal(unknown.state.actionError, "No engine here offers the mystery/model model. Pick another model.");
-
-  const tiny = reduce(state, { type: "coordination.set-thread-model", taskId: "lead", model: "local/tiny" });
-  assert.equal(tiny.state.threads[0]?.threadModel, undefined, "a named model can still be one a coordinator may not hand work to");
 
   const gpt9 = reduce(state, { type: "coordination.set-thread-model", taskId: "lead", model: "openai/gpt-9", effort: "max" }).state;
   assert.deepEqual(gpt9.threads[0]?.threadModel, { engine: "codex", model: "openai/gpt-9", effort: "high" });

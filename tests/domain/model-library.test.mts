@@ -36,9 +36,9 @@ test("what stands in an engine's way is said once, on its first heading, and an 
   assert.equal(byKey.get("opencode:Anthropic")!.hint, undefined);
 });
 
-test("the library holds only the models the installed command runs and the choice allows", () => {
-  const access = { ...EVERY_ENGINE_READY, claude: { access: "ready" as const, models: ["opus", "sonnet"] } };
-  const library = modelLibrary(catalog, access, { engine: "claude", locked: false, allows: (engine, model) => engine !== "claude" || model !== "sonnet" });
+test("the library holds only the models the installed command runs", () => {
+  const access = { ...EVERY_ENGINE_READY, claude: { access: "ready" as const, models: ["opus"] } };
+  const library = modelLibrary(catalog, access, { engine: "claude", locked: false });
   assert.deepEqual(library.available[0]!.models.map((model) => model.id), ["opus"]);
 });
 

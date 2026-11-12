@@ -3,7 +3,7 @@ import { test } from "vitest";
 import React, { act } from "react";
 import { mount, query } from "../support/renderer-dom.mts";
 import { readViewPreferences } from "../../src/application/view-preferences.ts";
-import { BUILT_IN_MODELS, engineCatalog, modelDelegable, type AgentEngine, type AgentModel } from "../../src/domain/agent-engine.ts";
+import { engineCatalog, type AgentEngine, type AgentModel } from "../../src/domain/agent-engine.ts";
 const { ModelCatalogProvider } = await import("../../src/renderer/model-catalog.ts");
 const { ComposerSettings, ModelMenu } = await import("../../src/renderer/components/ComposerSettings.tsx");
 const { EVERY_ENGINE_READY } = await import("../../src/domain/model-library.ts");
@@ -90,24 +90,6 @@ test("the Codex speed toggle follows effort and dispatches both speed changes", 
   assert.equal(view.container.querySelector(".setting-menu.danger"), null);
   await view.render(React.createElement(ComposerSettings, { ...props, mode: "bypass" }));
   assert.equal(query(view.container, ".setting-menu.danger summary").getAttribute("aria-label"), "Model, effort and mode: Sol, High, Bypass", "bypass is marked on the chip, not only inside its menu");
-  await view.unmount();
-});
-
-test("a library narrowed to some models offers only those, in its counts as well", async () => {
-  const props = {
-    engine: "claude" as const, engineLocked: false, engineAccess: EVERY_ENGINE_READY, model: "opus" as const,
-    onChange() {}, onOpen() {}, onSignIn() {},
-  };
-  const view = await mount(React.createElement(ModelMenu, { ...props, models: (engine: AgentEngine, model: string) => modelDelegable(BUILT_IN_MODELS, engine, model) }));
-  await act(async () => { query<HTMLElement>(view.container, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  const names = () => [...view.container.querySelectorAll(".model-choice .menu-label")].map((node) => node.textContent);
-  assert.ok(names().includes("Sonnet"));
-  assert.ok(!names().includes("Haiku"), "Haiku cannot run a coordinator's threads, so it is not offered");
-  const claude = [...view.container.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("Claude"))!;
-  assert.match(claude.textContent!, /Claude3$/);
-
-  await view.render(React.createElement(ModelMenu, props));
-  assert.ok(names().includes("Haiku"), "the composer's own library still offers every model");
   await view.unmount();
 });
 

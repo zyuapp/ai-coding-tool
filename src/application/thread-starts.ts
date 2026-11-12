@@ -8,9 +8,9 @@ import { computerOfPlace, projectOnComputer } from "./computers.js";
 import type { PairedComputer } from "./state/computers.js";
 import { namedPlace, projectFor } from "./thread-location.js";
 import type { AppCommand } from "../contracts/commands.js";
-import { coordinatorOf, isCoordinator, remoteLeadOf, threadModelOf, undelegable, type ProposalPlace, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
+import { coordinatorOf, isCoordinator, remoteLeadOf, threadModelOf, type ProposalPlace, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
 import { clampTitle, type Thread } from "../domain/thread.js";
-import { defaultEffortFor, defaultModelIn, effortForModel, engineHasModel, engineLabel, isAgentEngine, modelDelegable, modelHasEffort, modelTakesEffort, resolveModel, threadModel, unknownModel } from "../domain/agent-engine.js";
+import { defaultEffortFor, defaultModelIn, effortForModel, engineHasModel, engineLabel, isAgentEngine, modelHasEffort, modelTakesEffort, resolveModel, threadModel, unknownModel } from "../domain/agent-engine.js";
 import { catalogOf } from "./state/engines.js";
 
 export type NewThreadSend = Extract<AppCommand, { type: "task.send" }>;
@@ -57,7 +57,6 @@ export function newThreadSend(state: WorkspaceState, caller: Thread, command: Ne
   }
   const { engine, model } = choice;
   if (!engine || !engineHasModel(catalog, engine, model)) return { error: unknownModel(model) };
-  if ((lead || remote) && !modelDelegable(catalog, engine, model)) return { error: undelegable(model) };
   /** A thread started as a coordinator takes only the efforts a coordinator does. */
   const role = command.role === "coordinator" ? "coordinator" : undefined;
   if (role && (command.worktree || command.worktreeId !== undefined)) return { error: COORDINATOR_WORKTREE_START };

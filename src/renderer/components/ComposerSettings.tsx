@@ -257,21 +257,19 @@ type ModelLibraryProps = {
   onChange: (engine: AgentEngine, model: AgentModel) => void;
   onSignIn: (engine: AgentEngine) => void;
   onOpenEngineSettings?: () => void;
-  /** Narrows the library to the models this choice may take. */
-  models?: (engine: AgentEngine, model: AgentModel) => boolean;
   /** Set where the menu picks the effort too. Picking a model then leaves the library open to fit the effort. */
   effort?: EffortControl;
   /** Set where the menu picks the permission mode too. */
   mode?: ModeControl;
 };
 
-function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, favoriteModels = [], onModelFavorite, onChange, onSignIn, onOpenEngineSettings, models, effort, mode, close }: ModelLibraryProps & { modelLabel: string; close: () => void }) {
+function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, favoriteModels = [], onModelFavorite, onChange, onSignIn, onOpenEngineSettings, effort, mode, close }: ModelLibraryProps & { modelLabel: string; close: () => void }) {
   const catalog = useModelCatalog();
   const [filter, setFilter] = useState<LibraryFilter>(() => libraryOpening(catalog, { engine, locked: engineLocked, model, favorites: favoriteModels }));
   const [query, setQuery] = useState("");
   const results = useRef<HTMLDivElement>(null);
   const search = query.trim();
-  const { available, shown, count, total, favoriteCount, heading } = modelLibrary(catalog, engineAccess, { engine, locked: engineLocked, favorites: favoriteModels, filter, query, ...(models ? { allows: models } : {}) });
+  const { available, shown, count, total, favoriteCount, heading } = modelLibrary(catalog, engineAccess, { engine, locked: engineLocked, favorites: favoriteModels, filter, query });
 
   const navigate = (event: KeyboardEvent<HTMLElement>) => {
     const buttons = [...(results.current?.querySelectorAll<HTMLButtonElement>('.model-choice:not([aria-disabled="true"])') ?? [])];

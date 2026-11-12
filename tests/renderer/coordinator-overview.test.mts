@@ -236,7 +236,7 @@ test("the Overview says what a coordinator's threads run on, and picks another w
     [...item(model).querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("All models"))!.click();
   });
   const offered = [...item(model).querySelectorAll(".model-choice .menu-label")].map((node) => node.textContent);
-  assert.ok(offered.includes("Opus") && !offered.includes("Haiku"), "a coordinator's threads are never offered Haiku");
+  assert.ok(offered.includes("Opus"));
   await act(async () => { [...item(model).querySelectorAll<HTMLButtonElement>(".model-choice")].find((button) => button.textContent?.includes("Opus"))!.click(); });
   assert.ok(item(model).open, "picking a model leaves the library open to fit the effort");
   const slider = query<HTMLElement>(item(model), ".effort-strip [role=slider]");

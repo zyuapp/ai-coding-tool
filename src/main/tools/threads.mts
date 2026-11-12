@@ -2,7 +2,7 @@ import { z } from "zod";
 import { MAX_ID_LENGTH, MAX_PROMPT_LENGTH, MAX_SEARCH_TEXT, MAX_THREAD_WAIT_MS } from "../../contracts/ipc.js";
 import type { ExternalCommand, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { RunOperation } from "../../contracts/ipc.js";
-import { AGENT_EFFORTS, AGENT_ENGINES, BUILT_IN_MODELS, isModelId, modelDelegable, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine.js";
+import { AGENT_EFFORTS, AGENT_ENGINES, BUILT_IN_MODELS, isModelId, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort } from "../../domain/run.js";
 import { THREAD_ROLES, type ThreadRole } from "../../domain/thread-role.js";
 import { DELIVERIES, MAX_BRIEF_FIELD, MAX_PROPOSAL_COMPUTER, MAX_PROPOSAL_PROJECT, MAX_PROPOSAL_TITLE, type CoordinationRole, type Delivery } from "../../domain/coordination.js";
@@ -48,13 +48,11 @@ const namedId = (id: AgentModel) => {
  * offers, so any well-formed id is taken here and the built-in ones are named to the caller.
  */
 /** A name said with spaces, as "GLM 5.3 Flash", is taken hyphenated, which the window reads as the same name. */
-const modelFieldOf = (ids: AgentModel[], omitted: string) => z.string().trim().max(256).transform((name) => name.replace(/\s+/g, "-"))
-  .refine((id) => isModelId(id) && (ids.includes(id) || !modelIds.includes(id)), "Not a model this thread can start on.").optional().describe(
-    `Model for the new thread: one of ${ids.map(namedId).join(", ")}; an engine (${AGENT_ENGINES.join(", ")}) for that engine's default model; or any other model in the app's model picker. Name a model by its id or by the name the picker shows; a name several providers offer resolves to the one the user pinned. Omit to ${omitted}`,
+const modelFieldOf = (omitted: string) => z.string().trim().max(256).transform((name) => name.replace(/\s+/g, "-"))
+  .refine(isModelId, "Not a model this thread can start on.").optional().describe(
+    `Model for the new thread: one of ${modelIds.map(namedId).join(", ")}; an engine (${AGENT_ENGINES.join(", ")}) for that engine's default model; or any other model in the app's model picker. Name a model by its id or by the name the picker shows; a name several providers offer resolves to the one the user pinned. Omit to ${omitted}`,
   );
-const modelField = modelFieldOf(modelIds, "inherit the calling thread's model.");
-/** A thread that will work under a coordinator never runs on a model one may not hand work to. */
-const delegableModelField = (omitted: string) => modelFieldOf([...new Set(builtIn.filter(({ engine, model }) => modelDelegable(BUILT_IN_MODELS, engine, model)).map(({ model }) => model))], omitted);
+const modelField = modelFieldOf("inherit the calling thread's model.");
 const engineField = z.enum(AGENT_ENGINES as [AgentEngine, ...AgentEngine[]]).optional().describe("The engine to run model on, needed only when more than one engine offers it.");
 const roleIds = THREAD_ROLES.map((option) => option.role);
 const roleField = z.enum(roleIds as [ThreadRole, ...ThreadRole[]]).optional().describe(
@@ -99,7 +97,7 @@ const START_INPUT = { ...NEW_THREAD_INPUT, computer: computerField };
 function ledStartInput(whose: string) {
   return {
     ...NEW_THREAD_INPUT,
-    model: delegableModelField(`run it on the model ${whose} threads run on.`),
+    model: modelFieldOf(`run it on the model ${whose} threads run on.`),
     effort: effortFieldOf(`run it at the effort ${whose} threads run at, or the nearest one the selected model takes.`),
   };
 }

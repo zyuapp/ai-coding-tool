@@ -11,7 +11,7 @@ import { wantsAttention } from "./attention.js";
 import type { AgentEffort } from "./run.js";
 import type { ThreadOutcome } from "./thread-run.js";
 import { isThreadRole, type ThreadRole } from "./thread-role.js";
-import { defaultEffortFor, defaultModelIn, effortForModel, engineHasModel, isAgentEffort, isAgentEngine, isModelId, modelDelegable, modelEngine, modelTakesEffort, threadModel, type AgentEngine, type AgentModel, type EngineId, type ModelCatalog } from "./agent-engine.js";
+import { defaultEffortFor, defaultModelIn, effortForModel, engineHasModel, isAgentEffort, isAgentEngine, isModelId, modelEngine, modelTakesEffort, threadModel, type AgentEngine, type AgentModel, type EngineId, type ModelCatalog } from "./agent-engine.js";
 
 /** A coordinator's run delegates and changes no files; a thread under one reports back to it. */
 export type CoordinationRole = "coordinator" | "member";
@@ -274,9 +274,8 @@ export type ThreadModelChoice = { engine?: AgentEngine; model: AgentModel; effor
 
 /**
  * What a coordinator's threads run on: the user's choice, else what the coordinator runs on itself,
- * else its engine's default, whichever is first that a thread under a coordinator may run on. An
- * effort the model does not take moves to the nearest one it does. None while the coordinator names
- * no model and its engine has yet to name one.
+ * else its engine's default. An effort the model does not take moves to the nearest one it does.
+ * None while the coordinator names no model and its engine has yet to name one.
  */
 export function threadModelOf(catalog: ModelCatalog, lead: Thread): ThreadModelChoice | undefined {
   const saved = lead.threadModel;
@@ -284,13 +283,9 @@ export function threadModelOf(catalog: ModelCatalog, lead: Thread): ThreadModelC
   const ownModel = threadModel(catalog, lead);
   const own = ownModel === undefined ? undefined : { engine: lead.engine, model: ownModel };
   const fallback = defaultModelIn(catalog, lead.engine);
-  /**
-   * A model the catalogue does not hold, such as one only a newer build on a paired computer knows, is
-   * kept as it was chosen, for the window to name and leave alone; nothing here can say it may not be delegated.
-   */
+  /** A model the catalogue does not hold, such as one only a newer build on a paired computer knows, is kept as it was chosen. */
   const known = (choice: { engine: AgentEngine | undefined; model: AgentModel }): choice is EngineChoice => choice.engine !== undefined && engineHasModel(catalog, choice.engine, choice.model);
-  const fits = (choice: { engine: AgentEngine | undefined; model: AgentModel } | undefined) => choice !== undefined && (!known(choice) || modelDelegable(catalog, choice.engine, choice.model));
-  const choice = fits(chosen) ? chosen! : fits(own) ? own! : fallback === undefined ? undefined : { engine: lead.engine, model: fallback };
+  const choice = chosen ?? own ?? (fallback === undefined ? undefined : { engine: lead.engine, model: fallback });
   if (choice === undefined) return undefined;
   if (!known(choice)) return { ...(choice.engine ? { engine: choice.engine } : {}), model: choice.model, ...(saved?.model === choice.model && saved.effort ? { effort: saved.effort } : {}) };
   const { engine, model } = choice;
@@ -299,11 +294,6 @@ export function threadModelOf(catalog: ModelCatalog, lead: Thread): ThreadModelC
 }
 
 type EngineChoice = { engine: AgentEngine; model: AgentModel };
-
-/** Why a thread under a coordinator, started or chosen for, may not run on `model`. */
-export function undelegable(model: AgentModel): string {
-  return `Threads under a coordinator cannot run on the ${model} model. Pick another model.`;
-}
 
 /** A thread taking the coordinator role, its threads to run on what it runs on until the user picks otherwise. */
 export function asCoordinator(catalog: ModelCatalog, thread: Thread): Thread {
