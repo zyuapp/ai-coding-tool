@@ -1,5 +1,5 @@
 import { createContext, memo, useContext, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
-import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuCircleCheck as Resolved, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuPencil as Pencil, LuTrash2 as Trash, LuUndo2 as Reopen, LuX as X } from "react-icons/lu";
+import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuCircleCheck as Resolved, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuPencil as Pencil, LuPlus as Plus, LuTrash2 as Trash, LuUndo2 as Reopen, LuX as X } from "react-icons/lu";
 import { deliveryLabel, MAX_MEMORY_NOTE, MAX_MEMORY_NOTES, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
 import { engineHasModel, modelLabel, type AgentEngine, type AgentModel, type EngineModel, type EngineReadiness } from "../../domain/agent-engine";
 import { useModelCatalog } from "../model-catalog";
@@ -269,7 +269,7 @@ function MemorySection({ memory, fold, onSetFold }: { memory: OverviewMemoryProp
   return (
     <section className="coordination-group coordination-memory" aria-label="Memory">
       <FoldHead label="Memory" count={memory.notes.length} open={open} onToggle={() => onSetFold("memory", { open: !open })} />
-      {open && <div className="glass-chip subagent-list">
+      {open && <div className="subagent-list">
         {memory.notes.map((note) => (
           <div key={note.id} className="coordination-note">
             {/** Forget is how a note goes, so one emptied while editing is not saved. */}
@@ -321,6 +321,7 @@ function NoteInput({ notes, onAdd }: { notes: readonly MemoryNote[]; onAdd: (tex
   };
   return (
     <div className="coordination-note">
+      <Plus className="coordination-note-plus" size={14} aria-hidden="true" />
       <textarea rows={1} className="coordination-note-add" aria-label="Add a note" placeholder={full ? "Memory is full" : "Add a note"} disabled={full} maxLength={MAX_MEMORY_NOTE} value={text} onChange={(event) => setText(event.currentTarget.value)} onKeyDown={onKeyDown} />
     </div>
   );

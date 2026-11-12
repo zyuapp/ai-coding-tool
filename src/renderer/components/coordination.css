@@ -172,7 +172,10 @@
 .coordination-overview .coordination-item .coordination-row-mark { background: none; box-shadow: none; }
 .coordination-overview .coordination-item .coordination-dot { width: 8px; height: 8px; }
 .coordination-overview .coordination-item:has(> .coordination-row-action) > .coordination-thread { padding-right: 8px; }
-.coordination-overview .coordination-row-action { right: 6px; width: 26px; height: 26px; border-radius: 50%; transition: opacity var(--touch-time) var(--touch-ease), background-color var(--touch-time) var(--touch-ease); }
+.coordination-overview .coordination-item > .coordination-row-action { right: 6px; width: 28px; height: 28px; border-radius: 6px; background: transparent; box-shadow: none; color: var(--muted-strong); transition: opacity var(--touch-time) var(--touch-ease), background-color var(--touch-time) var(--touch-ease); }
+.coordination-overview .coordination-item > .coordination-row-action:hover:not(:disabled) { background: var(--wash); color: var(--ink); }
+.coordination-overview .coordination-item > .coordination-row-action[data-action="resolve"]:hover:not(:disabled) { color: var(--info); }
+.coordination-overview .coordination-item > .coordination-row-action[data-action="reopen"] { color: var(--success); }
 @media (hover: hover) {
   .coordination-overview .coordination-item > .coordination-row-action[data-action="resolve"] { opacity: 0; }
   .coordination-overview .coordination-item:is(:hover, :focus-within) > .coordination-row-action { opacity: 1; }
@@ -254,7 +257,7 @@
   gap: 2px 4px;
   padding: 0 0 0 8px;
 }
-.coordination-overview-label { color: var(--muted); font-size: var(--text-meta); white-space: nowrap; }
+.coordination-overview-label { color: var(--muted); font-size: var(--text-control); white-space: nowrap; }
 .coordination-overview-model { color: var(--ink-dim); font-size: var(--text-meta); white-space: nowrap; }
 .coordination-thread-model { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .coordination-overview-header .setting-popover { top: calc(100% + 4px); bottom: auto; left: 0; }
@@ -272,7 +275,7 @@
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: var(--text-content);
+  font-size: var(--text-control);
   font-weight: 600;
   text-align: left;
   overflow: hidden;
@@ -300,7 +303,7 @@
   background: transparent;
   color: var(--ink-dim);
   font: inherit;
-  font-size: var(--text-menu);
+  font-size: var(--text-control);
   line-height: 1.45;
   text-align: left;
   overflow-wrap: anywhere;
@@ -323,9 +326,10 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .coordination-note:has(.editing) .coordination-note-actions { display: none; }
 .coordination-group + .coordination-group { margin-top: 12px; }
 .coordination-group > .subagent-list { margin-top: 2px; }
-/** Memory's notes sit on one pane of glass, split by hairlines. */
-.coordination-memory > .subagent-list { --glass-radius: 12px; gap: 0; padding: 3px; }
-.coordination-memory > .subagent-list > .coordination-note + .coordination-note::before { content: ""; position: absolute; z-index: 1; top: 0; left: 12px; right: 8px; height: 1px; background: var(--line-soft); pointer-events: none; }
+/** Notes line up with the thread titles above them, and the row that adds one leads with a plus where a thread has its dot. */
+.coordination-memory :is(.coordination-note-text, .coordination-note-add) { padding-left: 39px; }
+.coordination-note-plus { position: absolute; left: 13px; color: var(--quiet-strong); pointer-events: none; }
+.coordination-note:has(> .coordination-note-add:focus) > .coordination-note-plus { color: var(--muted); }
 .coordination-group.needs > .list-heading { color: var(--accent); }
 .coordination-stop { display: flex; gap: 4px; margin-right: 4px; }
 .coordination-more {
