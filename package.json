@@ -21,6 +21,7 @@
     "generate:native-licenses": "node scripts/generate-native-legal-notices.mjs",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "test": "npm run check && npm run build && vitest run",
+    "fuzz": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/fuzz.mts",
     "prepare:electron": "install-electron",
     "prepare:cua": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/prepare-cua-driver.mts",
     "start": "npm run prepare:electron && npm run prepare:cua && npm run build && electron .",

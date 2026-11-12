@@ -8,3 +8,4 @@ vendor/cua-driver/
 !/.claude/skills/
 /.mockups/
 native/dictation/.build/
+/.fuzz/
