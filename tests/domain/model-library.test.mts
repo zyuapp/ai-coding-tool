@@ -15,14 +15,13 @@ test("the library heads an engine's models by provider, keeping the first headin
   assert.deepEqual(library.available[2]!.models.map((model) => model.id), ["openrouter/qwen-4", "openrouter/glm-5"]);
   assert.equal(library.total, 11);
   assert.equal(library.count, 11);
-  assert.ok(library.available.every((group) => group.selectable && !group.locked && !group.hint));
+  assert.ok(library.available.every((group) => group.selectable && !group.hint));
 });
 
-test("a settled thread's other engines are listed but locked, and only their first heading says a new thread reaches them", () => {
+test("a settled thread lists only its own engine's models", () => {
   const library = modelLibrary(catalog, EVERY_ENGINE_READY, { engine: "opencode", locked: true });
-  assert.deepEqual(library.available.map((group) => [group.key, group.locked, group.selectable, group.hint?.kind]), [
-    ["claude", true, false, "new-thread"], ["codex", true, false, "new-thread"], ["opencode:OpenRouter", false, true, undefined], ["opencode:Anthropic", false, true, undefined],
-  ]);
+  assert.deepEqual(library.available.map((group) => group.key), ["opencode:OpenRouter", "opencode:Anthropic"]);
+  assert.ok(library.available.every((group) => group.selectable));
 });
 
 test("what stands in an engine's way is said once, on its first heading, and an engine that cannot run cannot be picked", () => {

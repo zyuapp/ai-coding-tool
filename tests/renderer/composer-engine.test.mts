@@ -28,7 +28,7 @@ function composerDesktop(): DesktopAPI {
   } as unknown as DesktopAPI;
 }
 
-test("a thread that has an engine offers only its models, and says a new thread is how to use the other", async () => {
+test("a thread that has an engine offers only its models", async () => {
   window.desktop = composerDesktop();
   const chosen: Array<[string, string]> = [];
   const view = await mount(React.createElement(ConversationComposer, {
@@ -44,14 +44,10 @@ test("a thread that has an engine offers only its models, and says a new thread 
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.equal(query(modelMenu, ".model-results-heading > span").textContent, "Codex");
   assert.deepEqual([...modelMenu.querySelectorAll("button.model-choice .menu-label")].map((item) => item.textContent), ["Astra", "Sol", "Terra", "Luna"]);
-  const claudeFilter = [...modelMenu.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("Claude"))!;
-  await act(async () => { claudeFilter.click(); });
-  assert.equal(query(modelMenu, ".setting-hint").textContent, "Start a new thread to use Claude");
-  assert.ok([...modelMenu.querySelectorAll<HTMLButtonElement>(".model-choice")].every((button) => button.getAttribute("aria-disabled") === "true"));
-  await act(async () => { query<HTMLButtonElement>(modelMenu, ".model-choice").click(); });
-  assert.equal(chosen.length, 0);
-  const codexFilter = [...modelMenu.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("Codex"))!;
-  await act(async () => { codexFilter.click(); });
+  assert.ok(![...modelMenu.querySelectorAll(".model-provider-rail button")].some((button) => button.textContent?.includes("Claude")));
+  const allFilter = [...modelMenu.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("All models"))!;
+  await act(async () => { allFilter.click(); });
+  assert.deepEqual([...modelMenu.querySelectorAll("button.model-choice .menu-label")].map((item) => item.textContent), ["Astra", "Sol", "Terra", "Luna"]);
   await act(async () => { item(modelMenu.querySelectorAll<HTMLButtonElement>("button.model-choice")[0]).click(); });
   assert.deepEqual(chosen, [["codex", "gpt-6-astra"]]);
   await view.unmount();

@@ -5,8 +5,6 @@ export const EVERY_ENGINE_READY: Readonly<Record<AgentEngine, EngineReadiness>> 
 
 /** What an engine's first heading says stands in the way of its models. */
 export type LibraryHint =
-  /** Another engine than a settled thread's, which only a new thread reaches. */
-  | { kind: "new-thread" }
   | { kind: "sign-in" }
   | { kind: "notice"; notice: EngineNotice };
 
@@ -20,9 +18,7 @@ export type LibraryGroup = {
   label: string;
   first: boolean;
   models: readonly ModelSpec[];
-  /** Set on another engine than a settled thread's. */
-  locked: boolean;
-  /** False while the models are listed but cannot be picked: the group is locked, or its engine cannot run. */
+  /** False while the models are listed but their engine cannot run. */
   selectable: boolean;
   hint?: LibraryHint;
 };
@@ -31,9 +27,9 @@ export type LibraryGroup = {
 export type LibraryFilter = "favorites" | "all" | (string & {});
 
 export type LibraryOptions = {
-  /** The thread's engine, or the draft's. One only a newer build knows leaves every heading locked when locked. */
+  /** The thread's engine, or the draft's. One only a newer build knows leaves no heading when locked. */
   engine: EngineId;
-  /** Set once the thread has an engine for good. */
+  /** Set once the thread has an engine for good, which hides every other engine's models. */
   locked: boolean;
   favorites?: readonly EngineModel[];
   filter?: LibraryFilter;
@@ -82,9 +78,8 @@ function headingsOf(catalog: ModelCatalog): readonly Heading[] {
   return built;
 }
 
-function hintOf(heading: Heading, readiness: EngineReadiness, locked: boolean): LibraryHint | undefined {
+function hintOf(heading: Heading, readiness: EngineReadiness): LibraryHint | undefined {
   if (!heading.first) return undefined;
-  if (locked) return { kind: "new-thread" };
   if (readiness.access === "signed-out") return { kind: "sign-in" };
   const notice = engineNotice(heading.engine, readiness);
   return notice ? { kind: "notice", notice } : undefined;
@@ -95,15 +90,13 @@ export function modelLibrary(catalog: ModelCatalog, access: Readonly<Record<Agen
   const { engine, favorites = [], filter = "all", allows } = options;
   const search = options.query?.trim().toLocaleLowerCase() ?? "";
   const pinned = (group: Heading, spec: ModelSpec) => isFavorite(favorites, group.engine, spec.id);
-  const available = headingsOf(catalog).map((heading): LibraryGroup => {
+  const available = headingsOf(catalog).filter((heading) => !options.locked || heading.engine === engine).map((heading): LibraryGroup => {
     const readiness = access[heading.engine];
-    const locked = options.locked && heading.engine !== engine;
-    const hint = hintOf(heading, readiness, locked);
+    const hint = hintOf(heading, readiness);
     return {
       ...heading,
       models: heading.models.filter((spec) => (!readiness.models || readiness.models.includes(spec.id)) && (!allows || allows(heading.engine, spec.id))),
-      locked,
-      selectable: readiness.access === "ready" && !locked,
+      selectable: readiness.access === "ready",
       ...(hint ? { hint } : {}),
     };
   });

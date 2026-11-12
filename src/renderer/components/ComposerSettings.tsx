@@ -325,7 +325,6 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
               {onModelFavorite && <IconButton className="model-favorite" label={`${favorite ? "Unpin" : "Pin"} ${spec.label}`} tip={favorite ? "Unpin from Favorites" : "Pin to Favorites"} pressed={favorite} onClick={() => onModelFavorite(group.engine, spec.id, !favorite)}><Star size={16} fill={favorite ? "currentColor" : "none"} /></IconButton>}
             </div>;
           })}
-          {group.hint?.kind === "new-thread" && <p className="setting-hint">Start a new thread to use {engineLabel(group.engine)}</p>}
           {group.hint?.kind === "sign-in" && <Button variant="link" className="setting-hint" onClick={() => { onSignIn(group.engine); close(); }}>Sign in to use {group.label}</Button>}
           {group.hint?.kind === "notice" && <ReadinessHint notice={group.hint.notice} onOpenSettings={onOpenEngineSettings ? () => { onOpenEngineSettings(); close(); } : undefined} />}
         </div>)}
