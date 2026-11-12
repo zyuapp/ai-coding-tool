@@ -71,21 +71,41 @@
 /** The session panel sits above the topbar, so the topbar rises over it while its list is open. */
 .topbar:has(.open-in.open) { z-index: 40; }
 .open-in-popover { top: 42px; right: 0; min-width: 208px; max-height: 60vh; overflow-y: auto; -webkit-app-region: no-drag; }
+/** A pressed topbar toggle is a pane of clear glass lifted off the bar. */
+.workspace-controls .icon-btn:where([aria-pressed="true"], [aria-haspopup][aria-expanded="true"]) {
+  background: var(--glass-edge), var(--glass-clear);
+  background-clip: border-area, border-box, border-box;
+  backdrop-filter: var(--glass-blur) var(--glass-lens,);
+  box-shadow: var(--glass-float-rim), 0 1px 2px rgb(var(--p-shadow) / calc(0.14 * var(--p-shadow-scale))), 0 4px 12px rgb(var(--p-shadow) / calc(0.16 * var(--p-shadow-scale)));
+}
 .session-summary-toggle { position: relative; }
+/** A drop of tinted glass hung off the toggle's corner, clear of its icon. */
 .toggle-badge {
   position: absolute;
-  top: 3px;
-  right: 3px;
-  min-width: 15px;
-  height: 15px;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
   display: grid;
   place-items: center;
-  border: 2px solid var(--canvas);
-  border-radius: 8px;
-  background: var(--info-badge);
+  padding: 0 4px;
+  border-radius: 999px;
+  background:
+    radial-gradient(120% 90% at 30% 0%, rgb(255 255 255 / 0.42), rgb(255 255 255 / 0) 60%),
+    rgb(from var(--info-badge) r g b / 0.82);
+  backdrop-filter: blur(6px) saturate(180%);
+  box-shadow:
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.35),
+    inset 0 -1px 1.5px rgb(0 0 0 / 0.18),
+    0 0 0 0.5px rgb(0 0 0 / 0.25),
+    0 2px 6px rgb(from var(--info-badge) r g b / 0.45);
   color: var(--badge-ink);
   font-size: var(--text-badge);
-  font-weight: 700;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-shadow: 0 0.5px 1px rgb(0 0 0 / 0.25);
+  pointer-events: none;
 }
 .task-heading { min-width: 0; display: flex; align-items: center; gap: 12px; }
 .task-heading > div { min-width: 0; }
