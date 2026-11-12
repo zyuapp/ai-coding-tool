@@ -108,10 +108,12 @@ export function CoordinatorOverview({ header, memory, members, usage, worktrees,
   const keepPlace = useKeyboardPlace(overview, rememberOverviewPlace, (place, root) => overviewFocus(place, root, groups));
   return (
     <div ref={overview} className="coordination-overview" role="region" aria-label="Threads under this coordinator" onClickCapture={keepPlace}>
-      <CommandGate command={{ type: "memory.set-purpose", taskId: memory.taskId, purpose: memory.purpose }}>
-        <PurposeLine purpose={memory.purpose} onSave={memory.onSetPurpose} />
-      </CommandGate>
-      <OverviewHeader {...header} />
+      <div className="glass-chip coordination-overview-hero">
+        <CommandGate command={{ type: "memory.set-purpose", taskId: memory.taskId, purpose: memory.purpose }}>
+          <PurposeLine purpose={memory.purpose} onSave={memory.onSetPurpose} />
+        </CommandGate>
+        <OverviewHeader {...header} />
+      </div>
       {members.length
         ? OVERVIEW_GROUPS.map((group) => groups[group].length > 0 && (
             <ThreadGroup key={group} group={group} members={groups[group]} fold={folds[group] ?? {}} worktrees={worktrees} onSetFold={onSetFold} onSelect={onSelect}
@@ -267,7 +269,7 @@ function MemorySection({ memory, fold, onSetFold }: { memory: OverviewMemoryProp
   return (
     <section className="coordination-group coordination-memory" aria-label="Memory">
       <FoldHead label="Memory" count={memory.notes.length} open={open} onToggle={() => onSetFold("memory", { open: !open })} />
-      {open && <div className="subagent-list">
+      {open && <div className="glass-chip subagent-list">
         {memory.notes.map((note) => (
           <div key={note.id} className="coordination-note">
             {/** Forget is how a note goes, so one emptied while editing is not saved. */}
@@ -346,7 +348,7 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
   return (
     <section className="coordination-group coordination-usage" aria-label="Usage" data-section="usage">
       <FoldHead label="Usage" count={compactTokens(total)} title={`${total.toLocaleString("en-US")} tokens`} open={open} onToggle={() => onSetFold("usage", { open: !open })} />
-      {open && <div className="coordination-usage-body">
+      {open && <div className="glass-chip coordination-usage-body">
         <p className="coordination-usage-own">This coordinator <strong>{compactTokens(coordinator)}</strong> · {own > 0 && own < 1 ? "<1" : Math.round(own)}%</p>
         <h4>By model</h4>
         {byModel.map(({ engine, model, tokens }) => (
@@ -435,7 +437,7 @@ function ThreadGroup({ group, members, fold, worktrees, action, onSetFold, ...ac
     <section className={`coordination-group ${group}`} aria-label={label} data-section={group}>
       <FoldHead label={label} count={members.length} open={open} action={action} asks={group === "needs"} onToggle={() => onSetFold(group, { open: !open })} />
       {/** Only Needs you speaks, as only Priority does in the sidebar: a working thread's progress is not news to read out. */}
-      {open && <div className="subagent-list" aria-live={group === "needs" ? "polite" : undefined}>
+      {open && <div className="glass-chip subagent-list" aria-live={group === "needs" ? "polite" : undefined}>
         {shown.map((view) => <ThreadRow key={view.thread.id} view={view} worktrees={worktrees} {...actions} />)}
         {members.length > shown.length && (
           <button type="button" className="coordination-more" onClick={() => onSetFold(group, { all: true })}>Show {members.length - shown.length} more</button>

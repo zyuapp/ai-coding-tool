@@ -168,6 +168,17 @@
 .coordination-row-action[data-action="reopen"] > .resolution-undo { display: none; }
 .coordination-row-action[data-action="reopen"]:is(:hover, :focus-visible) > .resolution-ticked { display: none; }
 .coordination-row-action[data-action="reopen"]:is(:hover, :focus-visible) > .resolution-undo { display: block; }
+/** In the Overview a row's status is its dot alone, and its Resolve takes the place of its marks while the row is pointed at. */
+.coordination-overview .coordination-item .coordination-row-mark { background: none; box-shadow: none; }
+.coordination-overview .coordination-item .coordination-dot { width: 8px; height: 8px; }
+.coordination-overview .coordination-item:has(> .coordination-row-action) > .coordination-thread { padding-right: 8px; }
+.coordination-overview .coordination-row-action { right: 6px; width: 26px; height: 26px; border-radius: 50%; transition: opacity var(--touch-time) var(--touch-ease), background-color var(--touch-time) var(--touch-ease); }
+@media (hover: hover) {
+  .coordination-overview .coordination-item > .coordination-row-action[data-action="resolve"] { opacity: 0; }
+  .coordination-overview .coordination-item:is(:hover, :focus-within) > .coordination-row-action { opacity: 1; }
+  .coordination-overview .coordination-item:has(> .coordination-row-action[data-action="resolve"]):is(:hover, :focus-within) .coordination-row-marks,
+  .coordination-overview .coordination-item:has(> .coordination-row-action[data-action="reopen"]) .coordination-row-marks { opacity: 0; }
+}
 /* The threads a coordinator started, as cards in its conversation where each began, wrapping across the column. */
 .coordination-cards { display: flex; flex-wrap: wrap; gap: 8px; }
 .coordination-card {
@@ -241,29 +252,28 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 2px 4px;
-  margin-bottom: 6px;
-  border-bottom: 1px solid var(--line-soft);
-  padding: 0 0 6px 8px;
+  padding: 0 0 0 8px;
 }
 .coordination-overview-label { color: var(--muted); font-size: var(--text-meta); white-space: nowrap; }
 .coordination-overview-model { color: var(--ink-dim); font-size: var(--text-meta); white-space: nowrap; }
 .coordination-thread-model { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .coordination-overview-header .setting-popover { top: calc(100% + 4px); bottom: auto; left: 0; }
 .coordination-overview > .coordination-empty { padding: 6px 8px; }
+/** The purpose over what the threads run on, one pane of glass at the head of the Overview. */
+.coordination-overview-hero { --glass-radius: 14px; display: grid; gap: 4px; margin-bottom: 14px; padding: 8px 8px 8px 6px; }
 /** What the coordinator is for, read as the Overview's title and edited where it stands. */
 .coordination-purpose {
   box-sizing: border-box;
   width: 100%;
-  min-height: 30px;
-  margin-bottom: 4px;
+  min-height: 32px;
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 5px 8px;
   background: transparent;
-  color: var(--ink-soft);
+  color: var(--ink);
   font: inherit;
-  font-size: var(--text-control);
-  font-weight: 550;
+  font-size: var(--text-content);
+  font-weight: 600;
   text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -299,22 +309,23 @@
 /** A note being written wraps as it reads, and an edited one keeps the room Forget leaves beside it. */
 textarea.coordination-note-text, .coordination-note-add { display: block; width: 100%; resize: none; overflow: hidden; field-sizing: content; }
 .coordination-note-text { padding-right: 34px; }
-/** A note reads as a field at rest, and the row that adds one as an empty one. */
-.coordination-note-text:not(.editing) { border-color: var(--line-soft); white-space: pre-wrap; }
-.coordination-note-text:not(.editing):hover { border-color: var(--line-control); background: var(--surface-hover); color: var(--ink-soft); }
+.coordination-note-text:not(.editing) { white-space: pre-wrap; }
+.coordination-note-text:not(.editing):hover { background: var(--surface-hover); color: var(--ink-soft); }
 .coordination-note-text[aria-invalid="true"] { border-color: var(--danger-line); }
-.coordination-note-add { border: 1px dashed var(--line-control); }
 .coordination-note-add::placeholder { color: var(--quiet-strong); }
-.coordination-note-add:hover:not(:focus, :disabled) { border-style: solid; background: var(--wash); }
+.coordination-note-add:hover:not(:focus, :disabled) { background: var(--surface-hover); }
 .coordination-note-add:disabled { cursor: default; }
-.coordination-memory > .subagent-list { gap: 4px; }
+
 .coordination-note-add:focus { padding-right: 52px; }
 /** Forget, and once pressed its question, sit over the note's right end. */
 .coordination-note-actions { position: absolute; top: 3px; right: 3px; display: flex; gap: 4px; border-radius: 8px; }
 .coordination-note-actions:has(.danger) { background: var(--sunken); box-shadow: -10px 0 8px var(--sunken); }
 .coordination-note:has(.editing) .coordination-note-actions { display: none; }
-.coordination-group + .coordination-group { margin-top: 6px; }
-.coordination-group > .subagent-list { margin-top: 2px; }
+.coordination-group + .coordination-group { margin-top: 12px; }
+/** Each group's rows sit on one pane of glass, split by hairlines inset past their marks. */
+.coordination-group > .subagent-list { --glass-radius: 12px; gap: 0; margin-top: 2px; padding: 3px; }
+.coordination-group > .subagent-list > :is(.coordination-item, .coordination-note) + :is(.coordination-item, .coordination-note)::before { content: ""; position: absolute; z-index: 1; top: 0; left: 36px; right: 8px; height: 1px; background: var(--line-soft); pointer-events: none; }
+.coordination-memory > .subagent-list > .coordination-note + .coordination-note::before { left: 12px; }
 .coordination-group.needs > .list-heading { color: var(--accent); }
 .coordination-stop { display: flex; gap: 4px; margin-right: 4px; }
 .coordination-more {
@@ -331,8 +342,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 }
 .coordination-more:hover { background: var(--wash); color: var(--muted); }
 /** What a coordinator and its threads spent, lined up under its head's label, its bars thin cuts of the plan-usage ones. */
-.coordination-usage { margin-top: 6px; }
-.coordination-usage-body { padding: 0 8px 4px; color: var(--muted); font-size: var(--text-menu); }
+.coordination-usage-body { --glass-radius: 12px; margin-top: 2px; padding: 4px 10px 8px; color: var(--muted); font-size: var(--text-menu); }
 .coordination-usage-own { margin: 2px 0 0; }
 .coordination-usage-own strong { color: var(--ink-soft); font-weight: 600; }
 .coordination-usage-body h4 { margin: 10px 0 2px; color: var(--quiet); font-size: var(--text-meta); font-weight: 550; }
@@ -354,7 +364,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   cursor: pointer;
 }
 .coordination-usage-thread:hover { background: var(--surface-hover); color: var(--ink-soft); }
-.coordination-usage-body > .coordination-more { width: calc(100% + 16px); margin-left: -8px; padding-left: 8px; }
+.coordination-usage-body > .coordination-more { width: calc(100% + 20px); margin-left: -10px; padding-left: 10px; }
 .right-dock-tabs [role="tab"] > em.attention { border-radius: 6px; padding: 0 6px; background: var(--accent); color: var(--accent-ink); font-weight: 650; }
 
 /* A coordinator's checkouts and pull requests in the session panel, each list scrolling on its own. */
