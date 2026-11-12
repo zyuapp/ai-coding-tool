@@ -40,7 +40,7 @@ test("every icon is sized evenly so it sits centred on whole pixels", async () =
 });
 
 /** Boxes that centre a letter or a count rather than an icon, which text lays out on its own terms. */
-const TEXT_BOXES = new Set([".toggle-badge", ".model-provider-initial"]);
+const TEXT_BOXES = new Set([".model-provider-initial"]);
 
 test("every box that centres an icon is sized evenly, as the icons are", async () => {
   const odd: string[] = [];

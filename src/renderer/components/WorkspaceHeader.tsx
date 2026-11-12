@@ -158,7 +158,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
           onClick={onToggleSessionPanel}
         >
           <ClipboardList size={18} aria-hidden="true" />
-          {workingSubagents > 0 && <span className="toggle-badge">{workingSubagents}</span>}
+          {workingSubagents > 0 && <span className="toggle-count">{workingSubagents}</span>}
         </IconButton>
         <IconButton size="lg" label={`${rightDockOpen ? "Hide" : "Show"} right panel`} tip={shortcutTip("Right panel", "Mod+\\")} pressed={rightDockOpen} onClick={onToggleRightDock}>
           <PanelRight size={18} aria-hidden="true" />
