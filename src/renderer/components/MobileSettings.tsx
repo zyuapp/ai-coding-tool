@@ -87,7 +87,7 @@ function GetAppDialog({ onClose }: { onClose: () => void }) {
         ? <img className="phone-qr" src={qr} alt={`QR code for ${TESTFLIGHT_LINK}`} />
         : <div className="phone-qr placeholder" aria-hidden="true" />}
       <div className="phone-pairing-url">
-        <code>{TESTFLIGHT_LINK}</code>
+        <code>{TESTFLIGHT_LINK.replace("https://", "")}</code>
         <CopyButton text={TESTFLIGHT_LINK} label="Copy TestFlight link" />
       </div>
       <p className="phone-get-app-note">Android app coming later.</p>
