@@ -7,6 +7,7 @@ import type { ActiveRun } from "../../src/application/thread-run-state.ts";
 import type { RunEvent } from "../../src/contracts/ipc.ts";
 import { createConversationMessage, createSentMessage } from "../../src/domain/conversation.ts";
 import type { Thread } from "../../src/domain/thread.ts";
+import { THREAD_ROLES } from "../../src/domain/thread-role.ts";
 
 function activeRun(taskId: string, overrides: Partial<ActiveRun> = {}): ActiveRun {
   return {
@@ -76,9 +77,15 @@ const APPROVAL = {
 
 test("a run the user started says how it ended, and a failure carries its own reason", () => {
   assert.equal(workspace().threads[0].parentId, undefined, "a thread under no coordinator");
-  assert.deepEqual(headlines(fire(workspace(), { type: "run.status", status: "succeeded" }).effects), ["The run finished."]);
-  assert.deepEqual(headlines(fire(workspace(), { type: "run.status", status: "failed", message: "The tool crashed" }).effects), ["The tool crashed"]);
-  assert.deepEqual(headlines(fire(workspace(), { type: "run.status", status: "failed" }).effects), ["The run failed."]);
+  for (const role of [undefined, ...THREAD_ROLES.map((option) => option.role)]) {
+    const state = workspace({ threads: [task("task-a", { role })] });
+    const finished = fire(state, { type: "run.status", status: "succeeded" });
+    assert.deepEqual(headlines(finished.effects), role === "reviewer" ? [] : ["The run finished."], role ?? "no role");
+    assert.equal(finished.state.threads[0].outcome, "finished");
+    assert.equal(finished.state.threads[0].outcomeUnread, true, "the outcome stays visible in the app for every role");
+    assert.deepEqual(headlines(fire(state, { type: "run.status", status: "failed", message: "The tool crashed" }).effects), role === "reviewer" ? [] : ["The tool crashed"], role ?? "no role");
+    assert.deepEqual(headlines(fire(state, { type: "run.status", status: "failed" }).effects), role === "reviewer" ? [] : ["The run failed."], role ?? "no role");
+  }
 });
 
 test("a run the user ended themselves announces nothing", () => {
@@ -86,7 +93,10 @@ test("a run the user ended themselves announces nothing", () => {
 });
 
 test("a run that stops to ask names what it is waiting on", () => {
-  assert.deepEqual(headlines(fire(workspace(), APPROVAL).effects), ["Waiting for your permission to use Bash"]);
+  for (const role of [undefined, ...THREAD_ROLES.map((option) => option.role)]) {
+    const state = workspace({ threads: [task("task-a", { role })] });
+    assert.deepEqual(headlines(fire(state, APPROVAL).effects), role === "reviewer" ? [] : ["Waiting for your permission to use Bash"], role ?? "no role");
+  }
 });
 
 test("a scheduled run answers its own questions, so its stop is not the user's to hear about", () => {

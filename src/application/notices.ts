@@ -62,11 +62,12 @@ function heardElsewhere(state: NoticeState, thread: Thread): boolean {
 }
 
 /**
- * Whether the user wants to hear this. A muted coordinator keeps back everything from itself and its
- * threads. A turn its thread finished speaks through the coordinator's reply, so only a turn the
- * user's own words started is theirs to hear about.
+ * Whether the user wants to hear this. Reviewers keep their notices in the app. A muted coordinator
+ * keeps back everything from itself and its threads. A turn its thread finished speaks through the
+ * coordinator's reply, so only a turn the user's own words started is theirs to hear about.
  */
 function wanted(state: NoticeState, thread: Thread, reason: NoticeReason): boolean {
+  if (thread.role === "reviewer") return false;
   if (heardElsewhere(state, thread)) return false;
   const lead = leadOf(state, ownerOf(state, thread));
   if (lead?.muted) return false;
