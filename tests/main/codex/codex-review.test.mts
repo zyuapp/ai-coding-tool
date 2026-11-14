@@ -21,7 +21,7 @@ const command = (id: string, command: string): ThreadItem => ({
   type: "commandExecution", id, pluginId: null, scriptPath: null, command, cwd: "/tmp/project", processId: null, source: "agent", status: "inProgress", commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null,
 });
 
-const agentMessage = (id: string, text: string): ThreadItem => ({ type: "agentMessage", id, text, phase: "final_answer", memoryCitation: null, delivery: null, questions: null });
+const agentMessage = (id: string, text: string): ThreadItem => ({ type: "agentMessage", moderation: null, id, text, phase: "final_answer", memoryCitation: null, delivery: null, questions: null });
 
 test("native review runs inline on paginated history and emits its findings once", async () => {
   const emitted: ProviderEvent[] = [];

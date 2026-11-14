@@ -65,7 +65,7 @@ const command = (id: string): ThreadItem => ({
   durationMs: null,
 });
 
-const message = (id: string, text: string): ThreadItem => ({ type: "agentMessage", id, text, phase: "final_answer", memoryCitation: null, delivery: null, questions: null });
+const message = (id: string, text: string): ThreadItem => ({ type: "agentMessage", moderation: null, id, text, phase: "final_answer", memoryCitation: null, delivery: null, questions: null });
 
 test("Codex captures model and effort from the child and the full prompt from child input", () => {
   const reports: SubagentReport[] = [];

@@ -6,7 +6,7 @@ import { completeTurn, harness, input, opened, sentBy } from "../../support/code
 const threadId = "thread-1";
 const turnId = "turn-1";
 const at = { threadId, turnId };
-const agentMessage = (id: string, text: string): Extract<ThreadItem, { type: "agentMessage" }> => ({ type: "agentMessage", id, text, phase: "commentary", memoryCitation: null, delivery: null, questions: null });
+const agentMessage = (id: string, text: string): Extract<ThreadItem, { type: "agentMessage" }> => ({ type: "agentMessage", moderation: null, id, text, phase: "commentary", memoryCitation: null, delivery: null, questions: null });
 const completed = (item: ThreadItem) => ({ item, threadId, turnId, completedAtMs: 2 });
 
 async function asking(overrides: Parameters<typeof input>[0] = {}) {

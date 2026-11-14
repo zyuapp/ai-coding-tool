@@ -34,7 +34,7 @@ const mcpCall = (id: string, server: string, tool: string, args: unknown): Threa
   type: "mcpToolCall", id, server, tool, status: "inProgress", arguments: args as never, appContext: null, mcpAppUi: null, pluginId: null, readOnlyHint: null, result: null, error: null, durationMs: null,
 });
 
-const agentMessage = (id: string, text: string): ThreadItem => ({ type: "agentMessage", id, text, phase: "final_answer", memoryCitation: null, delivery: null, questions: null });
+const agentMessage = (id: string, text: string): ThreadItem => ({ type: "agentMessage", moderation: null, id, text, phase: "final_answer", memoryCitation: null, delivery: null, questions: null });
 
 test("a run opens one app server in the workspace, signs in, starts a thread, and turns on it", async () => {
   const emitted: ProviderEvent[] = [];
