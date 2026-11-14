@@ -86,6 +86,11 @@ export function nudgedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>,
   return mapped(edit, id, (thread) => thread.limitPause ? { ...thread, limitPause: { ...thread.limitPause, nudgedAt: at } } : thread);
 }
 
+/** A thread's resource interruption, retained until an explicit resume. */
+export function resourceStopIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string, stop: Thread["resourceStop"]): ThreadsChange<Field> {
+  return mapped(edit, id, (thread) => { const { resourceStop: _previous, ...rest } = thread; return stop ? { ...rest, resourceStop: stop } : rest; });
+}
+
 /** A thread out of its usage limit's line. */
 export function unpausedIn<Field extends keyof Thread>(edit: ThreadsChange<Field>, id: string): ThreadsChange<Field> {
   return mapped(edit, id, withoutLimitPause);

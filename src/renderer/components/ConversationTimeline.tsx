@@ -259,6 +259,12 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
         })}
       </div>
       <AnnotationMarkers markers={markers} annotations={annotations} noteReturn={annotate.noteReturn} onEdit={annotate.setNoting} flashing={flashing} />
+      {currentThread?.resourceStop && <Notice tone="warning" className="resource-stop-row" actions={<CommandButton variant="secondary" pill disabled={currentThread.resourceStop.cleanup !== "complete"} command={{ type: "resource.resume", taskId: currentThread.id }}>Resume</CommandButton>}>
+        <strong>Stopped due to high memory usage</strong>
+        <p>This thread and its background agents were stopped to keep the app responsive. Work already saved is preserved.</p>
+        <p>An interrupted action may have partially completed.</p>
+        <details><summary>Details</summary><p>Memory at stop: {(currentThread.resourceStop.bytes / 1024 ** 3).toFixed(1)} GB. {currentThread.resourceStop.cleanup === "stopping" ? "Stopping owned processes…" : currentThread.resourceStop.cleanup === "incomplete" ? "Some owned processes have not exited. Resume will be available once they stop." : "Owned processes have exited."}</p></details>
+      </Notice>}
       {waitingOn && <WaitingRow key={waitingOn} wait={waitingOn} />}
       {status !== "running" && limitPause && currentThread && <LimitRow pause={limitPause} taskId={currentThread.id} />}
       {status === "running" && compacting && (

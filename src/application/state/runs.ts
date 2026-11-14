@@ -20,7 +20,7 @@ export type PendingRun = Pick<HeldMessage, "usersOwn"> & {
   runId: string;
   origin: "composer" | "automation";
   /** `resume` picks a thread back up, with no message of the user's, after its usage limit lifts or an update restarts the app. */
-  operation?: { type: "compact" } | { type: "review"; target: ReviewTarget } | { type: "resume"; after: "limit" | "update" };
+  operation?: { type: "compact" } | { type: "review"; target: ReviewTarget } | { type: "resume"; after: "limit" | "update" | "memory" };
   taskId?: string;
   projectId?: string;
   /** The checkout the run was told to happen in, for a thread that does not exist yet to claim. */

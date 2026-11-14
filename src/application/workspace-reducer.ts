@@ -60,6 +60,7 @@ function reduceInput(state: WorkspaceState, input: WorkspaceInput): WorkspaceTra
   const carried = route.kind === "computer" ? [forwardEffect(route)] : [];
   const left = leavingComputer(state, input);
   const applied = reconcileSimulators(left, reconcileAppUpdate(left, reconcileCoordination(left, reconcileLimitPauses(left, reconcileSnoozes(left, apply(left, input), input), input), input)));
+  if (input.type === "preferences.loaded" && applied.state.memoryProtection !== state.memoryProtection) applied.effects.push({ type: "send-run-command", command: { type: "memory-protection", enabled: applied.state.memoryProtection } });
   applied.effects = [...leftBehind(state, left), ...carried, ...applied.effects];
   const transition = { ...applied, state: settledUnlisted(left, withOverviewPanels(prunedWorkflowPanels(prunedFind(applied.state)))) };
   if (transition.state.browserOrigins !== state.browserOrigins || (input.type === "task.set-policy" && transition.state !== state) || input.type === "store.loaded" || input.type === "preferences.loaded" || transition.effects.some((effect) => ["browser.open", "browser.navigate", "browser.act", "browser.history", "browser.reload"].includes(effect.type))) {

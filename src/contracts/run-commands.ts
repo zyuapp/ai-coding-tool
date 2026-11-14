@@ -3,6 +3,7 @@ import { agentThread, boolean, literals, optionalText, text, type Declarations }
 import * as phone from "./phone-commands.js";
 
 export type RunControlCommand =
+  | { type: "resource.resume"; taskId: string }
   | { type: "run.cancel"; taskId?: string }
   /** Compacts an idle thread whose model compacts on request, without adding a user message to it. */
   | { type: "run.compact"; taskId?: string }
@@ -34,6 +35,7 @@ const answers: phone.PhoneRule = (command) => phone.isString(command.taskId) && 
   && (command.text === undefined || phone.isString(command.text, phone.MAX_PROMPT_LENGTH)) && command.attachments === undefined;
 
 export const runControlCommands = {
+  "resource.resume": { fields: { taskId: text }, at: "thread", phone: phone.namesThread },
   "run.cancel": { fields: { taskId: optionalText }, at: "thread", agent: agentThread, phone: cancels },
   "run.compact": { fields: { taskId: optionalText }, at: "thread" },
   "question.set-answer": { fields: { taskId: text, runId: text, requestId: text, questionId: text, text }, at: "thread" },

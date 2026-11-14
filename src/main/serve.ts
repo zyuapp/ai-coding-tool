@@ -167,6 +167,7 @@ export async function startServe(options: {
       return scheduler;
     },
     computerUseForRun: async () => ({ status: "unavailable", message: "Computer use needs the desktop app." }),
+    resourceJournal: path.join(userData, "session-processes.json"),
     agent: forkAgentProcessNode({ generatedImages: path.join(userData, "generated-images"), pluginPath: appPluginPath(options.packaged, options.resources ?? "", appPath) }),
   });
   const { AutomationScheduler } = await import("./automation/automation-scheduler.mjs");

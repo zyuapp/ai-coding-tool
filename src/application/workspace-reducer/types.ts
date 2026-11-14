@@ -131,7 +131,7 @@ type WorkspaceWork =
       checkout?: { workspaceId: string; branch: string };
     }
   | { type: "start-run"; command: StartRunCommand }
-  | { type: "send-run-command"; command: CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand | ArchiveThreadCommand | ThreadRoleCommand }
+  | { type: "send-run-command"; command: { type: "memory-protection"; enabled: boolean } | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand | ArchiveThreadCommand | ThreadRoleCommand }
   | { type: "suggest-title"; taskId: string; engine: AgentEngine; model: AgentModel; text: string; attachments: string[] }
   | { type: "preserve-message-images"; text: string; root: string; messageId: string }
   | { type: "load-subagent-activity"; taskId: string; subagentId: string }

@@ -1,3 +1,6 @@
+import { SessionResourceMonitor, type ResourceMonitorOptions } from "./session-resource-monitor.mjs";
+import { isSessionResourceMessage } from "../contracts/session-resources.js";
+import type { ResourceStop } from "../domain/session-resources.js";
 import { randomUUID } from "node:crypto";
 import { isAgentSettingsReloadEvent, isAutomationRequest, isBackgroundEvent, isGoalEvent, isRunCommand, isRunEvent, isSubagentEvent, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationFire, type AutomationRequest, type AutomationResponse, type BackgroundEvent, type RunCommand, type RunEvent, type StartRunCommand, type SubagentEvent, type ThreadRoleCommand } from "../contracts/ipc.js";
 import { isThreadRequest } from "../contracts/thread-requests.js";
@@ -24,6 +27,8 @@ export type RunHost = {
   computerUseForRun: typeof import("./computer-use-host.js").computerUseForRun;
   /** How the process itself is started, so what main does with it can be driven without one. */
   agent: StartAgentProcess;
+  resourceJournal?: string;
+  resourceMonitor?: (options: ResourceMonitorOptions) => SessionResourceMonitor;
 };
 
 export type RunBridge = {
@@ -77,7 +82,7 @@ class AgentRunHost {
   private readonly sessionSubagents = new Map<string, Set<string>>();
   private readonly liveSubagents = new Map<string, Set<string>>();
   private readonly automationDispatches = new Map<string, AutomationDispatchState>();
-  private readonly threadRequests = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly threadRequests = new Map<string, { taskId: string; timer: ReturnType<typeof setTimeout> }>();
   private settingsReloadPending = false;
   /**
    * A role a thread took while a start of its own was still being resolved. The session the role is
@@ -100,7 +105,31 @@ class AgentRunHost {
     reads(isThreadRequest, (request) => this.relayThread(request)),
   ];
 
-  constructor(private readonly host: RunHost) {}
+  private readonly resourceStops = new Map<string, string>();
+  private readonly resources: SessionResourceMonitor;
+  constructor(private readonly host: RunHost) {
+    this.resources = (host.resourceMonitor ?? ((options) => new SessionResourceMonitor(options)))({
+      journal: host.resourceJournal,
+      release: (taskId, sessionId) => this.agent?.post({ type: "terminate-session", taskId, sessionId, idleOnly: true }),
+      stop: (taskId, sessionId, stop) => this.stopForMemory(taskId, sessionId, stop),
+      changed: (taskId, stop) => { if (this.resourceStops.get(taskId)?.endsWith(`:${stop.at}`)) this.send({ type: "resource.stopped", taskId, stop }); },
+    });
+  }
+
+  private stopForMemory(taskId: string, sessionId: string, stop: ResourceStop) {
+    this.resourceStops.set(taskId, `${sessionId}:${stop.at}`);
+    this.send({ type: "resource.stopped", taskId, stop });
+    for (const event of this.ledger.failuresFor("Stopped due to high memory usage.")) {
+      if (event.taskId === taskId && event.type === "run.status") this.publishRun({ ...event, status: "cancelled" });
+    }
+    this.ledger.cancelStarts(taskId);
+    for (const [id, pending] of this.threadRequests) if (pending.taskId === taskId) {
+      clearTimeout(pending.timer);
+      this.threadRequests.delete(id);
+      this.agent?.post({ type: "thread.response", requestId: id, ok: false, message: "This session was stopped for high memory usage." });
+    }
+    this.agent?.post({ type: "terminate-session", taskId, sessionId });
+  }
 
   private send(event: AgentEvent) {
     this.host.publish(event);
@@ -201,7 +230,7 @@ class AgentRunHost {
       this.agent?.post({ type: "thread.response", requestId: request.requestId, ok: false, message: `AI Coding Tool did not answer the thread "${request.op}" request within ${patience}ms.` });
     }, patience);
     timer.unref?.();
-    this.threadRequests.set(request.requestId, timer);
+    this.threadRequests.set(request.requestId, { taskId: request.taskId, timer });
     if (this.host.ask(request)) return;
     clearTimeout(timer);
     this.threadRequests.delete(request.requestId);
@@ -209,9 +238,9 @@ class AgentRunHost {
   }
 
   answerThread(response: ThreadResponse) {
-    const timer = this.threadRequests.get(response.requestId);
-    if (!timer) return;
-    clearTimeout(timer);
+    const pending = this.threadRequests.get(response.requestId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
     this.threadRequests.delete(response.requestId);
     this.agent?.post(response);
   }
@@ -231,6 +260,12 @@ class AgentRunHost {
   }
 
   private receive(message: unknown) {
+    if (isSessionResourceMessage(message)) { this.resources.receive(message); return; }
+    if (message && typeof message === "object" && "taskId" in message && this.resourceStops.has(String(message.taskId))) {
+      const refusal = unreadableRequest(message);
+      if (refusal) this.agent?.post(refusal);
+      return;
+    }
     if (this.routes.some((route) => route(message))) return;
     /** A request no guard could read is answered rather than dropped: a dropped one hangs the tool call. */
     const refusal = unreadableRequest(message);
@@ -238,6 +273,7 @@ class AgentRunHost {
   }
 
   private disconnect(code: number | null) {
+    this.resources.releaseAll();
     this.agent = null;
     this.ledger.forgetSessions();
     /** The sessions went with the process, so no role is left to retire one for. */
@@ -262,6 +298,7 @@ class AgentRunHost {
   }
 
   killAgent() {
+    this.resources.releaseAll();
     this.agent?.kill();
   }
 
@@ -310,7 +347,7 @@ class AgentRunHost {
         return;
       }
       /** A stop, a label, an archive or a role belongs to no run, so a failure to send it has no run to report against. */
-      if (command.type === "stop-process" || command.type === "label" || command.type === "archive" || command.type === "role") return;
+      if (command.type === "memory-protection" || command.type === "stop-process" || command.type === "label" || command.type === "archive" || command.type === "role") return;
       const state = this.ledger.state(command.taskId, command.runId);
       if (!state || state.terminal) return;
       const sequence = state.lastSequence + 1;
@@ -324,6 +361,7 @@ class AgentRunHost {
   private async dispatchStart(command: StartRunCommand) {
     this.ledger.beginStart(command);
     try {
+      await this.resources.beforeStart(command.taskId);
       const internal = await this.resolveStart(command);
       if (!this.ledger.takeStart(command.taskId, command.runId)) return;
       this.connect();
@@ -354,11 +392,14 @@ class AgentRunHost {
 
   submit(payload: RunCommand) {
     if (!this.host.running()) return;
+    if (payload.type === "memory-protection") { this.resources.setEnabled(payload.enabled); return; }
     if (payload.type === "reload-settings") {
       if (!this.agent) return this.send({ type: "engine.settings-reload-status", status: "reloaded" });
       return this.postCommand(payload);
     }
     if (payload.type === "start") {
+      if (payload.memoryProtection !== undefined) this.resources.setEnabled(payload.memoryProtection);
+      this.resourceStops.delete(payload.taskId);
       if (this.ledger.knows(payload.taskId, payload.runId)) return;
       for (const superseded of this.ledger.supersedeStarts(payload.taskId, payload.runId)) {
         this.emitSyntheticTerminal(superseded, "cancelled", "The run was superseded before it started.");

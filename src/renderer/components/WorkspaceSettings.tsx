@@ -50,6 +50,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
         onDownload: () => void workspace.dispatch({ type: "dictation.download" }),
         onCancelDownload: () => void workspace.dispatch({ type: "dictation.cancel-download" }),
       }}
+      memoryProtection={workspace.memoryProtection} onSetMemoryProtection={(enabled) => void workspace.actions.setMemoryProtection(enabled)}
       notifications={workspace.notifications} remote={workspace.remote} remoteChecking={workspace.remoteChecking}
       agentSettingsReload={workspace.agentSettingsReload} onReloadAgentSettings={() => void workspace.actions.reloadAgentSettings()}
       engineAccess={workspace.engineAccess} engineChecking={workspace.engineChecking} engineUpdating={workspace.engineUpdating}

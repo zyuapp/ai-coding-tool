@@ -141,6 +141,9 @@ export type SessionOpener = (prompt: AsyncIterable<SDKUserMessage>, canUseTool: 
  */
 export class ClaudeSession {
   private sideChatBoundaryPending = false;
+  private processStderr = "";
+
+  recordProcessStderr(text: string) { this.processStderr = (this.processStderr + text).slice(-8192); }
   private query: Query | null = null;
   private readonly turns = new TurnSlot<Turn>(INTERRUPT_GRACE_MS, () => this.close());
   private readonly queue: Pending[] = [];
@@ -390,7 +393,9 @@ export class ClaudeSession {
       for await (const message of this.query as Query) this.receive(message as SDKMessage | SDKActiveGoalMessage);
       this.finish({ status: "succeeded" });
     } catch (error) {
-      this.finish({ status: "failed", message: error instanceof Error ? error.message : String(error), ...usageLimitOf(this.rateLimit) });
+      const reason = error instanceof Error ? error.message : String(error);
+      const diagnostic = /Claude Code process (?:exited|terminated)/.test(reason) && this.processStderr.trim() ? `. stderr: ${this.processStderr.trim()}` : "";
+      this.finish({ status: "failed", message: reason + diagnostic, ...usageLimitOf(this.rateLimit) });
     } finally {
       this.close();
     }

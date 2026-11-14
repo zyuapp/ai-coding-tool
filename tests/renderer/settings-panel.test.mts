@@ -532,15 +532,17 @@ test("every on/off setting is a switch named after its row", async () => {
   const changed: Array<[string, boolean]> = [];
   window.desktop = fakeDesktop({});
   const view = await mount(renderSettingsPanel({
+    memoryProtection: true, onSetMemoryProtection: (enabled) => changed.push(["memory", enabled]),
     notifications: true, chromeBrowser: false,
     onSetNotifications: (enabled) => changed.push(["notifications", enabled]), onSetChromeBrowser: (enabled) => changed.push(["chrome", enabled]),
   }));
   await act(async () => {});
   const switches = [...view.container.querySelectorAll<HTMLButtonElement>("[role='switch']")];
-  assert.deepEqual(switches.map((control) => [control.getAttribute("aria-label"), control.getAttribute("aria-checked")]), [["Notifications", "true"], ["Claude in Chrome", "false"]]);
+  assert.deepEqual(switches.map((control) => [control.getAttribute("aria-label"), control.getAttribute("aria-checked")]), [["Memory protection", "true"], ["Notifications", "true"], ["Claude in Chrome", "false"]]);
   await act(async () => { item(switches[0]).click(); });
   await act(async () => { item(switches[1]).click(); });
-  assert.deepEqual(changed, [["notifications", false], ["chrome", true]]);
+  await act(async () => { item(switches[2]).click(); });
+  assert.deepEqual(changed, [["memory", false], ["notifications", false], ["chrome", true]]);
   await view.unmount();
 });
 

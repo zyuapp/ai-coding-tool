@@ -38,6 +38,7 @@ function whoIsBusy(state: WorkspaceState, taskId: string): "busy-user" | "busy-a
  */
 export function whyTickCannotRun(state: WorkspaceState, fire: AutomationFire, thread?: Thread, project?: Project): TickRefusal | null {
   if (!thread) return "no-thread";
+  if (thread.resourceStop) return "busy-user";
   const busy = whoIsBusy(state, fire.taskId);
   if (busy) return busy;
   if (thread.archivedAt !== undefined) return "archived";

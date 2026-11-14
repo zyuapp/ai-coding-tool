@@ -35,6 +35,8 @@ export type SettingsState = {
   computerUse: boolean;
   /** Whether a run may drive the browser panel. The user's own tabs stay usable either way. */
   browserTools: boolean;
+  /** Whether excessive engine memory stops its owning thread. */
+  memoryProtection: boolean;
   /** Whether a thread that needs the user is announced on the desktop. Off leaves it to the sidebar alone. */
   notifications: boolean;
   settingsOpen: boolean;
@@ -73,6 +75,7 @@ export function initialSettingsState(): SettingsState {
     chromeBrowser: false,
     computerUse: true,
     browserTools: true,
+    memoryProtection: true,
     notifications: true,
     settingsOpen: false,
     settingsSection: null,

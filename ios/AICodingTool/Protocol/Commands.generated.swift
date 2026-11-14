@@ -28,6 +28,7 @@ extension PhoneCommand {
         case projectAdd = "project.add"
         case proposalStart = "proposal.start"
         case questionAnswer = "question.answer"
+        case resourceResume = "resource.resume"
         case runCancel = "run.cancel"
         case runDecide = "run.decide"
         case runStopProcess = "run.stop-process"
@@ -77,6 +78,7 @@ extension PhoneCommand {
     static func projectAdd(root: String, start: Bool = false) -> PhoneCommand { PhoneCommand(.projectAdd, ["root": JSONValue.string(root), "start": start ? .bool(true) : nil]) }
     static func proposalStart(taskId: String, proposalId: String? = nil) -> PhoneCommand { PhoneCommand(.proposalStart, ["taskId": JSONValue.string(taskId), "proposalId": proposalId.map { JSONValue.string($0) }]) }
     static func questionAnswer(taskId: String, runId: String, requestId: String, questionId: String, text: String? = nil) -> PhoneCommand { PhoneCommand(.questionAnswer, ["taskId": JSONValue.string(taskId), "runId": JSONValue.string(runId), "requestId": JSONValue.string(requestId), "questionId": JSONValue.string(questionId), "text": text.map { JSONValue.string($0) }]) }
+    static func resourceResume(taskId: String) -> PhoneCommand { PhoneCommand(.resourceResume, ["taskId": JSONValue.string(taskId)]) }
     static func runCancel(taskId: String? = nil) -> PhoneCommand { PhoneCommand(.runCancel, ["taskId": taskId.map { JSONValue.string($0) }]) }
     static func runDecide(allow: Bool, taskId: String, runId: String, approvalId: String) -> PhoneCommand { PhoneCommand(.runDecide, ["allow": JSONValue.bool(allow), "taskId": JSONValue.string(taskId), "runId": JSONValue.string(runId), "approvalId": JSONValue.string(approvalId)]) }
     static func runStopProcess(taskId: String? = nil, processId: String) -> PhoneCommand { PhoneCommand(.runStopProcess, ["taskId": taskId.map { JSONValue.string($0) }, "processId": JSONValue.string(processId)]) }

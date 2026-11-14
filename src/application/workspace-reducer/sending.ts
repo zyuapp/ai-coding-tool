@@ -142,6 +142,7 @@ function sent(state: WorkspaceState, input: Extract<SendInput, { type: "task.sen
    * from a paired computer. The user writing to one, wherever it is still on screen, brings it
    * back as restoring it would, then sends.
    */
+  if (thread?.resourceStop) return refuse("Resume this thread after its memory stop before sending another message.");
   if (thread?.archivedAt !== undefined) {
     if (fromThread) return refuse(ARCHIVED_SEND_ERROR);
     const restored = andThen<Record<never, never>>(state, { edits: [restoredIn(threadsOf(state), thread.id)] }, (next) => reduceSending(next, input, coordination, said));

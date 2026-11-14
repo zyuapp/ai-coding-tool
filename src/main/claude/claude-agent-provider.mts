@@ -1,3 +1,4 @@
+import { spawnClaudeProcess } from "./claude-process.mjs";
 import { query, type CanUseTool, type McpServerConfig, type ModelInfo, type Options, type Query, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
 import { BUILT_IN_MODELS, claudeEffort, modelTakesEffort, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import { engineBinaryPath } from "../agent/engine-binary.mjs";
@@ -132,7 +133,7 @@ export class ClaudeAgentProvider extends PooledProvider<ClaudeSession> implement
     const key = sessionKey(input, brief);
     return this.run(input, key, {
       open: ({ ended, rested }) => new ClaudeSession(key, ended, rested),
-      start: (session) => session.open((prompt, canUseTool, hooks) => this.queryFactory(this.options(input, brief, prompt, canUseTool, hooks)), input),
+      start: (session) => session.open((prompt, canUseTool, hooks) => this.queryFactory(this.options(input, brief, prompt, canUseTool, hooks, session)), input),
     });
   }
 
@@ -153,7 +154,7 @@ export class ClaudeAgentProvider extends PooledProvider<ClaudeSession> implement
     return Boolean(session);
   }
 
-  private options(input: ProviderRunInput, brief: RunBrief, prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool, hooks: Options["hooks"]) {
+  private options(input: ProviderRunInput, brief: RunBrief, prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool, hooks: Options["hooks"], session: ClaudeSession) {
     const continuation = continuationOf(input);
     const mcpServers: Record<string, McpServerConfig> = {};
     if (input.computerUse.status === "available") {
@@ -165,6 +166,7 @@ export class ClaudeAgentProvider extends PooledProvider<ClaudeSession> implement
       options: {
         cwd: input.workspaceRoot,
         ...claudeProcess(),
+        spawnClaudeCodeProcess: (options: Parameters<NonNullable<Options["spawnClaudeCodeProcess"]>>[0]) => spawnClaudeProcess(options, text => session.recordProcessStderr(text)),
         ...(input.coordinationRole === "coordinator" ? { tools: COORDINATOR_TOOLS } : {}),
         disallowedTools: withheldTools(input.channel),
         resume: continuation,

@@ -136,6 +136,7 @@ const runs = startRunHost({
   scheduler: getAutomationScheduler,
   computerUseForRun,
   agent: forkAgentProcess,
+  resourceJournal: path.join(app.getPath("userData"), "session-processes.json"),
 });
 
 const keyboard = startKeyboardHost({ window: () => window, reveal: revealWindow });

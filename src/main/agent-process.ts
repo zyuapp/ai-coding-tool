@@ -5,7 +5,7 @@ import type { ThreadResponse } from "../contracts/threads.js";
 import { appPluginPath } from "./app-plugin-path.js";
 
 /** Everything main says to the agent process: the commands a run is made of, and answers to what it asked. */
-export type AgentMessage = InternalRunCommand | AutomationResponse | ThreadResponse;
+export type AgentMessage = InternalRunCommand | AutomationResponse | ThreadResponse | import("../contracts/session-resources.js").TerminateSessionCommand;
 
 /** Main's end of one agent process. */
 export type AgentProcess = {

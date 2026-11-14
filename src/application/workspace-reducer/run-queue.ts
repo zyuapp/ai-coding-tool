@@ -126,6 +126,7 @@ export function startRunCommand(state: WorkspaceState, thread: Thread, runId: st
   const userCheckout = project?.workspaceId && project.workspaceId !== workspaceId ? { projectWorkspaceId: project.workspaceId } : {};
   return {
     type: "start",
+    memoryProtection: state.memoryProtection,
     channel: "main",
     taskId: thread.id,
     title: thread.title,
@@ -343,7 +344,7 @@ export function drained(state: WorkspaceState, taskId: string, intent: QueueInte
   if (!thread) return { edits: [queuedIn(runsOf(state), taskId, [])] };
   if (starting.length) return {};
   /** A thread waiting out its usage limit keeps its queue until the limit lifts. */
-  if (thread.limitPause) return {};
+  if (thread.limitPause || thread.resourceStop) return {};
   /** A thread moving into a checkout still being made keeps its queue until it lands there. */
   if (state.creatingWorktrees.includes(taskId)) return {};
   const [next] = queued;

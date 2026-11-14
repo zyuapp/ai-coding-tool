@@ -1,4 +1,5 @@
 import { continuationOf, type ProviderResult, type ProviderRunInput } from "./agent-provider.mjs";
+import { inResourceScope, resourceScope, releaseResourceScope, reportResourceBusy } from "./session-resources.mjs";
 import type { CoordinationRole } from "../../domain/coordination.js";
 
 /** How long a thread's session waits, with nothing left running under it, before giving its process back. */
@@ -30,6 +31,7 @@ export type SessionOpener<S extends PooledSession> = {
 };
 
 type Held = {
+  resources: ReturnType<typeof resourceScope>;
   session: PooledSession;
   /** The coordination role of the run the session was opened for, which decides the tools it holds. */
   role: CoordinationRole | null;
@@ -59,7 +61,8 @@ export class SessionPool {
       if (input.abortController.signal.aborted) return { status: "cancelled" };
     }
     const held = this.sessionFor(input, key, opener);
-    const running = held.session.run(input);
+    reportResourceBusy(held.resources, true);
+    const running = inResourceScope(held.resources, () => held.session.run(input));
     held.running = running;
     try {
       return await running;
@@ -125,6 +128,14 @@ export class SessionPool {
     return held && held.role !== (role ?? null) ? this.retire(taskId) : Promise.resolve();
   }
 
+  terminate(taskId: string, sessionId: string, idleOnly = false): boolean {
+    const held = this.sessions.get(taskId);
+    if (!held || held.resources.sessionId !== sessionId) return false;
+    if (idleOnly && held.session.busy) { reportResourceBusy(held.resources, true); return false; }
+    this.release(taskId, held);
+    return true;
+  }
+
   /** Lets every session go, which is what ends the processes they hold. */
   closeAll() {
     for (const [taskId, held] of [...this.sessions]) this.release(taskId, held);
@@ -148,10 +159,12 @@ export class SessionPool {
     }
     if (held) this.release(input.taskId, held);
     this.evict();
-    const session = opener.open({
+    const resources = resourceScope(input.taskId);
+    const session = inResourceScope(resources, () => opener.open({
       ended: () => {
         const ended = this.sessions.get(input.taskId);
         if (ended?.session === session) {
+          releaseResourceScope(resources);
           this.sessions.delete(input.taskId);
           clearTimeout(ended.idle);
           ended.reload?.resolve();
@@ -162,10 +175,10 @@ export class SessionPool {
         const settled = this.sessions.get(input.taskId);
         if (settled?.session === session) this.rest(input.taskId, settled);
       },
-    });
-    const opened: Held = { session, role: input.coordinationRole ?? null, usedAt: Date.now() };
+    }));
+    const opened: Held = { resources, session, role: input.coordinationRole ?? null, usedAt: Date.now() };
     this.sessions.set(input.taskId, opened);
-    opener.start?.(session);
+    inResourceScope(resources, () => opener.start?.(session));
     return opened;
   }
 
@@ -178,6 +191,7 @@ export class SessionPool {
     if (this.sessions.get(taskId) !== held || !held.session.live) return;
     if (held.retire && !held.session.answering) return this.release(taskId, held);
     if (held.reload && !held.session.busy) return this.release(taskId, held);
+    reportResourceBusy(held.resources, held.session.busy);
     held.usedAt = Date.now();
     clearTimeout(held.idle);
     held.idle = setTimeout(() => (held.session.busy ? this.rest(taskId, held) : this.release(taskId, held)), this.idleMs);
@@ -187,6 +201,7 @@ export class SessionPool {
   private release(taskId: string, held: Held) {
     clearTimeout(held.idle);
     if (this.sessions.get(taskId) === held) this.sessions.delete(taskId);
+    releaseResourceScope(held.resources);
     const closed = held.session.close();
     held.reload?.resolve();
     held.retire?.resolve(closed);

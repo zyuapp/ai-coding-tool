@@ -141,6 +141,10 @@ export class RunLedger {
     }
   }
 
+  cancelStarts(taskId: string) {
+    for (const [key, command] of this.starts) if (command.taskId === taskId) this.starts.delete(key);
+  }
+
   clearStarts() {
     this.starts.clear();
   }

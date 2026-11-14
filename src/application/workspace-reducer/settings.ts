@@ -26,7 +26,7 @@ export const SETTINGS_INPUTS = [
   "view.set-reading-size", "view.set-terminal-size", "view.set-activity-project", "view.set-sidebar-open",
   "view.focus-composer", "view.set-shortcut", "view.reset-shortcuts", "view.capture-shortcut", "shortcut.captured", "shortcut.unavailable",
   "view.inspect-subagent", "subagent.activity.loaded", "view.set-capture-options", "view.set-chrome-browser", "view.set-computer-use",
-  "view.set-browser-tools", "view.set-notifications", "view.set-session-panel-open", "view.set-settings-open", "view.set-usage-computer", "view.set-subagent-group",
+  "view.set-memory-protection", "view.set-browser-tools", "view.set-notifications", "view.set-session-panel-open", "view.set-settings-open", "view.set-usage-computer", "view.set-subagent-group",
   "view.set-section-open"
 ] as const;
 type SettingsInput = Extract<WorkspaceInput, { type: (typeof SETTINGS_INPUTS)[number] }>;
@@ -62,7 +62,7 @@ export function settingsOf(state: SettingsState): SettingsEdit {
   return new SettingsChange(ownFields<SettingsState>(state, {
     sections: true, subagentGroups: true, theme: true, themeMode: true, uiFont: true, monoFont: true, readingSize: true, terminalSize: true,
     activityProject: true, sidebarOpen: true, sessionPanelOpen: true, captureSound: true, captureFocus: true, chromeBrowser: true, computerUse: true,
-    browserTools: true, notifications: true, settingsOpen: true, settingsSection: true, settingsFocus: true, usageComputer: true, favoriteModels: true,
+    memoryProtection: true, browserTools: true, notifications: true, settingsOpen: true, settingsSection: true, settingsFocus: true, usageComputer: true, favoriteModels: true,
     recentProjects: true, shortcuts: true, capturingShortcut: true, desktopShortcutUnavailable: true,
   }));
 }
@@ -255,6 +255,9 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Sli
       const patch = { captureSound: input.options.sound, captureFocus: input.options.focus };
       return { patch, effects: [...savedWith(state, patch), { type: "apply-capture-options", options: input.options }] };
     }
+
+    case "view.set-memory-protection":
+      return { patch: { memoryProtection: input.enabled }, persists: true, effects: [{ type: "send-run-command", command: { type: "memory-protection", enabled: input.enabled } }] };
 
     case "view.set-chrome-browser":
     case "view.set-computer-use": case "view.set-browser-tools": case "view.set-notifications": {

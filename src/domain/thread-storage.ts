@@ -9,6 +9,7 @@ import { threadLastOutputAt, type Thread } from "./thread.js";
 import { isThreadRole } from "./thread-role.js";
 import { isCaughtStarts, isCoordinationNote, isCoordinationReport, isCoordinatorMemory, isDecision, isHeldLead, isRemoteHeard, isRemoteStops, isRemoteWorking, isThreadBrief, isThreadModelChoice, isThreadProposal } from "./coordination.js";
 import { isWorktree, type Worktree } from "./worktree.js";
+import { isResourceStop } from "./session-resources.js";
 import { isLimitPause } from "./usage-limit.js";
 import { isPullRequestLink } from "./pull-request.js";
 
@@ -399,6 +400,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.lastFindingAt === undefined || finiteNumber(value.lastFindingAt)) &&
     (value.handledIssues === undefined || Array.isArray(value.handledIssues) && value.handledIssues.every((key: unknown) => nonEmptyString(key))) &&
     (value.snoozedUntil === undefined || finiteNumber(value.snoozedUntil) && value.snoozedUntil > 0) &&
+    (value.resourceStop === undefined || isResourceStop(value.resourceStop)) &&
     (value.limitPause === undefined || isLimitPause(value.limitPause) && (value.limitPause.held ?? []).every(isHeldMessage)) &&
     (value.lastChecked === undefined || (isRecord(value.lastChecked) && finiteNumber(value.lastChecked.at) && nonEmptyString(value.lastChecked.note))) &&
     (value.worktreeId === undefined || nonEmptyString(value.worktreeId)) &&
@@ -530,6 +532,7 @@ function heldWithOrigins(pause: unknown) {
  * rather than costing the thread its conversation.
  */
 const DROPPABLE_FIELDS: Readonly<Record<string, (value: unknown) => boolean>> = {
+  resourceStop: isResourceStop,
   brief: isThreadBrief,
   threadModel: isThreadModelChoice,
   memory: isCoordinatorMemory,

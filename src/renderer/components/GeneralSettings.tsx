@@ -64,6 +64,8 @@ export type GeneralSettingsProps = {
   chromeBrowser: boolean;
   onSetChromeBrowser: (enabled: boolean) => void;
   /** Whether a thread that needs the user announces itself on the desktop. */
+  memoryProtection?: boolean;
+  onSetMemoryProtection?: (enabled: boolean) => void;
   notifications: boolean;
   onSetNotifications: (enabled: boolean) => void;
   onCheckForUpdates: () => void;
@@ -71,7 +73,7 @@ export type GeneralSettingsProps = {
   onOpenSourceLicenses: () => void;
 };
 
-export function GeneralSettings({ dictation, cli: { status, busy, error }, onReadCli, onSetCliInstalled, chromeBrowser, onSetChromeBrowser, notifications, onSetNotifications, onCheckForUpdates, update = NO_APP_UPDATE_SETTINGS, onOpenSourceLicenses }: GeneralSettingsProps) {
+export function GeneralSettings({ dictation, cli: { status, busy, error }, onReadCli, onSetCliInstalled, chromeBrowser, onSetChromeBrowser, memoryProtection = true, onSetMemoryProtection, notifications, onSetNotifications, onCheckForUpdates, update = NO_APP_UPDATE_SETTINGS, onOpenSourceLicenses }: GeneralSettingsProps) {
   useEffect(() => { onReadCli(); }, []);
   /** Which CLI button started the change in flight, so only that one reads as working. */
   const [cliStep, setCliStep] = useState<"install" | "remove" | null>(null);
@@ -104,6 +106,12 @@ export function GeneralSettings({ dictation, cli: { status, busy, error }, onRea
           {dictation.model === "downloading" && <Button onClick={dictation.onCancelDownload}>Cancel</Button>}
         </SettingRow>
       </SettingsSection>}
+
+      <SettingsSection title="Memory protection">
+        <SettingRow id="general.memory-protection" description="Stop threads that use excessive memory to keep the app responsive.">
+          <SettingSwitch id="general.memory-protection" on={memoryProtection} onChange={onSetMemoryProtection ?? (() => {})} />
+        </SettingRow>
+      </SettingsSection>
 
       <SettingsSection title="Notifications">
         <SettingRow id="general.notifications" description="When a run finishes, fails, or needs you. Your phone hears it once you step away from this computer.">

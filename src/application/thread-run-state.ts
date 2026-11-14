@@ -353,6 +353,7 @@ function applySubagentReport<T extends RunFeedsState>(state: T, threadId: string
 /** What the agent process reports about work that outlives the run that started it. */
 export function applyThreadEvent<T extends RunFeedsState>(state: T, event: ThreadEvent): T {
   switch (event.type) {
+    case "resource.stopped": return state;
     case "subagent.started":
     case "subagent.metadata":
     case "subagent.status":

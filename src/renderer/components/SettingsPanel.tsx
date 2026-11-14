@@ -75,6 +75,8 @@ export type SettingsPanelProps = {
   computerUse: boolean;
   /** Whether a run may drive the browser panel. The user's own tabs stay usable either way. */
   browserTools: boolean;
+  memoryProtection?: boolean;
+  onSetMemoryProtection?: (enabled: boolean) => void;
   notifications: boolean;
   dictation?: DictationSettings;
   /** The phone bridge, as the main process last reported it. */
@@ -153,6 +155,7 @@ export function SettingsPanel({
   chromeBrowser,
   computerUse,
   browserTools,
+  memoryProtection = true, onSetMemoryProtection,
   notifications,
   dictation,
   remote,
@@ -224,7 +227,7 @@ export function SettingsPanel({
 
       {section === "general" && (
       <SettingsPage title="General" description="How AI Coding Tool answers from outside its own window.">
-        <GeneralSettings {...(dictation ? { dictation } : {})} cli={cli} onReadCli={onReadCli} onSetCliInstalled={onSetCliInstalled} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} update={appUpdate} onOpenSourceLicenses={onOpenSourceLicenses} />
+        <GeneralSettings memoryProtection={memoryProtection} onSetMemoryProtection={onSetMemoryProtection} {...(dictation ? { dictation } : {})} cli={cli} onReadCli={onReadCli} onSetCliInstalled={onSetCliInstalled} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} update={appUpdate} onOpenSourceLicenses={onOpenSourceLicenses} />
       </SettingsPage>
       )}
 

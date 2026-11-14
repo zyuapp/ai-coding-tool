@@ -39,6 +39,8 @@ export type ViewPreferences = {
   computerUse: boolean;
   /** Whether a run may drive the browser panel. The user's own tabs stay usable either way. */
   browserTools: boolean;
+  /** Whether excessive engine memory stops its owning thread. On when absent. */
+  memoryProtection?: boolean;
   /** Whether a thread that needs the user reaches the desktop while the window is behind something else. */
   notifications: boolean;
   /** Only the bindings that differ from the defaults; an action bound to nothing is stored as null. */

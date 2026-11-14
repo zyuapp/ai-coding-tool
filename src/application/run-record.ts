@@ -64,7 +64,7 @@ export function runStatus(state: Pick<WorkspaceState, "activeRuns" | "runStatuse
 /** The thread a resolved start may begin its run on: one still there, not filed away, with no run going. */
 export function threadToBegin(state: Pick<WorkspaceState, "threads" | "activeRuns">, taskId: string | undefined): Thread | undefined {
   const thread = taskId ? state.threads.find((item) => item.id === taskId) : undefined;
-  return thread && thread.archivedAt === undefined && !state.activeRuns[thread.id] ? thread : undefined;
+  return thread && thread.archivedAt === undefined && !thread.resourceStop && !state.activeRuns[thread.id] ? thread : undefined;
 }
 
 /** Whether a run is going in a checkout, so nothing moves the ground under it. */

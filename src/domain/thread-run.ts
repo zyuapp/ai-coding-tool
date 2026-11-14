@@ -53,6 +53,8 @@ export type RunThread = {
   outcomeUnread?: true;
   /** Set while the thread waits out its account's usage limit. */
   limitPause?: LimitPause;
+  /** A resource stop blocks every automatic start until the user resumes it. */
+  resourceStop?: import("./session-resources.js").ResourceStop;
   /** When this thread's newest run settled. A turn the run left unfinished ends there. */
   runEndedAt?: number;
   /**

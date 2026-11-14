@@ -1,3 +1,4 @@
+import { registerSessionProcess } from "../agent/session-resources.mjs";
 import { spawn, type ChildProcess } from "node:child_process";
 import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
@@ -217,11 +218,12 @@ export class AppServerClient {
   private authClosed: Promise<void> | undefined;
   private readonly sharedAuthCommand: AppServerCommand | undefined;
 
-  constructor(command: AppServerCommand) {
+  constructor(command: AppServerCommand, owned = true) {
     this.sharedAuthCommand = command.sharedAuth;
     this.exited = new Promise((resolve) => { this.settleExit = resolve; });
     /** Its own process group, so closing reaches what the server started under itself as well. */
     this.child = spawn(command.executable, command.args, { cwd: command.cwd, env: command.env, stdio: ["pipe", "pipe", "pipe"], detached: true });
+    if (owned) registerSessionProcess(this.child);
     this.child.stdout!.on("data", (chunk: Buffer) => this.receive(chunk));
     this.child.stderr!.on("data", (chunk: Buffer) => this.stderr.push(chunk));
     this.child.stdin!.on("error", () => {});
@@ -246,7 +248,7 @@ export class AppServerClient {
     this.send({ jsonrpc: "2.0", method: "initialized", params: {} });
     if (this.sharedAuthCommand) {
       try {
-        const auth = await acquireSharedAuth(this.sharedAuthCommand, (command) => new AppServerClient(command));
+        const auth = await acquireSharedAuth(this.sharedAuthCommand, (command) => new AppServerClient(command, false));
         if (this.exit) { await auth.release(); throw new AppServerExited(this.exit, "during authentication"); }
         this.sharedAuth = auth;
         const login = await auth.read();

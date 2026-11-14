@@ -9,14 +9,14 @@ import type { Thread } from "../domain/thread.js";
 export function compactableSession(state: Pick<WorkspaceState, "engineStatus">, thread: Thread): boolean {
   const catalog = catalogOf(state);
   const model = threadModel(catalog, thread);
-  return model !== undefined && modelSupportsManualCompaction(catalog, thread.engine, model)
+  return !thread.resourceStop && model !== undefined && modelSupportsManualCompaction(catalog, thread.engine, model)
     && thread.continuation?.provider === thread.engine
     && thread.contextUsage !== undefined;
 }
 
 /** A session reviews changes when its engine can, its engine holds it, and the thread works in a checkout. */
 export function reviewableSession(state: Pick<WorkspaceState, "projects" | "worktrees">, thread: Thread): boolean {
-  return capabilitiesFor(thread.engine).review
+  return !thread.resourceStop && capabilitiesFor(thread.engine).review
     && thread.continuation?.provider === thread.engine
     && Boolean(threadWorkspaceId(state, thread));
 }

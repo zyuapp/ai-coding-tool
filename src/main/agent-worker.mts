@@ -1,3 +1,5 @@
+import { reportSessionResources } from "./agent/session-resources.mjs";
+import { isTerminateSessionCommand, type SessionResourceMessage } from "../contracts/session-resources.js";
 import { isAutomationResponse, isInternalRunCommand, isThreadResponse, type AgentEvent, type AutomationRequest, type InternalRunCommand } from "../contracts/ipc.js";
 import type { ThreadRequest } from "../contracts/threads.js";
 import { AutomationChannel } from "./agent/automation-channel.mjs";
@@ -12,7 +14,7 @@ import { setAppPluginRoot } from "./app-plugin.mjs";
 
 type ParentPort = {
   on(event: "message", listener: (event: { data: unknown }) => void): void;
-  postMessage(message: AgentEvent | AutomationRequest | ThreadRequest): void;
+  postMessage(message: AgentEvent | AutomationRequest | ThreadRequest | SessionResourceMessage): void;
 };
 
 /** The utility process speaks through its parent port; a plain child process through its IPC channel. */
@@ -20,6 +22,7 @@ const parentPort: ParentPort = (process as typeof process & { parentPort?: Paren
   on: (_event, listener) => { process.on("message", (data) => listener({ data })); },
   postMessage: (message) => { process.send?.(message); },
 };
+reportSessionResources((event) => parentPort.postMessage(event));
 const automations = new AutomationChannel((request) => parentPort.postMessage(request));
 const threads = new ThreadChannel((request) => parentPort.postMessage(request));
 /** Both channels get the same tools; a side chat's automations are retired when its thread closes. */
@@ -87,6 +90,7 @@ function whichever(act: (coordinator: RunCoordinator) => boolean) {
 type RunCommandHandlers = { [Type in InternalRunCommand["type"]]: (command: Extract<InternalRunCommand, { type: Type }>) => void };
 
 const runCommands: RunCommandHandlers = {
+  "memory-protection": () => {},
   "reload-settings": () => void reloadSettings(),
   start: (command) => coordinators[command.channel].start(command),
   cancel: (command) => whichever((coordinator) => coordinator.cancel(command.taskId, command.runId)),
@@ -100,6 +104,10 @@ const runCommands: RunCommandHandlers = {
 };
 
 parentPort.on("message", ({ data }) => {
+  if (isTerminateSessionCommand(data)) {
+    for (const pool of pools) pool.terminate(data.taskId, data.sessionId, data.idleOnly);
+    return;
+  }
   if (isAutomationResponse(data)) {
     automations.settle(data);
     return;

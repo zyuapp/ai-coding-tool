@@ -31,3 +31,23 @@ test("every Claude process names this app in place of an inherited name and keep
     vi.unstubAllEnvs();
   }
 });
+
+test("the observable Claude spawner drains large stderr and retains its final exit diagnostic", async () => {
+  const factory: typeof query = ({ options }) => ({
+    async *[Symbol.asyncIterator]() {
+      const child = options!.spawnClaudeCodeProcess!({ command: process.execPath, args: ["-e", "process.stderr.write('x'.repeat(512*1024)+'\\nfinal diagnostic');process.exitCode=7"], env: { ...process.env }, signal: new AbortController().signal });
+      child.stdout.resume();
+      const code = await new Promise<number | null>((resolve, reject) => { child.once("exit", resolve); child.once("error", reject); });
+      throw new Error(`Claude Code process exited with code ${code}`);
+    },
+    close() {},
+  }) as unknown as Query;
+  const provider = new ClaudeAgentProvider({ queryFactory: factory });
+  try {
+    const result = await provider.execute(input());
+    assert.equal(result.status, "failed");
+    assert.match(result.message ?? "", /exited with code 7\. stderr:/);
+    assert.match(result.message ?? "", /final diagnostic$/);
+    assert.ok(result.message!.length < 8500, "diagnostics stay bounded");
+  } finally { provider.closeAll(); }
+});

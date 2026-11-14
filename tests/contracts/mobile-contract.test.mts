@@ -330,10 +330,10 @@ test("a phone may send exactly the commands that declare a phone rule", () => {
     "view.set-prompt": true, "task.set-role": true, "project.add": true, "attachments.send": true,
     "app.update": true, "app.cancel-update": true, "app.check-for-updates": true, "engine.read": true, "engine.update": true,
     "usage.read": true, "usage.dismiss-warning": true,
-    "decision.answer": true, "proposal.start": true, "limit.resume": true, "limit.cancel": true, "task.snooze": true, "task.unsnooze": true,
+    "decision.answer": true, "proposal.start": true, "resource.resume": true, "limit.resume": true, "limit.cancel": true, "task.snooze": true, "task.unsnooze": true,
     "coordination.stop-all": true, "task.edit-queued": true,
   };
-  assert.equal(Object.keys(types).length, 47);
+  assert.equal(Object.keys(types).length, 48);
   for (const type of ["terminal.input", "worktree.delete", "project.remove", "browser.open", "task.set-coordinator", "run.compact"]) {
     assert.equal(isPhoneCommand({ type, taskId: "task-1" }), false, type);
   }

@@ -33,6 +33,7 @@ import { capabilitiesFor, noModel, threadModel, unknownModel } from "../../domai
 import { normalizeDraft } from "../../domain/agent-draft.js";
 import { catalogOf, engineOffersModel } from "../state/engines.js";
 import { compactableSession, reviewableSession } from "../session-operations.js";
+import { resourceStopped, resourceResumed } from "../resource-stops.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
@@ -44,11 +45,12 @@ export const RUN_INPUTS = ["run.resolved", "run.event"] as const;
 type RunInput = Extract<WorkspaceInput, { type: (typeof RUN_INPUTS)[number] }>;
 
 /** What the user asks of a live run, and what a session reports from beside it, which change only the runs' own state. */
-export const RUN_CONTROL_INPUTS = ["run.compact", "run.cancel", "run.stop-process", "run.decide", "thread.event", "review.open", "review.close", "review.set-step", "review.start"] as const;
+export const RUN_CONTROL_INPUTS = ["resource.resume", "run.compact", "run.cancel", "run.stop-process", "run.decide", "thread.event", "review.open", "review.close", "review.set-step", "review.start"] as const;
 type RunControlInput = Extract<WorkspaceInput, { type: (typeof RUN_CONTROL_INPUTS)[number] }>;
 
 export function reduceRunControl(state: WorkspaceState, input: RunControlInput): Step {
   switch (input.type) {
+    case "resource.resume": return resourceResumed(state, input.taskId);
     case "review.open":
     case "review.close":
     case "review.set-step":
@@ -101,6 +103,7 @@ export function reduceRunControl(state: WorkspaceState, input: RunControlInput):
 
     case "thread.event": {
       const { event } = input;
+      if (event.type === "resource.stopped") return resourceStopped(state, event);
       if (!state.threads.some((item) => item.id === event.taskId)) return {};
       return { edits: [threadEventIn(runsOf(state), event)] };
     }
@@ -145,6 +148,11 @@ export function reduceRuns(state: WorkspaceState, input: Exclude<RunInput, { typ
       if (adopts) {
         next = { ...next, projects: next.projects.map((item) => item.id === project.id ? { ...item, workspaceId: input.workspace.id } : item) };
       }
+      const stopped = pending.taskId && next.threads.find(thread => thread.id === pending.taskId)?.resourceStop;
+      if (stopped) {
+        if (input.worktree && pending.projectId) next = withUsedWorktree(next, { ...input.worktree, projectId: pending.projectId }, input.worktree.id);
+        return pending.origin === "automation" ? settled(next, ack(pending, false)) : rejected(withUnsent(next, pending), "Resume this thread after its memory stop before starting another run.");
+      }
       const gone = modelGone(next, pending);
       if (gone) return gone;
       if (pending.operation?.type === "compact") return startCompaction(next, pending, input.workspace);
@@ -157,6 +165,7 @@ export function reduceRuns(state: WorkspaceState, input: Exclude<RunInput, { typ
 
     case "run.event": {
       const { event: reported } = input;
+      if (!(reported.type === "run.status" && ["cancelled", "failed", "succeeded"].includes(reported.status)) && state.threads.find(thread => thread.id === reported.taskId)?.resourceStop) return settled(state);
       /** A turn the agent started itself belongs to no run yet, so the thread takes one on for it. */
       const opening = reported.type === "run.started" && reported.agentInitiated && !state.activeRuns[reported.taskId] && state.threads.some((thread) => thread.id === reported.taskId);
       const opened = opening ? beginRun(state, reported.taskId, reported.runId, ATTENDED_RUN, undefined, "agent") : state;
@@ -405,7 +414,7 @@ function startResume(state: WorkspaceState, pending: PendingRun, workspace: Work
   const update = pending.operation?.type === "resume" && pending.operation.after === "update";
   const resumed = updateThread(state, thread.id, (item) => ({
     ...item,
-    messages: appendMessages(item.messages, [createConversationMessage("system", update ? "App updated. Resuming." : "Usage limit reset. Resuming.")]),
+    messages: appendMessages(item.messages, [createConversationMessage("system", pending.operation?.type === "resume" && pending.operation.after === "memory" ? "Resuming after a memory stop. Check interrupted actions before repeating them." : update ? "App updated. Resuming." : "Usage limit reset. Resuming.")]),
     updatedAt: now(),
   }));
   const command = {

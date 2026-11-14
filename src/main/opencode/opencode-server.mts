@@ -1,3 +1,4 @@
+import { registerSessionProcess } from "../agent/session-resources.mjs";
 import { spawn, type ChildProcess } from "node:child_process";
 import { engineBinaryPath } from "../agent/engine-binary.mjs";
 import { isRecord } from "../agent/session-common.mjs";
@@ -99,6 +100,7 @@ export const startOpenCodeServer: OpenCodeConnect = async (options) => {
     env: { ...process.env, ...(options.config ? { OPENCODE_CONFIG_CONTENT: JSON.stringify(options.config) } : {}) },
     stdio: ["pipe", "pipe", "pipe"],
   });
+  registerSessionProcess(child);
   const server = new OpenCodeServer(child);
   try {
     await server.ready;

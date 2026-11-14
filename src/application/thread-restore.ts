@@ -43,6 +43,7 @@ function restoredSubagent(subagent: Subagent): Subagent {
  * coordinator has already heard of it.
  */
 function restoredThread(thread: Thread): Thread {
+  if (thread.resourceStop && thread.resourceStop.cleanup !== "complete") thread = { ...thread, resourceStop: { ...thread.resourceStop, cleanup: "complete" } };
   if (!thread.runOpen) return thread;
   const { runOpen: _cutOff, ...rest } = thread;
   const moved = Math.max(thread.updatedAt, threadLastOutputAt(thread), thread.report?.at ?? 0, thread.lastFindingAt ?? 0, thread.remoteLead?.backAt ?? 0, ...(thread.decisions ?? []).map((decision) => decision.raisedAt));

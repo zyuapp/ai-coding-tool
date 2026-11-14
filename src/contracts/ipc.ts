@@ -89,6 +89,7 @@ export type StartRunCommand = {
   continuation?: Continuation;
   forkContinuation?: boolean;
   /** Set when the run resumes no session on purpose, so not even the thread's warm one is reused. */
+  memoryProtection?: boolean;
   freshSession?: true;
   /** Set only by a scheduled tick: nobody is present, so an approval nobody answers is denied for them. */
   unattended?: true;
@@ -187,7 +188,7 @@ export type ArchiveThreadCommand = { type: "archive"; taskId: string; channel: R
  */
 export type ThreadRoleCommand = { type: "role"; taskId: string; coordinationRole?: CoordinationRole };
 
-export type RunCommand = ReloadAgentSettingsCommand | StartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand | ArchiveThreadCommand | ThreadRoleCommand;
+export type RunCommand = { type: "memory-protection"; enabled: boolean } | ReloadAgentSettingsCommand | StartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand | ArchiveThreadCommand | ThreadRoleCommand;
 
 /** The same commands as the agent process reads them: a start arrives already resolved against its workspace. */
 export type InternalRunCommand = Exclude<RunCommand, StartRunCommand> | InternalStartRunCommand;
@@ -384,7 +385,7 @@ export type GoalReport = { type: "goal.changed"; goal: ActiveGoal | null };
 export type GoalEvent = GoalReport & { taskId: string };
 
 /** What the agent process reports about work that answers to the thread rather than to a run. */
-export type ThreadEvent = WorkflowEvent | BackgroundEvent | SubagentEvent | GoalEvent;
+export type ThreadEvent = WorkflowEvent | BackgroundEvent | SubagentEvent | GoalEvent | import("./session-resources.js").ResourceStoppedEvent;
 
 /** Everything the agent process pushes back, on one channel so a workflow cannot overtake its own run. */
 export type AgentEvent = RunEvent | ThreadEvent | AgentSettingsReloadEvent;
@@ -480,6 +481,7 @@ export function isRunCommand(value: unknown): value is RunCommand {
   if (command.type === "start") {
     return isStartCommand(command, false);
   }
+  if (command.type === "memory-protection") return typeof command.enabled === "boolean";
   if (command.type === "reload-settings") return true;
   if (command.type === "cancel") return isString(command.taskId) && isString(command.runId);
   if (command.type === "answer-question") return isString(command.taskId) && isString(command.runId) && isString(command.requestId) && isString(command.questionId) && isString(command.text, MAX_PROMPT_LENGTH) && command.text.trim().length > 0;
@@ -513,7 +515,7 @@ function isStartCommand(command: Record<string, unknown>, internal: boolean) {
     && isContinuation(command.continuation) && command.continuation.provider === command.engine
     && (command.forkContinuation === undefined || command.forkContinuation === true);
   const operationOnly = compact || review;
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isExecutionPolicy(command.policy) && isAgentEngine(command.engine) && isModelId(command.model) && isAgentEffort(command.effort) && (command.operation === undefined || operationOnly) && (command.chromeBrowser === undefined || (command.chromeBrowser === true && capabilitiesFor(command.engine).chromeBrowser)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.simulatorTools === undefined || command.simulatorTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.freshSession === undefined || (command.freshSession === true && command.continuation === undefined && command.forkContinuation === undefined)) && (command.unattended === undefined || command.unattended === true) && (command.coordinationRole === undefined || command.coordinationRole === "coordinator" || command.coordinationRole === "member") && (command.projectWorkspaceId === undefined || (command.coordinationRole === "member" && isString(command.projectWorkspaceId)));
+  const base = (command.memoryProtection === undefined || typeof command.memoryProtection === "boolean") && isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isExecutionPolicy(command.policy) && isAgentEngine(command.engine) && isModelId(command.model) && isAgentEffort(command.effort) && (command.operation === undefined || operationOnly) && (command.chromeBrowser === undefined || (command.chromeBrowser === true && capabilitiesFor(command.engine).chromeBrowser)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.simulatorTools === undefined || command.simulatorTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.freshSession === undefined || (command.freshSession === true && command.continuation === undefined && command.forkContinuation === undefined)) && (command.unattended === undefined || command.unattended === true) && (command.coordinationRole === undefined || command.coordinationRole === "coordinator" || command.coordinationRole === "member") && (command.projectWorkspaceId === undefined || (command.coordinationRole === "member" && isString(command.projectWorkspaceId)));
   if (!base || !(command.fastMode === undefined || isAgentEngine(command.engine) && capabilitiesFor(command.engine).fastMode && typeof command.fastMode === "boolean")) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "projectRoot", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse) && (command.projectRoot === undefined || isString(command.projectRoot, 4_096));

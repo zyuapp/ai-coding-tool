@@ -36,7 +36,7 @@ function agentProcesses() {
   return { started, start };
 }
 
-function harness() {
+function harness(overrides: Partial<RunHost> = {}) {
   const sent: Array<{ channel: string; event: unknown }> = [];
   const agents = agentProcesses();
   const host: RunHost = {
@@ -54,6 +54,7 @@ function harness() {
     scheduler: () => ({}) as unknown as AutomationScheduler,
     computerUseForRun: () => Promise.resolve({ status: "unavailable" as const, message: "test" }),
     agent: agents.start,
+    ...overrides,
   };
   const events = () => sent.flatMap((entry) => entry.channel === "run:event" ? [entry.event as AgentEvent] : []);
   const statuses = (runId: string) => events().flatMap((event) => event.type === "run.status" && "runId" in event && event.runId === runId ? [event.status] : []);
@@ -234,4 +235,61 @@ test("a request no guard can read is refused rather than dropped", async () => {
   }]);
   bridge.killAgent();
   assert.equal(agent.killed, true);
+});
+
+test("the host handles a real monitored stop, refuses pending requests and starts, gates late messages, then resumes after cleanup", async () => {
+  const { spawn } = await import("node:child_process");
+  const { once } = await import("node:events");
+  const { SessionResourceMonitor, readProcessSamples } = await import("../../src/main/session-resource-monitor.mts");
+  let now = 0;
+  let monitor!: InstanceType<typeof SessionResourceMonitor>;
+  let resolvePending!: (value: unknown) => void;
+  const pendingWorkspace = new Promise(resolve => { resolvePending = resolve; });
+  const healthy = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { stdio: "ignore" });
+  const hog = spawn(process.execPath, ["-e", "global.hold=Buffer.alloc(96*1024*1024,1);process.on('SIGTERM',()=>{});process.send('ready');setInterval(()=>{},1000)"], { stdio: ["ignore", "ignore", "ignore", "ipc"] });
+  const h = harness({
+    resourceMonitor: options => monitor = new SessionResourceMonitor({ ...options, read: readProcessSamples, now: () => now, memory: () => ({ total: 4 * 1024 ** 3, available: 0 }) }),
+    workspaces: () => ({ resolve: (id: string) => id === "pending-workspace" ? pendingWorkspace : Promise.resolve({ status: "available", workspace: { id, root: "/tmp/project", kind: "project" } }) }) as unknown as WorkspaceService,
+  });
+  try {
+    await once(hog, "message");
+    h.bridge.submit(startCommand("a", "run-a"));
+    h.bridge.submit(startCommand("b", "run-b"));
+    await tick();
+    const agent = h.agents.started[0]!;
+    for (const taskId of ["a", "b"]) agent.say({ type: "run.started", taskId, runId: `run-${taskId}`, sequence: 1 });
+    agent.say({ type: "thread.request", op: "list", taskId: "a", requestId: "pending-request" });
+    h.bridge.submit(startCommand("a", "pending-run", { workspaceId: "pending-workspace" }));
+    await tick();
+    agent.say({ type: "session.process", taskId: "a", sessionId: "generation-a", pid: hog.pid! });
+    agent.say({ type: "session.process", taskId: "b", sessionId: "generation-b", pid: healthy.pid! });
+    await monitor.sample();
+    assert.deepEqual(h.statuses("run-a"), ["cancelled"]);
+    assert.deepEqual(h.statuses("pending-run"), ["cancelled"]);
+    assert.deepEqual(h.statuses("run-b"), []);
+    assert.ok(h.events().some(event => event.type === "resource.stopped" && event.taskId === "a" && event.stop.cleanup === "stopping"));
+    assert.ok(agent.posted.some(command => command.type === "terminate-session" && command.sessionId === "generation-a"));
+    assert.ok(agent.posted.some(command => command.type === "thread.response" && command.requestId === "pending-request" && !command.ok));
+    const beforeLate = h.events().length;
+    agent.say({ type: "assistant.delta", taskId: "a", runId: "run-a", sequence: 2, messageId: "late", text: "late output" });
+    agent.say({ type: "background.changed", taskId: "a", processes: [{ id: "late", kind: "shell", description: "late" }] });
+    assert.equal(h.events().length, beforeLate);
+    resolvePending({ status: "available", workspace: { id: "pending-workspace", root: "/tmp/project", kind: "project" } });
+    await tick();
+    assert.equal(agent.posted.some(command => command.type === "start" && command.runId === "pending-run"), false);
+    const exited = once(hog, "exit");
+    now = 6000;
+    await monitor.sample();
+    await exited;
+    await monitor.sample();
+    assert.ok(h.events().some(event => event.type === "resource.stopped" && event.taskId === "a" && event.stop.cleanup === "complete"));
+    assert.equal(healthy.signalCode, null);
+    h.bridge.submit(startCommand("a", "resumed-run", { continuation: { provider: "claude", value: "saved-session" } }));
+    await tick();
+    assert.ok(agent.posted.some(command => command.type === "start" && command.runId === "resumed-run" && command.continuation?.value === "saved-session"));
+  } finally {
+    monitor.close();
+    hog.kill("SIGKILL"); healthy.kill("SIGKILL");
+    h.bridge.killAgent();
+  }
 });
