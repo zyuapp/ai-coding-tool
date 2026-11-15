@@ -51,21 +51,25 @@ test("a stopped owner includes reparented children, never reused PIDs or another
   } finally { monitor.close(); }
 });
 
-test("disabled protection clears the growth window; aggregate pressure stops only the largest owner", async () => {
+test("enabling protection restarts the pressure window; one owner stops at a time until cleanup gives up", async () => {
   let now = 0;
   const stops: string[] = [];
-  const monitor = new SessionResourceMonitor({ read: async () => [row(101, 1, GiB), row(201, 1, GiB / 2)], now: () => now, memory: () => ({ total: 4 * GiB, available: 0 }), stop: taskId => { stops.push(taskId); }, changed() {}, signal() {} });
+  const monitor = new SessionResourceMonitor({ read: async () => [row(101, 1, GiB), row(201, 1, GiB / 2)], now: () => now, memory: () => ({ total: 4 * GiB, available: 300 * 1024 ** 2 }), stop: taskId => { stops.push(taskId); }, changed() {}, signal() {} });
   try {
     monitor.setEnabled(false);
     for (const [taskId, pid] of [["a", 101], ["b", 201]] as const) monitor.receive({ type: "session.process", taskId, sessionId: taskId, pid });
     for (now = 0; now <= 20000; now += 5000) await monitor.sample();
-    assert.deepEqual(stops, []);
     monitor.setEnabled(true);
     await monitor.sample();
+    assert.deepEqual(stops, []);
+    for (let i = 0; i < 3; i++) { now += 5000; await monitor.sample(); }
     assert.deepEqual(stops, ["a"]);
     now += 5000;
     await monitor.sample();
     assert.deepEqual(stops, ["a"], "do not stop a second owner while waiting for cleanup");
+    now += 15000;
+    await monitor.sample();
+    assert.deepEqual(stops, ["a", "b"], "an owner that cannot be killed stops deferring");
   } finally { monitor.close(); }
 });
 

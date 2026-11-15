@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { readFile, writeFile, rename } from "node:fs/promises";
 import { availableMemory } from "./system-memory.mjs";
 import { totalmem } from "node:os";
-import { pressureLine, unsafeMemory, type MemorySample, type ResourceStop } from "../domain/session-resources.js";
+import { unsafeMemory, type MemorySample, type ResourceStop } from "../domain/session-resources.js";
 import type { SessionResourceMessage } from "../contracts/session-resources.js";
 
 export type ProcessSample = { pid: number; parent: number; bytes: number; born: string };
@@ -179,12 +179,13 @@ export class SessionResourceMonitor {
     const active = [...totals].filter(([owner]) => owner.released === undefined).sort((a, b) => b[1] - a[1]);
     const largest = active[0]?.[0];
     const idle = active.find(([owner]) => owner.busy === false)?.[0];
-    const pressured = this.enabled && memory.available < pressureLine(memory.total);
-    if (pressured && idle) {
-      idle.busy = true;
-      this.options.release?.(idle.taskId, idle.sessionId);
+    const releasing = this.enabled && memory.available < 512 * 1024 ** 2 && idle;
+    if (releasing) {
+      releasing.busy = true;
+      this.options.release?.(releasing.taskId, releasing.sessionId);
     }
-    const stopping = Boolean(pressured && idle) || [...this.sessions.values()].some(owner => owner.released !== undefined);
+    // An owner that outlives the cleanup limit cannot be freed, so it no longer defers the next stop.
+    const stopping = Boolean(releasing) || [...this.sessions.values()].some(owner => owner.released !== undefined && now - owner.released < CLEANUP_LIMIT);
     const verdict = this.enabled && largest && !stopping ? unsafeMemory(largest.history, memory.total) : undefined;
     if (largest && verdict) {
       const bytes = largest.history.at(-1)!.bytes;
@@ -203,7 +204,7 @@ export class SessionResourceMonitor {
         if (byPid.get(pid)?.born !== born) continue;
         try { (this.options.signal ?? process.kill)(pid, signal); } catch { /* Already gone. */ }
       }
-      if (elapsed >= 15_000 && owner.stopped?.cleanup !== "incomplete") {
+      if (elapsed >= CLEANUP_LIMIT && owner.stopped?.cleanup !== "incomplete") {
         owner.stopped = owner.stopped ? { ...owner.stopped, cleanup: "incomplete" } : undefined;
         if (owner.stopped) this.options.changed(owner.taskId, owner.stopped);
       }
@@ -212,4 +213,5 @@ export class SessionResourceMonitor {
   }
 }
 
+const CLEANUP_LIMIT = 15_000;
 const gib = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(1)} GiB`;
