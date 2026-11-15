@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { readFile, writeFile, rename } from "node:fs/promises";
 import { availableMemory } from "./system-memory.mjs";
 import { totalmem } from "node:os";
-import { memoryBudget, unsafeMemory, type MemorySample, type ResourceStop } from "../domain/session-resources.js";
+import { pressureLine, unsafeMemory, type MemorySample, type ResourceStop } from "../domain/session-resources.js";
 import type { SessionResourceMessage } from "../contracts/session-resources.js";
 
 export type ProcessSample = { pid: number; parent: number; bytes: number; born: string };
@@ -145,7 +145,6 @@ export class SessionResourceMonitor {
     }
     const now = this.now();
     const memory = this.options.memory?.() ?? { total: totalmem(), available: await availableMemory() };
-    const budget = memoryBudget(memory.total);
     const totals = new Map<Owned, number>();
     const claimed = new Set<number>();
     for (const owner of this.sessions.values()) {
@@ -173,23 +172,28 @@ export class SessionResourceMonitor {
       let bytes = 0;
       for (const pid of live.keys()) bytes += byPid.get(pid)!.bytes;
       totals.set(owner, bytes);
-      owner.history.push({ at: now, bytes });
+      owner.history.push({ at: now, bytes, available: memory.available });
       if (owner.history.length > 12) owner.history.shift();
     }
-    // A low-headroom intervention chooses one largest owner per sample, rather than stopping every thread.
-    const largest = [...totals].filter(([owner]) => owner.released === undefined).sort((a, b) => b[1] - a[1])[0]?.[0];
-    const idle = [...totals].filter(([owner]) => owner.busy === false && owner.released === undefined).sort((a, b) => b[1] - a[1])[0]?.[0];
-    if (this.enabled && memory.available < 512 * 1024 ** 2 && idle) {
+    // Pressure is system-wide, so each sample may stop at most the one largest owner.
+    const active = [...totals].filter(([owner]) => owner.released === undefined).sort((a, b) => b[1] - a[1]);
+    const largest = active[0]?.[0];
+    const idle = active.find(([owner]) => owner.busy === false)?.[0];
+    const pressured = this.enabled && memory.available < pressureLine(memory.total);
+    if (pressured && idle) {
       idle.busy = true;
       this.options.release?.(idle.taskId, idle.sessionId);
     }
-    const alreadyStopping = Boolean(idle && this.enabled && memory.available < 512 * 1024 ** 2) || [...this.sessions.values()].some(owner => owner.released !== undefined);
+    const stopping = Boolean(pressured && idle) || [...this.sessions.values()].some(owner => owner.released !== undefined);
+    const verdict = this.enabled && largest && !stopping ? unsafeMemory(largest.history, memory.total) : undefined;
+    if (largest && verdict) {
+      const bytes = largest.history.at(-1)!.bytes;
+      console.warn(`Memory protection stopped thread ${largest.taskId} (${verdict}): ${gib(bytes)} used, ${gib(memory.available)} available of ${gib(memory.total)}.`);
+      largest.stopped = { at: now, bytes, cleanup: "stopping" };
+      largest.released = now;
+      this.options.stop(largest.taskId, largest.sessionId, largest.stopped);
+    }
     for (const [owner] of totals) {
-      if (this.enabled && owner.released === undefined && unsafeMemory(owner.history, budget, !alreadyStopping && owner === largest ? memory.available : Infinity)) {
-        owner.stopped = { at: now, bytes: owner.history.at(-1)!.bytes, cleanup: "stopping" };
-        owner.released = now;
-        this.options.stop(owner.taskId, owner.sessionId, owner.stopped);
-      }
       if (owner.released === undefined) continue;
       const elapsed = now - owner.released;
       if (elapsed < 1000) continue;
@@ -207,3 +211,5 @@ export class SessionResourceMonitor {
     await this.persist();
   }
 }
+
+const gib = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(1)} GiB`;

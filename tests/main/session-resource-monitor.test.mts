@@ -5,22 +5,22 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { SessionResourceMonitor, parseProcessSamples, type ProcessSample } from "../../src/main/session-resource-monitor.mts";
 import { availableMacMemory } from "../../src/main/system-memory.mts";
-import { memoryBudget, unsafeMemory } from "../../src/domain/session-resources.ts";
+import { pressureLine, unsafeMemory } from "../../src/domain/session-resources.ts";
 
 const GiB = 1024 ** 3;
 const row = (pid: number, parent: number, bytes = GiB, born = "Fri Nov 13 12:00:00 2026"): ProcessSample => ({ pid, parent, bytes, born });
 
-test("memory budgets tolerate peaks, enforce sustained growth and act on critical headroom", () => {
-  assert.equal(memoryBudget(16 * GiB), 4 * GiB);
-  assert.equal(memoryBudget(128 * GiB), 8 * GiB);
-  assert.equal(memoryBudget(GiB), GiB / 2);
-  const samples = [0, 5000, 10000, 15000].map(at => ({ at, bytes: GiB }));
-  assert.equal(unsafeMemory(samples, GiB, Infinity), true);
-  assert.equal(unsafeMemory(samples.slice(1), GiB, Infinity), false);
-  assert.equal(unsafeMemory(samples.map((s, i) => ({ ...s, bytes: i === 2 ? GiB - 1 : GiB })), GiB, Infinity), false);
-  assert.equal(unsafeMemory(samples.map((s, i) => ({ ...s, bytes: GiB / 2 + i * GiB / 12 })), GiB, Infinity), true);
-  assert.equal(unsafeMemory([{ at: 0, bytes: GiB / 4 }], GiB, 0), true);
-  assert.equal(unsafeMemory([{ at: 0, bytes: 0 }], GiB, 0), false);
+test("only system pressure stops a thread: critical headroom at once, sustained pressure when it holds a large share", () => {
+  const total = 32 * GiB, line = pressureLine(total), MiB = 1024 ** 2;
+  const build = [0, 5000, 10000, 15000].map((at, i) => ({ at, bytes: (4 + i * 4) * GiB, available: line + 1 }));
+  assert.equal(unsafeMemory(build, total), undefined, "fast growth past a quarter of memory with headroom left");
+  const pressured = build.map(sample => ({ ...sample, available: line - 1 }));
+  assert.equal(unsafeMemory(pressured, total), "pressure");
+  assert.equal(unsafeMemory(pressured.slice(1), total), undefined, "a brief dip is tolerated");
+  assert.equal(unsafeMemory(pressured.map((s, i) => i === 2 ? { ...s, available: line } : s), total), undefined);
+  assert.equal(unsafeMemory(pressured.map((s, i) => i === 0 ? { ...s, bytes: total / 8 - 1 } : s), total), undefined, "a small thread is not the cause");
+  assert.equal(unsafeMemory([{ at: 0, bytes: 64 * MiB, available: 255 * MiB }], total), "critical");
+  assert.equal(unsafeMemory([{ at: 0, bytes: 63 * MiB, available: 0 }], total), undefined);
 });
 
 test("OS samples include birth identity and reclaimable macOS pages; malformed input cannot imply pressure", () => {
@@ -33,7 +33,7 @@ test("a stopped owner includes reparented children, never reused PIDs or another
   let now = 0;
   let rows = [row(101, 1, GiB / 2), row(102, 101, GiB / 2), row(201, 1, 1)];
   const stopped: string[] = [], changes: string[] = [], signals: Array<[number, string]> = [];
-  const monitor = new SessionResourceMonitor({ read: async () => rows, now: () => now, memory: () => ({ total: 4 * GiB, available: GiB }), stop: (taskId) => { stopped.push(taskId); }, changed: (taskId, stop) => { changes.push(`${taskId}:${stop.cleanup}`); }, signal: (pid, signal) => { signals.push([pid, signal]); } });
+  const monitor = new SessionResourceMonitor({ read: async () => rows, now: () => now, memory: () => ({ total: 4 * GiB, available: 300 * 1024 ** 2 }), stop: (taskId) => { stopped.push(taskId); }, changed: (taskId, stop) => { changes.push(`${taskId}:${stop.cleanup}`); }, signal: (pid, signal) => { signals.push([pid, signal]); } });
   try {
     monitor.receive({ type: "session.process", taskId: "a", sessionId: "one", pid: 101 });
     monitor.receive({ type: "session.process", taskId: "b", sessionId: "two", pid: 201 });

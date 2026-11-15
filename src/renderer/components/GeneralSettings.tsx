@@ -108,7 +108,7 @@ export function GeneralSettings({ dictation, cli: { status, busy, error }, onRea
       </SettingsSection>}
 
       <SettingsSection title="Memory protection">
-        <SettingRow id="general.memory-protection" description="Stop threads that use excessive memory to keep the app responsive.">
+        <SettingRow id="general.memory-protection" description="When this computer runs low on memory, stop the thread using the most.">
           <SettingSwitch id="general.memory-protection" on={memoryProtection} onChange={onSetMemoryProtection ?? (() => {})} />
         </SettingRow>
       </SettingsSection>

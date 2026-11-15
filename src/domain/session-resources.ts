@@ -10,19 +10,20 @@ export function isResourceStop(value: unknown): value is ResourceStop {
 }
 
 /** Resident memory includes native allocations and tool processes, beyond an engine's JS heap. */
-export type MemorySample = { at: number; bytes: number };
-const GiB = 1024 ** 3;
+export type MemorySample = { at: number; bytes: number; available: number };
+export type MemoryVerdict = "critical" | "pressure";
+const MiB = 1024 ** 2;
 
-/** Keep headroom for the desktop; a large machine does not grant one thread an unlimited budget. */
-export function memoryBudget(total: number) { return Math.min(8 * GiB, Math.max(512 * 1024 ** 2, total / 4)); }
+/** Reclaimable system memory below which the computer is under pressure. */
+export function pressureLine(total: number) { return Math.max(512 * MiB, total / 16); }
 
-/** Several high samples tolerate brief peaks; sustained growth and critical headroom act sooner. */
-export function unsafeMemory(samples: readonly MemorySample[], budget: number, available: number): boolean {
+/** Only system pressure stops a thread, however large it grows: critical headroom at once, otherwise sustained pressure while it holds an eighth of memory. */
+export function unsafeMemory(samples: readonly MemorySample[], total: number): MemoryVerdict | undefined {
   const last = samples.at(-1);
-  if (!last || !Number.isFinite(last.bytes) || last.bytes <= 0) return false;
-  if (available < 256 * 1024 ** 2 && last.bytes >= 64 * 1024 ** 2) return true;
+  if (!last || !(last.bytes > 0)) return undefined;
+  if (last.available < 256 * MiB && last.bytes >= 64 * MiB) return "critical";
   const recent = samples.slice(-4);
-  if (recent.length < 4 || last.at - recent[0]!.at < 15_000) return false;
-  return recent.every(sample => sample.bytes >= budget)
-    || recent.every(sample => sample.bytes >= budget / 2) && last.bytes - recent[0]!.bytes >= budget / 4;
+  if (recent.length < 4 || last.at - recent[0]!.at < 15_000) return undefined;
+  const line = pressureLine(total);
+  return recent.every(sample => sample.available < line && sample.bytes >= total / 8) ? "pressure" : undefined;
 }
