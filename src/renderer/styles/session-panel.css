@@ -245,7 +245,7 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
 .agent-orb.queued { background: var(--control); color: var(--quiet-strong); }
 
 /** A workflow row opens its panel, so the row itself is the button and the stop sits beside it. */
-.process-workflow { display: flex; align-items: center; gap: 4px; }
-.process-workflow > .process-open { flex: 1; }
+.process-workflow { display: flex; align-items: center; gap: 4px; padding-inline-end: 6px; }
+.process-workflow > .process-open { flex: 1; min-width: 0; }
 .process-open-chevron { color: var(--quiet-strong); }
 .process-open:hover .process-open-chevron { color: var(--ink-dim); }
