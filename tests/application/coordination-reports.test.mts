@@ -150,7 +150,7 @@ test("a turn the agent opens itself leaves a report that it needs the user stand
 });
 
 /** A Codex session with enough context to compact. */
-const codexSession = { engine: "codex" as const, model: "gpt-6.1-sol" as const, continuation: { provider: "codex" as const, value: "codex-thread" }, contextUsage: { tokens: 100_000, limit: 400_000, model: "gpt-6.1-sol" } };
+const codexSession = { engine: "codex" as const, model: "gpt-6.2-sol" as const, continuation: { provider: "codex" as const, value: "codex-thread" }, contextUsage: { tokens: 100_000, limit: 400_000, model: "gpt-6.2-sol" } };
 
 test("a thread picked back up after its usage limit, or compacted, keeps what its turn reported", () => {
   const limitPause = { resetsAt: Date.now() + 3_600_000, window: "session" as const, pausedAt: 1 };

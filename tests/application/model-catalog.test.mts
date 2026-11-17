@@ -80,7 +80,7 @@ test("a composer send on a draft whose model its engine does not offer here is r
   assert.equal(sent.state.actionError, "No engine here offers the gpt-9-future model. Pick another model.");
   assert.deepEqual(sent.state.pendingRuns, {});
 
-  const crossed = run(workspace({ draftEngine: "claude", draftModel: "gpt-6.1-sol" }), [{ type: "view.set-prompt", prompt: "Inspect the app" }]);
+  const crossed = run(workspace({ draftEngine: "claude", draftModel: "gpt-6.2-sol" }), [{ type: "view.set-prompt", prompt: "Inspect the app" }]);
   assert.deepEqual(reduce(crossed, { type: "task.send", attachments: [] }).state.pendingRuns, {}, "a model of another engine is not this one's");
 });
 
@@ -98,7 +98,7 @@ test("a loaded thread on a model its engine no longer offers takes no message un
   assert.deepEqual(refused.state.pendingRuns, {});
   assert.deepEqual(reduce(loaded, { type: "task.send", text: "Start fresh" }).state.pendingRuns, {}, "nor does a new thread on the draft");
 
-  const repicked = reduce(loaded, { type: "task.set-model", taskId: "task-a", engine: "codex", model: "gpt-6.1-sol" }).state;
+  const repicked = reduce(loaded, { type: "task.set-model", taskId: "task-a", engine: "codex", model: "gpt-6.2-sol" }).state;
   assert.notDeepEqual(reduce(repicked, { type: "task.send", taskId: "task-a", text: "Carry on" }).state.pendingRuns, {});
 });
 
@@ -107,7 +107,7 @@ test("a draft seeded from a stored thread that names no model takes its engine's
   delete thread.model;
   const loaded = reduce(workspace(), { type: "store.loaded", data: { version: 2, tasks: [thread], projects: [], worktrees: [], lastFolder: null } }).state;
   assert.equal(loaded.draftEngine, "codex");
-  assert.equal(loaded.draftModel, "gpt-6.1-sol");
+  assert.equal(loaded.draftModel, "gpt-6.2-sol");
   assert.notDeepEqual(reduce(loaded, { type: "task.send", text: "Start fresh" }).state.pendingRuns, {});
 });
 
@@ -141,7 +141,7 @@ test("no run of any kind starts on a thread whose model its engine does not offe
     else assert.equal(resolved.state.actionError, "No engine here offers the gpt-9-future model. Pick another model.", id);
   }
 
-  const known = { ...thread, model: "gpt-6.1-sol" };
+  const known = { ...thread, model: "gpt-6.2-sol" };
   const tick = reduce(workspace({ threads: [known], pendingRuns: { tick: pendings.tick } }), { type: "run.resolved", pendingId: "tick", workspace: projectless });
   assert.equal(tick.effects.some((effect) => effect.type === "start-run"), true, "a thread on a model its engine offers still ticks");
 });

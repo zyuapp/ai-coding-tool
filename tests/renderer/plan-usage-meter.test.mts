@@ -46,7 +46,7 @@ test("a plan with no session window shows its week alone", async () => {
   const weekly: PlanUsage = { status: "available", subscription: "plus", windows: [
     { id: "codex:primary", label: "Current week", utilization: 30, resetsAt: null, period: "week", minutes: 10_080 },
   ] };
-  const view = await mount(React.createElement(PlanUsageMeter, { engine: "codex", engineLabel: "Codex", model: "gpt-6.1-sol", usage: weekly }));
+  const view = await mount(React.createElement(PlanUsageMeter, { engine: "codex", engineLabel: "Codex", model: "gpt-6.2-sol", usage: weekly }));
   try {
     assert.deepEqual(shares(view.container), ["Weekly30%"]);
   } finally {
@@ -59,7 +59,7 @@ test("a plan that names no session or week shows its fullest window alone", asyn
     { id: "a", label: "Current 1-hour window", utilization: 10, resetsAt: null },
     { id: "b", label: "Current 1-day window", utilization: 30, resetsAt: null },
   ] };
-  const view = await mount(React.createElement(PlanUsageMeter, { engine: "codex", engineLabel: "Codex", model: "gpt-6.1-sol", usage: unnamed }));
+  const view = await mount(React.createElement(PlanUsageMeter, { engine: "codex", engineLabel: "Codex", model: "gpt-6.2-sol", usage: unnamed }));
   try {
     assert.deepEqual(shares(view.container), ["30%"]);
   } finally {
@@ -68,7 +68,7 @@ test("a plan that names no session or week shows its fullest window alone", asyn
 });
 
 test("an engine without plan limits draws no meter", async () => {
-  const view = await mount(React.createElement(PlanUsageMeter, { engine: "codex", engineLabel: "Codex", model: "gpt-6.1-sol", usage: { status: "not-applicable" } }));
+  const view = await mount(React.createElement(PlanUsageMeter, { engine: "codex", engineLabel: "Codex", model: "gpt-6.2-sol", usage: { status: "not-applicable" } }));
   try {
     assert.equal(view.container.querySelector(".plan-usage"), null);
   } finally {

@@ -20,7 +20,7 @@ test("every engine defaults to a model and an effort it offers", () => {
 
 test("models belong to their own engine and efforts may be shared", () => {
   assert.equal(engineHasModel(catalog, "codex", "opus"), false);
-  assert.equal(engineHasModel(catalog, "claude", "gpt-6.1-sol"), false);
+  assert.equal(engineHasModel(catalog, "claude", "gpt-6.2-sol"), false);
   assert.equal(engineHasEffort(catalog, "claude", "ultra"), false);
   assert.equal(engineHasEffort(catalog, "codex", "ultra"), true);
   assert.equal(engineHasEffort(catalog, "codex", "max"), true);
@@ -36,7 +36,7 @@ test("only catalogued ids pass the guards", () => {
 });
 
 test("any well-formed model id passes the shape guard, known or not", () => {
-  for (const id of ["opus", "gpt-6.1-sol", "anthropic/claude-opus-5-5", "openrouter/meta/llama-4:free", "x".repeat(256)]) assert.equal(isModelId(id), true, id);
+  for (const id of ["opus", "gpt-6.2-sol", "anthropic/claude-opus-5-5", "openrouter/meta/llama-4:free", "x".repeat(256)]) assert.equal(isModelId(id), true, id);
   for (const id of [undefined, null, 7, "", " ", "has space", "tab\tid", "line\nid", "nul\u0000id", "x".repeat(257), ["opus"], "constructor", "toString", "__proto__", "hasOwnProperty", "valueOf"]) assert.equal(isModelId(id), false, String(id));
 });
 
@@ -55,10 +55,10 @@ test("per-engine settings and operations are catalogue entries", () => {
 });
 
 test("manual compaction belongs to the model and only through the engine that offers it", () => {
-  assert.equal(modelSupportsManualCompaction(catalog, "codex", "gpt-6.1-sol"), true);
-  assert.equal(modelSupportsManualCompaction(catalog, "codex", "gpt-6-astra"), true);
+  assert.equal(modelSupportsManualCompaction(catalog, "codex", "gpt-6.2-sol"), true);
+  assert.equal(modelSupportsManualCompaction(catalog, "codex", "gpt-6.2-astra"), true);
   assert.equal(modelSupportsManualCompaction(catalog, "claude", "opus"), true);
-  assert.equal(modelSupportsManualCompaction(catalog, "claude", "gpt-6.1-sol"), false);
+  assert.equal(modelSupportsManualCompaction(catalog, "claude", "gpt-6.2-sol"), false);
   for (const engine of engines) {
     for (const model of modelsFor(catalog, engine)) assert.equal(modelSupportsManualCompaction(catalog, engine, model.id), model.manualCompaction === true);
   }
@@ -83,11 +83,11 @@ test("an engine that names its own models replaces only its own list", () => {
   assert.deepEqual(modelsFor(own, "codex").map((spec) => spec.id), ["openai/gpt-9", "local/tiny"]);
   assert.deepEqual(modelsFor(own, "claude"), modelsFor(BUILT_IN_MODELS, "claude"));
   assert.equal(modelEngine(own, "openai/gpt-9"), "codex");
-  assert.equal(modelEngine(own, "gpt-6.1-sol"), undefined);
+  assert.equal(modelEngine(own, "gpt-6.2-sol"), undefined);
   assert.equal(engineHasModel(own, "codex", "openai/gpt-9"), true);
   assert.equal(engineHasModel(own, "claude", "openai/gpt-9"), false);
   assert.equal(modelLabel(own, "codex", "openai/gpt-9"), "GPT-9");
-  assert.equal(modelLabel(own, "codex", "gpt-6.1-sol"), "gpt-6.1-sol");
+  assert.equal(modelLabel(own, "codex", "gpt-6.2-sol"), "gpt-6.2-sol");
   assert.equal(contextWindowLimit(own, "codex", "openai/gpt-9"), 400_000);
   assert.equal(modelSupportsManualCompaction(own, "codex", "openai/gpt-9"), true);
   assert.equal(modelSupportsManualCompaction(own, "codex", "local/tiny"), false);
@@ -118,7 +118,7 @@ test("a model two engines name is each one's own, listed and run where it was pi
   assert.deepEqual(resolveModel(own, "opus", [], "codex"), { engine: "codex", model: "opus" });
   assert.deepEqual(resolveModel(own, "opus", []), { error: "opus could mean opus on Claude, opus on Codex. Name the engine as well, or pin the one you mean in the model picker." });
   assert.deepEqual(resolveModel(own, "opus", [{ engine: "codex", model: "opus" }]), { engine: "codex", model: "opus" }, "a pin names its engine, so it tells two engines apart");
-  assert.deepEqual(resolveModel(own, "gpt-6.1-sol", [], "codex"), { error: "Codex here does not offer the gpt-6.1-sol model. Pick another model." });
+  assert.deepEqual(resolveModel(own, "gpt-6.2-sol", [], "codex"), { error: "Codex here does not offer the gpt-6.2-sol model. Pick another model." });
 });
 
 test("a spec this build cannot read is left out rather than breaking the catalogue", () => {

@@ -134,7 +134,7 @@ test("a run the computer-use setting is off for never reaches the driver", async
   assert.equal(driverCalls, 1);
 
   /** A coordinator changes nothing itself, so on either engine its run never reaches the driver either. */
-  for (const [runId, engine, model] of [["run-lead-claude", "claude", "opus"], ["run-lead-codex", "codex", "gpt-6.1-sol"]] as const) {
+  for (const [runId, engine, model] of [["run-lead-claude", "claude", "opus"], ["run-lead-codex", "codex", "gpt-6.2-sol"]] as const) {
     start(runId, { engine, model, coordinationRole: "coordinator" });
     await waitFor(() => main.agents[0].messages.some((message) => message.runId === runId));
     assert.deepEqual(main.agents[0].messages.find((message) => message.runId === runId)?.computerUse, { status: "unavailable", message: "A coordinator changes nothing itself." }, engine);

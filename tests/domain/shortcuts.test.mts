@@ -173,7 +173,7 @@ test("effort shortcuts step through the model's levels and stop at its limits", 
   const up = shortcutFor(bindings, parseShortcut("Mod+Shift+ArrowUp")!, "any")!.action;
   const down = shortcutFor(bindings, parseShortcut("Mod+Shift+ArrowDown")!, "any")!.action;
   const step = (state: WorkspaceState, action: string) => reduce(state, { type: "view.shortcut", action, surface: "any" }).state;
-  const draft = workspace({ draftEngine: "codex", draftModel: "gpt-6-astra", draftEffort: "high" });
+  const draft = workspace({ draftEngine: "codex", draftModel: "gpt-6.2-astra", draftEffort: "high" });
   assert.equal(step(draft, up).draftEffort, "xhigh");
   assert.equal(step(draft, down).draftEffort, "medium");
   assert.equal(step({ ...draft, draftEffort: "ultra" }, up).draftEffort, "ultra");

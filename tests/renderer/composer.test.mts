@@ -718,7 +718,7 @@ test("Enter in the base branch search reviews the top match, in the reviewing en
   const reviews: unknown[] = [];
   const steps: string[] = [];
   const picker = (step: "targets" | "base") => renderConversationComposer({
-    workspaceId: "workspace-1", engine: "codex", engineLabel: "Codex", model: "gpt-6-astra",
+    workspaceId: "workspace-1", engine: "codex", engineLabel: "Codex", model: "gpt-6.2-astra",
     reviewPicker: { taskId: "task-1", step },
     onReview: (target) => { reviews.push(target); },
     onReviewStep: (next) => { steps.push(next); },

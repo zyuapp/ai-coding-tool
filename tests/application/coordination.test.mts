@@ -83,7 +83,7 @@ test("becoming a coordinator keeps what it ran on for its threads", () => {
 });
 
 test("a coordinator's threads cannot run on an effort their model lacks", () => {
-  const state = workspace({ threads: [lead("lead", { threadModel: { model: "gpt-6.1-sol", effort: "ultra" } }), task("solo")] });
+  const state = workspace({ threads: [lead("lead", { threadModel: { model: "gpt-6.2-sol", effort: "ultra" } }), task("solo")] });
   const luna = reduce(state, { type: "coordination.set-thread-model", taskId: "lead", model: "gpt-6-luna" }).state;
   assert.deepEqual(luna.threads[0].threadModel, { engine: "codex", model: "gpt-6-luna", effort: "max" }, "an effort the new model lacks moves to the nearest it takes");
   const mapped = reduce(luna, { type: "coordination.set-thread-model", taskId: "lead", model: "opus", effort: "ultra" }).state;

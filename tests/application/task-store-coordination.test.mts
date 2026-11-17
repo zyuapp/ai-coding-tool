@@ -17,11 +17,11 @@ test("what a coordinator's threads run on survives a reload, on a replaced model
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
-  const lead = { ...migrated.data.tasks[0], role: "coordinator" as const, threadModel: { model: "gpt-6.1-sol" as const, effort: "ultra" as const } };
+  const lead = { ...migrated.data.tasks[0], role: "coordinator" as const, threadModel: { model: "gpt-6.2-sol" as const, effort: "ultra" as const } };
   const parsed = parseThreadStore(serializeThreadStore({ ...migrated.data, tasks: [lead] }));
   assert.equal(parsed.ok, true);
   if (!parsed.ok) return;
-  assert.deepEqual(parsed.data.tasks[0].threadModel, { model: "gpt-6.1-sol", effort: "ultra" });
+  assert.deepEqual(parsed.data.tasks[0].threadModel, { model: "gpt-6.2-sol", effort: "ultra" });
 
   const retired = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...lead, threadModel: { model: "gpt-5.6-luna", effort: "max" } }] }));
   assert.equal(retired.ok, true);

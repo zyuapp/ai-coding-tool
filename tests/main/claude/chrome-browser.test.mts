@@ -39,7 +39,7 @@ test("the setting starts off, is remembered, and marks every run it is on for", 
 
   assert.equal(started(on.state).chromeBrowser, true);
   assert.equal(started(reduce(on.state, { type: "view.set-chrome-browser", enabled: false }).state).chromeBrowser, undefined);
-  const codex = started({ ...on.state, draftEngine: "codex", draftModel: "gpt-6.1-sol" });
+  const codex = started({ ...on.state, draftEngine: "codex", draftModel: "gpt-6.2-sol" });
   assert.equal(codex.engine, "codex");
   assert.equal(codex.chromeBrowser, undefined, "an engine that cannot drive Chrome is never told to");
 });

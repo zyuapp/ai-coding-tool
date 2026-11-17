@@ -71,12 +71,12 @@ test("a coordinator's suggestions wait for the user, and one started works under
 
 test("a suggestion started later runs on what the coordinator's threads run on then", () => {
   const state = workspace({ threads: [lead({ proposals: [proposal("p1"), proposal("p2", { model: "sonnet" }), proposal("p3", { model: "gpt-6-luna", effort: "low" })] })] });
-  const moved = reduce(state, { type: "coordination.set-thread-model", taskId: "lead", model: "gpt-6.1-sol", effort: "ultra" }).state;
+  const moved = reduce(state, { type: "coordination.set-thread-model", taskId: "lead", model: "gpt-6.2-sol", effort: "ultra" }).state;
   const runsOn = (proposalId: string) => {
     const { command } = startOne(moved, proposalId);
     return { model: command.model, effort: command.effort };
   };
-  assert.deepEqual(runsOn("p1"), { model: "gpt-6.1-sol", effort: "ultra" });
+  assert.deepEqual(runsOn("p1"), { model: "gpt-6.2-sol", effort: "ultra" });
   assert.deepEqual(runsOn("p2"), { model: "sonnet", effort: "max" }, "a model it named keeps the threads' effort, as near as that model takes");
   assert.deepEqual(runsOn("p3"), { model: "gpt-6-luna", effort: "low" });
 });

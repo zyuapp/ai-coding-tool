@@ -50,11 +50,11 @@ test("a run opens one app server in the workspace, signs in, starts a thread, an
   assert.ok(methods.indexOf("account/read") > 0);
   assert.ok(methods.indexOf("account/read") < methods.indexOf("thread/start"));
   assert.ok(methods.indexOf("thread/start") < methods.indexOf("turn/start"));
-  assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: developerInstructions() }]);
+  assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-6.2-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: developerInstructions() }]);
   assert.deepEqual(client.calls("turn/start"), [{
     threadId,
     input: [{ type: "text", text: "inspect the app", text_elements: [] }],
-    model: "gpt-6.1-sol",
+    model: "gpt-6.2-sol",
     effort: "high",
     serviceTier: "default",
     approvalPolicy: "untrusted",
@@ -86,11 +86,11 @@ test("a bypass turn disables approvals and the sandbox", async () => {
   const codex = harness();
   const { client } = await turn(codex, { policy: "bypass" });
 
-  assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "never", sandbox: "danger-full-access", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: developerInstructions() }]);
+  assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-6.2-sol", serviceTier: "default", approvalPolicy: "never", sandbox: "danger-full-access", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: developerInstructions() }]);
   assert.deepEqual(client.calls("turn/start")[0], {
     threadId,
     input: [{ type: "text", text: "inspect the app", text_elements: [] }],
-    model: "gpt-6.1-sol",
+    model: "gpt-6.2-sol",
     effort: "high",
     serviceTier: "default",
     approvalPolicy: "never",
@@ -138,14 +138,14 @@ test("Codex sets a native goal and keeps the run through its follow-up turns", a
 test("a thread the run continues is resumed, and a side chat forks it instead", async () => {
   const resumed = harness();
   const { client } = await turn(resumed, { continuation: { provider: "codex", value: "thread-9" } });
-  assert.deepEqual(client.calls("thread/resume"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: developerInstructions(), excludeTurns: true }]);
+  assert.deepEqual(client.calls("thread/resume"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-6.2-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: developerInstructions(), excludeTurns: true }]);
   assert.equal(client.calls("thread/start").length, 0);
   resumed.provider.closeAll();
 
   const emitted: ProviderEvent[] = [];
   const forked = harness();
   const fork = await turn(forked, { channel: "side", continuation: { provider: "codex", value: "thread-9" }, forkContinuation: true, emit: (event) => emitted.push(event) });
-  assert.deepEqual(fork.client.calls("thread/fork"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: `${developerInstructions()}\n\n${SIDE_CHAT_INSTRUCTIONS}`, excludeTurns: true }]);
+  assert.deepEqual(fork.client.calls("thread/fork"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-6.2-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: `${developerInstructions()}\n\n${SIDE_CHAT_INSTRUCTIONS}`, excludeTurns: true }]);
   assert.deepEqual(emitted[0], { type: "continuation", continuation: { provider: "codex", value: "thread-fork" } }, "the fork's own id is what the side chat keeps");
   assert.deepEqual(fork.client.calls("thread/inject_items"), [{
     threadId: "thread-fork",
@@ -349,7 +349,7 @@ const breakdown = (totalTokens: number) => ({ totalTokens, inputTokens: totalTok
 
 test.each([
   { model: "gpt-6.1-terra", effort: "high", limit: 258_400 },
-  { model: "gpt-6-astra", effort: "ultra", limit: 872_000 },
+  { model: "gpt-6.2-astra", effort: "ultra", limit: 872_000 },
 ] as const)("$model sends its effort and reports context usage through compaction", async ({ model, effort, limit }) => {
   const emitted: ProviderEvent[] = [];
   const codex = harness();
@@ -615,7 +615,7 @@ test("a thread archived in another Codex client is unarchived once before the ru
   const codex = harness({
     "thread/resume": (params: { threadId: string }) => {
       if (archived) throw new AppServerError("thread/resume", -32600, `no rollout found for thread id ${params.threadId}`);
-      return { thread: { id: params.threadId }, model: "gpt-6.1-sol" };
+      return { thread: { id: params.threadId }, model: "gpt-6.2-sol" };
     },
     "thread/unarchive": () => { archived = false; return {}; },
   });

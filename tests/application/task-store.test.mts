@@ -480,7 +480,7 @@ test("v2 hides a task with invalid model or usage values", () => {
   const mutations: ((value: Record<string, unknown>) => void)[] = [
     (value) => { value.model = "two words"; },
     (value) => { value.model = "constructor"; },
-    (value) => { value.engine = "claude"; value.model = "gpt-6.1-sol"; },
+    (value) => { value.engine = "claude"; value.model = "gpt-6.2-sol"; },
     (value) => { value.model = ""; },
     (value) => { value.model = 7; },
     (value) => { value.effort = "galaxy"; },
@@ -537,16 +537,16 @@ test("what a thread spent survives a reload, counted toward a replaced model's s
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
-  const spent = { ...migrated.data.tasks[0], usage: { opus: 3_104_220, "gpt-6.1-sol": 12 } };
+  const spent = { ...migrated.data.tasks[0], usage: { opus: 3_104_220, "gpt-6.2-sol": 12 } };
   const parsed = parseThreadStore(serializeThreadStore({ ...migrated.data, tasks: [spent] }));
   assert.equal(parsed.ok, true);
   if (!parsed.ok) return;
-  assert.deepEqual(parsed.data.tasks[0].usage, { opus: 3_104_220, "gpt-6.1-sol": 12 });
+  assert.deepEqual(parsed.data.tasks[0].usage, { opus: 3_104_220, "gpt-6.2-sol": 12 });
 
-  const renamed = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...spent, usage: { "gpt-5.6-sol": 100, "gpt-6-sol": 20, "gpt-6.1-sol": 3, "gpt-9-future": 7, "bad id": 9 } }] }));
+  const renamed = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...spent, usage: { "gpt-5.6-sol": 100, "gpt-6-sol": 20, "gpt-6.1-sol": 1000, "gpt-6.2-sol": 3, "gpt-9-future": 7, "bad id": 9 } }] }));
   assert.equal(renamed.ok, true);
   if (!renamed.ok) return;
-  assert.deepEqual(renamed.data.tasks[0].usage, { "gpt-6.1-sol": 123, "gpt-9-future": 7 }, "a model this build does not know keeps its count, and only a malformed id is dropped");
+  assert.deepEqual(renamed.data.tasks[0].usage, { "gpt-6.2-sol": 1123, "gpt-9-future": 7 }, "a model this build does not know keeps its count, and only a malformed id is dropped");
 
   for (const usage of [{ opus: -1 }, { opus: 1.5 }, { opus: "12" }, [12], 12]) {
     const broken = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...spent, usage }] }));

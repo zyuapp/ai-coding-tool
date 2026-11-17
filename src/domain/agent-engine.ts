@@ -52,8 +52,8 @@ const CLAUDE_MODELS = [
 const CODEX_CONTEXT_WINDOW = 272_000;
 
 const CODEX_MODELS = [
-  { id: "gpt-6-astra", label: "Astra", description: "Most capable model for complex, demanding work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
-  { id: "gpt-6.1-sol", label: "Sol", description: "Strong coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
+  { id: "gpt-6.2-astra", label: "Astra", description: "Most capable model for complex, demanding work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
+  { id: "gpt-6.2-sol", label: "Sol", description: "Strong coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
   { id: "gpt-6.1-terra", label: "Terra", description: "Balanced agentic coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
   { id: "gpt-6-luna", label: "Luna", description: "Efficient model for lightweight work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_MAX, manualCompaction: true },
 ] as const;
@@ -77,7 +77,7 @@ export function isModelId(value: unknown): value is AgentModel {
 }
 
 /** Models the catalogue replaced, each read as its successor wherever a saved setting still names it. */
-const RETIRED_MODELS: Readonly<Record<string, BuiltInModel>> = { "gpt-5.6-sol": "gpt-6.1-sol", "gpt-6-sol": "gpt-6.1-sol", "gpt-5.6-luna": "gpt-6-luna" };
+const RETIRED_MODELS: Readonly<Record<string, BuiltInModel>> = { "gpt-5.6-sol": "gpt-6.2-sol", "gpt-6-sol": "gpt-6.2-sol", "gpt-6.1-sol": "gpt-6.2-sol", "gpt-6-astra": "gpt-6.2-astra", "gpt-5.6-luna": "gpt-6-luna" };
 
 export function currentModel(value: unknown): unknown {
   return typeof value === "string" && Object.hasOwn(RETIRED_MODELS, value) ? RETIRED_MODELS[value] : value;
@@ -139,7 +139,7 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
   },
   codex: {
     label: "Codex",
-    models: { kind: "built-in", list: CODEX_MODELS, default: "gpt-6.1-sol" },
+    models: { kind: "built-in", list: CODEX_MODELS, default: "gpt-6.2-sol" },
     defaultEffort: "high",
     capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true, chromeBrowser: false, policies: EXECUTION_POLICIES, unattendedPolicy: "autonomous" },
   },

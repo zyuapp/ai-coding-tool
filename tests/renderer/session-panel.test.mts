@@ -306,9 +306,9 @@ test("the subagent search keeps what the query names, and the status keeps its o
 
 test("subagent details show provider metadata and the exact expandable prompt", async () => {
   const prompt = "  First instruction\n\n" + "Keep this line.\n".repeat(1_000) + "  Last instruction  ";
-  const subagent: Subagent = { ...subagents[0], model: "gpt-6-astra", effort: "xhigh", prompt };
+  const subagent: Subagent = { ...subagents[0], model: "gpt-6.2-astra", effort: "xhigh", prompt };
   const view = await mount(React.createElement(SubagentInspector, { subagent, onClose() {}, onStop() {} }));
-  assert.deepEqual([...view.container.querySelectorAll(".agent-configuration dd")].map((node) => node.textContent), ["gpt-6-astra", "Extra high"]);
+  assert.deepEqual([...view.container.querySelectorAll(".agent-configuration dd")].map((node) => node.textContent), ["gpt-6.2-astra", "Extra high"]);
   const details = query<HTMLDetailsElement>(view.container, ".agent-prompt");
   assert.equal(details.open, false);
   await act(async () => { query<HTMLElement>(details, "summary").click(); });

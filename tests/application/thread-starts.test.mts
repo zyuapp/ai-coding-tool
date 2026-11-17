@@ -169,9 +169,9 @@ test("a thread under a coordinator on another computer starts its threads under 
 test("a thread started as a coordinator takes only the efforts a coordinator does, while one started under nobody keeps them all", () => {
   const state = coordinated();
   const solo = thread(state, "solo");
-  assert.equal(refused(newThreadSend(state, solo, send({ role: "coordinator", model: "gpt-6.1-sol", effort: "ultra" }))), "The gpt-6.1-sol model does not support ultra effort for a coordinator.");
-  assert.equal(started(newThreadSend(state, { ...solo, model: "gpt-6.1-sol", engine: "codex", effort: "ultra" }, send({ role: "coordinator" }))).effort, "max", "an inherited Ultra drops to the deepest effort a coordinator takes");
-  assert.equal(started(newThreadSend(state, solo, send({ model: "gpt-6.1-sol", effort: "ultra" }))).effort, "ultra");
+  assert.equal(refused(newThreadSend(state, solo, send({ role: "coordinator", model: "gpt-6.2-sol", effort: "ultra" }))), "The gpt-6.2-sol model does not support ultra effort for a coordinator.");
+  assert.equal(started(newThreadSend(state, { ...solo, model: "gpt-6.2-sol", engine: "codex", effort: "ultra" }, send({ role: "coordinator" }))).effort, "max", "an inherited Ultra drops to the deepest effort a coordinator takes");
+  assert.equal(started(newThreadSend(state, solo, send({ model: "gpt-6.2-sol", effort: "ultra" }))).effort, "ultra");
 });
 
 test("a thread started as a coordinator starts in its project's checkout: it is refused a worktree, and never takes the caller's", () => {

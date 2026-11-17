@@ -31,7 +31,7 @@ async function asking(surface: "main" | "side") {
     };
     const view = deriveView(state);
     return React.createElement(ConversationComposer, {
-      surface, prompt: view.prompt, folder: "", mode: "confirm", engine: "codex", engineLabel: "Codex", model: "gpt-6-astra", effort: "high", runActive: true,
+      surface, prompt: view.prompt, folder: "", mode: "confirm", engine: "codex", engineLabel: "Codex", model: "gpt-6.2-astra", effort: "high", runActive: true,
       question: view.question, queuedMessages: view.queuedMessages,
       onPromptChange: (prompt) => dispatch({ type: "view.set-prompt", prompt }),
       onQuestionAnswerChange: (question, text) => dispatch({ type: "question.set-answer", taskId: "task-a", ...question, text }),

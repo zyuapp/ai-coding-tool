@@ -77,21 +77,21 @@ test("start commands require a bounded thread title", () => {
 test("a start reaches the user's Chrome only on an engine that can drive it", () => {
   assert.equal(isRunCommand({ ...command, chromeBrowser: true }), true);
   assert.equal(isRunCommand({ ...command, chromeBrowser: false }), false);
-  assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-6.1-sol", chromeBrowser: true }), false);
-  assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-6.1-sol" }), true);
+  assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-6.2-sol", chromeBrowser: true }), false);
+  assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-6.2-sol" }), true);
 });
 
 test("manual compaction is a validated thread operation", () => {
   const compact = {
     ...command,
     engine: "codex",
-    model: "gpt-6.1-sol",
+    model: "gpt-6.2-sol",
     prompt: "",
     continuation: { provider: "codex", value: "thread-1" },
     operation: { type: "compact", preTokens: 125_000 },
   };
   assert.equal(isRunCommand(compact), true);
-  assert.equal(isRunCommand({ ...compact, model: "gpt-6-astra" }), true);
+  assert.equal(isRunCommand({ ...compact, model: "gpt-6.2-astra" }), true);
   assert.equal(isRunCommand({ ...compact, engine: "claude", model: "opus", continuation: { provider: "claude", value: "session-1" } }), true);
   assert.equal(isRunCommand({ ...compact, engine: "claude", model: "opus", continuation: { provider: "codex", value: "thread-1" } }), false);
   assert.equal(isRunCommand({ ...compact, prompt: "also answer" }), false);
@@ -219,7 +219,7 @@ test("subagent event guard validates thread-scoped lifecycle reports", () => {
 });
 
 test("subagent metadata validates models and effort while preserving long complete prompts", () => {
-  const details = { model: "gpt-6-astra", effort: "xhigh", prompt: "Instructions\n".repeat(20_000) };
+  const details = { model: "gpt-6.2-astra", effort: "xhigh", prompt: "Instructions\n".repeat(20_000) };
   for (const type of ["subagent.started", "subagent.metadata"]) {
     const event = { type, taskId: "task-1", id: "child", description: "Review", ...details };
     assert.equal(isSubagentEvent(event), true);
@@ -254,11 +254,11 @@ test("run guards enforce numeric and string boundaries", () => {
   assert.equal(isRunCommand({ ...command, model: "future-model" }), true, "which models an engine offers is the reducer's to decide");
   assert.equal(isRunCommand({ ...command, effort: "insane" }), false);
   assert.equal(isRunCommand({ ...command, effort: "ultra" }), true, "which efforts a model takes is the reducer's to decide");
-  assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-6.1-sol", effort: "ultra" }), true);
+  assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-6.2-sol", effort: "ultra" }), true);
   for (const effort of ["low", "medium", "high", "xhigh", "max", "ultra"]) {
-    assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-6-astra", effort }), true);
+    assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-6.2-astra", effort }), true);
   }
-  assert.equal(isRunCommand({ ...command, model: "gpt-6-astra" }), true, "which engine offers a model is the reducer's to decide");
+  assert.equal(isRunCommand({ ...command, model: "gpt-6.2-astra" }), true, "which engine offers a model is the reducer's to decide");
   assert.equal(isRunCommand({ ...command, effort: undefined }), false);
   assert.equal(isRunCommand({ ...command, continuation: { provider: "", value: "session" } }), false);
 
@@ -327,7 +327,7 @@ test("the external command surface covers reading and writing threads, and nothi
 
   assert.equal(isExternalCommand({ type: "task.send", text: "Start here", worktreeId: "wt1" }), true);
   assert.equal(isExternalCommand({ type: "task.send", text: "Use Claude", model: "sonnet", effort: "max" }), true);
-  assert.equal(isExternalCommand({ type: "task.send", text: "Use Astra", model: "gpt-6-astra", effort: "ultra" }), true);
+  assert.equal(isExternalCommand({ type: "task.send", text: "Use Astra", model: "gpt-6.2-astra", effort: "ultra" }), true);
   assert.equal(isExternalCommand({ type: "task.send", text: "Use mystery", model: "unknown" }), true, "the reducer refuses a model no engine offers");
   assert.equal(isExternalCommand({ type: "task.send", text: "Use mystery", model: "two words" }), false);
   assert.equal(isExternalCommand({ type: "task.send", text: "Use Claude", effort: "impossible" }), false);
@@ -444,7 +444,7 @@ test("what a run reports about itself is bounded before it reaches the workspace
 });
 
 test("fast mode is a boolean setting carried only by Codex runs", () => {
-  const codex = { ...command, engine: "codex", model: "gpt-6.1-sol" };
+  const codex = { ...command, engine: "codex", model: "gpt-6.2-sol" };
   for (const fastMode of [undefined, false, true]) assert.equal(isRunCommand({ ...codex, fastMode }), true);
   for (const fastMode of [null, "true", 1]) assert.equal(isRunCommand({ ...codex, fastMode }), false);
   assert.equal(isRunCommand({ ...command, fastMode: true }), false);

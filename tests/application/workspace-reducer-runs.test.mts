@@ -42,10 +42,10 @@ test("manual Codex compaction reuses the run lifecycle without becoming a task r
   const state = workspace({
     threads: [task("task-a", {
       engine: "codex",
-      model: "gpt-6.1-sol",
+      model: "gpt-6.2-sol",
       continuation: { provider: "codex", value: "thread-1" },
       continuationStatus: "available",
-      contextUsage: { tokens: 125_000, limit: 272_000, model: "gpt-6.1-sol" },
+      contextUsage: { tokens: 125_000, limit: 272_000, model: "gpt-6.2-sol" },
       outcome: "finished",
       runEndedAt: 5,
     })],
@@ -607,10 +607,10 @@ test("the view offers compact and review exactly when the reducer would start th
   const sol = task("task-a", {
     projectId: "project-1",
     engine: "codex",
-    model: "gpt-6.1-sol",
+    model: "gpt-6.2-sol",
     continuation: { provider: "codex", value: "thread-1" },
     continuationStatus: "available",
-    contextUsage: { tokens: 125_000, limit: 272_000, model: "gpt-6.1-sol" },
+    contextUsage: { tokens: 125_000, limit: 272_000, model: "gpt-6.2-sol" },
   });
   const state = workspace({ projects: [{ id: "project-1", root: "/project", workspaceId: "workspace-1" }], threads: [sol], currentId: "task-a" });
   const offered = (next: typeof state) => {

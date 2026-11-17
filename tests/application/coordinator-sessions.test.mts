@@ -152,7 +152,7 @@ test("a steer, a limit resume or a compaction never starts a fresh session", () 
   }
 
   const codex = { provider: "codex" as const, value: "codex-thread" };
-  const compacting = reduce(workspace({ threads: [lead("lead", { ...GROWN, engine: "codex", model: "gpt-6.1-sol", continuation: codex })] }), { type: "run.compact", taskId: "lead" });
+  const compacting = reduce(workspace({ threads: [lead("lead", { ...GROWN, engine: "codex", model: "gpt-6.2-sol", continuation: codex })] }), { type: "run.compact", taskId: "lead" });
   const compacted = reduce(compacting.state, { type: "run.resolved", pendingId: effectOf(compacting, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
   assert.deepEqual(effectAt(compacted, "start-run").command.continuation, codex, "compacting is what keeps the session it compacts");
   assert.equal(effectAt(compacted, "start-run").command.freshSession, undefined);
@@ -173,7 +173,7 @@ test("a coordinator with a workflow or background work running keeps its session
   const subagent = (status: "working" | "completed") => ({ id: "child", description: "Inspect", status, sessionScoped: true as const, startedAt: 1, activity: [] });
   const monitor = { id: "watch", kind: "monitor" as const, description: "Watch the build" };
   const claude = lead("lead", GROWN);
-  const codex = lead("lead", { ...GROWN, engine: "codex", model: "gpt-6.1-sol", continuation: { provider: "codex", value: "codex-thread" } });
+  const codex = lead("lead", { ...GROWN, engine: "codex", model: "gpt-6.2-sol", continuation: { provider: "codex", value: "codex-thread" } });
   const cases: Array<[string, WorkspaceState, WorkspaceState]> = [
     ["a Claude workflow", workspace({ threads: [claude], workflows: { lead: [workflow("running")] } }), workspace({ threads: [claude], workflows: { lead: [workflow("completed")] } })],
     ["a Claude monitor", workspace({ threads: [claude], backgroundProcesses: { lead: [monitor] } }), workspace({ threads: [claude], backgroundProcesses: { lead: [] } })],
@@ -211,15 +211,15 @@ test("the seed stays bounded however long the conversation", () => {
 });
 
 test("a coordinator compacted by hand on Codex keeps its session, measured at the size Codex recounts for the compacted context", () => {
-  const codexSession = { continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available" as const, contextUsage: { tokens: 125_000, limit: 258_400, model: "gpt-6.1-sol" } };
-  const state = workspace({ threads: [lead("lead", { engine: "codex", model: "gpt-6.1-sol", ...codexSession })], currentId: "lead" });
+  const codexSession = { continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available" as const, contextUsage: { tokens: 125_000, limit: 258_400, model: "gpt-6.2-sol" } };
+  const state = workspace({ threads: [lead("lead", { engine: "codex", model: "gpt-6.2-sol", ...codexSession })], currentId: "lead" });
   const compacting = reduce(state, { type: "run.compact" });
   const resolved = reduce(compacting.state, { type: "run.resolved", pendingId: effectAt(compacting, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
   const command = effectAt(resolved, "start-run").command;
   let compacted = resolved.state;
   for (const [sequence, event] of [
     { type: "context.compaction-status", compacting: true },
-    { type: "context.usage", tokens: 13_779, limit: 258_400, model: "gpt-6.1-sol" },
+    { type: "context.usage", tokens: 13_779, limit: 258_400, model: "gpt-6.2-sol" },
     { type: "context.compacted", trigger: "manual", preTokens: 125_000 },
     { type: "context.compaction-status", compacting: false },
     { type: "run.status", status: "succeeded" },

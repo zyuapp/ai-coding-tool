@@ -59,7 +59,7 @@ test("picking an engine without a model moves the draft to that engine's default
   const moved = reduce(read, { type: "task.set-model", engine: "opencode" }).state;
   assert.equal(moved.draftEngine, "opencode");
   assert.equal(moved.draftModel, "openrouter/z-ai/glm-5.3-flash");
-  assert.equal(reduce(workspace(), { type: "task.set-model", engine: "codex" }).state.draftModel, "gpt-6.1-sol");
+  assert.equal(reduce(workspace(), { type: "task.set-model", engine: "codex" }).state.draftModel, "gpt-6.2-sol");
 });
 
 test("an engine whose models are only known once it names them defaults to the first it names", () => {
@@ -128,7 +128,7 @@ test("an agent can start a thread on an engine by name, which means that engine'
   assert.deepEqual(empty, { error: "OpenCode has no models to start a thread on. Connect a provider first." }, "never a thread on another engine's model");
   const codex = newThreadSend(state, caller, { type: "task.send", text: "Review this", model: "codex" });
   assert.ok("command" in codex && codex.command);
-  assert.equal(codex.command.model, "gpt-6.1-sol");
+  assert.equal(codex.command.model, "gpt-6.2-sol");
 });
 
 test("OpenCode's tool calls read as the app's own rows do", () => {
@@ -153,7 +153,7 @@ test("a model named as people say it resolves to the one model it can mean, and 
   assert.deepEqual(resolveModel(glms, "glm-5.3-flash-free", []), { engine: "opencode", model: "opencode/glm-5.3-flash-free" }, "the free one is only the free one");
   assert.deepEqual(resolveModel(glms, "glm", []), { error: "No engine here offers the glm model. Pick another model." }, "a part of a name is not a name");
   assert.deepEqual(resolveModel(glms, "---", []), { error: "No engine here offers the --- model. Pick another model." });
-  assert.deepEqual(resolveModel(glms, "Sol", []), { engine: "codex", model: "gpt-6.1-sol" }, "built-in models answer to their labels too");
+  assert.deepEqual(resolveModel(glms, "Sol", []), { engine: "codex", model: "gpt-6.2-sol" }, "built-in models answer to their labels too");
 });
 
 test("an agent starting a thread by a model's name gets the model the user pinned, or is told which it could mean", () => {

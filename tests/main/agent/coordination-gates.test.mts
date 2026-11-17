@@ -138,7 +138,7 @@ test("start_thread's model field takes any well-formed model and says what an om
   assert.match(said({ coordinationRole: "coordinator", coordination }), /Omit to run it on the model this coordinator's threads run on/);
   assert.match(said({ coordinationRole: "member", coordination }), /Omit to run it on the model your coordinator's threads run on/);
   assert.match(said({}), /Omit to inherit the calling thread's model/);
-  assert.match(said({}), /gpt-6\.1-sol \(Sol\)/, "a model is named with the name the picker gives it, so a caller told that name knows the model");
+  assert.match(said({}), /gpt-6\.2-sol \(Sol\)/, "a model is named with the name the picker gives it, so a caller told that name knows the model");
   assert.equal(accepts({}, "sol"), true);
 });
 

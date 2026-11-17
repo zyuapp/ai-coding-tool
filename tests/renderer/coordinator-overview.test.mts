@@ -329,7 +329,7 @@ test("the Overview's Usage section shows what the coordinator and its threads sp
   const dispatch = async (input: WorkspaceInput) => { dispatched.push(input); };
   const lead: Thread = { ...member("lead", "Plan"), parentId: undefined, role: "coordinator", usage: { opus: 240_000 } };
   const spenders = Array.from({ length: 6 }, (_, index) => ({ ...member(`t${index}`, `Thread ${index}`), usage: { sonnet: 100_000 * (index + 1) } }));
-  const threads = [lead, ...spenders, { ...member("codex", "Docs"), engine: "codex" as const, usage: { "gpt-6.1-sol": 764_220 } }];
+  const threads = [lead, ...spenders, { ...member("codex", "Docs"), engine: "codex" as const, usage: { "gpt-6.2-sol": 764_220 } }];
   const shown = (folds: object) => {
     const view = deriveView({ ...emptyWorkspaceState(), threads, currentId: lead.id, overviewFolds: { lead: folds } });
     const commandControls = { available: () => true, dispatch() {} };

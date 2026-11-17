@@ -13,8 +13,8 @@ test("the library filters providers, searches globally, pins without choosing, a
   const pinned: Array<[AgentEngine, AgentModel, boolean]> = [];
   const props = {
     mode: "confirm" as const, engine: "codex" as const, engineLabel: "Codex", engineLocked: false,
-    engineAccess: EVERY_ENGINE_READY, model: "gpt-6-astra" as const, effort: "medium" as const,
-    favoriteModels: [{ engine: "codex" as const, model: "gpt-6-astra" }],
+    engineAccess: EVERY_ENGINE_READY, model: "gpt-6.2-astra" as const, effort: "medium" as const,
+    favoriteModels: [{ engine: "codex" as const, model: "gpt-6.2-astra" }],
     onModelFavorite: (engine: AgentEngine, model: AgentModel, favorite: boolean) => { pinned.push([engine, model, favorite]); },
     onModelChange: (_engine: string, model: AgentModel) => { selected.push(model); },
     onModeChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onEngineRead() {}, onSignIn() {},
@@ -28,7 +28,7 @@ test("the library filters providers, searches globally, pins without choosing, a
   assert.equal(document.activeElement, input);
   assert.equal(query<HTMLElement>(menu, '[aria-label="Unpin Astra"]').dataset.tip, "Unpin from Favorites");
   await act(async () => { query<HTMLButtonElement>(menu, '[aria-label="Unpin Astra"]').click(); });
-  assert.deepEqual(pinned, [["codex", "gpt-6-astra", false]]);
+  assert.deepEqual(pinned, [["codex", "gpt-6.2-astra", false]]);
   assert.deepEqual(selected, []);
   await view.render(React.createElement(ComposerSettings, { ...props, favoriteModels: [] }));
   assert.match(query(menu, ".model-empty").textContent!, /Pin models/);
@@ -46,18 +46,18 @@ test("the library filters providers, searches globally, pins without choosing, a
   await act(async () => { input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })); });
   assert.equal(document.activeElement, query(menu, ".model-choice"));
   await act(async () => { input.focus(); input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  assert.deepEqual(selected, ["gpt-6.1-sol"]);
+  assert.deepEqual(selected, ["gpt-6.2-sol"]);
   assert.equal((menu as HTMLDetailsElement).open, false);
   await view.unmount();
 });
 
 test("saved model favorites discard malformed IDs and duplicates, and keep one no engine offers right now", () => {
-  const preferences = readViewPreferences({ getItem: () => JSON.stringify({ favoriteModels: ["opus", "obsolete", 7, "two words", "opus", "gpt-6-astra", "gpt-5.6-sol", { engine: "opencode", model: "opus" }, { engine: "galaxy", model: "opus" }, { model: "sonnet" }] }), setItem() {} });
+  const preferences = readViewPreferences({ getItem: () => JSON.stringify({ favoriteModels: ["opus", "obsolete", 7, "two words", "opus", "gpt-6.2-astra", "gpt-5.6-sol", { engine: "opencode", model: "opus" }, { engine: "galaxy", model: "opus" }, { model: "sonnet" }] }), setItem() {} });
   assert.deepEqual(preferences.favoriteModels, [
     { engine: "claude", model: "opus" },
     { engine: "opencode", model: "obsolete" },
-    { engine: "codex", model: "gpt-6-astra" },
-    { engine: "codex", model: "gpt-6.1-sol" },
+    { engine: "codex", model: "gpt-6.2-astra" },
+    { engine: "codex", model: "gpt-6.2-sol" },
     { engine: "opencode", model: "opus" },
     { engine: "claude", model: "sonnet" },
   ], "a bare id lands on the engine that ships it, else on the engine that names its own models");
@@ -68,7 +68,7 @@ test("the Codex speed toggle follows effort and dispatches both speed changes", 
   const selected: boolean[] = [];
   const props = {
     mode: "confirm" as const, engine: "codex" as const, engineLabel: "Codex", engineLocked: true,
-    engineAccess: EVERY_ENGINE_READY, model: "gpt-6.1-sol" as const, effort: "high" as const,
+    engineAccess: EVERY_ENGINE_READY, model: "gpt-6.2-sol" as const, effort: "high" as const,
     fastMode: false, onFastModeChange: (fastMode: boolean) => { selected.push(fastMode); },
     onModeChange() {}, onModelChange() {}, onEffortChange() {}, onEngineRead() {}, onSignIn() {},
   };

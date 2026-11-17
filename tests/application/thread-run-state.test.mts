@@ -104,13 +104,13 @@ test("ignores events for another task and stale sequence numbers", () => {
 
 test("subagent metadata survives discovery, progress, completion, and late enrichment", () => {
   const base = { taskId: "task-a", id: "child" };
-  let next = applyThreadEvent(state(), { ...base, type: "subagent.metadata", prompt: "  Exact\nprompt  ", model: "gpt-6-astra" });
+  let next = applyThreadEvent(state(), { ...base, type: "subagent.metadata", prompt: "  Exact\nprompt  ", model: "gpt-6.2-astra" });
   next = applyThreadEvent(next, { ...base, type: "subagent.started", description: "Inspect", effort: "high" });
   next = applyThreadEvent(next, { ...base, type: "subagent.progress", description: "Inspect", totalTokens: 123 });
   next = applyThreadEvent(next, { ...base, type: "subagent.finished", status: "completed", summary: "Done" });
   next = applyThreadEvent(next, { ...base, type: "subagent.metadata", effort: "xhigh" });
   const child = subagentAt(next, "task-a", 0);
-  assert.equal(child.model, "gpt-6-astra");
+  assert.equal(child.model, "gpt-6.2-astra");
   assert.equal(child.effort, "xhigh");
   assert.equal(child.prompt, "  Exact\nprompt  ");
   assert.equal(child.status, "completed");

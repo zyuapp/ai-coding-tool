@@ -49,7 +49,7 @@ test("a thread that has an engine offers only its models", async () => {
   await act(async () => { allFilter.click(); });
   assert.deepEqual([...modelMenu.querySelectorAll("button.model-choice .menu-label")].map((item) => item.textContent), ["Astra", "Sol", "Terra", "Luna"]);
   await act(async () => { item(modelMenu.querySelectorAll<HTMLButtonElement>("button.model-choice")[0]).click(); });
-  assert.deepEqual(chosen, [["codex", "gpt-6-astra"]]);
+  assert.deepEqual(chosen, [["codex", "gpt-6.2-astra"]]);
   await view.unmount();
 });
 
@@ -189,7 +189,7 @@ test("an idle Sol thread offers compact as an app slash command", async () => {
       actions: [],
     });
   };
-  const view = await mount(render("gpt-6.1-sol"));
+  const view = await mount(render("gpt-6.2-sol"));
   const textarea = query<HTMLTextAreaElement>(view.container, "textarea");
   await act(async () => {
     textarea.focus();
@@ -301,7 +301,7 @@ test("the review picker reads branches from the thread's worktree", async () => 
 test("clearing a goal targets its existing thread", async () => {
   window.desktop = composerDesktop();
   const currentThread: Thread = {
-    id: "task-goal", title: "Goal", engine: "codex", model: "gpt-6.1-sol", executionPolicy: "confirm",
+    id: "task-goal", title: "Goal", engine: "codex", model: "gpt-6.2-sol", executionPolicy: "confirm",
     messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, rankedAt: 1, updatedAt: 1,
   };
   const derived = deriveView({
@@ -372,11 +372,11 @@ test("the model menu's effort strip offers what the model takes, and says so for
     return { chip, labels, none };
   };
 
-  const astra = await efforts("codex", "gpt-6-astra");
+  const astra = await efforts("codex", "gpt-6.2-astra");
   assert.equal(astra.chip, "Astra·High·Confirm");
   assert.deepEqual(astra.labels, ["Low", "Medium", "High", "Extra high", "Max", "Ultra"]);
   assert.deepEqual(changes, ["xhigh"], "the slider steps to the next effort up");
-  assert.equal((await efforts("codex", "gpt-6-astra", true)).labels.at(-1), "Max", "a coordinator hands work only to threads, so it has no ultra");
+  assert.equal((await efforts("codex", "gpt-6.2-astra", true)).labels.at(-1), "Max", "a coordinator hands work only to threads, so it has no ultra");
   assert.equal((await efforts("codex", "gpt-6-luna")).labels.includes("Ultra"), false, "a nondelegating model has no ultra");
   const haiku = await efforts("claude", "haiku");
   assert.equal(haiku.chip, "Haiku·Confirm", "Haiku reasons at one depth, so its chip names no effort");

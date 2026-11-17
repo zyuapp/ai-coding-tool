@@ -338,17 +338,17 @@ test("a thread started under a name keeps it, and no title is written for it", (
 });
 
 test("choosing another engine's model moves the draft onto that engine, but never a thread that has a message", () => {
-  const drafted = reduce(workspace({ draftEngine: "codex", draftModel: "gpt-6.1-sol", draftEffort: "ultra" }), { type: "task.set-model", engine: "claude", model: "sonnet" }).state;
+  const drafted = reduce(workspace({ draftEngine: "codex", draftModel: "gpt-6.2-sol", draftEffort: "ultra" }), { type: "task.set-model", engine: "claude", model: "sonnet" }).state;
   assert.equal(drafted.draftEngine, "claude");
   assert.equal(drafted.draftModel, "sonnet");
   assert.equal(drafted.draftEffort, "max", "an effort the new model lacks drops to the nearest one below");
-  assert.equal(reduce(workspace({ draftEffort: "low" }), { type: "task.set-model", engine: "codex", model: "gpt-6.1-sol" }).state.draftEffort, "low", "an effort both models offer stays");
+  assert.equal(reduce(workspace({ draftEffort: "low" }), { type: "task.set-model", engine: "codex", model: "gpt-6.2-sol" }).state.draftEffort, "low", "an effort both models offer stays");
   assert.equal(deriveView(drafted).engineLocked, false, "a draft may still choose either engine");
 
   const thread = task("task-a", { model: "opus", messages: [{ id: "m1", kind: "user", text: "Have a look", at: 5 }] });
   const state = workspace({ threads: [thread], currentId: "task-a" });
   assert.equal(deriveView(state).engineLocked, true);
-  const held = reduce(state, { type: "task.set-model", engine: "codex", model: "gpt-6.1-sol" }).state;
+  const held = reduce(state, { type: "task.set-model", engine: "codex", model: "gpt-6.2-sol" }).state;
   assert.equal(held, state, "a thread keeps the engine its first message went to");
   assert.equal(held.threads[0].engine, "claude");
   assert.equal(held.draftEngine, "claude", "nor does the draft move behind the thread's back");
@@ -377,13 +377,13 @@ test("a send is refused with the command that fixes it when the engine is missin
 });
 
 test("a send naming its own engine is held to that engine's install, not the draft's", () => {
-  const draftMissing = workspace({ draftEngine: "codex", draftModel: "gpt-6.1-sol", engineStatus: { codex: { access: "missing", fix: "brew install --cask codex" } } });
+  const draftMissing = workspace({ draftEngine: "codex", draftModel: "gpt-6.2-sol", engineStatus: { codex: { access: "missing", fix: "brew install --cask codex" } } });
   const onClaude = reduce(draftMissing, { type: "task.send", text: "Inspect the app", engine: "claude", model: "opus" });
   assert.equal(onClaude.state.actionError, null, "a missing Codex does not stop a run on Claude");
   assert.equal(effectAt(onClaude, "resolve-run-workspace").type, "resolve-run-workspace");
 
   const namedMissing = workspace({ engineStatus: { codex: { access: "missing", fix: "brew install --cask codex" } } });
-  const onCodex = reduce(namedMissing, { type: "task.send", text: "Inspect the app", engine: "codex", model: "gpt-6.1-sol" });
+  const onCodex = reduce(namedMissing, { type: "task.send", text: "Inspect the app", engine: "codex", model: "gpt-6.2-sol" });
   assert.equal(required(onCodex.state.actionError), "Codex is not installed. Run `brew install --cask codex` to fix it.", "a ready Claude draft does not let a run through to a missing Codex");
 });
 
@@ -496,23 +496,23 @@ test("an effort the engine does not offer changes neither the thread nor the dra
   assert.equal(reduce(draft, { type: "task.set-effort", engine: "codex", effort: "ultra" }).state, draft, "a Claude draft cannot borrow a Codex effort either");
   assert.equal(reduce(draft, { type: "task.set-effort", engine: "codex", effort: "low" }).state.draftEffort, "low", "an effort both engines offer lands on the draft");
 
-  const codexThread = workspace({ threads: [task("task-c", { engine: "codex", model: "gpt-6.1-sol", effort: "high" })], currentId: "task-c" });
+  const codexThread = workspace({ threads: [task("task-c", { engine: "codex", model: "gpt-6.2-sol", effort: "high" })], currentId: "task-c" });
   const raised = reduce(codexThread, { type: "task.set-effort", engine: "codex", effort: "ultra" }).state;
   assert.equal(raised.threads[0].effort, "ultra");
   assert.equal(raised.draftEffort, codexThread.draftEffort, "the Claude draft keeps its own effort");
 });
 
 test("a coordinator hands work only to threads, so on any engine it takes no effort that splits work across the engine's own agents", () => {
-  const lead = workspace({ threads: [task("lead", { role: "coordinator", engine: "codex", model: "gpt-6.1-sol", effort: "high" })], currentId: "lead" });
+  const lead = workspace({ threads: [task("lead", { role: "coordinator", engine: "codex", model: "gpt-6.2-sol", effort: "high" })], currentId: "lead" });
   assert.equal(reduce(lead, { type: "task.set-effort", engine: "codex", effort: "ultra" }).state.threads[0].effort, "high");
   assert.equal(reduce(lead, { type: "task.set-effort", engine: "codex", effort: "max" }).state.threads[0].effort, "max");
   assert.deepEqual(shortcutCommands({ ...lead, threads: [{ ...lead.threads[0]!, effort: "max" }] }, "effort.increase", "any"), [], "the keys stop at the deepest effort it takes");
 
-  const draft = workspace({ draftEngine: "codex", draftModel: "gpt-6.1-sol", draftEffort: "high", draftRole: "coordinator" });
+  const draft = workspace({ draftEngine: "codex", draftModel: "gpt-6.2-sol", draftEffort: "high", draftRole: "coordinator" });
   assert.equal(reduce(draft, { type: "task.set-effort", engine: "codex", effort: "ultra" }).state.draftEffort, "high", "a draft that will coordinate takes none either");
 
   /** One made a coordinator while at Ultra shows and runs at the deepest effort a coordinator takes. */
-  const promoted = workspace({ threads: [task("lead", { role: "coordinator", engine: "codex", model: "gpt-6.1-sol", effort: "ultra" })], currentId: "lead" });
+  const promoted = workspace({ threads: [task("lead", { role: "coordinator", engine: "codex", model: "gpt-6.2-sol", effort: "ultra" })], currentId: "lead" });
   assert.equal(deriveView(promoted).effort, "max");
   assert.equal(deriveView(promoted).coordinating, true);
   const woken = run(promoted, [{ type: "view.set-prompt", prompt: "Plan the release" }]);
@@ -520,7 +520,7 @@ test("a coordinator hands work only to threads, so on any engine it takes no eff
   const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   assert.equal(effectAt(started, "start-run").command.effort, "max");
 
-  const member = workspace({ threads: [task("lead", { role: "coordinator" }), task("member", { parentId: "lead", engine: "codex", model: "gpt-6.1-sol", effort: "high" })], currentId: "member" });
+  const member = workspace({ threads: [task("lead", { role: "coordinator" }), task("member", { parentId: "lead", engine: "codex", model: "gpt-6.2-sol", effort: "high" })], currentId: "member" });
   assert.equal(reduce(member, { type: "task.set-effort", engine: "codex", effort: "ultra" }).state.threads[1].effort, "ultra", "a thread under a coordinator does the work, so it may split it");
 });
 
@@ -660,7 +660,7 @@ test("a send that carries its own text is not a draft, so its @ is left alone", 
 
 test("Codex speed is remembered on the thread, inherited by forks, and sent with runs", () => {
   const drafted = run(workspace(), [
-    { type: "task.set-model", engine: "codex", model: "gpt-6.1-sol" },
+    { type: "task.set-model", engine: "codex", model: "gpt-6.2-sol" },
     { type: "task.set-fast-mode", fastMode: true },
     { type: "view.set-prompt", prompt: "Inspect the app" },
   ]);
@@ -684,7 +684,7 @@ test("Codex speed is remembered on the thread, inherited by forks, and sent with
 });
 
 test("fast mode stays a Codex preference when switching the draft to Claude", () => {
-  const codex = workspace({ draftEngine: "codex", draftModel: "gpt-6.1-sol", draftFastMode: true });
+  const codex = workspace({ draftEngine: "codex", draftModel: "gpt-6.2-sol", draftFastMode: true });
   const claude = reduce(codex, { type: "task.set-model", engine: "claude", model: "opus" }).state;
   assert.equal(deriveView(claude).fastMode, false);
   assert.equal(reduce(claude, { type: "task.set-fast-mode", fastMode: true }).state, claude);
@@ -716,7 +716,7 @@ test("a reviewer starts on Auto where its engine has one, else Bypass, and every
     assert.equal(started.state.threads[0].executionPolicy, "autonomous", `a Claude reviewer started on ${draftPolicy}`);
     assert.equal(effectAt(started, "start-run").command.policy, "autonomous", "and its first run runs that way too");
   }
-  assert.equal(start("reviewer", "confirm", "gpt-6.1-sol").state.threads[0].executionPolicy, "autonomous", "Codex has Auto too");
+  assert.equal(start("reviewer", "confirm", "gpt-6.2-sol").state.threads[0].executionPolicy, "autonomous", "Codex has Auto too");
   assert.equal(start("implementer", "confirm").state.threads[0].executionPolicy, "confirm", "any other role keeps the draft mode");
   assert.equal(start("researcher", "plan").state.threads[0].executionPolicy, "plan");
   assert.equal(start("coordinator", "autonomous").state.threads[0].executionPolicy, "autonomous");
