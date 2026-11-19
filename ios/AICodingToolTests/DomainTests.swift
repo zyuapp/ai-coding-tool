@@ -195,4 +195,14 @@ final class DomainTests: XCTestCase {
         XCTAssertEqual(ApprovalPreview(detail: "not json"), .raw("not json"))
         XCTAssertEqual(ApprovalPreview(detail: #"{"query":"x"}"#), .raw(#"{"query":"x"}"#))
     }
+
+    func testVisualMessagesAreClampedAndUnknownOnesIgnored() {
+        XCTAssertEqual(VisualFrame.message(["type": "size", "height": 120.2]), .size(121))
+        XCTAssertEqual(VisualFrame.message(["type": "size", "height": 1e9]), .size(VisualFrame.maxHeight))
+        XCTAssertEqual(VisualFrame.message(["type": "size", "height": -5]), .size(0))
+        XCTAssertNil(VisualFrame.message(["type": "size", "height": "tall"]))
+        XCTAssertEqual(VisualFrame.message(["type": "error", "message": String(repeating: "x", count: 900)]), .error(String(repeating: "x", count: 500)))
+        XCTAssertNil(VisualFrame.message(["type": "navigate", "url": "https://example.com"]))
+        XCTAssertNil(VisualFrame.message("size"))
+    }
 }

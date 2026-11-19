@@ -77,6 +77,8 @@ private struct BlockView: View {
         case let code as CodeBlock where code.language?.lowercased() == "mermaid":
             let source = code.code.hasSuffix("\n") ? String(code.code.dropLast()) : code.code
             MermaidBlockView(source: source, pending: openFenceLine != nil && code.range?.lowerBound.line == openFenceLine)
+        case let code as CodeBlock where code.language?.lowercased() == VisualFrame.language && code.code.utf8.count <= VisualFrame.maxSource:
+            VisualBlockView(source: code.code, pending: openFenceLine != nil && code.range?.lowerBound.line == openFenceLine)
         case let code as CodeBlock:
             CodeBlockView(code: code.code.hasSuffix("\n") ? String(code.code.dropLast()) : code.code, language: code.language)
         case let quote as BlockQuote:

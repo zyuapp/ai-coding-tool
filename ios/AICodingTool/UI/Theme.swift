@@ -35,6 +35,8 @@ struct Palette: Equatable {
         }
 
         var color: Color { Color(red: red, green: green, blue: blue) }
+
+        var css: String { "rgb(\(Int((red * 255).rounded())), \(Int((green * 255).rounded())), \(Int((blue * 255).rounded())))" }
     }
 
     private func raw(_ name: String) -> RGB {
@@ -83,6 +85,34 @@ struct Palette: Equatable {
     var hunkSurface: Color { raw("info").mixed(0.08, raw("bg-1")).color }
 
     var scheme: ColorScheme { dark ? .dark : .light }
+
+    /// The custom properties a `visual` block is styled with, from the same primitives the desktop gives them.
+    var visualColors: [String: String] {
+        let tokens: [(String, RGB)] = [
+            ("--color-bg", raw("bg-0")),
+            ("--color-surface", raw("bg-1")),
+            ("--color-surface-raised", raw("bg-2")),
+            ("--color-surface-hover", raw("bg-4")),
+            ("--color-text", raw("fg-0")),
+            ("--color-text-secondary", raw("fg-2")),
+            ("--color-text-tertiary", raw("fg-4")),
+            ("--color-border", raw("line-1")),
+            ("--color-border-strong", raw("line-3")),
+            ("--color-accent", raw("accent")),
+            ("--color-on-accent", raw("accent-ink")),
+            ("--color-success", value("success-text", or: "success")),
+            ("--color-warning", raw("ansi-yellow")),
+            ("--color-danger", value("danger-text", or: "danger")),
+            ("--color-info", value("info-text", or: "info")),
+            ("--series-1", raw("ansi-blue")),
+            ("--series-2", raw("ansi-green")),
+            ("--series-3", raw("ansi-yellow")),
+            ("--series-4", raw("ansi-magenta")),
+            ("--series-5", raw("ansi-cyan")),
+            ("--series-6", raw("ansi-red")),
+        ]
+        return Dictionary(uniqueKeysWithValues: tokens.map { ($0.0, $0.1.css) })
+    }
 
     static let all: [String: Palette] = {
         guard let url = Bundle.main.url(forResource: "Themes", withExtension: "json"), let data = try? Data(contentsOf: url), let themes = try? JSONDecoder().decode([String: [String: String]].self, from: data) else { return [:] }
