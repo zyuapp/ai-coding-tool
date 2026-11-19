@@ -206,9 +206,10 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color 0.15s ease;
 }
-.coordination-card-open:hover { background: var(--surface-hover); }
+/** Pointing at the open area washes the whole card, its steps included, so it reads as one surface. */
+.coordination-card { transition: box-shadow 0.15s ease; }
+.coordination-card:has(> .coordination-card-open:hover) { box-shadow: var(--glass-rim), inset 0 0 0 100vmax var(--surface-hover); }
 .coordination-card-head { min-width: 0; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 .coordination-card-head strong { min-width: 0; overflow: hidden; color: var(--ink-soft); font-size: var(--text-control); font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
 .coordination-card-open > small { min-width: 0; padding-left: 30px; overflow: hidden; font-size: var(--text-meta); text-overflow: ellipsis; white-space: nowrap; }
