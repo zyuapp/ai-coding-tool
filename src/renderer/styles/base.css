@@ -56,5 +56,5 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
    * carrying the sidebar, the topbar and the conversation off the left edge with it.
    */
   overflow: clip;
-  background: var(--frame);
+  background: var(--aura), var(--frame);
 }

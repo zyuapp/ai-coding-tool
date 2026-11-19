@@ -33,6 +33,11 @@
    * a material under the window it thins to a tint, and the fills that sit on it thin to washes of ink.
    */
   --frame: var(--sidebar);
+  /* The theme's glows, laid over the frame's ground. A theme with none draws nothing. */
+  --aura:
+    radial-gradient(85% 70% at 0% 0%, color-mix(in srgb, var(--p-glow-0) 70%, transparent), transparent 72%),
+    radial-gradient(70% 80% at 100% 0%, color-mix(in srgb, var(--p-glow-1) 70%, transparent), transparent 72%),
+    radial-gradient(90% 70% at 65% 100%, color-mix(in srgb, var(--p-glow-2) 70%, transparent), transparent 72%);
   --page: var(--canvas); /* the sheet the work sits on, solid so the glass over it has something whole to blur */
   --frame-control: var(--control);
   --frame-control-hover: var(--control-hover);

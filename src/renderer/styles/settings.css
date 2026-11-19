@@ -104,7 +104,7 @@
   overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: 10px;
-  background: var(--canvas);
+  background: var(--aura), var(--canvas);
   cursor: pointer;
   text-align: left;
 }
