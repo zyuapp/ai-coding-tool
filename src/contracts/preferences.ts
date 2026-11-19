@@ -52,6 +52,8 @@ export type ViewPreferences = {
   browserImport?: BrowserImportMemory;
   /** What the user closed toasts about, such as an engine release they chose not to install. */
   dismissedToasts?: string[];
+  /** Usage warnings the user put away, by `usageWarningKey`. */
+  dismissedUsageWarnings?: string[];
   /** The projects last picked to start a thread in, newest first. */
   recentProjects?: string[];
   /** Coordinators cleared from the archive whose threads on paired computers may still work under them. */

@@ -679,7 +679,7 @@ test("a window running low warns until it is dismissed or the thread waits out a
   const planUsage = { read: 1, reading: [], dismissed: [] as string[], reports: { claude: claudePlan } };
   const state = workspace([task("t", { model: "opus" })], { currentId: "t", planUsage });
   const warning = projectMobileView(state, NOW).usage.composer?.warning;
-  assert.deepEqual(warning, { key: "claude:seven_day_opus:2027-01-20T09:00:00Z:near", share: 90, window: "Claude · Current week (Opus)", resetsAt: "2027-01-20T09:00:00Z" });
+  assert.deepEqual(warning, { key: `claude:seven_day_opus:near@${Date.parse("2027-01-20T09:00:00Z")}`, share: 90, window: "Claude · Current week (Opus)", resetsAt: "2027-01-20T09:00:00Z" });
 
   assert.equal(projectMobileView({ ...state, planUsage: { ...planUsage, dismissed: [warning!.key] } }, NOW).usage.composer?.warning, null);
   const paused = workspace([task("t", { model: "opus", limitPause: { pausedAt: NOW } as Thread["limitPause"] })], { currentId: "t", planUsage });

@@ -25,7 +25,7 @@ import { threadActivity, type ThreadActivity } from "./thread-activity.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
 import { diffFor } from "./workspace-diff.js";
 import { workspaceViewCollections } from "./workspace-view-collections.js";
-import { barShare, NEAR_LIMIT_SHARE, planLabel, sessionAndWeek, tightestWindow, usageWarningKey, windowsFor, windowSpan, type UsageWindow } from "../domain/plan-usage.js";
+import { barShare, NEAR_LIMIT_SHARE, planLabel, sessionAndWeek, tightestWindow, usageWarningDismissed, usageWarningKey, windowsFor, windowSpan, type UsageWindow } from "../domain/plan-usage.js";
 import { AGENT_EFFORTS, AGENT_ENGINES, BUILT_IN_MODELS, byEngine, capabilitiesFor, efforts, engineCatalog, engineLabel, modelLabel, offeredPolicies, type AgentEngine, type EngineReadiness, type EngineStatus, type ModelCatalog } from "../domain/agent-engine.js";
 import { orderSubagents, POLICIES, processLabel, subagentLine, type BackgroundProcess, type Subagent } from "../domain/run.js";
 import { workflowLabel, type Workflow } from "../domain/workflow.js";
@@ -231,7 +231,7 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
     engines: projectMobileEngines(state.engineStatus),
     upkeep: projectMobileUpkeep(state),
     dictation: state.dictation.model === "ready",
-    usage: projectMobileUsage(state, view),
+    usage: projectMobileUsage(state, view, at),
     archived: workspaceViewCollections(state).archivedThreads.length,
     thread,
     draft: thread ? null : projectMobileDraft(state, view),
@@ -245,7 +245,7 @@ const share = (utilization: number | null) => utilization === null ? null : Math
  * Every engine's plan for the Usage sheet, and the windows the composer's model spends, as the
  * desktop composer's meter and warning read them.
  */
-function projectMobileUsage(state: WorkspaceState, view: ReturnType<typeof deriveView>): MobileUsage {
+function projectMobileUsage(state: WorkspaceState, view: ReturnType<typeof deriveView>, at: number): MobileUsage {
   const { reports, dismissed } = state.planUsage;
   const drawn = (item: UsageWindow): MobileUsageWindow => ({ id: item.id, label: item.label, share: share(item.utilization), resetsAt: item.resetsAt });
   const engines = AGENT_ENGINES.flatMap((engine): MobileEngineUsage[] => {
@@ -262,7 +262,7 @@ function projectMobileUsage(state: WorkspaceState, view: ReturnType<typeof deriv
     const { session, week } = sessionAndWeek(spent);
     const rows = session || week ? [session, week].filter((row) => row !== null) : [tightest];
     const key = usageWarningKey(view.engine, tightest);
-    const warned = !view.limitPause && tightest.utilization >= NEAR_LIMIT_SHARE && !dismissed.includes(key);
+    const warned = !view.limitPause && tightest.utilization >= NEAR_LIMIT_SHARE && !usageWarningDismissed(dismissed, key, at);
     composer = {
       share: share(tightest.utilization)!,
       meter: rows.map((row) => ({ span: windowSpan(row) ?? row.label, share: share(row.utilization)! })),

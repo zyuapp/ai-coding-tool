@@ -91,7 +91,7 @@ test("the warning shows once a window runs low, and stays away once put away", a
     assert.match(low.container.textContent!, /86% used/);
     assert.match(low.container.textContent!, /Claude · Current session/);
     low.container.querySelector<HTMLButtonElement>("button")!.click();
-    assert.deepEqual(warned, ["claude:five_hour::near"]);
+    assert.deepEqual(warned, ["claude:five_hour:near@"]);
   } finally {
     await low.unmount();
   }

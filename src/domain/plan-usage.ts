@@ -107,9 +107,34 @@ export function sessionAndWeek(windows: readonly UsageWindow[]) {
 }
 
 /**
- * What a warning about `window` is called once dismissed. It names the window's period and how close
- * it is, so the warning comes back when the window reaches its limit or a new period runs low.
+ * What a warning about `window` is called once dismissed: the window and how close it is, then the
+ * instant it resets. The dismissal holds until that instant, so a reset time that drifts between
+ * reads keeps it, and the warning comes back when the window reaches its limit or a new period runs low.
  */
 export function usageWarningKey(engine: string, window: UsageWindow & { utilization: number }) {
-  return `${engine}:${window.id}:${window.resetsAt ?? ""}:${window.utilization >= 100 ? "reached" : "near"}`;
+  const resets = window.resetsAt === null ? NaN : Date.parse(window.resetsAt);
+  return `${engine}:${window.id}:${window.utilization >= 100 ? "reached" : "near"}@${Number.isFinite(resets) ? resets : ""}`;
 }
+
+function warningParts(key: string) {
+  const at = key.lastIndexOf("@");
+  const until = at < 0 ? NaN : Number(key.slice(at + 1) || NaN);
+  return { subject: at < 0 ? key : key.slice(0, at), until: Number.isFinite(until) ? until : null };
+}
+
+/** Whether the user put away the warning `key` names and its window has not reset since. */
+export function usageWarningDismissed(dismissed: readonly string[], key: string, now: number) {
+  const { subject } = warningParts(key);
+  return dismissed.some((entry) => {
+    const kept = warningParts(entry);
+    return kept.subject === subject && (kept.until === null || now < kept.until);
+  });
+}
+
+/** `dismissed` with `key` put away, in place of any earlier dismissal of the same warning. */
+export function withUsageWarningDismissed(dismissed: readonly string[], key: string) {
+  const { subject } = warningParts(key);
+  return [...dismissed.filter((entry) => warningParts(entry).subject !== subject), key].slice(-MAX_DISMISSED_WARNINGS);
+}
+
+export const MAX_DISMISSED_WARNINGS = 20;

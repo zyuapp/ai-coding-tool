@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { LuGauge as Gauge } from "react-icons/lu";
-import { barShare, formatReset, NEAR_LIMIT_SHARE, planLabel, sessionAndWeek, tightestWindow, usageWarningKey, windowsFor, windowSpan, type PlanUsage, type UsageWindow } from "../../domain/plan-usage";
+import { barShare, formatReset, NEAR_LIMIT_SHARE, planLabel, sessionAndWeek, tightestWindow, usageWarningDismissed, usageWarningKey, windowsFor, windowSpan, type PlanUsage, type UsageWindow } from "../../domain/plan-usage";
 import { modelLabel, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
 import { useModelCatalog } from "../model-catalog";
 import { Meter } from "../ui/Meter";
@@ -78,7 +78,7 @@ export function PlanUsageWarning({ engine, engineLabel, model, usage, dismissed,
   const tightest = tightestWindow(windowsFor(usage, modelLabel(useModelCatalog(), engine, model)));
   if (limitPaused || !tightest || tightest.utilization < NEAR_LIMIT_SHARE) return null;
   const warning = usageWarningKey(engine, tightest);
-  if (dismissed.includes(warning)) return null;
+  if (usageWarningDismissed(dismissed, warning, Date.now())) return null;
   const share = Math.round(barShare(tightest.utilization));
   const reset = formatReset(tightest.resetsAt, Date.now(), TIME_ZONE, { zone: false });
   const Summary = onOpen ? "button" : "span";

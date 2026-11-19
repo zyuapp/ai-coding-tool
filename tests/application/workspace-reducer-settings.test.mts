@@ -176,12 +176,16 @@ test("plan limits keep what each provider said while the next read runs, and dro
   assert.deepEqual(late.state.planUsage.reports.claude, claude, "the answer to the read the refresh replaced says nothing");
 });
 
-test("a usage warning put away stays away, once", () => {
-  const dismissed = reduce(workspace(), { type: "usage.dismiss-warning", warning: "claude:five_hour:2026-08-18T08:19:00Z:near" });
-  assert.deepEqual(dismissed.state.planUsage.dismissed, ["claude:five_hour:2026-08-18T08:19:00Z:near"]);
-  assert.deepEqual(dismissed.effects, []);
-  const again = reduce(dismissed.state, { type: "usage.dismiss-warning", warning: "claude:five_hour:2026-08-18T08:19:00Z:near" });
+test("a usage warning put away stays away, once, and between launches", () => {
+  const key = "claude:five_hour:near@1787041140000";
+  const dismissed = reduce(workspace(), { type: "usage.dismiss-warning", warning: key });
+  assert.deepEqual(dismissed.state.planUsage.dismissed, [key]);
+  const saved = effectAt(dismissed, "persist-preferences").preferences;
+  assert.deepEqual(saved.dismissedUsageWarnings, [key]);
+  const again = reduce(dismissed.state, { type: "usage.dismiss-warning", warning: key });
   assert.equal(again.state, dismissed.state);
+  const relaunched = reduce(workspace(), { type: "preferences.loaded", preferences: saved });
+  assert.deepEqual(relaunched.state.planUsage.dismissed, [key]);
 });
 
 test("asking the platform for a permission holds the row until its own dialog answers", () => {

@@ -3,6 +3,7 @@ import { isBrowserImportMemory } from "../domain/browser-import.js";
 import type { KeyValueStorage } from "./task-store.js";
 import { DRAFT_DOCK, type WorkspaceState } from "./workspace-state.js";
 import { MAX_REMEMBERED_TOASTS } from "../domain/toast.js";
+import { MAX_DISMISSED_WARNINGS } from "../domain/plan-usage.js";
 import { MAX_RECENT_PROJECTS } from "../domain/project.js";
 import { MAX_DISCARDED_LEADS } from "./state/computers.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
@@ -93,6 +94,7 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
     const browserTabs = urlsByThread(value.browserTabs);
     const browserOrigins = urlList(value.browserOrigins);
     const dismissedToasts = Array.isArray(value.dismissedToasts) ? value.dismissedToasts.filter((key): key is string => typeof key === "string" && key.length > 0 && key.length <= 256).slice(-MAX_REMEMBERED_TOASTS) : undefined;
+    const dismissedUsageWarnings = Array.isArray(value.dismissedUsageWarnings) ? value.dismissedUsageWarnings.filter((key): key is string => typeof key === "string" && key.length > 0 && key.length <= 256).slice(-MAX_DISMISSED_WARNINGS) : undefined;
     const discardedLeads = Array.isArray(value.discardedLeads) ? value.discardedLeads.filter((id): id is string => typeof id === "string" && id.length > 0 && id.length <= 256).slice(-MAX_DISCARDED_LEADS) : undefined;
     const recentProjects = Array.isArray(value.recentProjects) ? [...new Set(value.recentProjects.filter((id): id is string => typeof id === "string" && id.length > 0 && id.length <= 256))].slice(0, MAX_RECENT_PROJECTS) : undefined;
     const shortcuts = bindings(value.shortcuts);
@@ -126,6 +128,7 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
       ...(browserOrigins ? { browserOrigins } : {}),
       ...(isBrowserImportMemory(value.browserImport) ? { browserImport: value.browserImport } : {}),
       ...(dismissedToasts ? { dismissedToasts } : {}),
+      ...(dismissedUsageWarnings?.length ? { dismissedUsageWarnings } : {}),
       ...(discardedLeads?.length ? { discardedLeads } : {}),
       ...(recentProjects?.length ? { recentProjects } : {}),
     };
@@ -178,6 +181,7 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
     browserOrigins: state.browserOrigins,
     ...(state.browserImport.last ? { browserImport: state.browserImport.last } : {}),
     ...(state.dismissedToasts.length ? { dismissedToasts: state.dismissedToasts } : {}),
+    ...(state.planUsage.dismissed.length ? { dismissedUsageWarnings: state.planUsage.dismissed } : {}),
     ...(state.computers.discardedLeads.length ? { discardedLeads: state.computers.discardedLeads } : {}),
     ...(state.recentProjects.length ? { recentProjects: state.recentProjects } : {}),
   };

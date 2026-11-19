@@ -6,7 +6,7 @@ import type { ComputersSliceState } from "../state/computers.js";
 import { AGENT_ENGINES } from "../../domain/agent-engine.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AgentEngine } from "../../domain/agent-engine.js";
-import type { PlanUsage } from "../../domain/plan-usage.js";
+import { withUsageWarningDismissed, type PlanUsage } from "../../domain/plan-usage.js";
 
 export const PLAN_USAGE_INPUTS = ["usage.read", "usage.reported", "usage.dismiss-warning"] as const;
 type PlanUsageInput = Extract<WorkspaceInput, { type: (typeof PLAN_USAGE_INPUTS)[number] }>;
@@ -37,7 +37,7 @@ export function reducePlanUsage(state: PlanUsageSliceState & ComputersSliceState
   }
   if (input.type === "usage.dismiss-warning") {
     if (state.planUsage.dismissed.includes(input.warning)) return {};
-    return { patch: { planUsage: { ...state.planUsage, dismissed: [...state.planUsage.dismissed, input.warning] } } };
+    return { patch: { planUsage: { ...state.planUsage, dismissed: withUsageWarningDismissed(state.planUsage.dismissed, input.warning) } }, persists: true };
   }
   /** Answers to a read the refresh button has already replaced are dropped wherever they arrive. */
   if (input.read !== state.planUsage.read) return {};

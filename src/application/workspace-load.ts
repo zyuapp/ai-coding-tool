@@ -139,7 +139,8 @@ export function reduceStoreLoad(state: WorkspaceState, input: StoreLoadInput): W
         if (browserTabs.length) docks[owner] = { ...dockFor(state, owner), browserTabs, browserTabId: browserTabs[0].id };
       }
       const computers = { ...state.computers, discardedLeads: input.preferences.discardedLeads ?? [] };
-      return settled({ ...state, ...viewPreferenceState(input.preferences), browserImport: { ...state.browserImport, last: input.preferences.browserImport ?? null }, docks, computers });
+      const planUsage = { ...state.planUsage, dismissed: input.preferences.dismissedUsageWarnings ?? [] };
+      return settled({ ...state, ...viewPreferenceState(input.preferences), browserImport: { ...state.browserImport, last: input.preferences.browserImport ?? null }, docks, computers, planUsage });
     }
   }
 }
