@@ -373,8 +373,8 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const located = arriving ? { ...thread, worktreeId: arriving.id, worktreeEnteredAt: thread.worktreeEnteredAt ?? now() } : thread;
   /** A copied thread forks the session it inherited until a session of its own comes back to continue. */
   const inherited = located.inheritedContinuation;
-  const { thread: coordinated, notice, prompt, fresh } = coordinatedStart(state, pending, located, existing);
-  const updated = { ...coordinated, messages: [...coordinated.messages, ...arrival, ...notice, message], updatedAt: now() };
+  const { thread: coordinated, prompt } = coordinatedStart(state, pending, located, existing);
+  const updated = { ...coordinated, messages: [...coordinated.messages, ...arrival, message], updatedAt: now() };
   const listed = existing ? state.threads.map((item) => item.id === thread.id ? updated : item) : [updated, ...state.threads];
   const { threads, startingProposals } = withSuggestionStarted(state, pending, existing, listed, updated);
   /** Only a thread the user's own send just created needs looking at; anything else leaves them where they are. */
@@ -391,7 +391,6 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const command = {
     ...startRunCommand({ ...state, threads }, updated, pending.runId, prompt, workspace.id),
     ...((entering || inherited) && updated.continuation ? { forkContinuation: true as const } : {}),
-    ...(fresh ? { freshSession: true as const } : {}),
     ...sideChannelFor(state, updated),
   };
   /**

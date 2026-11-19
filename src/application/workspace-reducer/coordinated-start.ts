@@ -2,15 +2,13 @@
 import { now } from "./shared.js";
 import { withoutStarting } from "./proposals.js";
 import { briefPrompt, coordinationNote, coordinatorPrompt } from "../coordination-messages.js";
-import { sessionHoldsWork } from "../thread-activity.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
-import { createConversationMessage, type ConversationMessage } from "../../domain/conversation.js";
-import { asCoordinator, isCoordinator, wantsFreshSession, withCoordinationNote, withMemoryHeard, withoutCoordinationNotes, withoutProposals } from "../../domain/coordination.js";
+import { asCoordinator, isCoordinator, withCoordinationNote, withMemoryHeard, withoutCoordinationNotes, withoutProposals } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
 import { catalogOf } from "../state/engines.js";
 
 /** A thread as its run starts under a coordinator, what it is told first, and what the run is sent. */
-export type CoordinatedStart = { thread: Thread; notice: ConversationMessage[]; prompt: string; fresh: boolean };
+export type CoordinatedStart = { thread: Thread; prompt: string };
 
 /**
  * A thread `located` in the checkout its run starts in, as coordination leaves it. A new thread a
@@ -19,9 +17,7 @@ export type CoordinatedStart = { thread: Thread; notice: ConversationMessage[]; 
  * it, as the threads already under it do, so it is back under it with them. A new coordinator's
  * threads run on what it runs on itself until the user picks otherwise. A coordinator's run hears
  * everything its threads said since the last one and reads its memory whenever its session has yet
- * to, and one whose session has grown past its budget starts a fresh one, seeded from what this app
- * keeps of it; a run picking up after a usage limit carries on in the session it left. A message is
- * more work for a thread, so one that was resolved is open again.
+ * to. A message is more work for a thread, so one that was resolved is open again.
  */
 export function coordinatedStart(state: WorkspaceState, pending: PendingRun, located: Thread, existing: Thread | undefined): CoordinatedStart {
   const lead = existing || pending.role === "coordinator" ? undefined : state.threads.find((item) => item.id === pending.coordination?.coordinatorId);
@@ -29,10 +25,8 @@ export function coordinatedStart(state: WorkspaceState, pending: PendingRun, loc
   const opened = !existing && pending.role === "coordinator" ? asCoordinator(catalogOf(state), located) : located;
   const joined = lead ? { ...opened, parentId: lead.id } : remoteLead ? { ...opened, remoteLead } : opened;
   const coordinating = isCoordinator(joined);
-  const fresh = !pending.warming && wantsFreshSession(joined, sessionHoldsWork(state, joined.id));
   const told = coordinating && joined.coordinationNotes ? withoutCoordinationNotes(joined, new Set(joined.coordinationNotes.map((note) => note.id))) : joined;
-  const { resolvedAt: _reopened, ...open } = coordinating ? withMemoryHeard(told) : told;
-  const thread = fresh ? withoutSession(open) : open;
+  const { resolvedAt: _reopened, ...thread } = coordinating ? withMemoryHeard(told) : told;
   /** A thread starting under a coordinator reads the brief it was handed and the memory it was started with. */
   const standing = joined !== opened ? briefPrompt(pending.coordination?.brief, pending.coordination?.memory) : briefPrompt(pending.coordination?.brief);
   const sent = `${pending.prompt}${standing ? `\n\n${standing}` : ""}`;
@@ -40,18 +34,11 @@ export function coordinatedStart(state: WorkspaceState, pending: PendingRun, loc
    * Any coordinator session that starts over history reads the seed, so one whose last session failed
    * before naming itself, or was dropped, still knows what came before and where read_thread finds it.
    */
-  const seeded = fresh || coordinating && thread.continuation === undefined && (joined.messages.length > 0 || joined.historySummary !== undefined);
+  const seeded = coordinating && thread.continuation === undefined && (joined.messages.length > 0 || joined.historySummary !== undefined);
   return {
     thread,
-    notice: fresh ? [createConversationMessage("system", "Continued in a fresh session to keep this coordinator's context small.")] : [],
     prompt: coordinating ? coordinatorPrompt(state, joined, sent, { carried: pending.coordination?.notes, fresh: seeded }) : sent,
-    fresh,
   };
-}
-
-/** A thread that resumes no session: its next run starts one, and its context meter starts over with it. */
-function withoutSession({ continuation: _continuation, inheritedContinuation: _inherited, contextUsage: _context, ...thread }: Thread): Thread {
-  return { ...thread, continuationStatus: "none" };
 }
 
 /** A suggestion the user started is `thread` now, which its coordinator hears without being woken by it. */

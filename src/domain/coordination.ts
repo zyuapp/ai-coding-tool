@@ -107,11 +107,6 @@ const MOST_REMOTE_HEARD = 10 * MAX_REMOTE_HEARD;
  * limits with room to spare, which a thread started on another computer carries.
  */
 export const MAX_MEMORY_PROMPT = 64_000;
-/**
- * How much context a coordinator's session may hold before its next run starts a fresh one. It is a
- * count rather than a share of the window, so a large window never means every wake re-reads more.
- */
-export const COORDINATOR_CONTEXT_TOKENS = 80_000;
 
 /** The groups a coordinator's Overview sorts its threads into, by what each one needs, most pressing first. */
 export type OverviewGroup = "needs" | "review" | "working" | "done" | "resolved";
@@ -258,15 +253,6 @@ export function effortRoleOf(thread: Thread | undefined, draftRole: ThreadRole |
  */
 export function mayLeadElsewhere(thread: Pick<Thread, "role" | "remoteHeard">): boolean {
   return thread.role === "coordinator" || thread.remoteHeard !== undefined && Object.keys(thread.remoteHeard).length > 0;
-}
-
-/**
- * Whether a coordinator's next run starts a fresh session rather than resuming one whose context has
- * grown past its budget. A native goal, a workflow or background work lives in its session, so a
- * session still holding any of it is kept until that work ends.
- */
-export function wantsFreshSession(thread: Thread, sessionHolds: boolean): boolean {
-  return isCoordinator(thread) && thread.continuation !== undefined && (thread.contextUsage?.tokens ?? 0) >= COORDINATOR_CONTEXT_TOKENS && !sessionHolds;
 }
 
 /** What a coordinator's threads run on unless one is started on something else. A choice saved before engines travelled with models names none. */

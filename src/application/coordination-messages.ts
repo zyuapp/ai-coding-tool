@@ -247,7 +247,7 @@ export function coordinationContext(state: WorkspaceState, lead: Thread, { carri
   const suggested = (lead.proposals ?? []).map((proposal) => `- "${proposal.title}" [${proposal.id}]`);
   const recent = fresh ? recentConversation(lead) : [];
   return [
-    ...(fresh ? [`This coordinator continues in a fresh session to keep its context small; read_thread with its ID [${lead.id}] reaches its full history.`] : []),
+    ...(fresh ? [`This coordinator continues in a new session; read_thread with its ID [${lead.id}] reaches its full history.`] : []),
     ...memoryContext(lead, fresh),
     ...(notes.length ? ["Updates from your threads you have not seen yet:", ...notes.map((note) => `- ${note.text}`)] : []),
     ...(lines.length ? ["Your threads right now:", ...lines] : []),

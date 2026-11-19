@@ -12,7 +12,7 @@ test("a warm session retains process ownership across turns; stale termination c
   const pool = new SessionPool();
   const opened: PooledSession[] = [];
   reportSessionResources(event => { events.push(event); });
-  const execute = (fresh = false) => pool.execute(input({ taskId: "a", ...(fresh ? { freshSession: true } : {}) }), "engine", {
+  const execute = (fork = false) => pool.execute(input({ taskId: "a", ...(fork ? { continuation: { provider: "codex", value: "thread" }, forkContinuation: true } : {}) }), "engine", {
     open: hooks => {
       const session: PooledSession = { key: "engine", live: true, busy: true, answering: false, continues: () => true, run: async () => ({ status: "succeeded" }), close: () => { hooks.ended(); } };
       opened.push(session);
