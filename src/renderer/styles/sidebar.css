@@ -109,7 +109,7 @@
   font-size: var(--text-meta);
   font-weight: 600;
 }
-.sidebar-scroll { min-height: 0; flex: 1; overflow-y: auto; overflow-x: hidden; padding-block: 6px 12px; scroll-padding-block: 16px; mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 12px), transparent); }
+.sidebar-scroll { min-height: 0; flex: 1; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; padding-block: 6px 12px; scroll-padding-block: 16px; mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 12px), transparent); }
 .section-heading {
   display: grid;
   grid-template-columns: minmax(0, 1fr) repeat(2, var(--row-slot));

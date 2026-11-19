@@ -75,6 +75,8 @@
 .composer-wrap.side .queued-row, .composer-wrap.tab .queued-row { grid-column: auto; grid-row: auto; }
 .composer-wrap.side textarea:disabled { cursor: not-allowed; }
 .composer-wrap.tab { padding-bottom: 14px; }
+/** With no note under it, a side chat's composer stands level with the main one beside it. */
+.side-chat:not(:has(> .side-chat-note)) > .composer-wrap.side { padding-bottom: 20px; }
 .side-chat-note { margin: 7px 17px 12px; color: var(--muted); font-size: var(--text-meta); }
 .inspector-scroll { min-height: 0; overflow: auto; }
 .subagent-inspector .agent-detail-heading { grid-template-columns: 36px minmax(0, 1fr) auto; padding: 26px 24px 22px; }
@@ -185,17 +187,12 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
 /** Every row carries its engine, so the mark rests a rung under the marks that are news. */
 .task-engine { flex: none; color: var(--quiet-soft); transition: color 120ms ease; }
 .task-row:is(:hover, .active) .task-engine { color: var(--muted); }
-/**
- * A role colours its row: the mark in the rail, and a short bar on its leading edge so the eye groups
- * threads by role before it reads a title.
- */
+/** A role colours its mark in the row's rail. */
 .task-role { flex: none; color: var(--role-ink); }
 .role-coordinator { --role-ink: var(--role-coordinator); }
 .role-implementer { --role-ink: var(--role-implementer); }
 .role-reviewer { --role-ink: var(--role-reviewer); }
 .role-researcher { --role-ink: var(--role-researcher); }
-.task-row[class*="role-"] { position: relative; }
-.task-row[class*="role-"]::before { content: ""; position: absolute; top: 10px; bottom: 10px; left: 3px; width: 2px; border-radius: 2px; background: color-mix(in srgb, var(--role-ink) 70%, transparent); }
 /** The panel's sections share the session rows' columns: icons, labels and trailing marks line up down the card. */
 .subagent-section { border-top: 1px solid var(--line-soft); padding: 7px 8px 8px; }
 .subagent-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 6px 0 8px; color: var(--quiet-strong); font-size: var(--text-control); font-weight: 580; }
