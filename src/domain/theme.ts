@@ -27,6 +27,8 @@ export const THEMES: Theme[] = [
   { id: "broadsheet-salmon", label: "Broadsheet Salmon", family: "Broadsheet", variant: "light", canvas: "#ffe9db" },
   { id: "catppuccin-mocha", label: "Catppuccin Mocha", family: "Catppuccin", variant: "dark", canvas: "#11111b" },
   { id: "catppuccin-latte", label: "Catppuccin Latte", family: "Catppuccin", variant: "light", canvas: "#eff1f5" },
+  { id: "clearwater-deep", label: "Clearwater Deep", family: "Clearwater", variant: "dark", canvas: "#081829" },
+  { id: "clearwater-shallows", label: "Clearwater Shallows", family: "Clearwater", variant: "light", canvas: "#f0f8fe" },
   { id: "cyanotype", label: "Cyanotype", family: "Cyanotype", variant: "dark", canvas: "#00172d" },
   { id: "cyanotype-print", label: "Cyanotype Print", family: "Cyanotype", variant: "light", canvas: "#faf7ec" },
   { id: "dracula", label: "Dracula", family: "Dracula", variant: "dark", canvas: "#21222c" },
