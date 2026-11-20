@@ -25,13 +25,13 @@ const fileChange = (id: string, ...paths: string[]): ThreadItem => ({
 });
 
 const mcpCall = (id: string, server: string, tool: string, args: unknown): ThreadItem => ({
-  type: "mcpToolCall", id, server, tool, status: "inProgress", arguments: args as never, appContext: null, mcpAppUi: null, pluginId: null, readOnlyHint: null, result: null, error: null, durationMs: null,
+  type: "mcpToolCall", id, server, environmentId: null, tool, status: "inProgress", arguments: args as never, appContext: null, mcpAppUi: null, pluginId: null, readOnlyHint: null, result: null, error: null, durationMs: null,
 });
 
 /** The prompt Codex sends before an MCP tool runs, as captured from the real app server. */
 function elicitation(server: string, tool: string, params: Record<string, string>) {
   return {
-    threadId, turnId, serverName: server, mode: "form" as const,
+    threadId, turnId, serverName: server, environmentId: null, mode: "form" as const,
     _meta: { codex_approval_kind: "mcp_tool_call", persist: ["session", "always"], tool_description: "Append text.", tool_params: params, tool_params_display: [] },
     message: `Allow the ${server} MCP server to run tool "${tool}"?`,
     requestedSchema: { type: "object" as const, properties: {} },
@@ -112,7 +112,7 @@ test("an MCP tool prompt is the call the agent has going against that server, an
   assert.deepEqual(unseen, { result: { action: "accept", content: {}, _meta: null } });
   assert.deepEqual(allowed.asked[1], { toolId: "probe:1", name: "probe_read", input: {} }, "a prompt with no call in flight is named by its wording");
 
-  const form = await allowed.client.ask("mcpServer/elicitation/request", { threadId, turnId, serverName: "probe", mode: "form", _meta: null, message: "Which region?", requestedSchema: { type: "object", properties: {} } });
+  const form = await allowed.client.ask("mcpServer/elicitation/request", { threadId, turnId, serverName: "probe", environmentId: null, mode: "form", _meta: null, message: "Which region?", requestedSchema: { type: "object", properties: {} } });
   assert.deepEqual(form, { result: { action: "decline", content: null, _meta: null } }, "a form nobody here can fill is declined without asking");
   assert.equal(allowed.asked.length, 2);
   await allowed.end();
