@@ -168,6 +168,7 @@ export function SidebarResizer() {
       tabIndex={0}
       data-tip="Drag to resize · Double-click to reset"
       onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
+      onMouseDown={(event) => event.preventDefault()}
       onDoubleClick={(event) => setWidth(resetSidebar(event.currentTarget))}
       onPointerMove={(event) => {
         if (event.currentTarget.hasPointerCapture(event.pointerId)) resizeTo(event.currentTarget, event.clientX);

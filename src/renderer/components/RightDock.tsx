@@ -101,6 +101,7 @@ export function RightDock({ workspace, panels, launchers, open, expanded, sideba
         onFocus={(event) => reportDockWidth(event.currentTarget)}
         onDoubleClick={(event) => resetRightDock(event.currentTarget)}
         onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
+        onMouseDown={(event) => event.preventDefault()}
         onPointerMove={(event) => {
           if (event.currentTarget.hasPointerCapture(event.pointerId)) resizeRightDock(event.currentTarget, event.clientX);
         }}

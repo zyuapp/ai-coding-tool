@@ -37,10 +37,11 @@
 
 .diff-toolbar-actions { display: flex; gap: 2px; }
 
-.diff-progress { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding: 0 12px 7px 7px; color: var(--quiet-strong); font-size: var(--text-meta); }
+.diff-progress { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding: 0 12px 7px 10px; color: var(--quiet-strong); font-size: var(--text-meta); }
 .diff-progress > span:first-child { padding: 3px 5px; }
 .diff-progress > .diff-progress-done { display: inline-flex; align-items: center; gap: 4px; color: var(--success); font-weight: 560; }
-.diff-progress-meter { position: absolute; left: 12px; right: 12px; bottom: 0; }
+/** The meter is the header's bottom edge: it lies over the first file's top border, above the pinned file row. */
+.diff-progress > .meter.diff-progress-meter { position: absolute; z-index: 3; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 0; background: var(--line); }
 .diff-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 8px 12px; color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.4; }
 .diff-status .task-spinner { flex: none; width: 12px; height: 12px; }
 .diff-error { margin: 6px 10px; }

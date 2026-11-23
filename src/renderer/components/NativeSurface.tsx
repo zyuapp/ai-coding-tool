@@ -5,19 +5,34 @@ export type SurfaceBox = { x: number; y: number; width: number; height: number }
 
 /** How far a sample sits from the edge it belongs to, clear of anything that straddles that edge. */
 const SAMPLE_INSET = 10;
+/** The widest gap between samples along an edge; narrower than any menu that can hang over it. */
+const EDGE_STEP = 48;
 
-/** Three points along one axis: one inside each edge, and the middle. */
-function samples(start: number, size: number) {
+/** Points along one axis from inside one edge to inside the other, at most `step` apart. */
+function samples(start: number, size: number, step: number) {
   const inset = Math.min(SAMPLE_INSET, size / 2);
-  return [start + inset, start + size / 2, start + size - inset];
+  const span = size - inset * 2;
+  const gaps = Math.max(2, Math.ceil(span / step));
+  return Array.from({ length: gaps + 1 }, (_, index) => start + inset + (span * index) / gaps);
 }
 
-/** Whether the document draws anything of its own over the box, which a native view would hide. */
+/**
+ * Whether the document draws anything of its own over the box, which a native view would hide.
+ * Anything laid over the box from outside crosses one of its edges, so the edges are sampled
+ * closely and the inside only at its middle.
+ */
 function covered(element: HTMLElement, box: DOMRect) {
-  return samples(box.y, box.height).some((down) => samples(box.x, box.width).some((across) => {
+  const hidden = (across: number, down: number) => {
     const top = document.elementFromPoint(across, down);
     return !top || !element.contains(top);
-  }));
+  };
+  const across = samples(box.x, box.width, EDGE_STEP);
+  const down = samples(box.y, box.height, EDGE_STEP);
+  const [top = 0, bottom = 0] = [down[0], down.at(-1)];
+  const [left = 0, right = 0] = [across[0], across.at(-1)];
+  return hidden(box.x + box.width / 2, box.y + box.height / 2)
+    || across.some((x) => hidden(x, top) || hidden(x, bottom))
+    || down.some((y) => hidden(left, y) || hidden(right, y));
 }
 
 type NativeSurfaceProps = {
