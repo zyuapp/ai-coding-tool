@@ -87,6 +87,7 @@ export type ViewCommand =
   | { type: "view.set-computer-use"; enabled: boolean }
   | { type: "view.set-browser-tools"; enabled: boolean }
   | { type: "view.set-memory-protection"; enabled: boolean }
+  | { type: "view.set-idle-compaction"; enabled: boolean }
   | { type: "view.set-notifications"; enabled: boolean }
   /** Opening a subagent's detail, which is when its activity is read out of the store. */
   | { type: "view.inspect-subagent"; taskId?: string; subagentId: string }
@@ -225,6 +226,7 @@ export const viewCommands = {
   "view.set-computer-use": { fields: { enabled: boolean }, at: "local" },
   "view.set-browser-tools": { fields: { enabled: boolean }, at: "local" },
   "view.set-memory-protection": { fields: { enabled: boolean }, at: "local" },
+  "view.set-idle-compaction": { fields: { enabled: boolean }, at: "local" },
   "view.set-notifications": { fields: { enabled: boolean }, at: "local" },
   "view.inspect-subagent": { fields: { taskId: optionalText, subagentId: text }, at: "thread" },
   "view.set-settings-open": { fields: { open: boolean, section: optional(isSettingsSection), settingId: optionalText }, at: "local" },

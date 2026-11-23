@@ -49,9 +49,9 @@ test("a foreign model uses the engine's default context window", () => {
 
 test("per-engine settings and operations are catalogue entries", () => {
   const every = ["confirm", "plan", "allow-edits", "autonomous", "bypass"];
-  assert.deepEqual(capabilitiesFor("codex"), { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true, chromeBrowser: false, policies: every, unattendedPolicy: "autonomous" });
-  assert.deepEqual(capabilitiesFor("claude"), { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false, chromeBrowser: true, policies: every, unattendedPolicy: "autonomous" });
-  assert.deepEqual(capabilitiesFor("opencode"), { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, chromeBrowser: false, policies: ["confirm", "plan", "allow-edits", "bypass"], unattendedPolicy: "bypass" });
+  assert.deepEqual(capabilitiesFor("codex"), { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true, chromeBrowser: false, policies: every, unattendedPolicy: "autonomous", idleCompactionCacheMs: null });
+  assert.deepEqual(capabilitiesFor("claude"), { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false, chromeBrowser: true, policies: every, unattendedPolicy: "autonomous", idleCompactionCacheMs: 3_600_000 });
+  assert.deepEqual(capabilitiesFor("opencode"), { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false, chromeBrowser: false, policies: ["confirm", "plan", "allow-edits", "bypass"], unattendedPolicy: "bypass", idleCompactionCacheMs: null });
 });
 
 test("manual compaction belongs to the model and only through the engine that offers it", () => {

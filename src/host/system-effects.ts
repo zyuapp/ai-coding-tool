@@ -24,6 +24,9 @@ async function readComputerUse(ask: () => Promise<ComputerUsePermissions>, { dis
 
 /** What the window itself, its schedules and its settings are told, none of which belongs to a thread. */
 export const systemEffects = {
+  "schedule-idle-compaction": (effect, host) => {
+    host.scheduleIdleCompaction(effect.at);
+  },
   "schedule-limit-reset": (effect, host) => {
     host.scheduleLimitReset(effect.at);
   },

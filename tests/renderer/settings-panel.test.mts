@@ -533,16 +533,14 @@ test("every on/off setting is a switch named after its row", async () => {
   window.desktop = fakeDesktop({});
   const view = await mount(renderSettingsPanel({
     memoryProtection: true, onSetMemoryProtection: (enabled) => changed.push(["memory", enabled]),
-    notifications: true, chromeBrowser: false,
+    notifications: true, chromeBrowser: false, idleCompaction: true, onSetIdleCompaction: (enabled) => changed.push(["idle compaction", enabled]),
     onSetNotifications: (enabled) => changed.push(["notifications", enabled]), onSetChromeBrowser: (enabled) => changed.push(["chrome", enabled]),
   }));
   await act(async () => {});
   const switches = [...view.container.querySelectorAll<HTMLButtonElement>("[role='switch']")];
-  assert.deepEqual(switches.map((control) => [control.getAttribute("aria-label"), control.getAttribute("aria-checked")]), [["Memory protection", "true"], ["Notifications", "true"], ["Claude in Chrome", "false"]]);
-  await act(async () => { item(switches[0]).click(); });
-  await act(async () => { item(switches[1]).click(); });
-  await act(async () => { item(switches[2]).click(); });
-  assert.deepEqual(changed, [["memory", false], ["notifications", false], ["chrome", true]]);
+  assert.deepEqual(switches.map((control) => [control.getAttribute("aria-label"), control.getAttribute("aria-checked")]), [["Memory protection", "true"], ["Notifications", "true"], ["Claude in Chrome", "false"], ["Compact idle threads", "true"]]);
+  for (const control of switches) await act(async () => { item(control).click(); });
+  assert.deepEqual(changed, [["memory", false], ["notifications", false], ["chrome", true], ["idle compaction", false]]);
   await view.unmount();
 });
 

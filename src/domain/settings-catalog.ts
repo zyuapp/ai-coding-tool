@@ -54,6 +54,7 @@ export const SETTINGS_CONTROLS = [
   { id: "general.memory-protection", section: "general", label: "Memory protection", keywords: "memory leak ram process stop automatic" },
   { id: "general.notifications", section: "general", label: "Notifications", keywords: "alert banner notify sound away desktop phone push" },
   { id: "general.chrome-browser", section: "general", label: "Claude in Chrome", keywords: "extension browser chrome experimental" },
+  { id: "general.idle-compaction", section: "general", label: "Compact idle threads", keywords: "claude context cache summary idle compact tokens cost" },
   { id: "general.updates", section: "general", label: "Updates", keywords: "check version release upgrade" },
   { id: "general.licenses", section: "general", label: "Open source licenses", keywords: "legal notices third party copyright" },
   { id: "usage.plan-limits", section: "usage", label: "Plan limits", keywords: "quota tokens spend session weekly reset" },

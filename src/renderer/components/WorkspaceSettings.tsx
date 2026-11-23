@@ -51,6 +51,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
         onCancelDownload: () => void workspace.dispatch({ type: "dictation.cancel-download" }),
       }}
       memoryProtection={workspace.memoryProtection} onSetMemoryProtection={(enabled) => void workspace.actions.setMemoryProtection(enabled)}
+      idleCompaction={workspace.idleCompaction} onSetIdleCompaction={(enabled) => void workspace.dispatch({ type: "view.set-idle-compaction", enabled })}
       notifications={workspace.notifications} remote={workspace.remote} remoteChecking={workspace.remoteChecking}
       agentSettingsReload={workspace.agentSettingsReload} onReloadAgentSettings={() => void workspace.actions.reloadAgentSettings()}
       engineAccess={workspace.engineAccess} engineChecking={workspace.engineChecking} engineUpdating={workspace.engineUpdating}

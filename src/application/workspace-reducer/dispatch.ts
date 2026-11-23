@@ -84,6 +84,8 @@ export const CLAIMS = [
   claim(PROJECT_INPUTS, reduceProjectCommands),
   /** The line itself moves in {@link reconcileLimitPauses}, which every input passes through. */
   claim(["limits.elapsed"], () => ({})),
+  /** Compactions start in {@link reconcileIdleCompaction}, which every input passes through. */
+  claim(["idle-compaction.due"], () => ({})),
   claim(["limit.resume"], (state, input) => resumed(state, input.taskId)),
   claim(["limit.cancel"], (state, input) => pauseCancelled(state, input.taskId)),
   claim(["run.unresolved"], reduceRunUnresolved),

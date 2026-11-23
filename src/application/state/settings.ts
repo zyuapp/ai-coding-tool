@@ -37,6 +37,8 @@ export type SettingsState = {
   browserTools: boolean;
   /** Whether excessive engine memory stops its owning thread. */
   memoryProtection: boolean;
+  /** Whether a large idle thread is compacted before its prompt cache expires, on engines that bill reading it again. */
+  idleCompaction: boolean;
   /** Whether a thread that needs the user is announced on the desktop. Off leaves it to the sidebar alone. */
   notifications: boolean;
   settingsOpen: boolean;
@@ -76,6 +78,7 @@ export function initialSettingsState(): SettingsState {
     computerUse: true,
     browserTools: true,
     memoryProtection: true,
+    idleCompaction: true,
     notifications: true,
     settingsOpen: false,
     settingsSection: null,

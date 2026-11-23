@@ -3,6 +3,7 @@ import { apply } from "./workspace-reducer/dispatch.js";
 import { reconcileSnoozes } from "./thread-snooze.js";
 import { reconcileSimulators } from "./workspace-reducer/simulator.js";
 import { reconcileLimitPauses } from "./limit-pauses.js";
+import { reconcileIdleCompaction } from "./idle-compaction.js";
 import { reconcileAppUpdate } from "./app-updates.js";
 import { reconcileCoordination } from "./workspace-reducer/coordination.js";
 import { shownPageEffects } from "./workspace-reducer/browser-tabs.js";
@@ -59,7 +60,7 @@ function reduceInput(state: WorkspaceState, input: WorkspaceInput): WorkspaceTra
   if (route.kind === "computer" && !route.also) return forwarded(state, route);
   const carried = route.kind === "computer" ? [forwardEffect(route)] : [];
   const left = leavingComputer(state, input);
-  const applied = reconcileSimulators(left, reconcileAppUpdate(left, reconcileCoordination(left, reconcileLimitPauses(left, reconcileSnoozes(left, apply(left, input), input), input), input)));
+  const applied = reconcileSimulators(left, reconcileAppUpdate(left, reconcileCoordination(left, reconcileIdleCompaction(left, reconcileLimitPauses(left, reconcileSnoozes(left, apply(left, input), input), input), input), input)));
   if (input.type === "preferences.loaded" && applied.state.memoryProtection !== state.memoryProtection) applied.effects.push({ type: "send-run-command", command: { type: "memory-protection", enabled: applied.state.memoryProtection } });
   applied.effects = [...leftBehind(state, left), ...carried, ...applied.effects];
   const transition = { ...applied, state: settledUnlisted(left, withOverviewPanels(prunedWorkflowPanels(prunedFind(applied.state)))) };

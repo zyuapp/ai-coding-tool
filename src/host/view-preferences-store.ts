@@ -22,6 +22,7 @@ export function loadViewPreferences(storage: KeyValueStorage, viewportWidth?: nu
     chromeBrowser: stored.chromeBrowser ?? false,
     computerUse: stored.computerUse ?? true,
     memoryProtection: stored.memoryProtection ?? true,
+    idleCompaction: stored.idleCompaction ?? true,
     browserTools: stored.browserTools ?? true,
     notifications: stored.notifications ?? true,
     sidebarOpen: stored.sidebarOpen ?? (viewportWidth === undefined || viewportWidth >= 900),

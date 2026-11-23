@@ -66,6 +66,8 @@ export type GeneralSettingsProps = {
   /** Whether a thread that needs the user announces itself on the desktop. */
   memoryProtection?: boolean;
   onSetMemoryProtection?: (enabled: boolean) => void;
+  idleCompaction?: boolean;
+  onSetIdleCompaction?: (enabled: boolean) => void;
   notifications: boolean;
   onSetNotifications: (enabled: boolean) => void;
   onCheckForUpdates: () => void;
@@ -73,7 +75,7 @@ export type GeneralSettingsProps = {
   onOpenSourceLicenses: () => void;
 };
 
-export function GeneralSettings({ dictation, cli: { status, busy, error }, onReadCli, onSetCliInstalled, chromeBrowser, onSetChromeBrowser, memoryProtection = true, onSetMemoryProtection, notifications, onSetNotifications, onCheckForUpdates, update = NO_APP_UPDATE_SETTINGS, onOpenSourceLicenses }: GeneralSettingsProps) {
+export function GeneralSettings({ dictation, cli: { status, busy, error }, onReadCli, onSetCliInstalled, chromeBrowser, onSetChromeBrowser, memoryProtection = true, onSetMemoryProtection, idleCompaction = true, onSetIdleCompaction, notifications, onSetNotifications, onCheckForUpdates, update = NO_APP_UPDATE_SETTINGS, onOpenSourceLicenses }: GeneralSettingsProps) {
   useEffect(() => { onReadCli(); }, []);
   /** Which CLI button started the change in flight, so only that one reads as working. */
   const [cliStep, setCliStep] = useState<"install" | "remove" | null>(null);
@@ -122,6 +124,9 @@ export function GeneralSettings({ dictation, cli: { status, busy, error }, onRea
       <SettingsSection title="Claude" description="Experimental settings that only Claude threads read. They can change or disappear.">
         <SettingRow id="general.chrome-browser" description="Claude drives the Chrome you already have open, instead of the browser panel, when you ask for your own browser. Needs the Claude in Chrome extension, and Chrome running.">
           <SettingSwitch id="general.chrome-browser" on={chromeBrowser} onChange={onSetChromeBrowser} />
+        </SettingRow>
+        <SettingRow id="general.idle-compaction" description="A thread over 200K tokens is summarized just before Claude's one-hour cache runs out, so picking it back up costs less.">
+          <SettingSwitch id="general.idle-compaction" on={idleCompaction} onChange={onSetIdleCompaction ?? (() => {})} />
         </SettingRow>
       </SettingsSection>
 

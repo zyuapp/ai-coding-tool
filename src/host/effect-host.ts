@@ -18,6 +18,8 @@ export type EffectHost = {
   environmentRefreshes: EnvironmentRefreshes;
   scheduleSnoozeExpiry: (at: number | null) => void;
   scheduleLimitReset: (at: number | null) => void;
+  /** Wakes the reducer when an idle thread's compaction is due, or one has run too long. */
+  scheduleIdleCompaction: (at: number | null) => void;
   /** Takes a toast down at `at`, or never for null. Each toast keeps its own time, and a host that stops drops them all. */
   scheduleToastDismissal: (id: number, at: number | null) => void;
   /** Carries an effect to the window's own views. Absent where there is no window, which drops it. */

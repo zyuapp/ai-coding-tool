@@ -77,6 +77,8 @@ export type SettingsPanelProps = {
   browserTools: boolean;
   memoryProtection?: boolean;
   onSetMemoryProtection?: (enabled: boolean) => void;
+  idleCompaction?: boolean;
+  onSetIdleCompaction?: (enabled: boolean) => void;
   notifications: boolean;
   dictation?: DictationSettings;
   /** The phone bridge, as the main process last reported it. */
@@ -155,7 +157,7 @@ export function SettingsPanel({
   chromeBrowser,
   computerUse,
   browserTools,
-  memoryProtection = true, onSetMemoryProtection,
+  memoryProtection = true, onSetMemoryProtection, idleCompaction = true, onSetIdleCompaction,
   notifications,
   dictation,
   remote,
@@ -227,7 +229,7 @@ export function SettingsPanel({
 
       {section === "general" && (
       <SettingsPage title="General" description="How AI Coding Tool answers from outside its own window.">
-        <GeneralSettings memoryProtection={memoryProtection} onSetMemoryProtection={onSetMemoryProtection} {...(dictation ? { dictation } : {})} cli={cli} onReadCli={onReadCli} onSetCliInstalled={onSetCliInstalled} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} update={appUpdate} onOpenSourceLicenses={onOpenSourceLicenses} />
+        <GeneralSettings memoryProtection={memoryProtection} onSetMemoryProtection={onSetMemoryProtection} idleCompaction={idleCompaction} onSetIdleCompaction={onSetIdleCompaction} {...(dictation ? { dictation } : {})} cli={cli} onReadCli={onReadCli} onSetCliInstalled={onSetCliInstalled} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} update={appUpdate} onOpenSourceLicenses={onOpenSourceLicenses} />
       </SettingsPage>
       )}
 

@@ -24,6 +24,7 @@ import { initialDesktopState, type DesktopState } from "./state/desktop.js";
 import { initialCliState, initialComputerUseState, initialPlanUsageState, type CliSliceState, type ComputerUseSliceState, type PlanUsageSliceState } from "./state/machine-access.js";
 import { initialAutomationsState, type AutomationsState } from "./state/automations.js";
 import { initialRunsState, type RunsState } from "./state/runs.js";
+import { initialIdleCompactionState, type IdleCompactionState } from "./state/idle-compaction.js";
 import { initialSideChatsState, type SideChatsState } from "./state/side-chats.js";
 import { initialRemoteState, type RemoteState } from "./state/remote.js";
 import { initialAppUpdatesState, type AppUpdatesState } from "./state/app-updates.js";
@@ -73,6 +74,7 @@ export type WorkspaceState =
   & ComputerUseSliceState
   & AutomationsState
   & RunsState
+  & IdleCompactionState
   & SideChatsState
   & RemoteState
   & AppUpdatesState
@@ -86,7 +88,7 @@ export type WorkspaceState =
 export type SliceState =
   | ProjectAddWorkspaceState | ThreadsState | ProjectsState | WorktreesState | NavigationState | NewThreadDraftState | EnginesState
   | ComposerState | DialogsState | SettingsState | DocksState | FindBarState | BrowserState | SimulatorSliceState | DictationSliceState
-  | GitState | DesktopState | CliSliceState | PlanUsageSliceState | ComputerUseSliceState | AutomationsState | RunsState | SideChatsState
+  | GitState | DesktopState | CliSliceState | PlanUsageSliceState | ComputerUseSliceState | AutomationsState | RunsState | IdleCompactionState | SideChatsState
   | RemoteState | AppUpdatesState | ToastsState | ComputersSliceState | StoreState | ErrorsState;
 
 export function emptyWorkspaceState(storageError: string | null = null): WorkspaceState {
@@ -113,6 +115,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     ...initialComputerUseState(),
     ...initialAutomationsState(),
     ...initialRunsState(),
+    ...initialIdleCompactionState(),
     ...initialSideChatsState(),
     ...initialRemoteState(),
     ...initialAppUpdatesState(),
