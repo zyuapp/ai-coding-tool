@@ -11,7 +11,7 @@ const CONFIRM_MS = 1400;
  * carries no text of its own: a search walks the text nodes of a message, and a word here would be
  * counted as part of the answer.
  */
-export function CopyButton({ text, label, className = "copy-affordance" }: { text: string; label: string; className?: string }) {
+export function CopyButton({ text, html, label, className = "copy-affordance" }: { text: string; html?: string; label: string; className?: string }) {
   const [result, setResult] = useState<"copied" | "failed" | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current !== null) clearTimeout(timer.current); }, []);
@@ -26,7 +26,7 @@ export function CopyButton({ text, label, className = "copy-affordance" }: { tex
         event.preventDefault();
         event.stopPropagation();
         void (async () => {
-          const copied = await copyText(text);
+          const copied = await copyText(text, html);
           setResult(copied ? "copied" : "failed");
           if (timer.current !== null) clearTimeout(timer.current);
           timer.current = setTimeout(() => setResult(null), CONFIRM_MS);
@@ -39,11 +39,11 @@ export function CopyButton({ text, label, className = "copy-affordance" }: { tex
 }
 
 /** A block with its own copy button in the corner. Empty text draws the block alone. */
-export function Copyable({ text, label, className, children }: { text: string; label: string; className?: string; children: ReactNode }) {
+export function Copyable({ text, html, label, className, children }: { text: string; html?: string; label: string; className?: string; children: ReactNode }) {
   return (
     <div className={className ? `copyable ${className}` : "copyable"}>
       {children}
-      {text ? <CopyButton text={text} label={label} /> : null}
+      {text ? <CopyButton text={text} html={html} label={label} /> : null}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { useKnownCommit } from "../known-commits";
 import { MAX_VISUAL_SOURCE, VISUAL_LANGUAGE } from "../../domain/visual-frame";
 import { modHeld, platformCapabilities } from "../platform";
 import { copyText } from "../clipboard";
+import { formatTable } from "../../domain/markdown-table";
 
 const APP_HREF = /^aicodingtool:/i;
 const WEB_HREF = /^https?:/i;
@@ -52,15 +53,6 @@ const Unsettled = createContext(false);
 /** The Markdown this document was rendered from, which a block slices to copy itself back out. */
 const Source = createContext("");
 
-/** What a node was written as. A block still being streamed has nothing settled to copy yet. */
-function useBlockSource(node: ExtraProps["node"]) {
-  const source = useContext(Source);
-  const unsettled = useContext(Unsettled);
-  const at = node?.position;
-  if (unsettled || !at) return "";
-  return source.slice(at.start.offset ?? 0, at.end.offset ?? 0);
-}
-
 function MarkdownPre({ children, node, ...props }: ComponentProps<"pre"> & ExtraProps) {
   const unsettled = useContext(Unsettled);
   const child = Children.count(children) === 1 ? Children.only(children) : null;
@@ -92,11 +84,50 @@ function MarkdownPre({ children, node, ...props }: ComponentProps<"pre"> & Extra
   );
 }
 
-/** A table has no plain text of its own, so it is copied as the Markdown it was written as. */
+type TableNode = NonNullable<ExtraProps["node"]>["children"][number];
+type TableElement = Extract<TableNode, { type: "element" }>;
+
+function elements(node: { children: TableNode[] }, ...tags: string[]) {
+  return node.children.filter((child): child is TableElement => child.type === "element" && tags.includes(child.tagName));
+}
+
+function shownText(node: TableNode): string {
+  if (node.type === "text") return node.value;
+  return "children" in node ? node.children.map(shownText).join("") : "";
+}
+
+function escapeHtml(text: string) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * A table copies as aligned Markdown, and for rich-text apps such as Slack, which show neither
+ * Markdown tables nor pasted HTML tables, as the same grid of shown text in a monospace block.
+ */
+function useTableCopy(node: ExtraProps["node"]) {
+  const source = useContext(Source);
+  const unsettled = useContext(Unsettled);
+  return useMemo(() => {
+    if (unsettled || !node) return { text: "", html: undefined };
+    const rows = elements(node, "thead", "tbody").flatMap((section) => elements(section, "tr")).map((row) => elements(row, "th", "td"));
+    const align = (rows[0] ?? []).map((cell) => {
+      const value = cell.properties.align;
+      return value === "left" || value === "right" || value === "center" ? value : null;
+    });
+    const written = rows.map((row) => row.map((cell) => {
+      const from = cell.children[0]?.position?.start.offset;
+      const to = cell.children.at(-1)?.position?.end.offset;
+      return from === undefined || to === undefined ? shownText(cell) : source.slice(from, to);
+    }));
+    const shown = rows.map((row) => row.map(shownText));
+    return { text: formatTable(written, align), html: `<pre>${escapeHtml(formatTable(shown, align))}</pre>` };
+  }, [node, source, unsettled]);
+}
+
 function MarkdownTable({ node, ...props }: ComponentProps<"table"> & ExtraProps) {
-  const source = useBlockSource(node);
+  const { text, html } = useTableCopy(node);
   return (
-    <Copyable text={source} label="Copy the table" className="copyable-table">
+    <Copyable text={text} html={html} label="Copy the table" className="copyable-table">
       <table {...props} />
     </Copyable>
   );

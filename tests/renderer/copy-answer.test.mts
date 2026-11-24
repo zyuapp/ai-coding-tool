@@ -8,11 +8,28 @@ const { MarkdownMessage } = await import("../../src/renderer/components/Markdown
 const { ConversationTimeline } = await import("../../src/renderer/components/ConversationTimeline.tsx");
 
 /** Records what the clipboard was asked to hold, which jsdom has no clipboard of its own for. */
+let rich: Record<string, string>[] = [];
+
 function clipboard() {
   const written: string[] = [];
+  rich = [];
+  Object.defineProperty(globalThis, "ClipboardItem", {
+    configurable: true,
+    value: class { constructor(readonly parts: Record<string, Blob>) {} },
+  });
   Object.defineProperty(dom.window.navigator, "clipboard", {
     configurable: true,
-    value: { writeText: async (text: string) => { written.push(text); } },
+    value: {
+      writeText: async (text: string) => { written.push(text); },
+      write: async (items: { parts: Record<string, Blob> }[]) => {
+        for (const { parts } of items) {
+          const entry: Record<string, string> = {};
+          for (const [type, blob] of Object.entries(parts)) entry[type] = await blob.text();
+          rich.push(entry);
+          written.push(entry["text/plain"]);
+        }
+      },
+    },
   });
   return written;
 }
@@ -50,13 +67,14 @@ test("a code block copies what is inside its fence, so pasted JSON stays valid",
   await view.unmount();
 });
 
-test("a table copies as the Markdown it was written as", async () => {
+test("a table copies as aligned Markdown, and as a monospace grid of its shown text for rich-text apps", async () => {
   const written = clipboard();
-  const view = await mount(React.createElement(MarkdownMessage, { children: ANSWER }));
+  const view = await mount(React.createElement(MarkdownMessage, { children: "| step | owner |\n| :-- | --: |\n| `write` | reducer \\| store |\n" }));
 
   await copyFrom(view.container, "Copy the table");
 
-  assert.equal(item(written[0]), "| step | owner |\n| --- | --- |\n| write | reducer |");
+  assert.equal(item(written[0]), "| step    |            owner |\n| :------ | ---------------: |\n| `write` | reducer \\| store |");
+  assert.ok(item(rich[0])["text/html"].includes("<pre>| step  |           owner |\n| :---- | --------------: |\n| write | reducer | store |</pre>"));
   await view.unmount();
 });
 
