@@ -45,9 +45,11 @@ Work under review
 - Files touched: <list>
 - Focus: <focus or "none">
 - Implementer's evidence: <evidence>
+The exclusions and evidence are the implementer's claims. Check each against the repository before you rely on it.
 
 Review vectors, in order of weight
-1. Correctness: the change does what was requested, is secure, and works for every engine the app supports. Open the code that produces each value the change reads and the code that consumes each value it writes, inside the diff or not, and check that it still works. Check state saved before the change, each mode the code runs in, and each setting's default.
+1. Correctness: the change does what was requested and works for every engine the app supports. Open the code that produces each value the change reads and the code that consumes each value it writes, inside the diff or not, and check that it still works. When the change sends new inputs into unchanged code, check what those inputs newly reach there: size limits, caps, totals across many items. Check state saved before the change, each mode the code runs in, and each setting's default. Check what happens when a step fails halfway, or when two requests run at once: for each call the change makes to something that can reject or fail (an API, a database, a queue), say what the user ends up seeing when it does.
+   Trust: for each permission, role, or resource the change grants, name who controls each fact it combines, and check whether valid facts can be arranged into a combination nobody authorized. Check whether inputs an outsider controls can cause cost: paid calls, jobs, storage.
 2. Architecture: the change follows the rules in AGENTS.md.
 3. Performance: no avoidable cost on hot paths or large inputs.
 4. Quality: tests cover new and changed behaviour, comments follow the repository's comment rules.
@@ -57,7 +59,7 @@ Review vectors, in order of weight
 
 Edges: for each comparison, version or range check, threshold, limit, regex, parser, validation, time window, timeout, or retry the change adds or alters, list the inputs at its boundaries and check each against base and head: equal to the limit, just past it, empty, zero, negative, the largest value, an unexpected format, a value with extra parts (prefixes, suffixes, metadata, separators), text that only looks like a match, a reversed or descending range. To settle an unclear boundary, you may write a small probe script under /tmp that copies or imports one function. Never run the change's tests or build, and never install anything.
 
-Do not stop at the first finding. List every one that qualifies, then check each against the code once more and drop any you cannot confirm. Each finding names the input or state that triggers it and the wrong result.
+Do not stop at the first finding. List every one that qualifies, then check each against the code once more and drop any you cannot confirm. "The base has the same problem" excuses a finding only when the same inputs reached that code on the base. Each finding names the input or state that triggers it and the wrong result.
 
 User decisions: when the user's words do not settle a finding, or fixing it would change or widen the scope, mark it optional and start its claim with `User decision:`, naming the decision. It never affects the verdict.
 
@@ -84,7 +86,8 @@ Call `wait_for_thread` with `timeoutSeconds` 900. While it answers "Still workin
 
 When the verdict arrives:
 
-- `approved`: go to step 5.
+- `approved` after two or more rounds, with no fresh review yet: start one fresh reviewer as in step 2, with the same base and the current files touched, evidence and exclusions, and no round history. Link it to the user the same way and treat its verdict like any round's, sending later rounds to it. Start only one fresh reviewer per review.
+- `approved` otherwise: go to step 5.
 - `changes-requested`: for each finding, decide whether it is real and inside the request's scope. Fix the ones that are. Reject the rest with a one-line reason each. Do not widen the work to satisfy an optional finding. Leave each `User decision:` finding open for step 5.
 
 Tell the user, in one short message, which findings you are fixing and which you rejected and why.
