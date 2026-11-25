@@ -50,9 +50,6 @@ export function useMessageLinks() {
 /** Whether this document is the part of a stream still being written, whose last block will grow. */
 const Unsettled = createContext(false);
 
-/** The Markdown this document was rendered from, which a block slices to copy itself back out. */
-const Source = createContext("");
-
 function MarkdownPre({ children, node, ...props }: ComponentProps<"pre"> & ExtraProps) {
   const unsettled = useContext(Unsettled);
   const child = Children.count(children) === 1 ? Children.only(children) : null;
@@ -101,11 +98,10 @@ function escapeHtml(text: string) {
 }
 
 /**
- * A table copies as aligned Markdown, and for rich-text apps such as Slack, which show neither
- * Markdown tables nor pasted HTML tables, as the same grid of shown text in a monospace block.
+ * A table copies as aligned Markdown of its shown text, and for rich-text apps such as Slack, which
+ * show neither Markdown tables nor pasted HTML tables, as the same grid in a monospace block.
  */
 function useTableCopy(node: ExtraProps["node"]) {
-  const source = useContext(Source);
   const unsettled = useContext(Unsettled);
   return useMemo(() => {
     if (unsettled || !node) return { text: "", html: undefined };
@@ -114,14 +110,10 @@ function useTableCopy(node: ExtraProps["node"]) {
       const value = cell.properties.align;
       return value === "left" || value === "right" || value === "center" ? value : null;
     });
-    const written = rows.map((row) => row.map((cell) => {
-      const from = cell.children[0]?.position?.start.offset;
-      const to = cell.children.at(-1)?.position?.end.offset;
-      return from === undefined || to === undefined ? shownText(cell) : source.slice(from, to);
-    }));
     const shown = rows.map((row) => row.map(shownText));
-    return { text: formatTable(written, align), html: `<pre>${escapeHtml(formatTable(shown, align))}</pre>` };
-  }, [node, source, unsettled]);
+    const escaped = shown.map((row) => row.map((cell) => cell.replace(/\|/g, "\\|")));
+    return { text: formatTable(escaped, align), html: `<pre>${escapeHtml(formatTable(shown, align))}</pre>` };
+  }, [node, unsettled]);
 }
 
 function MarkdownTable({ node, ...props }: ComponentProps<"table"> & ExtraProps) {
@@ -326,10 +318,8 @@ export const MarkdownMessage = memo(function MarkdownMessage({ children, animate
     <MessageId.Provider value={messageId}>
     <MessageGallery.Provider value={gallery}>
     <Unsettled.Provider value={!!animate}>
-      <Source.Provider value={children}>
-        {tree}
-        {images.length > 0 && <div className="message-image-previews">{images.map((linked) => <MessageImagePreview key={`${messageId}:${linked.path}`} image={linked} messageId={messageId} />)}</div>}
-      </Source.Provider>
+      {tree}
+      {images.length > 0 && <div className="message-image-previews">{images.map((linked) => <MessageImagePreview key={`${messageId}:${linked.path}`} image={linked} messageId={messageId} />)}</div>}
     </Unsettled.Provider>
     </MessageGallery.Provider>
     </MessageId.Provider>
