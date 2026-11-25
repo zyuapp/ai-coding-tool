@@ -67,13 +67,13 @@ test("a code block copies what is inside its fence, so pasted JSON stays valid",
   await view.unmount();
 });
 
-test("a table copies its shown text as aligned Markdown, and as a monospace grid for rich-text apps", async () => {
+test("a table copies its shown text as compact Markdown, and as an aligned monospace grid for rich-text apps", async () => {
   const written = clipboard();
   const view = await mount(React.createElement(MarkdownMessage, { children: "| step | owner |\n| :-- | --: |\n| `write` | reducer \\| store |\n" }));
 
   await copyFrom(view.container, "Copy the table");
 
-  assert.equal(item(written[0]), "| step  |            owner |\n| :---- | ---------------: |\n| write | reducer \\| store |");
+  assert.equal(item(written[0]), "| step | owner |\n| :--- | ---: |\n| write | reducer \\| store |");
   assert.ok(item(rich[0])["text/html"].includes("<pre>| step  |           owner |\n| :---- | --------------: |\n| write | reducer | store |</pre>"));
   await view.unmount();
 });

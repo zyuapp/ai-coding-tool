@@ -14,7 +14,7 @@ import { useKnownCommit } from "../known-commits";
 import { MAX_VISUAL_SOURCE, VISUAL_LANGUAGE } from "../../domain/visual-frame";
 import { modHeld, platformCapabilities } from "../platform";
 import { copyText } from "../clipboard";
-import { formatTable } from "../../domain/markdown-table";
+import { tableCopy } from "../../domain/table-copy";
 
 const APP_HREF = /^aicodingtool:/i;
 const WEB_HREF = /^https?:/i;
@@ -98,8 +98,8 @@ function escapeHtml(text: string) {
 }
 
 /**
- * A table copies as aligned Markdown of its shown text, and for rich-text apps such as Slack, which
- * show neither Markdown tables nor pasted HTML tables, as the same grid in a monospace block.
+ * A table copies its shown text as compact Markdown, and for rich-text apps such as Slack, which
+ * show neither Markdown tables nor pasted HTML tables, as an aligned grid in a monospace block.
  */
 function useTableCopy(node: ExtraProps["node"]) {
   const unsettled = useContext(Unsettled);
@@ -110,9 +110,8 @@ function useTableCopy(node: ExtraProps["node"]) {
       const value = cell.properties.align;
       return value === "left" || value === "right" || value === "center" ? value : null;
     });
-    const shown = rows.map((row) => row.map(shownText));
-    const escaped = shown.map((row) => row.map((cell) => cell.replace(/\|/g, "\\|")));
-    return { text: formatTable(escaped, align), html: `<pre>${escapeHtml(formatTable(shown, align))}</pre>` };
+    const { markdown, grid } = tableCopy(rows.map((row) => row.map(shownText)), align);
+    return { text: markdown, html: `<pre>${escapeHtml(grid)}</pre>` };
   }, [node, unsettled]);
 }
 
