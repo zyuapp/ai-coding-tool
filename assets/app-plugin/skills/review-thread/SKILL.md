@@ -64,10 +64,8 @@ Do not stop at the first finding. List every one that qualifies, then check each
 Blocking bar: report a finding only when all of these hold. Drop the rest.
 - The change introduced it, sends new inputs to it, or leaves part of the request undone.
 - Its trigger is reachable: you can name the caller, saved state, user action, or external data that produces it. An input you can only imagine does not count.
-- The author would fix it if told. Its fix needs no more rigor than the surrounding code shows.
+- The author would fix it if told. Its fix stays within the request and needs no more rigor than the surrounding code shows.
 When no finding meets the bar, approve.
-
-User decisions: when the user's words do not settle a finding, or fixing it would change or widen the scope, tag it `[decision]` and start its claim with `User decision:`, naming the decision. It never affects the verdict.
 
 Verdict rule: any blocking finding means changes requested. Findings under 3, 4, 6, or 7 are blocking only at high severity; drop the rest.
 
@@ -75,7 +73,7 @@ Reply in exactly this shape, and nothing before the first line:
 
 VERDICT: approved | changes-requested
 FINDINGS:
-- [blocking|decision] <vector> <file>:<line> — <one-sentence claim> — <triggering input or state> gives <wrong result>
+- <vector> <file>:<line> — <one-sentence claim> — <triggering input or state> gives <wrong result>
 (or "none")
 VERIFIED:
 - <finding from the previous round> — fixed | not fixed: <why>
@@ -94,7 +92,7 @@ When the verdict arrives:
 
 - `approved` after three or more rounds, with no fresh review yet: start one fresh reviewer as in step 2, with the same base and the current files touched, evidence and exclusions, and no round history. Link it to the user the same way and treat its verdict like any round's, sending later rounds to it. Start only one fresh reviewer per review.
 - `approved` otherwise: go to step 5.
-- `changes-requested`: for each finding, decide whether it is real and inside the request's scope. Fix the ones that are. Reject the rest with a one-line reason each. Leave each `User decision:` finding open for step 5.
+- `changes-requested`: for each finding, decide whether it is real and inside the request's scope. Fix the ones that are. Reject the rest with a one-line reason each.
 
 Tell the user, in one short message, which findings you are fixing and which you rejected and why.
 
@@ -119,4 +117,4 @@ Return to step 3. Keep going until the reviewer answers `approved`. Never end yo
 
 ## 5. Finish
 
-Report to the user in one message: the final verdict, how many rounds ran, what was fixed, and any finding left open with its reason, including each `User decision:` finding. Then continue the thread's normal finishing steps for the original request, including the commit if the request called for one. Leave the reviewer thread open; the user may want to ask it questions.
+Report to the user in one message: the final verdict, how many rounds ran, what was fixed, and any finding left open with its reason. Then continue the thread's normal finishing steps for the original request, including the commit if the request called for one. Leave the reviewer thread open; the user may want to ask it questions.
