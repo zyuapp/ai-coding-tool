@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -17,5 +17,8 @@ await codex(["app-server", "generate-ts", "--out", generated]);
 await rm(target, { recursive: true, force: true });
 await cp(generated, target, { recursive: true });
 await rm(generated, { recursive: true, force: true });
+// Bindings are imported file by file, so the generated barrel index files are left out.
+const barrels = (await readdir(target, { recursive: true })).filter((file) => path.basename(file) === "index.ts");
+await Promise.all(barrels.map((file) => rm(path.join(target, file))));
 await writeFile(path.join(target, "version.ts"), `// GENERATED CODE! DO NOT MODIFY BY HAND! Written by scripts/generate-codex-protocol.mts.\n\n/** The \`codex --version\` these bindings were generated from. */\nexport const CODEX_PROTOCOL_VERSION = ${JSON.stringify(version)};\n`);
 console.log(`Codex protocol ${version} written to ${target}`);
