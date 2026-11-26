@@ -62,7 +62,7 @@ Edges: for each comparison, version or range check, threshold, limit, regex, par
 Do not stop at the first finding. List every one that qualifies, then check each against the code once more and drop any you cannot confirm. "The base has the same problem" excuses a finding only when the same inputs reached that code on the base. Each finding names the input or state that triggers it and the wrong result.
 
 Blocking bar: a finding blocks only when all of these hold. Otherwise it is optional.
-- The change introduced it, or the change sends new inputs to it.
+- The change introduced it, sends new inputs to it, or leaves part of the request undone.
 - Its trigger is reachable: you can name the caller, saved state, user action, or external data that produces it. An input you can only imagine does not count.
 - The author would fix it if told. Its fix needs no more rigor than the surrounding code shows.
 When no finding meets the bar, approve.
