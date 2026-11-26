@@ -57,13 +57,19 @@ Review vectors, in order of weight
 6. Evidence: the implementer's evidence exercises each behaviour change. Raise a finding only when no reported check did.
 7. Simplicity: every added abstraction, branch, option, or file is a cost. Name any that a simpler change could remove while still meeting the request.
 
-Edges: for each comparison, version or range check, threshold, limit, regex, parser, validation, time window, timeout, or retry the change adds or alters, list the inputs at its boundaries and check each against base and head: equal to the limit, just past it, empty, zero, negative, the largest value, an unexpected format, a value with extra parts (prefixes, suffixes, metadata, separators), text that only looks like a match, a reversed or descending range. To settle an unclear boundary, you may write a small probe script under /tmp that copies or imports one function. Never run the change's tests or build, and never install anything.
+Edges: for each comparison, version or range check, threshold, limit, regex, parser, validation, time window, timeout, or retry the change adds or alters, list the inputs at its boundaries and check each against base and head: equal to the limit, just past it, empty, zero, negative, the largest value, an unexpected format, a value with extra parts (prefixes, suffixes, metadata, separators), text that only looks like a match, a reversed or descending range. An edge finding names the caller, saved state, user action, or external data that produces its input. To settle an unclear boundary, you may write a small probe script under /tmp that copies or imports one function. Never run the change's tests or build, and never install anything.
 
 Do not stop at the first finding. List every one that qualifies, then check each against the code once more and drop any you cannot confirm. "The base has the same problem" excuses a finding only when the same inputs reached that code on the base. Each finding names the input or state that triggers it and the wrong result.
 
+Blocking bar: a finding blocks only when all of these hold. Otherwise it is optional.
+- The change introduced it, or the change sends new inputs to it.
+- Its trigger is reachable: you can name the caller, saved state, user action, or external data that produces it. An input you can only imagine does not count.
+- The author would fix it if told. Its fix needs no more rigor than the surrounding code shows.
+When no finding meets the bar, approve.
+
 User decisions: when the user's words do not settle a finding, or fixing it would change or widen the scope, mark it optional and start its claim with `User decision:`, naming the decision. It never affects the verdict.
 
-Verdict rule: any finding under 1, 2, 5, or 6 means changes requested. Findings under 3, 4, or 7 mean changes requested only at high severity; otherwise list them as optional.
+Verdict rule: a finding under 1, 2, or 5 that meets the blocking bar means changes requested. Findings under 3, 4, 6, or 7 mean changes requested only at high severity; otherwise list them as optional.
 
 Reply in exactly this shape, and nothing before the first line:
 
@@ -75,7 +81,7 @@ VERIFIED:
 - <finding from the previous round> — fixed | not fixed: <why>
 (only after the first round)
 
-Later rounds arrive as messages in this thread. In a later round, verify each finding you were told was fixed, then review the delta since the SHA in that message. Trace the delta's producers and consumers and run the edge checks on every boundary it touches, as in the first round. Raise a finding in unchanged code when the delta's change reaches it; raise other new findings on unchanged code only when they are blocking.
+Later rounds arrive as messages in this thread. In a later round, verify each finding you were told was fixed, then review the delta since the SHA in that message for what it broke: trace its producers and consumers, and run the edge checks only on boundaries the delta adds or changes. A finding the fix left open goes under VERIFIED as not fixed, where it still counts toward the verdict; do not repeat or reword it under FINDINGS. Raise new findings on code the delta did not change only when they are blocking.
 ```
 
 Reply to the user with one line linking the reviewer as `[Review: <title>](aicodingtool://thread/<id>)`, then wait.
@@ -86,7 +92,7 @@ Call `wait_for_thread` with `timeoutSeconds` 900. While it answers "Still workin
 
 When the verdict arrives:
 
-- `approved` after two or more rounds, with no fresh review yet: start one fresh reviewer as in step 2, with the same base and the current files touched, evidence and exclusions, and no round history. Link it to the user the same way and treat its verdict like any round's, sending later rounds to it. Start only one fresh reviewer per review.
+- `approved` after three or more rounds, with no fresh review yet: start one fresh reviewer as in step 2, with the same base and the current files touched, evidence and exclusions, and no round history. Link it to the user the same way and treat its verdict like any round's, sending later rounds to it. Start only one fresh reviewer per review.
 - `approved` otherwise: go to step 5.
 - `changes-requested`: for each finding, decide whether it is real and inside the request's scope. Fix the ones that are. Reject the rest with a one-line reason each. Do not widen the work to satisfy an optional finding. Leave each `User decision:` finding open for step 5.
 
@@ -106,7 +112,10 @@ Delta to review: `git diff <previous sha>` and the working tree.
 Verify the fixes, review the delta and the code it reaches, and reply in the same shape.
 ```
 
-Return to step 3. Keep going until the reviewer answers `approved`; there is no round limit. Never end your turn with a `changes-requested` verdict on the table: fixing it and sending the next round is your work, not the user's to prompt. Stop early only when the user says to, or when every remaining finding is one you reject and the reviewer has kept it for two rounds running; then say so in step 5 and let the user decide.
+Return to step 3. Keep going until the reviewer answers `approved`. Never end your turn with a `changes-requested` verdict on the table: fixing it and sending the next round is your work, not the user's to prompt. Stop early, say so in step 5, and let the user decide when:
+- the user says to;
+- a reviewer has run five rounds without approving;
+- every remaining finding is one you reject, or one you already fixed once, and the reviewer has kept it for two rounds running.
 
 ## 5. Finish
 
